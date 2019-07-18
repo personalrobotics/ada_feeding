@@ -1,0 +1,21 @@
+body * {
+    text-align: center;
+    margin: auto;
+}
+
+#food_image_container {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+#video_stream_container {
+    background-color: lavender;
+    display: none;
+    width: 500px;
+    height: 500px;
+}
+
+#food_choosing_interface {
+    background-color: deepskyblue;
+    display: none;
+}
