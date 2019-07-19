@@ -3,19 +3,70 @@ body * {
     margin: auto;
 }
 
+h1 {
+    font-size: 2.5em;
+}
+
+h2 {
+    font-size: 1.2em;
+}
+
+button {
+    font-size: 1em;
+}
+
+.back_btn {
+    background-color: rgb(241, 241, 241);
+    border-color: rgb(241, 241, 241);
+}
+
+.action_btn {
+    background-color: #fff4b5;
+    border-color: #fff4b5;
+    width: 10%;
+    margin: 1em;
+}
+
+#title {
+    margin-bottom: 1em;
+}
+
 #food_image_container {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
 }
 
+.food_image {
+    margin: 1em;
+    margin-bottom: 2em;
+}
+
+.food_image:hover, #video_stream:hover {
+    cursor: pointer;
+}
+
+#video_stream_container, #food_choosing_interface {
+    padding: 1em;
+}
+
 #video_stream_container {
-    background-color: lavender;
+    background-color: rgb(173, 221, 253);
     display: none;
-    width: 500px;
-    height: 500px;
+}
+
+#video_stream, #actions {
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+
+#video_stream {
+    background-color: lavender;
+    height: 450px;
+    width: 800px;
 }
 
 #food_choosing_interface {
-    background-color: deepskyblue;
+    background-color: rgb(173, 221, 253);
     display: none;
 }
+
