@@ -1,6 +1,16 @@
+@viewport {
+    width: device-width;
+    zoom: 1.0;
+}
+
+@-ms-viewport {
+    width: device-width;
+}
+
 body * {
     text-align: center;
     margin: auto;
+    font-family: system-ui;
 }
 
 h1 {
@@ -9,26 +19,74 @@ h1 {
 
 h2 {
     font-size: 1.2em;
+    margin-bottom: 1em;
 }
 
 button {
     font-size: 1em;
+    border: none;
+    padding: 0.5em;
 }
 
-.back_btn {
-    background-color: rgb(241, 241, 241);
-    border-color: rgb(241, 241, 241);
+button:hover, .food_image:hover, #random_image:hover, #video_stream:hover {
+    cursor: pointer;
 }
 
 .action_btn {
-    background-color: #fff4b5;
-    border-color: #fff4b5;
+    background-color: #ffd075;
     width: 10%;
     margin: 1em;
 }
 
-#title {
-    margin-bottom: 1em;
+#mode {
+    font-size: 0.8em;
+    margin-top: 1em;
+    margin-bottom: 2em;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 30%;
+}
+
+#user_mode_btn, #dev_mode_btn {
+    width: 100%;
+    height: 100%;
+}
+
+#user_mode_btn {
+    background-color: #adc7dc;
+}
+
+#dev_mode_btn {
+    background-color: #d6e3ed;
+    color: white;
+}
+
+#food_display_container {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+}
+
+#food_display_container h2 {
+    margin-top: 1em;
+}
+
+#food_pick_container, #food_random_container {
+    margin: 0;
+}
+
+#food_pick_container {
+    background-color: #eefcec;
+}
+
+#food_random_container {
+    background-color: #f6ffea;
+}
+
+#random_image {
+    width: 200px;
+    height: 200px;
+    margin-top: 2em;
+    margin-bottom: 2em;
 }
 
 #food_image_container {
@@ -36,22 +94,33 @@ button {
     grid-template-columns: 1fr 1fr 1fr;
 }
 
+#random_pick_btn {
+    background-color: #54707a;
+    color: white;
+    padding: 0.8em;
+}
+
 .food_image {
     margin: 1em;
     margin-bottom: 2em;
-}
-
-.food_image:hover, #video_stream:hover {
-    cursor: pointer;
 }
 
 #video_stream_container, #food_choosing_interface {
     padding: 1em;
 }
 
-#video_stream_container {
-    background-color: rgb(173, 221, 253);
+#video_stream_container, #food_choosing_interface {
+    background-color: #e3f4ff;
     display: none;
+    position: relative;
+}
+
+.back_btn {
+    background-color: rgb(148, 148, 148);
+    color: white;
+    position: absolute;
+    top: 1em;
+    left: 1em;
 }
 
 #video_stream, #actions {
@@ -65,8 +134,21 @@ button {
     width: 800px;
 }
 
-#food_choosing_interface {
-    background-color: rgb(173, 221, 253);
-    display: none;
+#estop {
+    display: block;
+    background-color: #f67e85;
+    margin-top: 2em;
+    padding: 1em;
+    color: white;
 }
 
+/* Mobile Friendly Style */
+@media screen and (max-width: 1000px) { 
+    #food_display_container {
+        display: block;
+    }
+    
+    #food_pick_container {
+        margin: auto;
+    }
+}

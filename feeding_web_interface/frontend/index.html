@@ -12,21 +12,41 @@
 
 <body>
     <h1 id="title">Feeding Web Interface</h1>
-    <div id="food_image_container"></div>
+
+    <div id="mode">
+        <button id="user_mode_btn">User Mode</button>
+        <button id="dev_mode_btn">Developer Mode</button>
+    </div>
+
+    <div id="food_display_container">
+        <div id="food_pick_container">
+            <h2>Please pick a food</h2>
+            <div id="food_image_container"></div>
+        </div>
+        <div id="food_random_container">
+            <h2>Select a food randomly?</h2>
+            <img id="random_image" src="pics/question_mark.png" alt="question mark" style="display:block" />
+            <button id="random_pick_btn">Generate</button>
+        </div>
+    </div>
+
     <div id="video_stream_container">
+        <button id="back_to_food_image_container" class="back_btn">Back</button>
         <h2>Camera</h2>
         <div id="video_stream"></div>
-        <button id="back_to_food_image_container" class="back_btn">Back</button>
     </div>
+
     <div id="food_choosing_interface">
+        <button id="back_to_video_stream_container" class="back_btn">Back</button>
         <h2>Actions</h2>
         <div id="actions">
             <button class="action_btn">A</button>
             <button class="action_btn">B</button>
             <button class="action_btn">C</button>
         </div>
-        <button id="back_to_video_stream_container" class="back_btn">Back</button>
     </div>
+
+    <button id="estop">Emergency Stop</button>
 </body>
 
 
