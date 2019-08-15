@@ -42,11 +42,6 @@ button:hover, .food_image img:hover, #random_image:hover, #video_stream:hover {
     margin: 1em;
 }
 
-#general_ctrl {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-}
-
 #mode {
     font-size: 0.8em;
     margin-top: 1em;
@@ -154,9 +149,6 @@ button:hover, .food_image img:hover, #random_image:hover, #video_stream:hover {
 }
 
 #video_stream {
-    background-color: lavender;
-    height: 480px;
-    width: 800px;
     margin: auto;
 }
 
@@ -170,31 +162,36 @@ button:hover, .food_image img:hover, #random_image:hover, #video_stream:hover {
     font-size: 1.5em;
 }
 
-/* Dropdown Button Layout */
+#verbosity_dropdown_container {
+    margin-top: 1em;
+}
+
+.dropdown, #verbosity_dropdown_container p {
+    display: inline-block;
+    font-size: 0.8em;
+}
+
 .dropdown {
     position: relative;
-    font-size: 0.8em;
-    width: 300px;
-    display: inline-block;
+}
+
+.dropdown, .dropbtn, .dropdown_content {
+    width: 140px;
 }
 
 .dropbtn {
-    background-color: #e5e5e5;
+    background-color: #ebebeb;
     border-radius: 10px;
 }
 
-/* Dropdown Content (Hidden by Default) */
 .dropdown_content {
     display: none;
     position: absolute;
     background-color: #f3f3f3;
-    max-width: 300px;
     box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
     z-index: 1;
-    margin-left: 5% !important;
 }
 
-/* links inside the dropdown */
 .dropdown_content a {
     color: black;
     padding: 0.5em 0.6em;
@@ -202,23 +199,30 @@ button:hover, .food_image img:hover, #random_image:hover, #video_stream:hover {
     display: block;
 }
 
-/* change color of dropdown links on hover */
 .dropdown_content a:hover {
     background-color: #ddd;
 }
 
-/* show the dropdown menu on hover */
-.dropdown:hover .dropdown_content {
-    display: block;
-}
-
-/* change the background color of the dropdown button when the dropdown content is shown */
 .dropdown:hover .dropbtn {
     background-color: #e5f2f6;
 }
 
 
 /* Mobile Friendly Style */
+@media screen and (max-width: 1200px) {
+    #camera_container canvas, #video_stream canvas {
+        width: 505px;
+        height: 380px;
+    }
+}
+
+@media screen and (max-width: 1050px) {
+    #camera_container canvas, #video_stream canvas {
+        width: 466px;
+        height: 350px;
+    }
+}
+
 @media screen and (max-width: 1000px) { 
     #food_pick_container, #food_random_container, #camera_container {
         padding: 0.8em;
@@ -236,5 +240,29 @@ button:hover, .food_image img:hover, #random_image:hover, #video_stream:hover {
     #random_image {
         width: 11em;
         height: 11em;
+    }
+}
+
+@media screen and (max-width: 500px) {
+    #mode {
+        width: 80%;
+    }
+
+    #food_pick_container, #food_random_container, #camera_container {
+        margin: auto;
+    }
+    
+    #camera_container canvas, #video_stream canvas {
+        width: 300px;
+        height: 225px;
+    }
+
+    #camera {
+        margin: 0;
+    }
+
+    #estop {
+        margin-top: 0.5em;
+        margin-bottom: 2em;
     }
 }

@@ -2,13 +2,15 @@
 
 let self = this;
 
+// verbosity level of the program
+let verbosityLevel = "";
 // program mode: user mode (default) / developer mode
 let isUserMode = true;
 // list of food
 let foodImages = ["pics/apple.jpg", "pics/banana.jpg", "pics/candy.jpg", "pics/strawberry.jpg"];
 // food image size
-let foodImageW = "9em";
-let foodImageH = "9em";
+let foodImageW = "8em";
+let foodImageH = "8em";
 
 $(function() {
     $(document).ready(function() {
@@ -45,6 +47,14 @@ $(function() {
         });
 
         // Event handlers
+        // verbosity dropdown hover
+        $(".dropdown").mouseenter(showDropdown).mouseleave(hideDropdown);
+        $(".dropdown").click(showDropdown);
+        // verbosity dropdown click
+        let verbosityDropdownLists = document.querySelectorAll(".dropdown_content a");
+        for (let i = 0; i < verbosityDropdownLists.length; i++) {
+            verbosityDropdownLists[i].addEventListener("click", makeVerbositySelection);
+        }
         // mode buttons
         $("#user_mode_btn").click(switchMode);
         $("#dev_mode_btn").click(switchMode);
@@ -86,6 +96,29 @@ $(function() {
         }        
     });
 
+    function showDropdown() {
+        // show the dropdown menu
+        $(".dropdown_content").css("display", "block");
+    }
+
+    function hideDropdown() {
+        // hide the dropdown menu
+        $(".dropdown_content").css("display", "none");
+    }
+
+    function makeVerbositySelection() {
+        hideDropdown();
+        // mark the selection
+        let selectedVerbosityLevel = this.innerHTML;
+        document.getElementById("verbosity_btn").innerHTML = selectedVerbosityLevel;
+        // record selected grasp type
+        if (selectedVerbosityLevel != "Select verbosity level") {
+            verbosityLevel = selectedVerbosityLevel;
+        } else {
+            verbosityLevel = "";
+        }
+    }
+
     function switchMode() {
         if (this.innerHTML == "User Mode") {
             isUserMode = true;
@@ -99,7 +132,11 @@ $(function() {
     }
 
     function backToFoodContainer() {
-        $("#food_display_container").css("display", "grid");
+        if (window.innerWidth < 1000) {
+            $("#food_display_container").css("display", "block");
+        } else {
+            $("#food_display_container").css("display", "grid");
+        }
         $("#video_stream_container").css("display", "none");
     }
 
