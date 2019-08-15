@@ -3,7 +3,10 @@
 // program mode: user mode (default) / developer mode
 let isUserMode = true;
 // list of food
-let foodImages = ["pics/apple.jpg", "pics/banana.jpg", "pics/cake.jpg", "pics/candy.jpg", "pics/ice_cream.jpg", "pics/strawberry.jpg"];
+let foodImages = ["pics/apple.jpg", "pics/banana.jpg", "pics/candy.jpg", "pics/strawberry.jpg"];
+// food image size
+let foodImageW = "9em";
+let foodImageH = "9em";
 
 $(function() {
     $(document).ready(function() {
@@ -31,8 +34,6 @@ $(function() {
         for (var i = 0; i < foodImages.length; i++) { 
             var imageDiv = document.createElement("div");
             imageDiv.className = "food_image";
-            // event handler
-            imageDiv.addEventListener("click", showImage);
 
             let imgaeName = foodImages[i].split("/")[1].split(".")[0];
             imgaeName = imgaeName.charAt(0).toUpperCase() + imgaeName.substring(1);
@@ -41,8 +42,10 @@ $(function() {
             var image = document.createElement("img");
             image.src = foodImages[i];
             image.alt = imgaeName;
-            image.style.width = "100px";
-            image.style.height = "100px";
+            image.style.width = foodImageW;
+            image.style.height = foodImageH;
+            // event handler
+            image.addEventListener("click", showImage);
 
             imageDiv.appendChild(title);
             imageDiv.appendChild(image);
