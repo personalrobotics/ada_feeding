@@ -1,0 +1,29 @@
+{
+  "name": "ros-service",
+  "version": "2.0.1",
+  "authors": [
+    "Justin Huang <jstn@cs.washington.edu>"
+  ],
+  "description": "An element for calling ROS services using roslibjs.",
+  "keywords": [
+    "web-component",
+    "polymer",
+    "seed"
+  ],
+  "main": "ros-service.html",
+  "license": "https://opensource.org/licenses/BSD-3-Clause",
+  "homepage": "https://github.com/jstnhuang/ros-service",
+  "ignore": [
+    "/.*",
+    "/test/"
+  ],
+  "dependencies": {
+    "polymer": "Polymer/polymer#1.9 - 2",
+    "ros-websocket": "jstnhuang/ros-websocket#^3.0.0"
+  },
+  "devDependencies": {
+    "iron-component-page": "PolymerElements/iron-component-page#^2.0.0",
+    "iron-demo-helpers": "PolymerElements/iron-demo-helpers#^2.0.0",
+    "web-component-tester": "^6.0.0"
+  }
+}

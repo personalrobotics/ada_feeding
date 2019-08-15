@@ -1,5 +1,7 @@
 "use strict";
 
+let self = this;
+
 // program mode: user mode (default) / developer mode
 let isUserMode = true;
 // list of food
@@ -10,6 +12,38 @@ let foodImageH = "9em";
 
 $(function() {
     $(document).ready(function() {
+        // ROS setup
+        self.ros = new ROSLIB.Ros({
+            url : 'ws://localhost:9090'
+        });
+        self.ros.on('error', function(error) {
+            console.log('Error connecting to websocket server.');
+        });
+        self.ros.on('connection', function () {
+            console.log("We are connected!");
+        });
+        self.ros.on('close', function(error) {
+            console.error('We lost connection with ROS.');
+        });
+
+        // Camera View
+        // in user mode
+        let userCameraViewer = new MJPEGCANVAS.Viewer({
+            divID : "camera",
+            host : 'localhost',
+            width : 640,
+            height : 480,
+            topic : "/camera/color/image_raw"
+        });
+        // in dev mode
+        let devCameraViewer = new MJPEGCANVAS.Viewer({
+            divID : "video_stream",
+            host : 'localhost',
+            width : 800,
+            height : 480,
+            topic : "/camera/color/image_raw"
+        });
+
         // Event handlers
         // mode buttons
         $("#user_mode_btn").click(switchMode);
@@ -25,7 +59,6 @@ $(function() {
         // food actions
         var foodActionButtons = document.getElementById("actions").querySelectorAll(".action_btn");
         for (var i = 0; i < foodActionButtons.length; i++) {
-            console.log(foodActionButtons[i]);
             foodActionButtons[i].addEventListener("click", performAction);
             foodActionButtons[i].actionName = foodActionButtons[i].innerHTML;
         }
@@ -50,10 +83,7 @@ $(function() {
             imageDiv.appendChild(title);
             imageDiv.appendChild(image);
             $("#food_image_container").append(imageDiv);
-        }
-
-        // TODO: get vieo stream from backend, and insert in #video_stream
-        
+        }        
     });
 
     function switchMode() {

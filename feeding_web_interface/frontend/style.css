@@ -149,10 +149,15 @@ button:hover, .food_image img:hover, #random_image:hover, #video_stream:hover {
     margin-bottom: 1em;
 }
 
+#video_stream, #camera {
+    margin: 1em;
+}
+
 #video_stream {
     background-color: lavender;
-    height: 450px;
+    height: 480px;
     width: 800px;
+    margin: auto;
 }
 
 #estop {
