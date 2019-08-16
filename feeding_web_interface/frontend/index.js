@@ -114,9 +114,36 @@ $(function() {
         // record selected grasp type
         if (selectedVerbosityLevel != "Select verbosity level") {
             verbosityLevel = selectedVerbosityLevel;
+            // get verbosity level as integer
+            var conversion = convertVerbosity(selectedVerbosityLevel);
+            publishVerbosityMsg(conversion);
         } else {
             verbosityLevel = "";
         }
+    }
+
+    function convertVerbosity(selectedVerbosityLevel) {
+        if (selectedVerbosityLevel == "Basic") {
+            return 1;
+        } else if (selectedVerbosityLevel == "Intermediate") {
+            return 2;
+        } else {
+            return 3;
+        }
+    }
+
+    function publishVerbosityMsg(conversion) {
+        // publish message to ROS
+        var msg_topic = new ROSLIB.Topic({
+            ros: ros, 
+            name: '/verbosity_msg', 
+            messageType: 'std_msgs/Int32'
+        });
+        msg_topic.advertise();
+        var int = new ROSLIB.Message({
+            data : conversion
+        });
+        msg_topic.publish(int);
     }
 
     function switchMode() {
