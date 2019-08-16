@@ -146,6 +146,20 @@ $(function() {
         msg_topic.publish(int);
     }
 
+    function publishFoodItemMsg(foodName) {
+    // publish message to ROS
+    var msg_topic = new ROSLIB.Topic({
+        ros: ros, 
+        name: '/foodItem_msg', 
+        messageType: 'std_msgs/String'
+    });
+    msg_topic.advertise();
+    var food = new ROSLIB.Message({
+        data : foodName
+    });
+    msg_topic.publish(food);
+    }
+
     function switchMode() {
         if (this.innerHTML == "User Mode") {
             isUserMode = true;
@@ -180,6 +194,7 @@ $(function() {
             $("#food_display_container").css("display", "none");
             $("#video_stream_container").css("display", "block");
         }
+        publishFoodItemMsg(this.alt);
     }
 
     function backToVideoStream() {
