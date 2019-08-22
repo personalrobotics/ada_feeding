@@ -16,7 +16,7 @@ $(function() {
     $(document).ready(function() {
         // ROS setup
         self.ros = new ROSLIB.Ros({
-            url : 'ws://localhost:9090'
+            url : 'ws://ada_rosbridge.ngrok.io'
         });
         self.ros.on('error', function(error) {
             console.log('Error connecting to websocket server.');
@@ -32,7 +32,7 @@ $(function() {
         // in user mode
         let userCameraViewer = new MJPEGCANVAS.Viewer({
             divID : "camera",
-            host : 'localhost',
+            host : 'rosvideo.ngrok.io',
             width : 640,
             height : 480,
             topic : "/camera/color/image_raw"
@@ -40,7 +40,7 @@ $(function() {
         // in dev mode
         let devCameraViewer = new MJPEGCANVAS.Viewer({
             divID : "video_stream",
-            host : 'localhost',
+            host : 'rosvideo.ngrok.io',
             width : 800,
             height : 480,
             topic : "/camera/color/image_raw"
@@ -79,9 +79,9 @@ $(function() {
             imageDiv.className = "food_image";
 
             let imgaeName = foodImages[i].split("/")[1].split(".")[0];
-            imgaeName = imgaeName.charAt(0).toUpperCase() + imgaeName.substring(1);
+            // imgaeName = imgaeName.charAt(0).toUpperCase() + imgaeName.substring(1);
             var title = document.createElement("p");
-            title.innerHTML = imgaeName;
+            title.innerHTML = "";
             var image = document.createElement("img");
             image.src = foodImages[i];
             image.alt = imgaeName;
@@ -147,17 +147,17 @@ $(function() {
     }
 
     function publishFoodItemMsg(foodName) {
-    // publish message to ROS
-    var msg_topic = new ROSLIB.Topic({
-        ros: ros, 
-        name: '/foodItem_msg', 
-        messageType: 'std_msgs/String'
-    });
-    msg_topic.advertise();
-    var food = new ROSLIB.Message({
-        data : foodName
-    });
-    msg_topic.publish(food);
+        // publish message to ROS
+        var msg_topic = new ROSLIB.Topic({
+            ros: ros, 
+            name: '/foodItem_msg', 
+            messageType: 'std_msgs/String'
+        });
+        msg_topic.advertise();
+        var food = new ROSLIB.Message({
+            data : foodName
+        });
+        msg_topic.publish(food);
     }
 
     function switchMode() {
