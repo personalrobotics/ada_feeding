@@ -8,7 +8,7 @@
     <script src="https://static.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
     <script src="https://static.robotwebtools.org/ros3djs/current/ros3d.min.js"></script>
     <script src="https://static.robotwebtools.org/EventEmitter2/0.4.14/eventemitter2.min.js"></script>
-    <script src="..//common_js/mjpegcanvas.js"></script>
+    <script src="../common_js/mjpegcanvas.js"></script>
     <script src="../bower_components/arrive/src/arrive.js"></script>
 
     <script src="index.js"></script>
@@ -20,7 +20,7 @@
 <body>
     <h1 id="title">Feeding Web Interface</h1>
 
-    <div id="verbosity_dropdown_container">
+    <!-- <div id="verbosity_dropdown_container">
         <p>Verbosity: </p>
         <div class="dropdown">
             <button id="verbosity_btn" class="dropbtn">Select verbosity level</button>
@@ -31,7 +31,7 @@
                 <a href="#">High</a>
             </div>
         </div>
-    </div>
+    </div> -->
 
     <div id="mode">
         <button id="user_mode_btn">User Mode</button>
@@ -42,13 +42,6 @@
         <div id="food_pick_container">
             <h2>Please pick a food</h2>
             <div id="food_image_container"></div>
-        </div>
-        <div id="food_random_container">
-            <h2>Select a food randomly?</h2>
-            <div>
-                <img id="random_image" src="pics/question_mark.png" alt="question mark" style="display:block" />
-                <button id="random_pick_btn">Generate</button>
-            </div>
         </div>
         <div id="camera_container">
             <h2>Camera</h2>

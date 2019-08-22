@@ -7,10 +7,11 @@ let verbosityLevel = "";
 // program mode: user mode (default) / developer mode
 let isUserMode = true;
 // list of food
-let foodImages = ["pics/apple.jpg", "pics/banana.jpg", "pics/candy.jpg", "pics/strawberry.jpg"];
+// (note: the lasy entry must always be the random image!)
+let foodImages = ["pics/apple.jpg", "pics/banana.jpg", "pics/strawberry.jpg", "pics/random.png"];
 // food image size
-let foodImageW = "8em";
-let foodImageH = "8em";
+let foodImageW = "11.5em";
+let foodImageH = "11.5em";
 
 $(function() {
     $(document).ready(function() {
@@ -61,9 +62,6 @@ $(function() {
         // back buttons
         $("#back_to_food_image_container").click(backToFoodContainer);
         $("#back_to_video_stream_container").click(backToVideoStream);
-        // random food selection
-        $("#random_pick_btn").click(chooseFoodRandomly);
-        $("#random_image").click(showImage);
         // TODO: change this to event handlers for each food
         $("#video_stream").click(showAction);
         // food actions
@@ -75,13 +73,10 @@ $(function() {
 
         // Get image from backend
         for (var i = 0; i < foodImages.length; i++) { 
+            // create DOM elements
             var imageDiv = document.createElement("div");
             imageDiv.className = "food_image";
-
             let imgaeName = foodImages[i].split("/")[1].split(".")[0];
-            // imgaeName = imgaeName.charAt(0).toUpperCase() + imgaeName.substring(1);
-            var title = document.createElement("p");
-            title.innerHTML = "";
             var image = document.createElement("img");
             image.src = foodImages[i];
             image.alt = imgaeName;
@@ -89,8 +84,7 @@ $(function() {
             image.style.height = foodImageH;
             // event handler
             image.addEventListener("click", showImage);
-
-            imageDiv.appendChild(title);
+            // add to DOM
             imageDiv.appendChild(image);
             $("#food_image_container").append(imageDiv);
         }        
@@ -146,20 +140,6 @@ $(function() {
         msg_topic.publish(int);
     }
 
-    function publishFoodItemMsg(foodName) {
-        // publish message to ROS
-        var msg_topic = new ROSLIB.Topic({
-            ros: ros, 
-            name: '/foodItem_msg', 
-            messageType: 'std_msgs/String'
-        });
-        msg_topic.advertise();
-        var food = new ROSLIB.Message({
-            data : foodName
-        });
-        msg_topic.publish(food);
-    }
-
     function switchMode() {
         if (this.innerHTML == "User Mode") {
             isUserMode = true;
@@ -181,20 +161,37 @@ $(function() {
         $("#video_stream_container").css("display", "none");
     }
 
-    function chooseFoodRandomly() {
-        let randomImage = document.getElementById("random_image");
-        let randomNum = getRandomInt(0, foodImages.length);
-        randomImage.src = foodImages[randomNum];
-        randomImage.alt = "random image";
-    }
-
     function showImage() {
-        // dev mode only
-        if (!isUserMode && this.alt != "question mark") {
+        let foodName = this.alt;
+        // show large camera view in dev mode only
+        if (!isUserMode) {
             $("#food_display_container").css("display", "none");
             $("#video_stream_container").css("display", "block");
         }
-        publishFoodItemMsg(this.alt);
+        // pick a food if in random selection
+        if (foodName === "random") {
+            // the last entry in foodImages is always the random image
+            // so we should exclude the last index when generating a random number
+            let randomNum = getRandomInt(0, foodImages.length - 1);
+            foodName = foodImages[randomNum].split("/")[1].split(".")[0];
+        }
+        // publish message
+        console.log(foodName);
+        publishFoodItemMsg(foodName);
+    }
+
+    function publishFoodItemMsg(foodName) {
+        // publish message to ROS
+        var msg_topic = new ROSLIB.Topic({
+            ros: ros, 
+            name: '/foodItem_msg', 
+            messageType: 'std_msgs/String'
+        });
+        msg_topic.advertise();
+        var food = new ROSLIB.Message({
+            data : foodName
+        });
+        msg_topic.publish(food);
     }
 
     function backToVideoStream() {
