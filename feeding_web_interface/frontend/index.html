@@ -20,18 +20,27 @@
 <body>
     <h1 id="title">Feeding Web Interface</h1>
 
-    <!-- <div id="verbosity_dropdown_container">
-        <p>Verbosity: </p>
+    <button id="test1">handleActionDone</button>
+    <button id="test2">handleTimingDone</button>
+    <button id="test3">handleTransferDone</button>
+
+
+
+
+    <div id="trial_dropdown_container">
+        <p>Trial Type: </p>
         <div class="dropdown">
-            <button id="verbosity_btn" class="dropbtn">Select verbosity level</button>
+            <button id="trial_btn" class="dropbtn">Please select</button>
             <div class="dropdown_content">
-                <a href="#">Select verbosity level</a>
-                <a href="#">Basic</a>
-                <a href="#">Intermediate</a>
-                <a href="#">High</a>
+                <a href="#">Please select</a>
+                <a href="#" id="0">Non auto</a>  <!-- 0. Non-autonomous -->
+                <a href="#" id="1">Auto</a>      <!-- 1. Autonomous -->
+                <a href="#" id="2">Ac auto</a>   <!-- 2. Acquisition auto -->
+                <a href="#" id="3">Ti auto</a>   <!-- 3. Timing auto -->
+                <a href="#" id="4">Tr auto</a>   <!-- 4. Transfer auto -->
             </div>
         </div>
-    </div> -->
+    </div>
 
     <div id="mode">
         <button id="user_mode_btn">User Mode</button>
@@ -39,9 +48,32 @@
     </div>
 
     <div id="food_display_container">
-        <div id="food_pick_container">
+        <div id="food_pick_container" class="pick_container">
             <h2>Please pick a food</h2>
             <div id="food_image_container"></div>
+        </div>
+        <div id="action_pick_container" class="pick_container" style="display:none">
+            <h2></h2>
+            <div id="action_image_container">
+                <p class="auto_msg" style="display:none">The robot is choosing an action to pick up the food...</p>
+            </div>
+        </div>
+        <div id="timing_pick_container" class="pick_container" style="display:none">
+            <h2></h2>
+            <div id="timing_image_container">
+                <button id="time_to_feed_btn">Bring me the food</button>
+                <p class="auto_msg" style="display:none">The robot is determining when to approach...</p>
+                <p id="timing_status" class="status">Waiting for robot response...</p>
+            </div>
+        </div>
+        <div id="transfer_pick_container" class="pick_container" style="display:none">
+            <h2></h2>
+            <div id="transfer_image_container">
+                <p class="auto_msg" style="display:none">The robot is deciding how to bring the food to you...</p>
+            </div>
+        </div>
+        <div id="restart_pick_container" class="pick_container" style="display:none">
+            <button id="restart_btn">RESTART</button>
         </div>
         <div id="camera_container">
             <h2>Camera</h2>

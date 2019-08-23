@@ -32,7 +32,7 @@ button {
     padding: 0.5em;
 }
 
-button:hover, .food_image img:hover, #video_stream:hover {
+button:hover, #food_display_container img:hover, #video_stream:hover {
     cursor: pointer;
 }
 
@@ -74,12 +74,12 @@ button:hover, .food_image img:hover, #video_stream:hover {
     margin-top: 1em;
 }
 
-#food_pick_container, #camera_container {
+.pick_container, #camera_container {
     margin: 0;
 }
 
-#food_pick_container {
-    background-color: #eefcec;
+.pick_container {
+    background-color: #fffbef;
 }
 
 #food_pick_container h2 {
@@ -90,16 +90,53 @@ button:hover, .food_image img:hover, #video_stream:hover {
     background-color: #f3f9ff;
 }
 
-#food_image_container {
+#food_image_container, #action_image_container, #transfer_image_container {
     display: grid;
     grid-template-columns: 1fr 1fr;
 }
 
-.food_image {
+.food_image, .action_image, .transfer_image {
     margin: 0.5em;
     margin-top: 0;
     padding: 1em;
     padding-top: 0;
+}
+
+.auto_msg {
+    grid-column-start: 1;
+    grid-column-end: 3;
+    font-size: 1.2em;
+}
+
+#time_to_feed_btn {
+    margin-top: 1.5em;
+    margin-bottom: 1em;
+    padding: 0.8em;
+    font-size: 2em;
+    background-color: #ffa500;
+    color: white;
+    border-radius: 20px;
+}
+
+#timing_status {
+    margin-top: 1em;
+    margin-bottom: 3em;
+}
+
+.status {
+    margin: auto;
+    font-weight: 800;
+    font-size: 1.5em;
+    color: #631919;
+    display: none;
+}
+
+#restart_btn {
+    margin: auto;
+    padding: 0.8em;
+    font-size: 2em;
+    background-color: #ddd;
+    border-radius: 20px;
 }
 
 #video_stream_container, #food_choosing_interface {
@@ -146,11 +183,14 @@ button:hover, .food_image img:hover, #video_stream:hover {
     font-weight: bold;
 }
 
-#verbosity_dropdown_container {
+#trial_dropdown_container {
     margin-top: 1em;
+    position: fixed;
+    right: 10px;
+    top: 10px;
 }
 
-.dropdown, #verbosity_dropdown_container p {
+.dropdown, #trial_dropdown_container p {
     display: inline-block;
     font-size: 0.8em;
 }
@@ -160,7 +200,7 @@ button:hover, .food_image img:hover, #video_stream:hover {
 }
 
 .dropdown, .dropbtn, .dropdown_content {
-    width: 140px;
+    width: 80px;
 }
 
 .dropbtn {
@@ -208,7 +248,7 @@ button:hover, .food_image img:hover, #video_stream:hover {
 }
 
 @media screen and (max-width: 1000px) { 
-    #food_pick_container, #camera_container {
+    .pick_container, #camera_container {
         padding: 0.8em;
         margin: 1em;
     }
@@ -217,7 +257,7 @@ button:hover, .food_image img:hover, #video_stream:hover {
         display: block;
     }
     
-    #food_pick_container {
+    .pick_container {
         margin: auto;
     }
 }
@@ -227,7 +267,7 @@ button:hover, .food_image img:hover, #video_stream:hover {
         width: 80%;
     }
 
-    #food_pick_container, #camera_container {
+    .pick_container, #camera_container {
         margin: auto;
     }
     
