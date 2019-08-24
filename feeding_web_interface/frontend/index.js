@@ -2,6 +2,20 @@
 
 let self = this;
 
+// list of food images
+// (note: the lasy entry MUST ALWAYS be the random image!)
+let FOODIMAGES = ["pics/food_pics/apple.jpg", "pics/food_pics/banana.jpg", "pics/food_pics/strawberry.jpg", "pics/food_pics/random.png"];
+// list of food action images
+let ACTIONIMAGES = ["pics/actions/vertical.jpg", "pics/actions/tilted_vertical.jpg", "pics/actions/tilted_angled.jpg"];
+// list of food transfer images
+let TRANSFERIMAGES = ["pics/transfers/horizontal.jpg", "pics/transfers/angled.jpg"];
+// food image size
+let FOOD_IMAGE_W = "15em";
+let FOOD_IMAGE_H = "12em";
+// action and transfer image size
+let COMMON_IMAGE_W = "15em";
+let COMMON_IMAGE_H = "11em";
+
 // trial type: 
 // 0: Non-autonomous; 1: Autonomous
 // 2: Acquisition auto; 3: Timing auto; 4: Transfer auto
@@ -11,19 +25,10 @@ let trialType = -1;
 let currentStep = 0;
 // program mode: user mode (default) / developer mode
 let isUserMode = true;
-// list of food images
-// (note: the lasy entry MUST ALWAYS be the random image!)
-let foodImages = ["pics/food_pics/apple.jpg", "pics/food_pics/banana.jpg", "pics/food_pics/strawberry.jpg", "pics/food_pics/random.png"];
-// list of food action images
-let actionImages = ["pics/actions/vertical.jpg", "pics/actions/tilted_vertical.jpg", "pics/actions/tilted_angled.jpg"];
-// list of food transfer images
-let transferImages = ["pics/transfers/horizontal.jpg", "pics/transfers/angled.jpg"];
-// food image size
-let foodImageW = "11.5em";
-let foodImageH = "11.5em";
-// action and transfer image size
-let commonImageW = "10em";
-let commonImageH = "10em";
+
+// Variables for action client goal
+let selectedFoodName = "";
+let selectedAcquireAction = -1;
 
 $(function() {
     $(document).ready(function() {
@@ -40,6 +45,25 @@ $(function() {
         self.ros.on('close', function(error) {
             console.error('We lost connection with ROS.');
         });
+        // Action client
+        let feedingClient = new ROSLIB.ActionClient({
+            ros: self.ros,
+            serverName: 'ada_actions',
+            actionName: 'ada_demos/ADAFeedingAction'
+        });
+        // type: 0: acquisition; 1: timing; 2: transfer
+        // food
+        // action: 0: vertical; 1: tilted vertical; 2: tilted angled
+        let feedingGoal = new ROSLIB.Goal({
+            actionClient: feedingClient,
+            goalMessage: {
+                type: currentStep - 1,
+                food: selectedFoodName,
+                action: selectedAcquireAction
+            }
+        });
+        feedingGoal.on('result', handleFeedingResult);
+
         // ROS topic
         // publish
         self.trialTypeTopic = new ROSLIB.Topic({
@@ -78,23 +102,23 @@ $(function() {
         });
         self.transferDoneTopic.subscribe(handleTransferDone);
 
-        // // Camera View
-        // // in user mode
-        // let userCameraViewer = new MJPEGCANVAS.Viewer({
-        //     divID : "camera",
-        //     host : 'rosvideo.ngrok.io',
-        //     width : 640,
-        //     height : 480,
-        //     topic : "/camera/color/image_raw"
-        // });
-        // // in dev mode
-        // let devCameraViewer = new MJPEGCANVAS.Viewer({
-        //     divID : "video_stream",
-        //     host : 'rosvideo.ngrok.io',
-        //     width : 800,
-        //     height : 480,
-        //     topic : "/camera/color/image_raw"
-        // });
+        // Camera View
+        // in user mode
+        let userCameraViewer = new MJPEGCANVAS.Viewer({
+            divID : "camera",
+            host : 'rosvideo.ngrok.io',
+            width : 640,
+            height : 480,
+            topic : "/camera/color/image_raw"
+        });
+        // in dev mode
+        let devCameraViewer = new MJPEGCANVAS.Viewer({
+            divID : "video_stream",
+            host : 'rosvideo.ngrok.io',
+            width : 800,
+            height : 480,
+            topic : "/camera/color/image_raw"
+        });
 
         // Event handlers
         // trial type dropdown hover
@@ -146,7 +170,7 @@ $(function() {
 
     function hideDropdown() {
         // hide the dropdown menu
-        $(".dropdown_content").css("display", "none");
+        $("#trial_dropdown_container").css("display", "none");
     }
 
     function makeTrialSelection() {
@@ -161,7 +185,10 @@ $(function() {
             let type = new ROSLIB.Message({
                 type : trialType
             });
-            self.trialTypeTopic.publish(type);
+
+            // // -----------------------------------------------
+            // self.trialTypeTopic.publish(type);
+
         } else {
             trialType = -1;
         }
@@ -206,14 +233,17 @@ $(function() {
             let foodName = this.alt;
             // pick a food if in random selection
             if (foodName === "random") {
-                // the last entry in foodImages is always the random image
+                // the last entry in FOODIMAGES is always the random image
                 // so we should exclude the last index when generating a random number
-                let randomNum = getRandomInt(0, foodImages.length - 1);
-                foodName = foodImages[randomNum].split("/")[2].split(".")[0];
+                let randomNum = getRandomInt(0, FOODIMAGES.length - 1);
+                foodName = FOODIMAGES[randomNum].split("/")[2].split(".")[0];
             }
-            // publish message
-            console.log(foodName);
-            publishFoodItemMsg(foodName);
+            // record the selected food name
+            selectedFoodName = foodName;
+
+            // // --------------------------------------------------------------
+            // self.foodItemTopic.publish(foodName);
+
             // continue to the next step
             if (isUserMode) {
                 // show action page
@@ -240,6 +270,8 @@ $(function() {
             // show all the action images
             $(".auto_msg").css("display", "none");
             $("#action_pick_container img, .action_name").css("display", "block");
+            // hide status bar
+            $("#action_status").css("display", "none");
         } else {
             // auto
             document.querySelector("#action_pick_container h2").innerHTML = "Please wait...";
@@ -248,12 +280,24 @@ $(function() {
             $("#action_pick_container img, .action_name").css("display", "none");
             // display status bar
             showStatusBar(true, "action");
+            // // -----------------------------------------------
+            // // send the goal
+            // feedingGoal.send();
         }
     }
 
     function makeActionSelection() {
-        // publish the action message
-        let selectedAction = this.alt;
+        // // ------------------------------------------------
+        // // send the goal
+        // if (this.alt === "vertical") {
+        //     selectedAcquireAction = 0;
+        // } else if (this.alt === "tilted vertical") {
+        //     selectedAcquireAction = 1;
+        // } else {  // "tilted angled"
+        //     selectedAcquireAction = 2;
+        // }
+        // feedingGoal.send();
+
         // display status bar
         showStatusBar(false, "action");
     }
@@ -270,6 +314,8 @@ $(function() {
             // show the feed button
             $(".auto_msg").css("display", "none");
             $("#time_to_feed_btn").css("display", "block");
+            // hide status bar
+            $("#timing_status").css("display", "none");
         } else {
             // auto
             document.querySelector("#timing_pick_container h2").innerHTML = "Please wait...";
@@ -277,15 +323,20 @@ $(function() {
             $(".auto_msg").css("display", "block");
             $("#time_to_feed_btn").css("display", "none");
             // display status bar
-            $("#timing_status").css("display", "block");
+            showStatusBar(false, "timing");
+            // // --------------------------------------
+            // // send the goal
+            // feedingGoal.send();
         }
     }
 
     function feedNow() {
-        // publish the feed now message
+        // // ------------------------------------------------
+        // // send the goal
+        // feedingGoal.send();
 
         // display status bar
-        $("#timing_status").css("display", "block");
+        showStatusBar(false, "timing");
     }
     
     function handleTimingDone(msg) {
@@ -299,6 +350,8 @@ $(function() {
             // show the transfer images
             $(".auto_msg").css("display", "none");
             $("#transfer_pick_container img, .transfer_name").css("display", "block");
+            // hide status bar
+            $("#transfer_status").css("display", "none");
         } else {
             // auto
             document.querySelector("#transfer_pick_container h2").innerHTML = "Please wait...";
@@ -307,12 +360,16 @@ $(function() {
             $("#transfer_pick_container img, .transfer_name").css("display", "none");
             // display status bar
             showStatusBar(true, "transfer");
+            // // --------------------------------------
+            // // send the goal
+            // feedingGoal.send();
         }
     }
 
     function makeTransferSelection() {
-        // publish the transfer message
-        let selectedTransfer = this.alt;
+        // // --------------------------------------
+        // // send the goal
+        // feedingGoal.send();
 
         // display status bar
         showStatusBar(true, "transfer");
@@ -334,6 +391,8 @@ $(function() {
         trialType = -1;
         currentStep = 0;
         isUserMode = true;
+        selectedFoodName = "";
+        selectedAcquireAction = -1;
         // show trial type selection
         $("#trial_dropdown_container").css("display", "block");
         document.getElementById("trial_btn").innerHTML = "Please select";
@@ -346,6 +405,18 @@ $(function() {
             // TODO: publish estop message
 
         }
+    }
+
+    function handleFeedingResult(result) {
+        let typeId = result.type;
+        let typeName = "action";
+        let success = result.success;
+        if (typeId === 1) {
+            typeName = "timing";
+        } else if (typeId === 2) {
+            typeName = "transfer";
+        }
+        document.getElementById(typeName + "_status").innerHTML = success ? "SUCCEEDED" : "FAILED";
     }
 
     function backToVideoStream() {
@@ -367,13 +438,13 @@ $(function() {
     // create image elements and add them to the DOM
     // imageType: 0 (food), 1 (action), 2 (transfer)
     function createAndAddImages(imageType) {
-        let imageList = foodImages;
+        let imageList = FOODIMAGES;
         let type = "food";
         if (imageType === 1) {
-            imageList = actionImages;
+            imageList = ACTIONIMAGES;
             type = "action";
         } else if (imageType === 2) {
-            imageList = transferImages;
+            imageList = TRANSFERIMAGES;
             type = "transfer";
         }
         let mainContainer = $("#"+ type + "_image_container");
@@ -393,11 +464,11 @@ $(function() {
             image.src = imageList[i];
             image.alt = imgaeName;  // all lowercase
             if (imageType != 0) {
-                image.style.width = commonImageW;
-                image.style.height = commonImageH;
+                image.style.width = COMMON_IMAGE_W;
+                image.style.height = COMMON_IMAGE_H;
             } else {
-                image.style.width = foodImageW;
-                image.style.height = foodImageH;
+                image.style.width = FOOD_IMAGE_W;
+                image.style.height = FOOD_IMAGE_H;
             }
             // event handler
             if (imageType === 0) {
@@ -421,19 +492,22 @@ $(function() {
         }
     }
 
-    function publishFoodItemMsg(foodName) {
-        // publish food item message to ROS
-        let food = new ROSLIB.Message({
-            data: foodName
-        });
-        self.foodItemTopic.publish(food);
-    }
+    // // --------------------------------------------------------------------------
+    // function publishFoodItemMsg(foodName) {
+    //     // publish food item message to ROS
+    //     let food = new ROSLIB.Message({
+    //         data: foodName
+    //     });
+    //     self.foodItemTopic.publish(food);
+    // }
 
     function showStatusBar(expandLayout, name) {
-        $("#" + name + "_status").css("display", "block");
+        let statusBar = $("#" + name + "_status");
+        statusBar.css("display", "block");
+        statusBar.html("Waiting for robot resposne...");
         if (expandLayout) {
             // the status bar should take 2 columns
-            $("#" + name + "_status").css({
+            statusBar.css({
                 gridColumnStart: "1",
                 gridColumnEnd: "3",
                 marginBottom: "3em"
