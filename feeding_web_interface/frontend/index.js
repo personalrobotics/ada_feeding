@@ -310,7 +310,7 @@ $(function() {
         if (trialType === 0 || trialType === 2 || trialType === 4) {
             // let user decide when the robot should feed
             document.querySelector("#timing_pick_container h2").innerHTML = 
-                    "Click the button below if you want </br>the robot to bring the food to you";
+                    "Choose when to approach";
             // show the feed button
             $(".auto_msg").css("display", "none");
             $("#time_to_feed_btn").css("display", "block");
@@ -409,14 +409,14 @@ $(function() {
 
     function handleFeedingResult(result) {
         let typeId = result.type;
-        let typeName = "action";
         let success = result.success;
         if (typeId === 1) {
-            typeName = "timing";
+            $("#timing_status").html("Approaching");
         } else if (typeId === 2) {
-            typeName = "transfer";
+            $("#transfer_status").html("Ready to eat");
+        } else {  // acquisition
+            document.getElementById("action_status").innerHTML = success ? "SUCCEEDED" : "FAILED";
         }
-        document.getElementById(typeName + "_status").innerHTML = success ? "SUCCEEDED" : "FAILED";
     }
 
     function backToVideoStream() {
@@ -487,7 +487,7 @@ $(function() {
             let statusBar = document.createElement("p");
             statusBar.id = type + "_status";
             statusBar.className = "status";
-            statusBar.innerHTML = "Waiting for robot resposne...";
+            statusBar.innerHTML = "Waiting for robot response...";
             mainContainer.append(statusBar);
         }
     }
@@ -504,7 +504,7 @@ $(function() {
     function showStatusBar(expandLayout, name) {
         let statusBar = $("#" + name + "_status");
         statusBar.css("display", "block");
-        statusBar.html("Waiting for robot resposne...");
+        statusBar.html("Waiting for robot response...");
         if (expandLayout) {
             // the status bar should take 2 columns
             statusBar.css({
