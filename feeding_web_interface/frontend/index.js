@@ -4,7 +4,7 @@ let self = this;
 
 // list of food images
 // (note: the lasy entry MUST ALWAYS be the random image!)
-let FOODIMAGES = ["pics/food_pics/apple.jpg", "pics/food_pics/banana.jpg", "pics/food_pics/strawberry.jpg", "pics/food_pics/random.png"];
+let FOODIMAGES = ["pics/food_pics/apple.jpg", "pics/food_pics/cantaloupe.jpg", "pics/food_pics/strawberry.jpg", "pics/food_pics/random.png"];
 // list of food action images
 let ACTIONIMAGES = ["pics/actions/vertical.jpg", "pics/actions/tilted_vertical.jpg", "pics/actions/tilted_angled.jpg"];
 // list of food transfer images
@@ -69,7 +69,7 @@ $(function() {
         self.trialTypeTopic = new ROSLIB.Topic({
             ros: self.ros, 
             name: '/trial_type', 
-            messageType: 'std_msgs/Int'
+            messageType: 'std_msgs/Int32'
         });
         self.foodItemTopic = new ROSLIB.Topic({
             ros: self.ros, 
@@ -183,11 +183,11 @@ $(function() {
             trialType = parseInt(this.id);
             // publish trial type message to ROS
             let type = new ROSLIB.Message({
-                type : trialType
+                data : trialType
             });
 
-            // // -----------------------------------------------
-            // self.trialTypeTopic.publish(type);
+            // -----------------------------------------------
+            self.trialTypeTopic.publish(type);
 
         } else {
             trialType = -1;
@@ -243,6 +243,7 @@ $(function() {
 
             // // --------------------------------------------------------------
             // self.foodItemTopic.publish(foodName);
+            publishFoodItemMsg(selectedFoodName);
 
             // continue to the next step
             if (isUserMode) {
@@ -492,14 +493,14 @@ $(function() {
         }
     }
 
-    // // --------------------------------------------------------------------------
-    // function publishFoodItemMsg(foodName) {
-    //     // publish food item message to ROS
-    //     let food = new ROSLIB.Message({
-    //         data: foodName
-    //     });
-    //     self.foodItemTopic.publish(food);
-    // }
+    // --------------------------------------------------------------------------
+    function publishFoodItemMsg(foodName) {
+        // publish food item message to ROS
+        let food = new ROSLIB.Message({
+            data: foodName
+        });
+        self.foodItemTopic.publish(food);
+    }
 
     function showStatusBar(expandLayout, name) {
         let statusBar = $("#" + name + "_status");
