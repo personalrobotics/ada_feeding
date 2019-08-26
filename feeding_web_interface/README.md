@@ -7,16 +7,19 @@
     ```export ROS_MASTER_URI=https://192.168.2.145:11311```
     
     ```./run_camser.sh```
-2. launch rosbridge_server to create localhost with the following command
+    
+2. go to ws/src/feeding_web_interface/frontend
+
+    ```./ngrok start -all``` to start proxy server
+3. launch rosbridge_server to create localhost with the following command
 
     ```roslaunch rosbridge_server rosbridge_websocket```
     
-3. enter the following command:
+4. enter the following command:
 
     ```python -m SimpleHTTPServer 8082```
     
-4. go to ws/src/feeding_web_interface/frontend
-
-    ```./ngrok start -all``` to start proxy server
+5. start web video server to help streaming camera node:
+    ```rosrun web_video_server web_video_server```
     
-5. go to webpage http://ada_feeding.ngrok.io/ to see the demo web interface. If you follow the above steps carefullt, you should now be able to see the camera stream displated on the right and the foodImage on left.
+6. go to webpage http://ada_feeding.ngrok.io/ to see the demo web interface. If you follow the above steps carefullt, you should now be able to see the camera stream displated on the right and the foodImage on left.
