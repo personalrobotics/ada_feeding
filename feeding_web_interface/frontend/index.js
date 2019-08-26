@@ -4,7 +4,7 @@ let self = this;
 
 // list of food images
 // (note: the lasy entry MUST ALWAYS be the random image!)
-let FOODIMAGES = ["pics/food_pics/apple.jpg", "pics/food_pics/cantaloupe.jpg", "pics/food_pics/strawberry.jpg", "pics/food_pics/random.png"];
+let FOODIMAGES = ["pics/food_pics/broccoli.png", "pics/food_pics/cantaloupe.jpg", "pics/food_pics/strawberry.jpg", "pics/food_pics/random.png"];
 // list of food action images
 let ACTIONIMAGES = ["pics/actions/vertical.jpg", "pics/actions/tilted_vertical.jpg", "pics/actions/tilted_angled.jpg"];
 // list of food transfer images
