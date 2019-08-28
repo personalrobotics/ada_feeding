@@ -8,7 +8,7 @@
     
     ```./run_camser.sh```
 
-Make sure all the following commands must be executed in the src/feeding_web_interface/frontend folder
+* **Make sure all the following commands must be executed in the src/feeding_web_interface/frontend folder**
 
 2. go to ws/src/feeding_web_interface/frontend
 
