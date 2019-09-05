@@ -25,4 +25,4 @@
 
     ```rosrun web_video_server web_video_server```
     
-6. go to webpage http://ada_feeding.ngrok.io/ to see the demo web interface. If you follow the above steps carefullt, you should now be able to see the camera stream displated on the right and the foodImage on left.
+6. go to webpage http://ada_feeding.ngrok.io/ to see the demo web interface. If you follow the above steps carefully, you should now be able to see the camera stream displayed on the right and the foodImage on left.
