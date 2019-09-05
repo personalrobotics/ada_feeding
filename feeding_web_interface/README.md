@@ -6,7 +6,9 @@
     
     ```export ROS_MASTER_URI=https://192.168.2.145:11311```
     
-    ```./run_camser.sh```
+    ```./run_camera.sh```
+    
+    ```uselovelace```
 
 * **Make sure all the following commands must be executed in the src/feeding_web_interface/frontend folder**
 
