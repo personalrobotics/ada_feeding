@@ -2,7 +2,7 @@
 
 1. ssh into nano to start the camera node, make sure you export ROS_MASTER_URI to LOVELACE
 
-    ```ssh nano@192.168.2.121``` passcode is normal lab passcode
+    ```ssh nano@192.168.2.121``` passcode is normal lab passcode, with the last 4 characters changed to N@n0
     
     ```export ROS_MASTER_URI=https://192.168.2.145:11311```
     
