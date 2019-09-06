@@ -42,6 +42,22 @@ $(function() {
         self.ros.on('close', function(error) {
             console.error('We lost connection with ROS.');
         });
+	// ROS params
+	self.autoTiming = new ROSLIB.Param({
+	   ros: self.ros,
+           name: '/humanStudy/autoTiming'
+	});
+	self.autoTiming.set('false'); //Default set to manual
+	self.autoAcquisition = new ROSLIB.Param({
+	   ros: self.ros,
+           name: '/humanStudy/autoAcquisition'
+	});
+	self.autoAcquisition.set('false'); //Default set to manual
+	self.autoTransfer = new ROSLIB.Param({
+	   ros: self.ros,
+           name: '/humanStudy/autoTransfer'
+	});
+	self.autoTransfer.set('false'); //Default set to manual
 
         // ROS topic
         // Publishers
@@ -60,6 +76,7 @@ $(function() {
             name: '/study_action_msgs', 
             messageType: 'std_msgs/String'
         });
+
         // Subscribers
         // these subscribers are used to display the page for the next step
         self.actionDoneTopic = new ROSLIB.Topic({
@@ -167,6 +184,43 @@ $(function() {
         // record selected trial type
         if (selectedTrialType != "Please select") {
             trialType = parseInt(this.id);
+
+	    // set rosparams to match trial type
+	    // 0: Non-autonomous; 1: Autonomous
+            // 2: Acquisition auto; 3: Timing auto; 4: Transfer auto
+	    switch(trialType) {
+	        // Non-Autonomous
+		case 0:
+	            self.autoTransfer.set('false');
+	            self.autoTiming.set('false');
+	            self.autoAcquisition.set('false');
+	            break;
+	        // Fully-Autonomous
+		case 1:
+	            self.autoTransfer.set('true');
+	            self.autoTiming.set('true');
+	            self.autoAcquisition.set('true');
+	            break;
+	        // Acquisition Auto
+		case 2:
+	            self.autoTransfer.set('false');
+	            self.autoTiming.set('false');
+	            self.autoAcquisition.set('true');
+	            break;
+	        // Timing Auto 
+		case 3:
+	            self.autoTransfer.set('false');
+	            self.autoTiming.set('true');
+	            self.autoAcquisition.set('false');
+	            break;
+	        // Transfer Auto 
+		case 4:
+	            self.autoTransfer.set('true');
+	            self.autoTiming.set('false');
+	            self.autoAcquisition.set('false');
+	            break;
+            }
+
             // publish trial type message to ROS
             let type = new ROSLIB.Message({
                 data : trialType
