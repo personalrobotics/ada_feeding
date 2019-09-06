@@ -6,9 +6,9 @@ let self = this;
 // (note: the lasy entry MUST ALWAYS be the random image!)
 let FOODIMAGES = ["pics/food_pics/broccoli.png", "pics/food_pics/cantaloupe.jpg", "pics/food_pics/strawberry.jpg", "pics/food_pics/random.png"];
 // list of food action images
-let ACTIONIMAGES = ["pics/actions/vertical.jpg", "pics/actions/tilted_vertical.jpg", "pics/actions/tilted_angled.jpg"];
+let ACTIONIMAGES = ["pics/actions/skewer.jpg", "pics/actions/tilt.jpg", "pics/actions/angle.jpg"];
 // list of food transfer images
-let TRANSFERIMAGES = ["pics/transfers/horizontal.jpg", "pics/transfers/angled.jpg"];
+let TRANSFERIMAGES = ["pics/transfers/horizontal.jpg", "pics/transfers/tilt_the_food.jpg"];
 // food image size
 let FOOD_IMAGE_W = "15em";
 let FOOD_IMAGE_H = "12em";
@@ -26,9 +26,6 @@ let currentStep = 0;
 // program mode: user mode (default) / developer mode
 let isUserMode = true;
 
-// Variables for action client goal
-let selectedFoodName = "";
-let selectedAcquireAction = -1;
 
 $(function() {
     $(document).ready(function() {
@@ -45,44 +42,26 @@ $(function() {
         self.ros.on('close', function(error) {
             console.error('We lost connection with ROS.');
         });
-        // Action client
-        let feedingClient = new ROSLIB.ActionClient({
-            ros: self.ros,
-            serverName: 'ada_actions',
-            actionName: 'ada_demos/ADAFeedingAction'
-        });
-        // type: 0: acquisition; 1: timing; 2: transfer
-        // food
-        // action: 0: vertical; 1: tilted vertical; 2: tilted angled
-        let feedingGoal = new ROSLIB.Goal({
-            actionClient: feedingClient,
-            goalMessage: {
-                type: currentStep - 1,
-                food: selectedFoodName,
-                action: selectedAcquireAction
-            }
-        });
-        feedingGoal.on('result', handleFeedingResult);
 
         // ROS topic
-        // publish
+        // Publishers
         self.trialTypeTopic = new ROSLIB.Topic({
             ros: self.ros, 
             name: '/trial_type', 
             messageType: 'std_msgs/Int32'
         });
-        self.foodItemTopic = new ROSLIB.Topic({
+        self.foodTopic = new ROSLIB.Topic({
             ros: self.ros, 
-            name: '/foodItem_msg', 
+            name: '/study_food_msgs', 
             messageType: 'std_msgs/String'
         });
-        // subscribe
-        self.statusTopic = new ROSLIB.Topic({
+        self.actionTopic = new ROSLIB.Topic({
             ros: self.ros, 
-            name: '/status', 
-            messageType: 'std_msgs/Status'
+            name: '/study_action_msgs', 
+            messageType: 'std_msgs/String'
         });
-        self.statusTopic.subscribe(handleStatus);
+        // Subscribers
+        // these subscribers are used to display the page for the next step
         self.actionDoneTopic = new ROSLIB.Topic({
             ros: self.ros, 
             name: '/action_done', 
@@ -101,6 +80,13 @@ $(function() {
             messageType: 'std_msgs/String'
         });
         self.transferDoneTopic.subscribe(handleTransferDone);
+        // this subscriber is for the backend response messages
+        self.feedingResultTopic = new ROSLIB.Topic({
+            ros: self.ros, 
+            name: '/feeding_result_msg', 
+            messageType: 'std_msgs/String'
+        });
+        self.feedingResultTopic.subscribe(handleFeedingResult);
 
         // Camera View
         // in user mode
@@ -219,11 +205,16 @@ $(function() {
         $("#video_stream_container").css("display", "none");
     }
 
-    function handleStatus(msg) {
-        let type = msg.type;
-        let data = msg.data;
-        // display the response
-        document.getElementById(type + "_status").innerHTML = data;
+    function handleFeedingResult(msg) {
+        let typeId = msg.type;
+        let success = msg.success;
+        if (typeId === 1) {
+            $("#timing_status").html("Approaching");
+        } else if (typeId === 2) {
+            $("#transfer_status").html("Ready to eat");
+        } else {  // acquisition
+            document.getElementById("action_status").innerHTML = success ? "SUCCEEDED" : "FAILED";
+        }
     }
 
     function makeFoodSelection() {
@@ -236,14 +227,10 @@ $(function() {
                 // the last entry in FOODIMAGES is always the random image
                 // so we should exclude the last index when generating a random number
                 let randomNum = getRandomInt(0, FOODIMAGES.length - 1);
-                foodName = FOODIMAGES[randomNum].split("/")[2].split(".")[0];
+                foodName = FOODIMAGES[randomNum].split("/")[2].split(".")[0].toLowerCase();
             }
-            // record the selected food name
-            selectedFoodName = foodName;
-
-            // // --------------------------------------------------------------
-            // self.foodItemTopic.publish(foodName);
-            publishFoodItemMsg(selectedFoodName);
+            // publish the selected food name
+            publishMsg(self.foodTopic, foodName);
 
             // continue to the next step
             if (isUserMode) {
@@ -282,23 +269,14 @@ $(function() {
             // display status bar
             showStatusBar(true, "action");
             // // -----------------------------------------------
-            // // send the goal
+            // // AUTO: send action
             // feedingGoal.send();
         }
     }
 
     function makeActionSelection() {
-        // // ------------------------------------------------
-        // // send the goal
-        // if (this.alt === "vertical") {
-        //     selectedAcquireAction = 0;
-        // } else if (this.alt === "tilted vertical") {
-        //     selectedAcquireAction = 1;
-        // } else {  // "tilted angled"
-        //     selectedAcquireAction = 2;
-        // }
-        // feedingGoal.send();
-
+        // publish the selected action name
+        publishMsg(self.actionTopic, this.alt);
         // display status bar
         showStatusBar(false, "action");
     }
@@ -326,16 +304,14 @@ $(function() {
             // display status bar
             showStatusBar(false, "timing");
             // // --------------------------------------
-            // // send the goal
+            // // AUTO: send timing
             // feedingGoal.send();
         }
     }
 
     function feedNow() {
-        // // ------------------------------------------------
-        // // send the goal
-        // feedingGoal.send();
-
+        // publish the feeding message
+        publishMsg(self.actionTopic, "continue");
         // display status bar
         showStatusBar(false, "timing");
     }
@@ -362,16 +338,19 @@ $(function() {
             // display status bar
             showStatusBar(true, "transfer");
             // // --------------------------------------
-            // // send the goal
+            // // AUTO: send transfer mode
             // feedingGoal.send();
         }
     }
 
     function makeTransferSelection() {
-        // // --------------------------------------
-        // // send the goal
-        // feedingGoal.send();
-
+        // publish the transfer message
+        let transferName = this.alt;
+        if (this.alt === "horizontal") {
+            publishMsg(self.actionTopic, "continue");
+        } else {
+            publishMsg(self.actionTopic, "tilt_the_food");
+        }
         // display status bar
         showStatusBar(true, "transfer");
     }
@@ -392,8 +371,6 @@ $(function() {
         trialType = -1;
         currentStep = 0;
         isUserMode = true;
-        selectedFoodName = "";
-        selectedAcquireAction = -1;
         // show trial type selection
         $("#trial_dropdown_container").css("display", "block");
         document.getElementById("trial_btn").innerHTML = "Please select";
@@ -405,18 +382,6 @@ $(function() {
         } else {
             // TODO: publish estop message
 
-        }
-    }
-
-    function handleFeedingResult(result) {
-        let typeId = result.type;
-        let success = result.success;
-        if (typeId === 1) {
-            $("#timing_status").html("Approaching");
-        } else if (typeId === 2) {
-            $("#transfer_status").html("Ready to eat");
-        } else {  // acquisition
-            document.getElementById("action_status").innerHTML = success ? "SUCCEEDED" : "FAILED";
         }
     }
 
@@ -435,7 +400,7 @@ $(function() {
         alert("Action: " + event.target.actionName);
     }
 
-    // Helper functions
+    ///// Helper Functions /////
     // create image elements and add them to the DOM
     // imageType: 0 (food), 1 (action), 2 (transfer)
     function createAndAddImages(imageType) {
@@ -453,7 +418,7 @@ $(function() {
             // create DOM elements
             let imageDiv = document.createElement("div");
             imageDiv.className = type + "_image";
-            let imgaeName = imageList[i].split("/")[2].split(".")[0].replace("_", " ").toLowerCase();
+            let imgaeName = imageList[i].split("/")[2].split(".")[0].split("_").join(" ").toLowerCase();
             if (imageType != 0) {
                 // add a text to display the image name
                 let text = document.createElement("p");
@@ -493,13 +458,14 @@ $(function() {
         }
     }
 
-    // --------------------------------------------------------------------------
-    function publishFoodItemMsg(foodName) {
-        // publish food item message to ROS
-        let food = new ROSLIB.Message({
-            data: foodName
+    function publishMsg(topic, data) {
+        // (for debug)
+        console.log(data.split(" ").join("_"));
+        // create a message and publish to the given topic
+        let msg = new ROSLIB.Message({
+            data: data.split(" ").join("_")
         });
-        self.foodItemTopic.publish(food);
+        topic.publish(msg);
     }
 
     function showStatusBar(expandLayout, name) {
@@ -519,6 +485,7 @@ $(function() {
     function getRandomInt(min, max) {
         min = Math.ceil(min);
         max = Math.floor(max);
-        return Math.floor(Math.random() * (max - min)) + min; //The maximum is exclusive and the minimum is inclusive
+        // the maximum is exclusive and the minimum is inclusive
+        return Math.floor(Math.random() * (max - min)) + min;
     }
 });
