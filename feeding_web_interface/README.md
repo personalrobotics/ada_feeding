@@ -17,7 +17,7 @@
     ```./ngrok start -all``` to start proxy server
 3. launch rosbridge_server to create localhost with the following command
 
-    ```roslaunch rosbridge_server rosbridge_websocket```
+    ```roslaunch rosbridge_server rosbridge_websocket.launch```
     
 4. enter the following command:
 
