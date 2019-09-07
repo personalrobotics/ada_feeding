@@ -42,22 +42,23 @@ $(function() {
         self.ros.on('close', function(error) {
             console.error('We lost connection with ROS.');
         });
-	// ROS params
-	self.autoTiming = new ROSLIB.Param({
-	   ros: self.ros,
-           name: '/humanStudy/autoTiming'
-	});
-	self.autoTiming.set('false'); //Default set to manual
-	self.autoAcquisition = new ROSLIB.Param({
-	   ros: self.ros,
-           name: '/humanStudy/autoAcquisition'
-	});
-	self.autoAcquisition.set('false'); //Default set to manual
-	self.autoTransfer = new ROSLIB.Param({
-	   ros: self.ros,
-           name: '/humanStudy/autoTransfer'
-	});
-	self.autoTransfer.set('false'); //Default set to manual
+
+        // ROS params
+        self.autoTiming = new ROSLIB.Param({
+            ros: self.ros,
+            name: '/humanStudy/autoTiming'
+        });
+        self.autoTiming.set('false');  // Default set to manual
+        self.autoAcquisition = new ROSLIB.Param({
+            ros: self.ros,
+            name: '/humanStudy/autoAcquisition'
+        });
+        self.autoAcquisition.set('false');  // Default set to manual
+        self.autoTransfer = new ROSLIB.Param({
+            ros: self.ros,
+            name: '/humanStudy/autoTransfer'
+        });
+        self.autoTransfer.set('false');  // Default set to manual
 
         // ROS topic
         // Publishers
@@ -177,56 +178,55 @@ $(function() {
     }
 
     function makeTrialSelection() {
-        hideDropdown();
         // mark the selection
         let selectedTrialType = this.innerHTML;
         document.getElementById("trial_btn").innerHTML = selectedTrialType;
         // record selected trial type
         if (selectedTrialType != "Please select") {
+            // hide dropdown
+            hideDropdown();
+            // record trial type
             trialType = parseInt(this.id);
-
-	    // set rosparams to match trial type
-	    // 0: Non-autonomous; 1: Autonomous
+            // set rosparams to match trial type
+            // 0: Non-autonomous; 1: Autonomous
             // 2: Acquisition auto; 3: Timing auto; 4: Transfer auto
-	    switch(trialType) {
-	        // Non-Autonomous
-		case 0:
-	            self.autoTransfer.set('false');
-	            self.autoTiming.set('false');
-	            self.autoAcquisition.set('false');
-	            break;
-	        // Fully-Autonomous
-		case 1:
-	            self.autoTransfer.set('true');
-	            self.autoTiming.set('true');
-	            self.autoAcquisition.set('true');
-	            break;
-	        // Acquisition Auto
-		case 2:
-	            self.autoTransfer.set('false');
-	            self.autoTiming.set('false');
-	            self.autoAcquisition.set('true');
-	            break;
-	        // Timing Auto 
-		case 3:
-	            self.autoTransfer.set('false');
-	            self.autoTiming.set('true');
-	            self.autoAcquisition.set('false');
-	            break;
-	        // Transfer Auto 
-		case 4:
-	            self.autoTransfer.set('true');
-	            self.autoTiming.set('false');
-	            self.autoAcquisition.set('false');
-	            break;
+            switch (trialType) {
+                // Non-Autonomous
+                case 0:
+                    self.autoTransfer.set('false');
+                    self.autoTiming.set('false');
+                    self.autoAcquisition.set('false');
+                    break;
+                // Fully-Autonomous
+                case 1:
+                    self.autoTransfer.set('true');
+                    self.autoTiming.set('true');
+                    self.autoAcquisition.set('true');
+                    break;
+                // Acquisition Auto
+                case 2:
+                    self.autoTransfer.set('false');
+                    self.autoTiming.set('false');
+                    self.autoAcquisition.set('true');
+                    break;
+                // Timing Auto 
+                case 3:
+                    self.autoTransfer.set('false');
+                    self.autoTiming.set('true');
+                    self.autoAcquisition.set('false');
+                    break;
+                // Transfer Auto 
+                case 4:
+                    self.autoTransfer.set('true');
+                    self.autoTiming.set('false');
+                    self.autoAcquisition.set('false');
+                    break;
             }
 
             // publish trial type message to ROS
             let type = new ROSLIB.Message({
                 data : trialType
             });
-
-            // -----------------------------------------------
             self.trialTypeTopic.publish(type);
 
         } else {
@@ -322,9 +322,6 @@ $(function() {
             $("#action_pick_container img, .action_name").css("display", "none");
             // display status bar
             showStatusBar(true, "action");
-            // // -----------------------------------------------
-            // // AUTO: send action
-            // feedingGoal.send();
         }
     }
 
@@ -357,9 +354,6 @@ $(function() {
             $("#time_to_feed_btn").css("display", "none");
             // display status bar
             showStatusBar(false, "timing");
-            // // --------------------------------------
-            // // AUTO: send timing
-            // feedingGoal.send();
         }
     }
 
@@ -391,9 +385,6 @@ $(function() {
             $("#transfer_pick_container img, .transfer_name").css("display", "none");
             // display status bar
             showStatusBar(true, "transfer");
-            // // --------------------------------------
-            // // AUTO: send transfer mode
-            // feedingGoal.send();
         }
     }
 
