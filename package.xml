@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>ada_feeding</name>
+  <version>0.1.0</version>
+  <description>Assistive Feeding on ADA</description>
+  <license>BSD</license>
+
+  <maintainer email="ekgordon@cs.uw.edu">Ethan Gordon</maintainer>
+
+  <depend>boost</depend>
+  <depend>dartsim</depend>
+  <depend>eigen</depend>
+  <depend>aikido</depend>
+  <depend>libada</depend>
+  <depend>tf_conversions</depend>
+  <depend>rewd_controllers</depend>
+  <depend>image_transport</depend>
+  <depend>image_geometry</depend>
+  <depend>cv_bridge</depend>
+
+  <depend>ada_description</depend>
+  <depend>pr_assets</depend>
+  <depend>pr_tsr</depend>
+
+  <!-- This is required by REP-136. -->
+  <exec_depend>catkin</exec_depend>
+  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>cmake</buildtool_depend>
+  <buildtool_depend>clang-format</buildtool_depend>
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+</package>

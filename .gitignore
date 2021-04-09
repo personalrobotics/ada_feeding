@@ -1,0 +1,57 @@
+# build folder
+build/
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Temp files
+*~
+
+# VIM
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-v][a-z]
+[._]sw[a-p]
+tags
+
+# Emacs
+\#*\#
+.\#*
+auto-save-list
+/auto/
+dist/
+flycheck_*.el
+.projectile
+.dir-locals.el
+
+*.sublime-workspace
+
+*.vscode
+.vscode/
+feeding/.vscode/

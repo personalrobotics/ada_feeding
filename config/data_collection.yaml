@@ -1,0 +1,51 @@
+# Configuration file for the data collection of skewering
+# 
+
+data:
+  numTrials: 5
+  foods: ["banana", "strawberry", "cantaloupe", "red_grape", "grape", "broccoli", "pepper", "apple", "honeydew", "pineapple", "carrot", "cauliflower", "tomato", "celery"]
+  tiltAngles: [0, 0, 0]
+  tiltModes: [0, 0, 0]
+  directions: [0, 45, 90, 135, 180, 225, 270, 315] #, 90, 135, 180, 225, 270, 315]
+  angleNames: ["0", "45", "90", "135", "180", "225", "270", "315"] #, "S", "SE", "E", "NE", "N", "NW"]
+
+# defaultFoodItem:
+#   urdfUri: package://pr_assets/data/objects/food_item.urdf
+#   pose: [.495, 0.19, 0.0, 3.1415, 0, 0]
+
+
+feedingDemo:
+  heightAboveFood: 0.085
+  heightOutOfPlate: 0.01
+  distBeforePush: 0.05
+  distAfterPush: 0.05
+  prePushOffset: -0.04
+  distToPush: 0.20
+  pushVelLimit: 0.2
+  waitMillisecsAtFood: 500     # short pause after skewering the food
+
+planning:
+  tsr:
+    horizontalToleranceAbovePlate: 0.0
+    verticalToleranceAbovePlate: 0.0
+    rotationalToleranceAbovePlate: 0.0
+    horizontalToleranceNearFood: 0.0
+    verticalToleranceNearFood: 0.0
+    rotationToleranceNearFood: 0.1926 # PI / 8
+    tiltToleranceNearFood: 0.175 # 10 degrees
+
+# Parameters for the F/T sensor and the MoveUntilTouchController
+ftSensor:
+  thresholds:
+    standard:       # used when no other thresholds are specified
+      force: 25
+      torque: 2
+    grabFood:       # active when going down to grab the food
+      force: 25
+      torque: 2
+    afterGrabFood:  # active when going up after food has been grabbed
+      force: 50
+      torque: 2
+    pushFood:
+      force:  4
+      torque: 2
