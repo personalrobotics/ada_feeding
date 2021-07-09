@@ -13,14 +13,11 @@ namespace feeding {
 //==============================================================================
 FTThresholdHelper::FTThresholdHelper(
     bool useThresholdControl,
-    ros::NodeHandle nodeHandle,
-    const std::string& topicOverride)
+    ros::NodeHandle nodeHandle)
   : mUseThresholdControl(useThresholdControl), mNodeHandle(nodeHandle)
 {
   if (!mUseThresholdControl)
     return;
-
-  swapTopic(topicOverride);
 }
 
 //==============================================================================
@@ -41,10 +38,12 @@ void FTThresholdHelper::swapTopic(const std::string& topic)
 }
 
 //==============================================================================
-void FTThresholdHelper::init(bool retare)
+void FTThresholdHelper::init(bool retare, const std::string& topicOverride)
 {
   if (!mUseThresholdControl)
     return;
+
+  swapTopic(topicOverride);
 
 #ifdef REWD_CONTROLLERS_FOUND
   auto thresholdPair = getThresholdValues(STANDARD_FT_THRESHOLD);
