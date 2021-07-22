@@ -160,7 +160,7 @@ std::string getUserFoodInput(
     return foodName;
   }
 
-  ROS_INFO_STREAM("Which food item do you want?");
+  ROS_INFO_STREAM("Which food item do you want? (Enter the desired item's number)");
   for (std::size_t i = 0; i < FOOD_NAMES.size(); ++i)
   {
     ROS_INFO_STREAM("(" << i + 1 << ") " << FOOD_NAMES[i] << std::endl);
