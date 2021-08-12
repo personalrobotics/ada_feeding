@@ -11,44 +11,26 @@ namespace feeding {
 namespace action {
 
 void pickUpFork(
-    const std::shared_ptr<ada::Ada>& ada,
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
-    double forkHolderAngle,
-    std::vector<double> forkHolderTranslation,
     const Eigen::Isometry3d& plate,
     const Eigen::Isometry3d& plateEndEffectorTransform,
-    double heightAbovePlate,
-    double horizontalToleranceAbovePlate,
-    double verticalToleranceAbovePlate,
-    double rotationToleranceAbovePlate,
-    double endEffectorOffsetPositionTolerance,
-    double endEffectorOffsetAngularTolerance,
-    double planningTimeout,
-    int maxNumTrials,
-    const Eigen::Vector6d& velocityLimits,
-    std::shared_ptr<FTThresholdHelper> ftThresholdHelper)
+    FeedingDemo* feedingDemo)
 {
+  // Load necessary parameters from feedingDemo
+  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const aikido::constraint::dart::CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
+
   ada->openHand();
   moveAboveForque(
-      ada,
       collisionFree,
-      forkHolderAngle,
-      forkHolderTranslation,
-      planningTimeout,
-      maxNumTrials);
+      feedingDemo);
 
   Eigen::Vector3d endEffectorDirection(0, 0, -1);
   moveInto(
-      ada,
       nullptr,
-      collisionFree,
       nullptr,
       TargetItem::FORQUE,
-      planningTimeout,
-      endEffectorOffsetPositionTolerance,
-      endEffectorOffsetAngularTolerance,
       endEffectorDirection,
-      ftThresholdHelper);
+      feedingDemo);
 
   std::vector<std::string> optionPrompts{"(1) close", "(2) leave-as-is"};
   auto input = getUserInputWithOptions(optionPrompts, "Close Hand?");
@@ -63,27 +45,16 @@ void pickUpFork(
   Eigen::Vector3d direction(0, -1, 0);
 
   moveOutOf(
-      ada,
       nullptr, // ignore collision
       TargetItem::FORQUE,
       length,
       direction,
-      planningTimeout,
-      endEffectorOffsetPositionTolerance,
-      endEffectorOffsetAngularTolerance,
-      ftThresholdHelper);
+      feedingDemo);
 
   moveAbovePlate(
-      ada,
-      collisionFree,
       plate,
       plateEndEffectorTransform,
-      horizontalToleranceAbovePlate,
-      verticalToleranceAbovePlate,
-      rotationToleranceAbovePlate,
-      planningTimeout,
-      maxNumTrials,
-      velocityLimits);
+      feedingDemo);
 }
 
 } // namespace action

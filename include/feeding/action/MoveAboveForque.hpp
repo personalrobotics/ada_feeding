@@ -3,18 +3,15 @@
 
 #include <libada/Ada.hpp>
 
+#include "feeding/FeedingDemo.hpp"
 #include "feeding/Workspace.hpp"
 
 namespace feeding {
 namespace action {
 
 void moveAboveForque(
-    const std::shared_ptr<ada::Ada>& ada,
     const aikido::constraint::dart::CollisionFreePtr& collisionFree,
-    double forkHolderAngle,
-    std::vector<double> forkHolderTranslation,
-    double planningTimeout,
-    int maxNumTrials);
+    FeedingDemo* feedingDemo);
 
 } // namespace action
 } // namespace feeding

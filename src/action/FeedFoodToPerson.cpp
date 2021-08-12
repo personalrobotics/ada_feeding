@@ -19,43 +19,36 @@ namespace action {
 static const std::vector<std::string> optionPrompts{"(1) tilt", "(2) no tilt"};
 //==============================================================================
 void feedFoodToPerson(
-    const std::shared_ptr<ada::Ada>& ada,
-    const std::shared_ptr<Workspace>& workspace,
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
-    const aikido::constraint::dart::CollisionFreePtr&
-        collisionFreeWithWallFurtherBack,
     const std::shared_ptr<Perception>& perception,
     const ros::NodeHandle* nodeHandle,
     const Eigen::Isometry3d& plate,
     const Eigen::Isometry3d& plateEndEffectorTransform,
-    const Eigen::Isometry3d& personPose,
-    std::chrono::milliseconds waitAtPerson,
-    double heightAbovePlate,
-    double horizontalToleranceAbovePlate,
-    double verticalToleranceAbovePlate,
-    double rotationToleranceAbovePlate,
-    double distanceToPerson,
-    double horizontalToleranceForPerson,
-    double verticalToleranceForPerson,
-    double planningTimeout,
-    int maxNumTrials,
-    double endEffectorOffsetPositionTolerenace,
-    double endEffectorOffsetAngularTolerance,
-    const Eigen::Vector6d& velocityLimits,
     const Eigen::Vector3d* tiltOffset,
     FeedingDemo* feedingDemo)
 {
+  // Load necessary parameters from feedingDemo
+  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const std::shared_ptr<Workspace>& workspace = feedingDemo->getWorkspace();
+  const aikido::constraint::dart::CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
+  // const aikido::constraint::dart::CollisionFreePtr& collisionFreeWithWallFurtherBack = feedingDemo->getCollisionConstraintWithWallFurtherBack();
+  const Eigen::Isometry3d& personPose = workspace->getPersonPose();
+  std::chrono::milliseconds waitAtPerson = feedingDemo->mWaitTimeForPerson;
+  double distanceToPerson = feedingDemo->mPersonTSRParameters.at("distance");
+  double horizontalToleranceForPerson = feedingDemo->mPersonTSRParameters.at("horizontalTolerance");
+  double verticalToleranceForPerson = feedingDemo->mPersonTSRParameters.at("verticalTolerance");
+  double planningTimeout = feedingDemo->mPlanningTimeout;
+  int maxNumTrials = feedingDemo->mMaxNumTrials;
+  const Eigen::Vector6d& velocityLimits = feedingDemo->mVelocityLimits;
+
   auto moveIFOPerson = [&] {
-    return moveInFrontOfPerson(
-        ada,
+    auto retval = moveInFrontOfPerson(
         collisionFree,
         personPose,
         distanceToPerson,
         horizontalToleranceForPerson,
         verticalToleranceForPerson,
-        planningTimeout,
-        maxNumTrials,
-        velocityLimits);
+        feedingDemo);
+    return retval;
   };
 
   bool moveIFOSuccess = false;
@@ -170,15 +163,7 @@ void feedFoodToPerson(
       ROS_WARN_STREAM("Error Requested for Transfer!");
       // Erroneous Transfer
       /*moveDirectlyToPerson(
-        ada,
-        collisionFreeWithWallFurtherBack,
         personPose,
-        distanceToPerson,
-        horizontalToleranceForPerson,
-        verticalToleranceForPerson,
-        planningTimeout,
-        maxNumTrials,
-        velocityLimits,
         nullptr,
         feedingDemo
         );
@@ -189,15 +174,12 @@ void feedFoodToPerson(
       std::this_thread::sleep_for(std::chrono::milliseconds(3000));
       talk("Oops, let me try that again.", true);
       moveIFOSuccess = moveInFrontOfPerson(
-          ada,
           nullptr,
           personPose,
           distanceToPerson,
           horizontalToleranceForPerson,
           verticalToleranceForPerson,
-          planningTimeout,
-          maxNumTrials,
-          velocityLimits);
+          feedingDemo);
     }
 
     nodeHandle->setParam("/feeding/facePerceptionOn", true);
@@ -209,14 +191,11 @@ void feedFoodToPerson(
 
     ROS_INFO_STREAM("Move towards person");
     moveSuccess = moveTowardsPerson(
-        ada,
         nullptr,
         perception,
         nodeHandle,
         distanceToPerson,
-        planningTimeout,
-        endEffectorOffsetPositionTolerenace,
-        endEffectorOffsetAngularTolerance);
+        feedingDemo);
     nodeHandle->setParam("/feeding/facePerceptionOn", false);
   }
 
@@ -288,15 +267,12 @@ void feedFoodToPerson(
     talk("Let me get out of your way.", true);
     Eigen::Vector3d goalDirection(0, -1, 0);
     bool success = moveInFrontOfPerson(
-        ada,
         nullptr,
         personPose,
         distanceToPerson,
         horizontalToleranceForPerson * 2,
         verticalToleranceForPerson * 2,
-        planningTimeout,
-        maxNumTrials,
-        velocityLimits);
+        feedingDemo);
     ROS_INFO_STREAM("Backward " << success << std::endl);
   }
 
@@ -307,16 +283,9 @@ void feedFoodToPerson(
   // collisionFree.
   talk("And now back to the plate.", true);
   moveAbovePlate(
-      ada,
-      collisionFree,
       plate,
       plateEndEffectorTransform,
-      horizontalToleranceAbovePlate,
-      verticalToleranceAbovePlate,
-      rotationToleranceAbovePlate,
-      planningTimeout,
-      maxNumTrials,
-      velocityLimits);
+      feedingDemo);
 
   publishTimingDoneToWeb((ros::NodeHandle*)nodeHandle);
 }

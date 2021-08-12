@@ -13,18 +13,21 @@ const static std::vector<std::string> trajectoryController{
     "rewd_trajectory_controller"};
 const static std::vector<std::string> ftTrajectoryController{
     "move_until_touch_topic_controller"};
+
 void moveOutOf(
-    const std::shared_ptr<::ada::Ada>& ada,
     const aikido::constraint::dart::CollisionFreePtr& collisionFree,
     TargetItem item,
     double length,
     Eigen::Vector3d direction,
-    double planningTimeout,
-    double endEffectorOffsetPositionTolerance,
-    double endEffectorOffsetAngularTolerance,
-    const std::shared_ptr<FTThresholdHelper>& ftThresholdHelper,
-    const Eigen::Vector6d& velocityLimits)
+    FeedingDemo* feedingDemo)
 {
+  // Load necessary parameters from feedingDemo
+  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  double planningTimeout = feedingDemo->mPlanningTimeout;
+  double endEffectorOffsetPositionTolerance = feedingDemo->mEndEffectorOffsetPositionTolerance;
+  double endEffectorOffsetAngularTolerance = feedingDemo->mEndEffectorOffsetAngularTolerance;
+  std::shared_ptr<FTThresholdHelper> ftThresholdHelper = feedingDemo->getFTThresholdHelper();
+  const Eigen::Vector6d& velocityLimits = feedingDemo->mVelocityLimits;
 
   ROS_INFO_STREAM("Move Out of " + TargetToString.at(item));
 

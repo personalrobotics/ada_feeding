@@ -20,7 +20,6 @@ void spanetDemo(
 
   auto ada = feedingDemo.getAda();
   auto workspace = feedingDemo.getWorkspace();
-  auto collisionFree = feedingDemo.getCollisionConstraint();
   auto plate = workspace->getPlate()->getRootBodyNode()->getWorldTransform();
 
   while (true)
@@ -34,31 +33,12 @@ void spanetDemo(
     ROS_INFO_STREAM("Running spanet demo");
 
     action::skewer(
-    ada,
-    workspace,
-    collisionFree,
     perception,
     &nodeHandle,
     "",
     plate,
     feedingDemo.getPlateEndEffectorTransform(),
-    feedingDemo.mFoodSkeweringForces,
-    feedingDemo.mPlateTSRParameters["horizontalTolerance"],
-    feedingDemo.mPlateTSRParameters["verticalTolerance"],
-    feedingDemo.mPlateTSRParameters["rotationTolerance"],
-    feedingDemo.mFoodTSRParameters["height"],
-    feedingDemo.mFoodTSRParameters["horizontalTolerance"],
-    feedingDemo.mFoodTSRParameters["verticalTolerance"],
-    feedingDemo.mFoodTSRParameters["rotationTolerance"],
-    feedingDemo.mFoodTSRParameters["tiltTolerance"],
-    feedingDemo.mMoveOufOfFoodLength,
-    feedingDemo.mEndEffectorOffsetPositionTolerance,
-    feedingDemo.mEndEffectorOffsetAngularTolerance,
-    feedingDemo.mWaitTimeForFood,
-    feedingDemo.mPlanningTimeout,
-    feedingDemo.mMaxNumTrials,
-    feedingDemo.mVelocityLimits,
-    feedingDemo.getFTThresholdHelper());
+    &feedingDemo);
 
     workspace.reset();
   }

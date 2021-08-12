@@ -16,18 +16,9 @@ namespace feeding {
 namespace action {
 
 std::unique_ptr<FoodItem> detectAndMoveAboveFood(
-    const std::shared_ptr<ada::Ada>& ada,
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
     const std::shared_ptr<Perception>& perception,
     const std::string& foodName,
-    double heightAboveFood,
-    double horizontalTolerance,
-    double verticalTolerance,
     double rotationTolerance,
-    double tiltTolerance,
-    double planningTimeout,
-    int maxNumTrials,
-    const Eigen::Vector6d& velocityLimits,
     FeedingDemo* feedingDemo,
     double* angleGuess,
     int actionOverride)
@@ -70,29 +61,20 @@ std::unique_ptr<FoodItem> detectAndMoveAboveFood(
     auto action = item->getAction();
 
     std::cout << "Tilt style " << action->getTiltStyle() << std::endl;
-    if (!moveAboveFood(
-            ada,
-            collisionFree,
+    moveAboveSuccessful = moveAboveFood(
             item->getName(),
             item->getPose(),
             action->getRotationAngle(),
             action->getTiltStyle(),
-            heightAboveFood,
-            horizontalTolerance,
-            verticalTolerance,
             rotationTolerance,
-            tiltTolerance,
-            planningTimeout,
-            maxNumTrials,
-            velocityLimits,
             feedingDemo,
-            angleGuess))
+            angleGuess);
+    if (!moveAboveSuccessful)
     {
       ROS_INFO_STREAM("Failed to move above " << item->getName());
       talk("Sorry, I'm having a little trouble moving. Let's try again.");
       return nullptr;
     }
-    moveAboveSuccessful = true;
 
     perception->setFoodItemToTrack(item.get());
     ret = std::move(item);

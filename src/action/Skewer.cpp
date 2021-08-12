@@ -21,46 +21,30 @@ namespace action {
 
 //==============================================================================
 bool skewer(
-    const std::shared_ptr<ada::Ada>& ada,
-    const std::shared_ptr<Workspace>& workspace,
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
     const std::shared_ptr<Perception>& perception,
     const ros::NodeHandle* nodeHandle,
     const std::string& foodName,
     const Eigen::Isometry3d& plate,
     const Eigen::Isometry3d& plateEndEffectorTransform,
-    const std::unordered_map<std::string, double>& foodSkeweringForces,
-    double horizontalToleranceAbovePlate,
-    double verticalToleranceAbovePlate,
-    double rotationToleranceAbovePlate,
-    double heightAboveFood,
-    double horizontalToleranceForFood,
-    double verticalToleranceForFood,
-    double rotationToleranceForFood,
-    double tiltToleranceForFood,
-    double moveOutofFoodLength,
-    double endEffectorOffsetPositionTolerance,
-    double endEffectorOffsetAngularTolerance,
-    std::chrono::milliseconds waitTimeForFood,
-    double planningTimeout,
-    int maxNumTrials,
-    const Eigen::Vector6d& velocityLimits,
-    const std::shared_ptr<FTThresholdHelper>& ftThresholdHelper,
-    std::vector<std::string> rotationFreeFoodNames,
     FeedingDemo* feedingDemo)
 {
+  // Load necessary parameters from feedingDemo
+  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const aikido::constraint::dart::CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
+  const std::unordered_map<std::string, double>& foodSkeweringForces = feedingDemo->mFoodSkeweringForces;
+  double heightAboveFood = feedingDemo->mFoodTSRParameters.at("height");
+  double rotationToleranceForFood = feedingDemo->mFoodTSRParameters.at("rotationTolerance");
+  double moveOutofFoodLength = feedingDemo->mMoveOufOfFoodLength;
+  std::chrono::milliseconds waitTimeForFood = feedingDemo->mWaitTimeForFood;
+  // const Eigen::Vector6d& velocityLimits = feedingDemo.mVelocityLimits;
+  const std::shared_ptr<FTThresholdHelper>& ftThresholdHelper = feedingDemo->getFTThresholdHelper();
+  std::vector<std::string> rotationFreeFoodNames = feedingDemo->mRotationFreeFoodNames;
+
   ROS_INFO_STREAM("Move above plate");
   bool abovePlaceSuccess = moveAbovePlate(
-      ada,
-      collisionFree,
       plate,
       plateEndEffectorTransform,
-      horizontalToleranceAbovePlate,
-      verticalToleranceAbovePlate,
-      rotationToleranceAbovePlate,
-      planningTimeout,
-      maxNumTrials,
-      velocityLimits);
+      feedingDemo);
 
   if (!abovePlaceSuccess)
   {
@@ -187,18 +171,9 @@ bool skewer(
             = item->getPose().rotation() * Eigen::Vector3d::UnitX();
         double baseRotateAngle = atan2(foodVec[1], foodVec[0]);
         detectAndMoveAboveFood(
-            ada,
-            collisionFree,
             perception,
             foodName,
-            heightAboveFood,
-            horizontalToleranceForFood,
-            verticalToleranceForFood,
             rotationToleranceForFood,
-            tiltToleranceForFood,
-            planningTimeout,
-            maxNumTrials,
-            velocityLimits,
             feedingDemo,
             &baseRotateAngle,
             actionNum);
@@ -262,18 +237,9 @@ bool skewer(
 
       ROS_INFO_STREAM("Detect and Move above food");
       item = detectAndMoveAboveFood(
-          ada,
-          collisionFree,
           perception,
           foodName,
-          heightAboveFood,
-          horizontalToleranceForFood,
-          verticalToleranceForFood,
           rotationToleranceForFood,
-          tiltToleranceForFood,
-          planningTimeout,
-          maxNumTrials,
-          velocityLimits,
           feedingDemo,
           nullptr,
           actionOverride);
@@ -319,17 +285,11 @@ bool skewer(
     // ===== INTO FOOD =====
     talk("Here we go!", true);
     auto moveIntoSuccess = moveInto(
-        ada,
         perception,
-        collisionFree,
         nodeHandle,
         TargetItem::FOOD,
-        planningTimeout,
-        endEffectorOffsetPositionTolerance,
-        endEffectorOffsetAngularTolerance,
         endEffectorDirection,
-        ftThresholdHelper,
-        velocityLimits);
+        feedingDemo);
 
     if (!moveIntoSuccess)
     {
@@ -343,18 +303,13 @@ bool skewer(
     // ===== OUT OF FOOD =====
     Eigen::Vector3d direction(0, 0, 1);
     moveOutOf(
-        ada,
         nullptr,
         TargetItem::FOOD,
         moveOutofFoodLength * 2.0,
         direction,
-        planningTimeout,
-        endEffectorOffsetPositionTolerance,
-        endEffectorOffsetAngularTolerance,
-        ftThresholdHelper,
-        velocityLimits);
+        feedingDemo);
 
-    if (getUserInputWithOptions(optionPrompts, "Did I succeed?") == 1)
+    if (getUserInputWithOptions(optionPrompts, "Did I succeed?") == 1)//true)//
     {
       ROS_INFO_STREAM("Successful");
       talk("Success.");

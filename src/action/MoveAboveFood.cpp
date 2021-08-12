@@ -16,23 +16,22 @@ namespace feeding {
 namespace action {
 
 bool moveAboveFood(
-    const std::shared_ptr<ada::Ada>& ada,
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
     std::string foodName,
     const Eigen::Isometry3d& foodTransform,
     float rotateAngle,
     TiltStyle tiltStyle,
-    double heightAboveFood,
-    double horizontalTolerance,
-    double verticalTolerance,
     double rotationTolerance,
-    double tiltTolerance,
-    double planningTimeout,
-    int maxNumTrials,
-    const Eigen::Vector6d& velocityLimits,
     FeedingDemo* feedingDemo,
     double* angleGuess)
 {
+  // Load necessary parameters from feedingDemo
+  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  double heightAboveFood = feedingDemo->mFoodTSRParameters.at("height");
+  double horizontalTolerance = feedingDemo->mFoodTSRParameters.at("horizontalTolerance");
+  double verticalTolerance = feedingDemo->mFoodTSRParameters.at("verticalTolerance");
+  // NOTE: Although tiltTolerance was originally passed in as a param, it was never used.
+  // double tiltTolerance = feedingDemo->mFoodTSRParameters.at("tiltTolerance");
+
   Eigen::Isometry3d target;
   Eigen::Isometry3d eeTransform
       = *ada->getHand()->getEndEffectorTransform("food");
@@ -89,19 +88,15 @@ bool moveAboveFood(
                             cos(M_PI * 0.25) * heightAboveFood * 0.9};
   }
 
-  return moveAbove(
-      ada,
-      collisionFree,
+  auto retval = moveAbove(
       target,
       eeTransform,
       horizontalTolerance,
       verticalTolerance,
       rotationTolerance,
       0.0,
-      planningTimeout,
-      maxNumTrials,
-      velocityLimits,
       feedingDemo);
+  return retval;
 }
 
 } // namespace action
