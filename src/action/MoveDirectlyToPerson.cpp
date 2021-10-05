@@ -13,18 +13,19 @@ namespace action {
 
 // TODO: This gets to MoveInfrontOfPerson pose. need moveInto?
 bool moveDirectlyToPerson(
-    const std::shared_ptr<ada::Ada>& ada,
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
     const Eigen::Isometry3d& personPose,
-    double distanceToPerson,
-    double horizontalToleranceForPerson,
-    double verticalToleranceForPerson,
-    double planningTimeout,
-    int maxNumTrials,
-    const Eigen::Vector6d& velocityLimits,
     const Eigen::Vector3d* tiltOffset,
     FeedingDemo* feedingDemo)
 {
+  // Load necessary parameters from feedingDemo
+  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const aikido::constraint::dart::CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
+  double horizontalToleranceForPerson = feedingDemo->mPersonTSRParameters.at("horizontalTolerance");
+  double verticalToleranceForPerson = feedingDemo->mPersonTSRParameters.at("verticalTolerance");
+  double planningTimeout = feedingDemo->mPlanningTimeout;
+  int maxNumTrials = feedingDemo->mMaxNumTrials;
+  const Eigen::Vector6d& velocityLimits = feedingDemo->mVelocityLimits;
+
   Eigen::Isometry3d person = Eigen::Isometry3d::Identity();
   person.translation() = personPose.translation();
   person.linear()

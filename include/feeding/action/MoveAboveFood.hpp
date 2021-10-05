@@ -12,21 +12,12 @@ namespace feeding {
 namespace action {
 
 bool moveAboveFood(
-    const std::shared_ptr<ada::Ada>& ada,
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
     std::string foodName,
     const Eigen::Isometry3d& foodTransform,
     float rotateAngle,
     TiltStyle tiltStyle,
-    double heightAboveFood,
-    double horizontalTolerance,
-    double verticalTolerance,
     double rotationTolerance,
-    double tiltTolerance,
-    double planningTimeout,
-    int maxNumTrials,
-    const Eigen::Vector6d& velocityLimits,
-    FeedingDemo* feedingDemo = nullptr,
+    FeedingDemo* feedingDemo,
     double* angleGuess = nullptr);
 
 } // namespace action

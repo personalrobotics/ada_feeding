@@ -11,69 +11,39 @@ namespace feeding {
 namespace action {
 
 void putDownFork(
-    const std::shared_ptr<ada::Ada>& ada,
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
-    double forkHolderAngle,
-    std::vector<double> forkHolderTranslation,
     const Eigen::Isometry3d& plate,
     const Eigen::Isometry3d& plateEndEffectorTransform,
-    double heightAbovePlate,
-    double horizontalToleranceAbovePlate,
-    double verticalToleranceAbovePlate,
-    double rotationToleranceAbovePlate,
-    double endEffectorOffsetPositionTolerance,
-    double endEffectorOffsetAngularTolerance,
-    double planningTimeout,
-    int maxNumTrials,
-    const Eigen::Vector6d& velocityLimits,
-    std::shared_ptr<FTThresholdHelper> ftThresholdHelper)
+    FeedingDemo* feedingDemo)
 {
+  // Load necessary parameters from feedingDemo
+  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const aikido::constraint::dart::CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
+
   ada->closeHand();
   moveAboveForque(
-      ada,
       collisionFree,
-      forkHolderAngle,
-      forkHolderTranslation,
-      planningTimeout,
-      maxNumTrials);
+      feedingDemo);
 
   moveInto(
-      ada,
-      nullptr,
-      collisionFree,
       nullptr,
       TargetItem::FORQUE,
-      planningTimeout,
-      endEffectorOffsetPositionTolerance,
-      endEffectorOffsetAngularTolerance,
       Eigen::Vector3d(0, 1, 0), // direction
-      ftThresholdHelper);
+      feedingDemo);
 
   ada->openHand();
   std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
   moveOutOf(
-      ada,
       collisionFree,
       TargetItem::FORQUE,
       0.04,                      // length
       Eigen::Vector3d(0, -1, 0), // direction
-      planningTimeout,
-      endEffectorOffsetPositionTolerance,
-      endEffectorOffsetAngularTolerance,
-      ftThresholdHelper);
+      feedingDemo);
 
   moveAbovePlate(
-      ada,
-      collisionFree,
       plate,
       plateEndEffectorTransform,
-      horizontalToleranceAbovePlate,
-      verticalToleranceAbovePlate,
-      rotationToleranceAbovePlate,
-      planningTimeout,
-      maxNumTrials,
-      velocityLimits);
+      feedingDemo);
 }
 
 } // namespace action

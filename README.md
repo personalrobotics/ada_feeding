@@ -51,7 +51,7 @@ xauth nlist $DISPLAY | sed -e 's/^..../ffff/' | xauth -f $XAUTH nmerge -
 ```
 8. Run the Docker container using `sudo docker run --rm --network host -v my_catkin_workspace:/workspace -v $XSOCK:$XSOCK:rw -v $XAUTH:$XAUTH:rw -e XAUTHORITY=${XAUTH} -e DISPLAY  -it ada-sim`
 
-You are good to go! Note that any files created within the Docker container that are not within a mounted volume will be deleted once you exit the container (the relevant mounted volume in the above command is your catkin workspace). Further note that the best practice is to have a separate workspace for use within the Docker container, and to only build/source that workspace from within the container (to avoid clashes with ROS versions, library paths, etc.). Finally, note that step 8 above has to be re-run whenever you want to enter your container, and step 7 may have to be re-run.
+You are good to go! Note that any files created within the Docker container that are not within a mounted volume will be deleted once you exit the container (the relevant mounted volume in the above command is your catkin workspace). Further note that the best practice is to have a separate workspace for use within the Docker container, and to only build/source that workspace from within the container (to avoid clashes with ROS versions, library paths, etc.). Finally, note that steps 7-8 above have to be re-run whenever you want to enter your container.
 
 ### PRL Git Packages
 

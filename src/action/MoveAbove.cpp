@@ -13,19 +13,21 @@ namespace feeding {
 namespace action {
 
 bool moveAbove(
-    const std::shared_ptr<::ada::Ada>& ada,
-    const CollisionFreePtr& collisionFree,
     const Eigen::Isometry3d& targetTransform,
     const Eigen::Isometry3d& endEffectorTransform,
     double horizontalTolerance,
     double verticalTolerance,
     double rotationTolerance,
     double tiltTolerance,
-    double planningTimeout,
-    int maxNumTrials,
-    const Eigen::Vector6d& velocityLimits,
     FeedingDemo* feedingDemo)
 {
+  // Load necessary parameters from feedingDemo
+  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
+  double planningTimeout = feedingDemo->mPlanningTimeout;
+  int maxNumTrials = feedingDemo->mMaxNumTrials;
+  const Eigen::Vector6d& velocityLimits = feedingDemo->mVelocityLimits;
+
   ROS_WARN_STREAM("CALLED MOVE ABOVE; Rotation: " << rotationTolerance);
   TSR target;
 

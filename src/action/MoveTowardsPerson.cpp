@@ -8,15 +8,18 @@ namespace feeding {
 namespace action {
 
 bool moveTowardsPerson(
-    const std::shared_ptr<ada::Ada>& ada,
     const aikido::constraint::dart::CollisionFreePtr& collisionFree,
     const std::shared_ptr<Perception>& perception,
-    const ros::NodeHandle* nodeHandle,
     double distanceToPerson,
-    double planningTimeout,
-    double endEffectorOffsetPositionTolerenace,
-    double endEffectorOffsetAngularTolerance)
+    FeedingDemo* feedingDemo)
 {
+  // Load necessary parameters from feedingDemo
+  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const ros::NodeHandle* nodeHandle = feedingDemo->getNodeHandle().get();
+  double planningTimeout = feedingDemo->mPlanningTimeout;
+  double endEffectorOffsetPositionTolerance = feedingDemo->mEndEffectorOffsetPositionTolerance;
+  double endEffectorOffsetAngularTolerance = feedingDemo->mEndEffectorOffsetAngularTolerance;
+
   ROS_INFO_STREAM("Move towards person");
 
   int numDofs = ada->getArm()->getMetaSkeleton()->getNumDofs();
@@ -39,7 +42,7 @@ bool moveTowardsPerson(
       0.2,
       0.015,
       planningTimeout,
-      endEffectorOffsetPositionTolerenace,
+      endEffectorOffsetPositionTolerance,
       endEffectorOffsetAngularTolerance,
       false, // not food
       velocityLimits);
@@ -76,7 +79,7 @@ bool moveTowardsPerson(
   vectorToGoalPose.normalize();
 
   ROS_WARN_STREAM("Angular Tolerance: " << endEffectorOffsetAngularTolerance);
-  ROS_WARN_STREAM("Pose Tolerance: " << endEffectorOffsetPositionTolerenace);
+  ROS_WARN_STREAM("Pose Tolerance: " << endEffectorOffsetPositionTolerance);
   ROS_WARN_STREAM("Offset: " << distanceToPerson);
   ROS_WARN_STREAM("Goal Pose: " << vectorToGoalPose);
 
@@ -85,7 +88,7 @@ bool moveTowardsPerson(
           length,
           nullptr,
           planningTimeout,
-          endEffectorOffsetPositionTolerenace,
+          endEffectorOffsetPositionTolerance,
           endEffectorOffsetAngularTolerance,
           velocityLimits))
   {

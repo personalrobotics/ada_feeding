@@ -27,9 +27,7 @@ void humanStudyDemo(
 
   ROS_INFO_STREAM("==========  DEMO ==========");
 
-  auto ada = feedingDemo.getAda();
   auto workspace = feedingDemo.getWorkspace();
-  auto collisionFree = feedingDemo.getCollisionConstraint();
   auto plate = workspace->getPlate()->getRootBodyNode()->getWorldTransform();
 
   //talk("Hello, my name is aid uh. It's my pleasure to serve you today!");
@@ -56,34 +54,12 @@ void humanStudyDemo(
       foodName = std::string("strawberry");
     }
     */
-    
+
       bool skewer = action::skewer(
-        ada,
-        workspace,
-        collisionFree,
         perception,
-        nodeHandle.get(),
         foodName,
         plate,
         feedingDemo.getPlateEndEffectorTransform(),
-        feedingDemo.mFoodSkeweringForces,
-        feedingDemo.mPlateTSRParameters.at("horizontalTolerance"),
-        feedingDemo.mPlateTSRParameters.at("verticalTolerance"),
-        feedingDemo.mPlateTSRParameters.at("rotationTolerance"),
-        feedingDemo.mFoodTSRParameters.at("height"),
-        feedingDemo.mFoodTSRParameters.at("horizontalTolerance"),
-        feedingDemo.mFoodTSRParameters.at("verticalTolerance"),
-        feedingDemo.mFoodTSRParameters.at("rotationTolerance"),
-        feedingDemo.mFoodTSRParameters.at("tiltTolerance"),
-        feedingDemo.mMoveOufOfFoodLength,
-        feedingDemo.mEndEffectorOffsetPositionTolerance,
-        feedingDemo.mEndEffectorOffsetAngularTolerance,
-        feedingDemo.mWaitTimeForFood,
-        feedingDemo.mPlanningTimeout,
-        feedingDemo.mMaxNumTrials,
-        feedingDemo.mVelocityLimits,
-        feedingDemo.getFTThresholdHelper(),
-        feedingDemo.mRotationFreeFoodNames,
         &feedingDemo);
 
 
@@ -103,28 +79,9 @@ void humanStudyDemo(
       bool tilted = (foodName == "celery" || foodName == "carrot" || foodName == "bell_pepper" || foodName == "apple");
 
       action::feedFoodToPerson(
-        ada,
-        workspace,
-        collisionFree,
-        feedingDemo.getCollisionConstraintWithWallFurtherBack(),
         perception,
-        nodeHandle.get(),
         plate,
         feedingDemo.getPlateEndEffectorTransform(),
-        workspace->getPersonPose(),
-        feedingDemo.mWaitTimeForPerson,
-        feedingDemo.mPlateTSRParameters.at("height"),
-        feedingDemo.mPlateTSRParameters.at("horizontalTolerance"),
-        feedingDemo.mPlateTSRParameters.at("verticalTolerance"),
-        feedingDemo.mPlateTSRParameters.at("rotationTolerance"),
-        feedingDemo.mPersonTSRParameters.at("distance"),
-        feedingDemo.mPersonTSRParameters.at("horizontalTolerance"),
-        feedingDemo.mPersonTSRParameters.at("verticalTolerance"),
-        feedingDemo.mPlanningTimeout,
-        feedingDemo.mMaxNumTrials,
-        feedingDemo.mEndEffectorOffsetPositionTolerance,
-        feedingDemo.mEndEffectorOffsetAngularTolerance,
-        feedingDemo.mVelocityLimits,
         tilted ? &feedingDemo.mTiltOffset : nullptr,
         &feedingDemo
         );

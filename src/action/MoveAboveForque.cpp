@@ -10,13 +10,16 @@ namespace feeding {
 namespace action {
 
 void moveAboveForque(
-    const std::shared_ptr<ada::Ada>& ada,
     const aikido::constraint::dart::CollisionFreePtr& collisionFree,
-    double forkHolderAngle,
-    std::vector<double> forkHolderTranslation,
-    double planningTimeout,
-    int maxNumTrials)
+    FeedingDemo* feedingDemo)
 {
+  // Load necessary parameters from feedingDemo
+  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  double forkHolderAngle = feedingDemo->mForkHolderAngle;
+  std::vector<double> forkHolderTranslation = feedingDemo->mForkHolderTranslation;
+  double planningTimeout = feedingDemo->mPlanningTimeout;
+  int maxNumTrials = feedingDemo->mMaxNumTrials;
+
   auto aboveForqueTSR = pr_tsr::getDefaultPlateTSR();
   Eigen::Isometry3d forquePose = Eigen::Isometry3d::Identity();
   // y positive is closer to wheelchair

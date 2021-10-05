@@ -13,18 +13,21 @@ namespace feeding {
 namespace action {
 
 bool moveInto(
-    const std::shared_ptr<ada::Ada>& ada,
     const std::shared_ptr<Perception>& perception,
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
-    const ::ros::NodeHandle* nodeHandle,
     TargetItem item,
-    double planningTimeout,
-    double endEffectorOffsetPositionTolerance,
-    double endEffectorOffsetAngularTolerance,
     const Eigen::Vector3d& endEffectorDirection,
-    std::shared_ptr<FTThresholdHelper> ftThresholdHelper,
-    const Eigen::Vector6d& velocityLimits)
+    FeedingDemo* feedingDemo)
 {
+  // Load necessary parameters from feedingDemo
+  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const ros::NodeHandle* nodeHandle = feedingDemo->getNodeHandle().get();
+  const aikido::constraint::dart::CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
+  double planningTimeout = feedingDemo->mPlanningTimeout;
+  double endEffectorOffsetPositionTolerance = feedingDemo->mEndEffectorOffsetPositionTolerance;
+  double endEffectorOffsetAngularTolerance = feedingDemo->mEndEffectorOffsetAngularTolerance;
+  std::shared_ptr<FTThresholdHelper> ftThresholdHelper = feedingDemo->getFTThresholdHelper();
+  const Eigen::Vector6d& velocityLimits = feedingDemo->mVelocityLimits;
+
   ROS_INFO_STREAM("Move into " + TargetToString.at(item));
 
   if (item != FOOD && item != FORQUE)
