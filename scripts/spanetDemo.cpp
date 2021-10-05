@@ -34,7 +34,6 @@ void spanetDemo(
 
     action::skewer(
     perception,
-    &nodeHandle,
     "",
     plate,
     feedingDemo.getPlateEndEffectorTransform(),

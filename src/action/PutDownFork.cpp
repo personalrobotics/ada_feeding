@@ -26,7 +26,6 @@ void putDownFork(
 
   moveInto(
       nullptr,
-      nullptr,
       TargetItem::FORQUE,
       Eigen::Vector3d(0, 1, 0), // direction
       feedingDemo);

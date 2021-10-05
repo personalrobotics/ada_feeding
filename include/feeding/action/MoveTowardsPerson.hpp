@@ -13,7 +13,6 @@ namespace action {
 bool moveTowardsPerson(
     const aikido::constraint::dart::CollisionFreePtr& collisionFree,
     const std::shared_ptr<Perception>& perception,
-    const ros::NodeHandle* nodeHandle,
     double distanceToPerson,
     FeedingDemo* feedingDemo);
 }

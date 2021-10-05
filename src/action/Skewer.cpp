@@ -22,7 +22,6 @@ namespace action {
 //==============================================================================
 bool skewer(
     const std::shared_ptr<Perception>& perception,
-    const ros::NodeHandle* nodeHandle,
     const std::string& foodName,
     const Eigen::Isometry3d& plate,
     const Eigen::Isometry3d& plateEndEffectorTransform,
@@ -30,6 +29,7 @@ bool skewer(
 {
   // Load necessary parameters from feedingDemo
   const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const ros::NodeHandle* nodeHandle = feedingDemo->getNodeHandle().get();
   const aikido::constraint::dart::CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
   const std::unordered_map<std::string, double>& foodSkeweringForces = feedingDemo->mFoodSkeweringForces;
   double heightAboveFood = feedingDemo->mFoodTSRParameters.at("height");
@@ -286,7 +286,6 @@ bool skewer(
     talk("Here we go!", true);
     auto moveIntoSuccess = moveInto(
         perception,
-        nodeHandle,
         TargetItem::FOOD,
         endEffectorDirection,
         feedingDemo);

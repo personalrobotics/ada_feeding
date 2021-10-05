@@ -14,13 +14,13 @@ namespace action {
 
 bool moveInto(
     const std::shared_ptr<Perception>& perception,
-    const ::ros::NodeHandle* nodeHandle,
     TargetItem item,
     const Eigen::Vector3d& endEffectorDirection,
     FeedingDemo* feedingDemo)
 {
   // Load necessary parameters from feedingDemo
   const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const ros::NodeHandle* nodeHandle = feedingDemo->getNodeHandle().get();
   const aikido::constraint::dart::CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
   double planningTimeout = feedingDemo->mPlanningTimeout;
   double endEffectorOffsetPositionTolerance = feedingDemo->mEndEffectorOffsetPositionTolerance;

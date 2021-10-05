@@ -10,12 +10,12 @@ namespace action {
 bool moveTowardsPerson(
     const aikido::constraint::dart::CollisionFreePtr& collisionFree,
     const std::shared_ptr<Perception>& perception,
-    const ros::NodeHandle* nodeHandle,
     double distanceToPerson,
     FeedingDemo* feedingDemo)
 {
   // Load necessary parameters from feedingDemo
   const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const ros::NodeHandle* nodeHandle = feedingDemo->getNodeHandle().get();
   double planningTimeout = feedingDemo->mPlanningTimeout;
   double endEffectorOffsetPositionTolerance = feedingDemo->mEndEffectorOffsetPositionTolerance;
   double endEffectorOffsetAngularTolerance = feedingDemo->mEndEffectorOffsetAngularTolerance;

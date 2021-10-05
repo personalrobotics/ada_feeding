@@ -13,7 +13,6 @@ namespace action {
 
 void feedFoodToPerson(
     const std::shared_ptr<Perception>& perception,
-    const ros::NodeHandle* nodeHandle,
     const Eigen::Isometry3d& plate,
     const Eigen::Isometry3d& plateEndEffectorTransform,
     const Eigen::Vector3d* tiltOffset,

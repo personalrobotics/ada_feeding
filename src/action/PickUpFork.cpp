@@ -27,7 +27,6 @@ void pickUpFork(
   Eigen::Vector3d endEffectorDirection(0, 0, -1);
   moveInto(
       nullptr,
-      nullptr,
       TargetItem::FORQUE,
       endEffectorDirection,
       feedingDemo);

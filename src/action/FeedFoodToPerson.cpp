@@ -20,7 +20,6 @@ static const std::vector<std::string> optionPrompts{"(1) tilt", "(2) no tilt"};
 //==============================================================================
 void feedFoodToPerson(
     const std::shared_ptr<Perception>& perception,
-    const ros::NodeHandle* nodeHandle,
     const Eigen::Isometry3d& plate,
     const Eigen::Isometry3d& plateEndEffectorTransform,
     const Eigen::Vector3d* tiltOffset,
@@ -29,6 +28,7 @@ void feedFoodToPerson(
   // Load necessary parameters from feedingDemo
   const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
   const std::shared_ptr<Workspace>& workspace = feedingDemo->getWorkspace();
+  const ros::NodeHandle* nodeHandle = feedingDemo->getNodeHandle().get();
   const aikido::constraint::dart::CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
   // const aikido::constraint::dart::CollisionFreePtr& collisionFreeWithWallFurtherBack = feedingDemo->getCollisionConstraintWithWallFurtherBack();
   const Eigen::Isometry3d& personPose = workspace->getPersonPose();
@@ -193,7 +193,6 @@ void feedFoodToPerson(
     moveSuccess = moveTowardsPerson(
         nullptr,
         perception,
-        nodeHandle,
         distanceToPerson,
         feedingDemo);
     nodeHandle->setParam("/feeding/facePerceptionOn", false);

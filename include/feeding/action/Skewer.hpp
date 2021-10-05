@@ -13,7 +13,6 @@ namespace action {
 
 bool skewer(
     const std::shared_ptr<Perception>& perception,
-    const ros::NodeHandle* nodeHandle,
     const std::string& foodName,
     const Eigen::Isometry3d& plate,
     const Eigen::Isometry3d& plateEndEffectorTransform,

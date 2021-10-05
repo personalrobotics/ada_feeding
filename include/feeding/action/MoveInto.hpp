@@ -15,7 +15,6 @@ namespace action {
 
 bool moveInto(
     const std::shared_ptr<Perception>& perception,
-    const ::ros::NodeHandle* nodeHandle,
     TargetItem item,
     const Eigen::Vector3d& endEffectorDirection,
     FeedingDemo* feedingDemo);

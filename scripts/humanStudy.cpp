@@ -57,7 +57,6 @@ void humanStudyDemo(
 
       bool skewer = action::skewer(
         perception,
-        nodeHandle.get(),
         foodName,
         plate,
         feedingDemo.getPlateEndEffectorTransform(),
@@ -81,7 +80,6 @@ void humanStudyDemo(
 
       action::feedFoodToPerson(
         perception,
-        nodeHandle.get(),
         plate,
         feedingDemo.getPlateEndEffectorTransform(),
         tilted ? &feedingDemo.mTiltOffset : nullptr,
