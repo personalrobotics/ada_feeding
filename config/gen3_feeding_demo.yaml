@@ -16,18 +16,21 @@ visualization:
 
 # Robot parameters
 ada:
-  urdfUri: package://ada_description/robots_urdf/ada_with_camera_forque.urdf
-  srdfUri: package://ada_description/robots_urdf/ada_with_camera_forque.srdf
-  endEffectorName: j2n6s200_forque_end_effector
+  urdfUri: package://kortex_description/robots/gen3_6dof_vision.urdf
+  srdfUri: package://kortex_description/robots/gen3_6dof.srdf
+  endEffectorName: robotiq_arg2f_base_link
   homeConfiguration: [3.89015, 3.34645, 2.28738, -1.39666, 2.96761, 2.49281]      # the start configuration of the robot joints
   baseFramePose: [0.7, -0.1, -0.25, 0, 0, 3.1415]                                 # the transform between the robot base and the left front corner of the table
 
 # Workspace parameters
+# TODO: modify table urdf
+# TODO: modify wheelchair urdf
+# TODO: modify other poses based on new dimensions and poses for the plate and table?
 plate:
   urdfUri: package://pr_assets/data/objects/plate.urdf
   pose: [.445, 0.19, -0.045, 0, 0, 0]
 table:
-  urdfUri: package://pr_assets/data/furniture/table_feeding.urdf
+  urdfUri: package://pr_assets/data/furniture/emprise_table_feeding.urdf
   pose: [0.76, 0.38, -0.765, 0, 0, 0]
 defaultFoodItem:
   urdfUri: package://pr_assets/data/objects/food_item.urdf
@@ -100,7 +103,7 @@ perception:
   detectorDataUri: package://pr_assets/data/objects/tag_data_foods.json
   foodDetectorTopicName: /food_detector/marker_array
   faceDetectorTopicName: /face_detector/marker_array
-  referenceFrameName: j2n6s200_link_base
+  referenceFrameName: base_link
   timeoutSeconds: 5
   faceName: mouth
 
