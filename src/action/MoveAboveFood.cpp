@@ -33,8 +33,13 @@ bool moveAboveFood(
   // double tiltTolerance = feedingDemo->mFoodTSRParameters.at("tiltTolerance");
 
   Eigen::Isometry3d target;
-  Eigen::Isometry3d eeTransform
-      = *ada->getHand()->getEndEffectorTransform("food");
+  // TODO: remove hardcoded transform for food
+  Eigen::Isometry3d eeTransform;
+  Eigen::Matrix3d rot;
+  rot << -1, 0., 0.,
+         0., 1., 0.,
+         0., 0., -1;
+  eeTransform.linear() = rot;
   Eigen::AngleAxisd rotation
       = Eigen::AngleAxisd(-rotateAngle, Eigen::Vector3d::UnitZ());
   ROS_WARN_STREAM("Rotate Angle: " << rotateAngle);
