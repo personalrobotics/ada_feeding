@@ -5,6 +5,7 @@
 #include <Eigen/Eigenvalues>
 #include <aikido/perception/AssetDatabase.hpp>
 #include <aikido/perception/DetectedObject.hpp>
+#include <aikido/robot/util.hpp>
 #include <opencv2/core/eigen.hpp>
 #include <ros/topic.h>
 #include <tf_conversions/tf_eigen.h>

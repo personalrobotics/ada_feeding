@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 
+#include <aikido/robot/util.hpp>
 #include <aikido/rviz/TrajectoryMarker.hpp>
 #include <boost/optional.hpp>
 
@@ -113,7 +114,7 @@ FeedingDemo::FeedingDemo(
 
   // Load the named configurations if available
   auto retriever = std::make_shared<aikido::io::CatkinResourceRetriever>();
-  std::string nameConfigs = getRosParam<std::vector<std::string>>("/af_named_configs", *mNodeHandle);
+  std::string nameConfigs = getRosParam<std::string>("/af_named_configs", *mNodeHandle);
   if (nameConfigs != "") // correctly write this
   {
     auto rootNode = aikido::io::loadYAML(nameConfigs, retriever);
