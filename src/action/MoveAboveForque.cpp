@@ -46,9 +46,10 @@ void moveAboveForque(
   aboveForqueTSR.mTw_e.matrix()
       *= eeTransformPlate.matrix();
 
+  auto aboveForqueTSRPtr = std::make_shared<aikido::constraint::dart::TSR>(aboveForqueTSR);
   auto trajectory = ada->getArm()->planToTSR(
       ada->getEndEffectorBodyNode()->getName(),
-      aboveForqueTSR, 
+      aboveForqueTSRPtr, 
       ada->getArm()->getWorldCollisionConstraint());
     bool success = true;
     auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo

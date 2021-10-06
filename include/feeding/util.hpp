@@ -128,9 +128,6 @@ double getDistance(
 
 Eigen::Isometry3d getForqueTransform(tf::TransformListener& tfListener);
 
-aikido::distance::ConfigurationRankerPtr getConfigurationRanker(
-    const std::shared_ptr<::ada::Ada>& ada);
-
 std::string getInputFromTopic(
     std::string topic,
     const ros::NodeHandle& nodeHandle,

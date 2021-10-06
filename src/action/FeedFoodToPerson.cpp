@@ -260,9 +260,10 @@ void feedFoodToPerson(
       success = false;
     }
 
+    auto personTSRPtr = std::make_shared<aikido::constraint::dart::TSR>(personTSR);
     auto tsr_trajectory = ada->getArm()->planToTSR(
         ada->getEndEffectorBodyNode()->getName(),
-        personTSR);
+        personTSRPtr);
     bool tsr_success = true;
     auto tsr_future = ada->getArm()->executeTrajectory(tsr_trajectory); // check velocity limits are set in FeedingDemo
     try

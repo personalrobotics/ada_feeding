@@ -108,7 +108,7 @@ FeedingDemo::FeedingDemo(
 
   if (mAdaReal)
   {
-    mAda->startTrajectoryExecutor();
+    mAda->startTrajectoryControllers();
   }
 
   // Load the named configurations if available
@@ -222,7 +222,7 @@ FeedingDemo::~FeedingDemo()
   {
     // wait for a bit so controller actually stops moving
     std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-    mAda->stopTrajectoryExecutor();
+    mAda->stopTrajectoryControllers();
   }
 }
 

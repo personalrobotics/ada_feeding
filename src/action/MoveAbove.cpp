@@ -51,9 +51,10 @@ bool moveAbove(
                 << ada->getMetaSkeleton()->getPositions().transpose()
                 << std::endl;
 
+      auto targetPtr = std::make_shared<aikido::constraint::dart::TSR>(target);
       auto trajectory = ada->getArm()->planToTSR(
         ada->getEndEffectorBodyNode()->getName(),
-        target, 
+        targetPtr, 
         ada->getArm()->getWorldCollisionConstraint());
       bool success = true;
       auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo

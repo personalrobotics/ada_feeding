@@ -370,19 +370,6 @@ Eigen::Isometry3d getForqueTransform(tf::TransformListener& tfListener)
 }
 
 //==============================================================================
-aikido::distance::ConfigurationRankerPtr getConfigurationRanker(
-    const std::shared_ptr<ada::Ada>& ada)
-{
-  auto space = ada->getArm()->getStateSpace();
-  auto metaSkeleton = ada->getArm()->getMetaSkeleton();
-  auto nominalState = space->createState();
-
-  nominalState = space->getScopedStateFromMetaSkeleton(metaSkeleton.get());
-
-  return std::make_shared<NominalConfigurationRanker>(
-      space, metaSkeleton, std::move(nominalState), weights);
-}
-
 static ros::Publisher actionPub;
 static ros::Publisher timingPub;
 static ros::Publisher transferPub;

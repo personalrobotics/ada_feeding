@@ -91,10 +91,10 @@ bool moveDirectlyToPerson(
   //  int n;
   //  std::cin >> n;
   //}
-
+  auto personTSRPtr = std::make_shared<aikido::constraint::dart::TSR>(personTSR);
   auto trajectory = ada->getArm()->planToTSR(
       ada->getEndEffectorBodyNode()->getName(),
-      personTSR, 
+      personTSRPtr, 
       ada->getArm()->getWorldCollisionConstraint());
   bool success = true;
   auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo

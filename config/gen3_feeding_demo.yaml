@@ -22,6 +22,8 @@ ada:
   homeConfiguration: [3.89015, 3.34645, 2.28738, -1.39666, 2.96761, 2.49281]      # the start configuration of the robot joints
   baseFramePose: [0.7, -0.1, -0.25, 0, 0, 3.1415]                                 # the transform between the robot base and the left front corner of the table
 
+af_named_configs: package://ada_feeding/config/named_configs_gen2_6dof.yaml
+
 # Workspace parameters
 # TODO: modify table urdf
 # TODO: modify wheelchair urdf
