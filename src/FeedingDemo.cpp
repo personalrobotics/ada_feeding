@@ -303,9 +303,13 @@ std::shared_ptr<FTThresholdHelper> FeedingDemo::getFTThresholdHelper()
 //==============================================================================
 Eigen::Isometry3d FeedingDemo::getPlateEndEffectorTransform() const
 {
-  Eigen::Isometry3d eeTransform
-      = mAda->getHand()->getEndEffectorTransform("plate").get();
-  eeTransform.linear() = eeTransform.linear()
+  // TODO: remove hardcoded transform for plate
+  Eigen::Isometry3d eeTransform;
+  Eigen::Matrix3d rot;
+  rot << 1., 0., 0.,
+         0., -1, 0.,
+         0., 0., -1;
+  eeTransform.linear() = rot
                          * Eigen::Matrix3d(Eigen::AngleAxisd(
                                M_PI * 0.5, Eigen::Vector3d::UnitZ()));
   eeTransform.translation()

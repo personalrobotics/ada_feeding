@@ -59,8 +59,16 @@ bool moveInFrontOfPerson(
       0,
       0,
       0);
+
+  // TODO: Remove hardcoded transform for person
+  Eigen::Isometry3d eeTransformPerson;
+  Eigen::Matrix3d rot;
+  rot << 1., 0., 0.,
+          0., 0., -1,
+          0., 1., 0.;
+  eeTransformPerson.linear() = rot;
   personTSR.mTw_e.matrix()
-      *= ada->getHand()->getEndEffectorTransform("person")->matrix();
+      *= eeTransformPerson.matrix();
 
   auto tsr_trajectory = ada->getArm()->planToTSR(
       ada->getEndEffectorBodyNode()->getName(),

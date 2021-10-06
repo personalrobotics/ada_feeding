@@ -35,8 +35,16 @@ void moveAboveForque(
   aboveForqueTSR.mT0_w = forquePose;
 
   aboveForqueTSR.mBw = createBwMatrixForTSR(0.0001, 0.0001, 0.0001, 0, 0, 0);
+
+  // TODO: Remove hardcoded transform for plate 
+  Eigen::Isometry3d eeTransformPlate;
+  Eigen::Matrix3d rot;
+  rot << 1., 0., 0.,
+         0., -1, 0.,
+         0., 0., -1;
+  eeTransformPlate.linear() = rot;
   aboveForqueTSR.mTw_e.matrix()
-      *= ada->getHand()->getEndEffectorTransform("plate")->matrix();
+      *= eeTransformPlate.matrix();
 
   auto trajectory = ada->getArm()->planToTSR(
       ada->getEndEffectorBodyNode()->getName(),

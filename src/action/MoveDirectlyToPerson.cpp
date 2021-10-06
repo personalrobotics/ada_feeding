@@ -49,8 +49,14 @@ bool moveDirectlyToPerson(
         0,
         M_PI / 4,
         M_PI / 4);
-    Eigen::Isometry3d eeTransform
-        = ada->getHand()->getEndEffectorTransform("person").get();
+
+    // TODO: remove hardcoded transform for person
+    Eigen::Isometry3d eeTransform;
+    Eigen::Matrix3d rot;
+    rot << 1., 0., 0.,
+           0., 0., -1,
+           0., 1., 0.;
+    eeTransform.linear() = rot;
     eeTransform.linear()
         = eeTransform.linear()
           * Eigen::Matrix3d(
@@ -67,8 +73,15 @@ bool moveDirectlyToPerson(
         0,
         0,
         0);
+    // TODO: Remove hardcoded transform for person
+    Eigen::Isometry3d eeTransformPerson;
+    Eigen::Matrix3d rot;
+    rot << 1., 0., 0.,
+           0., 0., -1,
+           0., 1., 0.;
+    eeTransformPerson.linear() = rot;
     personTSR.mTw_e.matrix()
-        *= ada->getHand()->getEndEffectorTransform("person")->matrix();
+        *= eeTransformPerson.matrix();
   }
 
   // if (feedingDemo)
