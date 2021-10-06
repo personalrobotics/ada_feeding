@@ -79,13 +79,23 @@ bool moveDirectlyToPerson(
   //  std::cin >> n;
   //}
 
-  if (!ada->moveArmToTSR(
-          personTSR,
-          collisionFree,
-          planningTimeout,
-          maxNumTrials,
-          getConfigurationRanker(ada),
-          velocityLimits))
+  auto trajectory = ada->getArm()->planToTSR(
+      ada->getEndEffectorBodyNode()->getName(),
+      personTSR, 
+      ada->getArm()->getWorldCollisionConstraint());
+  bool success = true;
+  auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+  try
+  {
+    future.get();
+  }
+  catch (const std::exception& e)
+  {
+    dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+    success = false;
+  }
+
+  if(!success)
   {
     ROS_WARN_STREAM("Execution failed");
     return false;

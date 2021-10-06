@@ -9,6 +9,8 @@
 #     All transform use the format [x,y,z,rx,ry,rz] of positions and rotations in a list.
 #
 
+af_named_configs: package://ada_feeding/config/named_configs_gen3_6dof.yaml
+
 # Visualization parameters
 visualization:
   topicName: dart_markers/feeding

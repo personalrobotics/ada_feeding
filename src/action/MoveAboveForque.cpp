@@ -38,9 +38,23 @@ void moveAboveForque(
   aboveForqueTSR.mTw_e.matrix()
       *= ada->getHand()->getEndEffectorTransform("plate")->matrix();
 
-  if (!ada->moveArmToTSR(
-          aboveForqueTSR, collisionFree, planningTimeout, maxNumTrials))
-    throw std::runtime_error("Trajectory execution failed");
+  auto trajectory = ada->getArm()->planToTSR(
+      ada->getEndEffectorBodyNode()->getName(),
+      aboveForqueTSR, 
+      ada->getArm()->getWorldCollisionConstraint());
+    bool success = true;
+    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+    try
+    {
+      future.get();
+    }
+    catch (const std::exception& e)
+    {
+      dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+      success = false;
+    }
+    if(!success)
+      throw std::runtime_error("Trajectory execution failed");
 }
 
 } // namespace action

@@ -168,9 +168,18 @@ void feedFoodToPerson(
         feedingDemo
         );
       */
-      Eigen::VectorXd moveErrorPose(6);
-      moveErrorPose << -2.78470, 4.57978, 4.86316, -3.05050, 1.89748, -0.6150;
-      ada->moveArmToConfiguration(moveErrorPose, nullptr, 2.0, velocityLimits);
+      auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("move_error_pose"),ada->getArm()->getWorldCollisionConstraint());
+      bool success = true;
+      auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo + check success
+      try
+      {
+        future.get();
+      }
+      catch (const std::exception& e)
+      {
+        dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+        success = false;
+      }
       std::this_thread::sleep_for(std::chrono::milliseconds(3000));
       talk("Oops, let me try that again.", true);
       moveIFOSuccess = moveInFrontOfPerson(
@@ -238,13 +247,33 @@ void feedFoodToPerson(
 
     talk("Tilting, hold tight.", true);
 
-    ada->moveArmToTSR(
-        personTSR,
-        nullptr, // collisionFreeWithWallFurtherBack,
-        planningTimeout,
-        maxNumTrials,
-        getConfigurationRanker(ada),
-        slowerVelocity);
+    auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("home_config"),ada->getArm()->getWorldCollisionConstraint());
+    bool success = true;
+    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+    try
+    {
+      future.get();
+    }
+    catch (const std::exception& e)
+    {
+      dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+      success = false;
+    }
+
+    auto tsr_trajectory = ada->getArm()->planToTSR(
+        ada->getEndEffectorBodyNode()->getName(),
+        personTSR);
+    bool tsr_success = true;
+    auto tsr_future = ada->getArm()->executeTrajectory(tsr_trajectory); // check velocity limits are set in FeedingDemo
+    try
+    {
+      tsr_future.get();
+    }
+    catch (const std::exception& e)
+    {
+      dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+      tsr_success = false;
+    }
 
     /*
     Eigen::VectorXd moveTiltPose(6);

@@ -123,10 +123,6 @@ Eigen::Isometry3d removeRotation(const Eigen::Isometry3d& transform);
 
 void printRobotConfiguration(const std::shared_ptr<ada::Ada>& ada);
 
-bool isCollisionFree(
-    const std::shared_ptr<ada::Ada>& ada,
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree);
-
 double getDistance(
     const Eigen::Isometry3d& item1, const Eigen::Isometry3d& item2);
 

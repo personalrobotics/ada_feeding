@@ -50,13 +50,24 @@ bool moveAbove(
       std::cout << "MoveAbove Current pose \n"
                 << ada->getMetaSkeleton()->getPositions().transpose()
                 << std::endl;
-      trajectoryCompleted = ada->moveArmToTSR(
-          target,
-          collisionFree,
-          planningTimeout,
-          maxNumTrials,
-          getConfigurationRanker(ada),
-          velocityLimits);
+
+      auto trajectory = ada->getArm()->planToTSR(
+        ada->getEndEffectorBodyNode()->getName(),
+        target, 
+        ada->getArm()->getWorldCollisionConstraint());
+      bool success = true;
+      auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+      try
+      {
+        future.get();
+      }
+      catch (const std::exception& e)
+      {
+        dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+        success = false;
+      }
+
+      trajectoryCompleted = success;
 
       if (!trajectoryCompleted)
       {
