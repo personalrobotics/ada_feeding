@@ -25,7 +25,6 @@ find_package(aikido 0.3.0 REQUIRED
     control
     control_ros
     distance
-    io
     perception
     planner
     planner_kunzretimer
@@ -34,8 +33,10 @@ find_package(aikido 0.3.0 REQUIRED
     planner_vectorfield
     planner_kunzretimer
     robot
-    rviz
+    robot_ros
     statespace
+    io
+    rviz
 )
 include_directories(${aikido_INCLUDE_DIRS})
 
