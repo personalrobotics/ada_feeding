@@ -21,7 +21,6 @@ using aikido::constraint::Satisfied;
 using aikido::planner::ConfigurationToConfiguration;
 using aikido::planner::SnapConfigurationToConfigurationPlanner;
 using aikido::planner::kunzretimer::computeKunzTiming;
-using aikido::planner::vectorfield::planToEndEffectorOffset;
 using aikido::statespace::dart::MetaSkeletonStateSaver;
 using aikido::trajectory::concatenate;
 using aikido::trajectory::createPartialTrajectory;
@@ -561,21 +560,25 @@ SplinePtr PerceptionServoClient::planToGoalPose(
 
     ROS_INFO_STREAM("5");
 
-    auto trajOriginalToCurrent = planToEndEffectorOffset(
-        mMetaSkeletonStateSpace,
-        *originalState,
-        mMetaSkeleton,
-        mBodyNode,
-        std::make_shared<Satisfied>(mMetaSkeletonStateSpace),
-        vectorFromOriginalToCurrent.normalized(),
-        0.0,
-        vectorFromOriginalToCurrent.norm(),
-        0.08,
-        0.32,
-        0.001,
-        1e-3,
-        1e-2,
-        std::chrono::duration<double>(5));
+    // auto trajOriginalToCurrent = ada->planToOffset(
+    //     mMetaSkeletonStateSpace,
+    //     *originalState,
+    //     mMetaSkeleton,
+    //     mBodyNode,
+    //     std::make_shared<Satisfied>(mMetaSkeletonStateSpace),
+    //     vectorFromOriginalToCurrent.normalized(),
+    //     0.0,
+    //     vectorFromOriginalToCurrent.norm(),
+    //     0.08,
+    //     0.32,
+    //     0.001,
+    //     1e-3,
+    //     1e-2,
+    //     std::chrono::duration<double>(5));
+    auto trajOriginalToCurrent = mAda->planToOffset(
+      mAda->getEndEffectorBodyNode()->getName(),
+      vectorFromOriginalToCurrent,
+      mAda->getArm()->getWorldCollisionConstraint());
 
     ROS_INFO_STREAM("6");
 
@@ -639,14 +642,17 @@ TrajectoryPtr PerceptionServoClient::planEndEffectorOffset(
   if (goalDirection.norm() < 1e-3)
     return nullptr;
 
-  return mAda->planArmToEndEffectorOffset(
-      goalDirection.normalized(),
-      // 0.15,
-      std::min(goalDirection.norm(), threshold),
-      nullptr,
-      mPlanningTimeout,
-      mEndEffectorOffsetPositionTolerance,
-      mEndEffectorOffsetAngularTolerance);
+  // return mAda->planArmToEndEffectorOffset(
+  //     goalDirection.normalized(),
+  //     // 0.15,
+  //     std::min(goalDirection.norm(), threshold),
+  //     nullptr,
+  //     mPlanningTimeout,
+  //     mEndEffectorOffsetPositionTolerance,
+  //     mEndEffectorOffsetAngularTolerance);
+  return mAda->planToOffset(
+      mAda->getEndEffectorBodyNode()->getName(),
+      goalDirection);
 }
 
 //==============================================================================

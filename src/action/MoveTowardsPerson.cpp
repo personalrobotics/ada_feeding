@@ -83,19 +83,24 @@ bool moveTowardsPerson(
   ROS_WARN_STREAM("Offset: " << distanceToPerson);
   ROS_WARN_STREAM("Goal Pose: " << vectorToGoalPose);
 
-  if (!ada->moveArmToEndEffectorOffset(
-          vectorToGoalPose,
-          length,
-          nullptr,
-          planningTimeout,
-          endEffectorOffsetPositionTolerance,
-          endEffectorOffsetAngularTolerance,
-          velocityLimits))
+  auto trajectory = ada->planToOffset(
+      ada->getEndEffectorBodyNode()->getName(),
+      vectorToGoalPose * length);
+
+  bool success = true;
+  auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+  try
   {
-    ROS_WARN_STREAM("Execution failed");
-    return false;
+    future.get();
   }
-  return true;
+  catch (const std::exception& e)
+  {
+    dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+    success = false;
+  }
+  if(!success)
+    throw std::runtime_error("Trajectory execution failed");
+  return success;
 }
 } // namespace action
 } // namespace feeding

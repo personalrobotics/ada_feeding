@@ -50,9 +50,9 @@ FeedingDemo::FeedingDemo(
 
   mAda = std::make_shared<ada::Ada>(
       !mAdaReal,
-      mWorld,
       getRosParam<std::string>("/ada/urdfUri", *mNodeHandle),
-      getRosParam<std::string>("/ada/srdfUri", *mNodeHandle));
+      getRosParam<std::string>("/ada/srdfUri", *mNodeHandle),
+      mWorld);
   // mArmSpace = mAda->getArm()->getStateSpace();
 
   Eigen::Isometry3d robotPose = createIsometry(

@@ -34,15 +34,26 @@ bool moveInto(
     throw std::invalid_argument(
         "MoveInto[" + TargetToString.at(item) + "] not supported");
 
-  if (item == TargetItem::FORQUE)
-    return ada->moveArmToEndEffectorOffset(
-        Eigen::Vector3d(0, 1, 0),
-        0.01,
-        collisionFree,
-        planningTimeout,
-        endEffectorOffsetPositionTolerance,
-        endEffectorOffsetAngularTolerance,
-        velocityLimits);
+  if (item == TargetItem::FORQUE) {
+    auto trajectory = ada->planToOffset(
+      ada->getEndEffectorBodyNode()->getName(),
+      Eigen::Vector3d(0, 0.01, 0),
+      ada->getArm()->getWorldCollisionConstraint());
+
+    bool success = true;
+    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+    try
+    {
+      future.get();
+    }
+    catch (const std::exception& e)
+    {
+      dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+      success = false;
+    }
+    if(!success)
+      throw std::runtime_error("Trajectory execution failed");
+  }
 
   // if (perception)
   // {
@@ -81,16 +92,23 @@ bool moveInto(
     double length = 0.085;
     int numDofs = ada->getArm()->getMetaSkeleton()->getNumDofs();
     // Collision constraint is not set because f/t sensor stops execution.
+    auto trajectory = ada->planToOffset(
+      ada->getEndEffectorBodyNode()->getName(),
+      endEffectorDirection * length);
 
-    auto result = ada->moveArmToEndEffectorOffset(
-        endEffectorDirection,
-        length,
-        nullptr,
-        planningTimeout,
-        endEffectorOffsetPositionTolerance,
-        endEffectorOffsetAngularTolerance,
-        velocityLimits);
-    ROS_INFO_STREAM(" Execution result: " << result);
+    bool success = true;
+    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+    try
+    {
+      future.get();
+    }
+    catch (const std::exception& e)
+    {
+      dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+      success = false;
+    }
+    if(!success)
+      throw std::runtime_error("Trajectory execution failed");
   }
 
   return true;

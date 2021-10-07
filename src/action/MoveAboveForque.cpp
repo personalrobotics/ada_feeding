@@ -51,19 +51,19 @@ void moveAboveForque(
       ada->getEndEffectorBodyNode()->getName(),
       aboveForqueTSRPtr, 
       ada->getArm()->getWorldCollisionConstraint());
-    bool success = true;
-    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
-    try
-    {
-      future.get();
-    }
-    catch (const std::exception& e)
-    {
-      dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
-      success = false;
-    }
-    if(!success)
-      throw std::runtime_error("Trajectory execution failed");
+  bool success = true;
+  auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+  try
+  {
+    future.get();
+  }
+  catch (const std::exception& e)
+  {
+    dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+    success = false;
+  }
+  if(!success)
+    throw std::runtime_error("Trajectory execution failed");
 }
 
 } // namespace action

@@ -36,14 +36,24 @@ void moveOutOf(
     ftThresholdHelper->setThresholds(AFTER_GRAB_FOOD_FT_THRESHOLD);
   }
 
-  bool trajectoryCompleted = ada->moveArmToEndEffectorOffset(
-      direction,
-      length,
-      collisionFree,
-      planningTimeout,
-      endEffectorOffsetPositionTolerance,
-      endEffectorOffsetAngularTolerance,
-      velocityLimits);
+  auto trajectory = ada->planToOffset(
+      ada->getEndEffectorBodyNode()->getName(),
+      direction * length,
+      collisionFree);
+
+  bool success = true;
+  auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+  try
+  {
+    future.get();
+  }
+  catch (const std::exception& e)
+  {
+    dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+    success = false;
+  }
+  if(!success)
+    throw std::runtime_error("Trajectory execution failed");
 
   // trajectoryCompleted might be false because the forque hit the food
   // along the way and the trajectory was aborted
