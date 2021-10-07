@@ -53,7 +53,7 @@ wheelchair:
 # Feeding demo movement parameters
 feedingDemo:
   heightAbovePlate: 0.15
-  heightAboveFood: 0.08
+  heightAboveFood: 0.23
   heightIntoFood: 0.05           # the real robot plans *below* the food. This parameter specifies how far
   moveOutofFood: 0.025
   #distanceToPerson: 0.25
@@ -61,7 +61,7 @@ feedingDemo:
   distanceFromPerson: 0.15
   waitMillisecsAtFood: 00     # short pause after skewering the food
   waitMillisecsAtPerson: 1000   # long pause so person can take a bite
-  fixedFaceY: 0.28
+  fixedFaceY: 0.08
 
 # Planning parameters
 planning:

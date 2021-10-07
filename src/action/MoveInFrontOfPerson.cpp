@@ -29,7 +29,7 @@ bool moveInFrontOfPerson(
 
   ROS_INFO_STREAM("move in front of person");
 
-  auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("in_front_person_pose"),ada->getArm()->getWorldCollisionConstraint());
+  auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("in_front_person_pose"),ada->getArm()->getSelfCollisionConstraint());
   bool success = true;
   auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
   try

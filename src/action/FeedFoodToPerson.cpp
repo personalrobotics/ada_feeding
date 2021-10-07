@@ -168,7 +168,7 @@ void feedFoodToPerson(
         feedingDemo
         );
       */
-      auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("move_error_pose"),ada->getArm()->getWorldCollisionConstraint());
+      auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("move_error_pose"),ada->getArm()->getSelfCollisionConstraint());
       bool success = true;
       auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo + check success
       try
@@ -247,7 +247,7 @@ void feedFoodToPerson(
 
     talk("Tilting, hold tight.", true);
 
-    auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("home_config"),ada->getArm()->getWorldCollisionConstraint());
+    auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("home_config"),ada->getArm()->getSelfCollisionConstraint());
     bool success = true;
     auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
     try

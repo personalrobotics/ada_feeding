@@ -20,11 +20,6 @@ Workspace::Workspace(
 {
   addToWorld(mPlate, "plate", robotPose);
   addToWorld(mTable, "table", robotPose);
-  addToWorld(mWorkspaceEnvironment, "workspaceEnvironment", robotPose);
-  addToWorld(
-      mWorkspaceEnvironmentWithWallFurtherBack,
-      "workspaceEnvironmentWithWallFurtherBack",
-      robotPose);
   addToWorld(mWheelchair, "wheelchair", Eigen::Isometry3d::Identity());
   addToWorld(mPerson, "person", robotPose);
   mPersonPose = mPerson->getRootBodyNode()->getWorldTransform();

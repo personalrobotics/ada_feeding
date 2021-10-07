@@ -92,14 +92,14 @@ bool moveInto(
     double length = 0.085;
     int numDofs = ada->getArm()->getMetaSkeleton()->getNumDofs();
     // Collision constraint is not set because f/t sensor stops execution.
-    auto trajectory = ada->planToOffset(
+    auto trajectory = ada->getArm()->planToOffset(
       ada->getEndEffectorBodyNode()->getName(),
-      endEffectorDirection * length);
+      Eigen::Vector3d{0.0, 0.0, -length});
 
     bool success = true;
-    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
     try
     {
+      auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
       future.get();
     }
     catch (const std::exception& e)

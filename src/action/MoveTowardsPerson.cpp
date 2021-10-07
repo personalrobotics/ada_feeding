@@ -83,14 +83,14 @@ bool moveTowardsPerson(
   ROS_WARN_STREAM("Offset: " << distanceToPerson);
   ROS_WARN_STREAM("Goal Pose: " << vectorToGoalPose);
 
-  auto trajectory = ada->planToOffset(
+  auto trajectory = ada->getArm()->planToOffset(
       ada->getEndEffectorBodyNode()->getName(),
       vectorToGoalPose * length);
 
   bool success = true;
-  auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
   try
   {
+    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
     future.get();
   }
   catch (const std::exception& e)
