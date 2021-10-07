@@ -143,9 +143,12 @@ std::vector<std::unique_ptr<FoodItem>> Perception::perceiveFood(
   //   std::cout << "Waiting for correctForkTip " << std::endl;
   //   std::this_thread::sleep_for(std::chrono::seconds(1));
   // }
-
+  // Eigen::Isometry3d forqueTF
+  //     = mAdaMetaSkeleton->getBodyNode("j2n6s200_forque_end_effector")
+  //           ->getWorldTransform();
+  // TODO: update the body node once we update the urdf
   Eigen::Isometry3d forqueTF
-      = mAdaMetaSkeleton->getBodyNode("j2n6s200_forque_end_effector")
+      = mAdaMetaSkeleton->getBodyNode("end_effector_link")
             ->getWorldTransform();
 
   for (const auto& item : detectedObjects)
