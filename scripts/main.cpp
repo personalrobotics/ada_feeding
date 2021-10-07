@@ -138,7 +138,8 @@ int main(int argc, char** argv)
   if (ftThresholdHelper)
     ftThresholdHelper->init();
 
-  feedingDemo->getAda()->closeHand();
+  // TODO: uncomment this once we can send actions to hand
+  // feedingDemo->getAda()->closeHand();
 
   feedingDemo->setPerception(perception);
 

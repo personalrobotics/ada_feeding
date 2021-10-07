@@ -95,7 +95,9 @@ Perception::Perception(
   mCameraInfoTopic = "/camera/color/camera_info";
   mImageTopic = "/camera/color/image_raw";
 
-  auto joint = mAda->getMetaSkeleton()->getJoint("j2n6s200_joint_forque");
+  // TODO (rishabh): add separate joint for forque
+  // auto joint = mAda->getMetaSkeleton()->getJoint("j2n6s200_joint_forque");
+  auto joint = mAda->getMetaSkeleton()->getJoint("joint_6");
   if (!joint)
   {
     throw std::runtime_error("Could not find joint");
