@@ -11,7 +11,7 @@ namespace feeding {
 namespace action {
 
 bool moveInFrontOfPerson(
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
+    const aikido::constraint::TestablePtr& collisionFree,
     const Eigen::Isometry3d& workspacePersonPose,
     double distanceToPerson,
     double horizontalToleranceForPerson,

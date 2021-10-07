@@ -52,7 +52,8 @@ bool moveAbove(
       auto targetPtr = std::make_shared<aikido::constraint::dart::TSR>(target);
       auto trajectory = ada->getArm()->planToTSR(
         ada->getEndEffectorBodyNode()->getName(),
-        targetPtr);
+        targetPtr,
+        ada->getArm()->getWorldCollisionConstraint());
 
       //  ada->getArm()->getWorldCollisionConstraint());
       bool success = true;

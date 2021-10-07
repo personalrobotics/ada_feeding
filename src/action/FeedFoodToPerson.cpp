@@ -42,7 +42,7 @@ void feedFoodToPerson(
 
   auto moveIFOPerson = [&] {
     auto retval = moveInFrontOfPerson(
-        collisionFree,
+        ada->getArm()->getWorldCollisionConstraint(),
         personPose,
         distanceToPerson,
         horizontalToleranceForPerson,
@@ -183,7 +183,7 @@ void feedFoodToPerson(
       std::this_thread::sleep_for(std::chrono::milliseconds(3000));
       talk("Oops, let me try that again.", true);
       moveIFOSuccess = moveInFrontOfPerson(
-          nullptr,
+          ada->getArm()->getSelfCollisionConstraint(),
           personPose,
           distanceToPerson,
           horizontalToleranceForPerson,
@@ -296,7 +296,7 @@ void feedFoodToPerson(
     talk("Let me get out of your way.", true);
     Eigen::Vector3d goalDirection(0, -1, 0);
     bool success = moveInFrontOfPerson(
-        nullptr,
+        ada->getArm()->getWorldCollisionConstraint(std::vector<std::string>{"plate", "table", "wheelchair"}),
         personPose,
         distanceToPerson,
         horizontalToleranceForPerson * 2,

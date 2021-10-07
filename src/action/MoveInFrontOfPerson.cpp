@@ -14,7 +14,7 @@ namespace feeding {
 namespace action {
 
 bool moveInFrontOfPerson(
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
+    const aikido::constraint::TestablePtr& collisionFree,
     const Eigen::Isometry3d& workspacePersonPose,
     double distanceToPerson,
     double horizontalToleranceForPerson,
@@ -29,11 +29,11 @@ bool moveInFrontOfPerson(
 
   ROS_INFO_STREAM("move in front of person");
 
-  auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("in_front_person_pose"),ada->getArm()->getSelfCollisionConstraint());
+  auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("in_front_person_pose"), collisionFree);
   bool success = true;
-  auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
   try
   {
+    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
     future.get();
   }
   catch (const std::exception& e)
@@ -74,7 +74,7 @@ bool moveInFrontOfPerson(
   auto tsr_trajectory = ada->getArm()->planToTSR(
       ada->getEndEffectorBodyNode()->getName(),
       personTSRPtr, 
-      ada->getArm()->getWorldCollisionConstraint());
+      collisionFree);
   bool tsr_success = true;
   auto tsr_future = ada->getArm()->executeTrajectory(tsr_trajectory); // check velocity limits are set in FeedingDemo
   try
