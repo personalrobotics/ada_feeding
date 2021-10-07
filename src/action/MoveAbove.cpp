@@ -41,9 +41,6 @@ bool moveAbove(
       rotationTolerance);
 
   target.mTw_e.matrix() = endEffectorTransform.matrix();
-
-  try
-  {
     bool trajectoryCompleted = false;
     do
     {
@@ -51,15 +48,16 @@ bool moveAbove(
                 << ada->getMetaSkeleton()->getPositions().transpose()
                 << std::endl;
 
+      std::cout << "EE name : " << ada->getEndEffectorBodyNode()->getName() << std::endl;
       auto targetPtr = std::make_shared<aikido::constraint::dart::TSR>(target);
       auto trajectory = ada->getArm()->planToTSR(
         ada->getEndEffectorBodyNode()->getName(),
         targetPtr, 
         ada->getArm()->getWorldCollisionConstraint());
       bool success = true;
-      auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
       try
       {
+        auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
         future.get();
       }
       catch (const std::exception& e)
@@ -105,12 +103,6 @@ bool moveAbove(
       }
     }
     return trajectoryCompleted;
-  }
-  catch (...)
-  {
-    ROS_WARN("Error in trajectory completion!");
-    return false;
-  }
 }
 
 } // namespace action

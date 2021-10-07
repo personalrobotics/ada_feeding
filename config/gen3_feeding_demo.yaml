@@ -20,7 +20,7 @@ ada:
   srdfUri: package://kortex_description/robots/gen3_6dof.srdf
   endEffectorName: robotiq_arg2f_base_link
   homeConfiguration: [3.89015, 3.34645, 2.28738, -1.39666, 2.96761, 2.49281]      # the start configuration of the robot joints
-  baseFramePose: [0.7, -0.1, 0, 0, 0, 3.1415]                                 # the transform between the robot base and the left front corner of the table
+  baseFramePose: [0.7, -0.1, 0.0, 0, 0, 3.1415]                                 # the transform between the robot base and the left front corner of the table
 
 af_named_configs: package://ada_feeding/config/named_configs_gen3_6dof.yaml
 
@@ -33,7 +33,7 @@ plate:
   pose: [.445, 0.19, -0.045, 0, 0, 0]
 table:
   urdfUri: package://pr_assets/data/furniture/emprise_table_feeding.urdf
-  pose: [0.76, 0.38, -0.765, 0, 0, 0]
+  pose: [0.76, 0.5, -0.765, 0, 0, 0]
 defaultFoodItem:
   urdfUri: package://pr_assets/data/objects/food_item.urdf
   pose: [.445, 0.19, -0.045, 3.1415, 0, 0]
@@ -48,7 +48,7 @@ workspaceEnvironmentWithWallFurtherBack:
   pose: [0, 0, 0.005, 0, 0, 0]
 wheelchair:
   urdfUri: package://pr_assets/data/furniture/wheelchair.urdf
-  pose: [0.1, 0.0, 0.005, 0, 0, 0]
+  pose: [0.1, 0.0, -0.245, 0, 0, 0]
 
 # Feeding demo movement parameters
 feedingDemo:

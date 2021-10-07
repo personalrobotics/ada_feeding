@@ -37,8 +37,9 @@ static const std::vector<std::string> FOOD_NAMES = {"apple",
                                                     "spinach",
                                                     "kale"};
 
+// TODO(egordon): Reference from YAML file
 static const std::vector<int> BEST_ACTIONS
-    = {1, 5, 1, 2, 3, 1, 3, 1, 1, 3, 3, 3, 1, 1, 2, 0};
+    = {1, 5, 1, 2, 1, 1, 3, 1, 1, 3, 3, 3, 1, 1, 2, 0};
 /*static const std::vector<int> BEST_ACTIONS
     = {1, 5, 1, 2, 3, 1, 0, 1, 1, 3, 3, 3, 3, 1, 2, 0};*/
 
