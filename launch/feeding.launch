@@ -2,6 +2,6 @@
 
    <!-- load parameters -->
    <arg name="platform" default="gen3" doc="Please choose a robot platform: gen2 or gen3" />
-   <rosparam file="$(find ada_feeding)/config/$(platform)_feeding_demo.yaml" command="load" />
+   <rosparam file="$(find ada_feeding)/config/$(arg platform)_feeding_demo.yaml" command="load" />
 
 </launch>
