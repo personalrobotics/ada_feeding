@@ -44,6 +44,9 @@ bool moveInFrontOfPerson(
   if (success)
     return true;
 
+  else return false;
+  /*
+
   TSR personTSR;
   Eigen::Isometry3d personPose = Eigen::Isometry3d::Identity();
   personPose.translation() = workspacePersonPose.translation();
@@ -88,6 +91,7 @@ bool moveInFrontOfPerson(
   }
 
   return tsr_success;
+  */
 
 }
 } // namespace action

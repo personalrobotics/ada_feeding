@@ -72,6 +72,7 @@ bool moveAboveFood(
   {
     eeTransform.linear() = eeTransform.linear() * rotation;
     eeTransform.translation()[2] = heightAboveFood;
+    eeTransform.translation()[0] -= 0.01;
   }
   else if (tiltStyle == TiltStyle::VERTICAL)
   {

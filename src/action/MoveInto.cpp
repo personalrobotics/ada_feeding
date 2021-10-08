@@ -89,7 +89,7 @@ bool moveInto(
   // int n;
   // std::cin >> n;
   {
-    double length = 0.085;
+    double length = 0.031;
     int numDofs = ada->getArm()->getMetaSkeleton()->getNumDofs();
     // Collision constraint is not set because f/t sensor stops execution.
     auto trajectory = ada->getArm()->planToOffset(
@@ -107,8 +107,6 @@ bool moveInto(
       dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
       success = false;
     }
-    if(!success)
-      throw std::runtime_error("Trajectory execution failed");
   }
 
   return true;

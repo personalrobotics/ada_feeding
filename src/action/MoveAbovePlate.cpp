@@ -29,24 +29,7 @@ bool moveAbovePlate(
     dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
     success = false;
   }
-
-
-  if (!success)
-  {
-    auto retval = moveAbove(
-        plate,
-        plateEndEffectorTransform,
-        horizontalTolerance,
-        verticalTolerance,
-        M_PI,
-        0.03,
-        feedingDemo);
-    return retval;
-  }
-  else
-  {
-    return success;
-  }
+  return success;
 }
 
 } // namespace action

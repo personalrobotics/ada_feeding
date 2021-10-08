@@ -98,8 +98,6 @@ bool moveTowardsPerson(
     dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
     success = false;
   }
-  if(!success)
-    throw std::runtime_error("Trajectory execution failed");
   return success;
 }
 } // namespace action

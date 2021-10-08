@@ -36,7 +36,7 @@ void moveOutOf(
     ftThresholdHelper->setThresholds(AFTER_GRAB_FOOD_FT_THRESHOLD);
   }
 
-  auto trajectory = ada->planToOffset(
+  auto trajectory = ada->getArm()->planToOffset(
       ada->getEndEffectorBodyNode()->getName(),
       direction * length,
       collisionFree);
