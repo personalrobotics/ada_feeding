@@ -201,16 +201,9 @@ Eigen::Isometry3d Perception::perceiveFace()
       // fixed distance:
       double fixedFaceY
           = getRosParam<double>("/feedingDemo/fixedFaceY", *mNodeHandle);
-      if (fixedFaceY > 0)
-      {
-        faceTransform.translation().y() = fixedFaceY;
-        // Wheelchair
-        faceTransform.translation().z() -= 0.02;
+      faceTransform.translation().y() = fixedFaceY;
+      faceTransform.translation().z() -= 0.01;
 
-        // Tripod
-        // faceTransform.translation().x() -= 0.02;
-        // faceTransform.translation().z() -= 0.03;
-      }
       oldFaceTransform = faceTransform;
       saved = true;
       return faceTransform;

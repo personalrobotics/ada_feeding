@@ -89,7 +89,7 @@ bool moveInto(
   // int n;
   // std::cin >> n;
   {
-    double length = 0.031;
+    double length = 0.035;
     int numDofs = ada->getArm()->getMetaSkeleton()->getNumDofs();
     // Collision constraint is not set because f/t sensor stops execution.
     auto trajectory = ada->getArm()->planToOffset(

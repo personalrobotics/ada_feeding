@@ -212,7 +212,9 @@ bool skewer(
           forkXAxis[2] = 0.0;
           forkXAxis.normalize();
           endEffectorDirection *= heightAboveFood;
-          endEffectorDirection += ((-0.02 * forkYAxis) + (-0.005 * forkXAxis));
+          // TODO: add the coefficients below as parameters to demo config for compatibility with Gen2/3
+          // Note: Should be (-0.02, -0.005) for Gen2
+          endEffectorDirection += ((0.0 * forkYAxis) + (0.0 * forkXAxis));
           endEffectorDirection.normalize();
         }
         else if (tiltStyle == TiltStyle::VERTICAL)

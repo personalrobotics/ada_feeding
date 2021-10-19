@@ -52,8 +52,6 @@ void moveOutOf(
     dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
     success = false;
   }
-  if(!success)
-    throw std::runtime_error("Trajectory execution failed");
 
   // trajectoryCompleted might be false because the forque hit the food
   // along the way and the trajectory was aborted
