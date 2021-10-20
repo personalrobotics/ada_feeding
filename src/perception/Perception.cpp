@@ -95,9 +95,7 @@ Perception::Perception(
   mCameraInfoTopic = "/camera/color/camera_info";
   mImageTopic = "/camera/color/image_raw";
 
-  // TODO (rishabh): add separate joint for forque
-  // auto joint = mAda->getMetaSkeleton()->getJoint("j2n6s200_joint_forque");
-  auto joint = mAda->getMetaSkeleton()->getJoint("joint_6");
+  auto joint = mAda->getEndEffectorBodyNode()->getParentJoint();
   if (!joint)
   {
     throw std::runtime_error("Could not find joint");
@@ -143,12 +141,8 @@ std::vector<std::unique_ptr<FoodItem>> Perception::perceiveFood(
   //   std::cout << "Waiting for correctForkTip " << std::endl;
   //   std::this_thread::sleep_for(std::chrono::seconds(1));
   // }
-  // Eigen::Isometry3d forqueTF
-  //     = mAdaMetaSkeleton->getBodyNode("j2n6s200_forque_end_effector")
-  //           ->getWorldTransform();
-  // TODO: update the body node once we update the urdf
   Eigen::Isometry3d forqueTF
-      = mAdaMetaSkeleton->getBodyNode("end_effector_link")
+      = mAda->getEndEffectorBodyNode()
             ->getWorldTransform();
 
   for (const auto& item : detectedObjects)

@@ -90,7 +90,7 @@ Run the following commands from your ROS workspace:
 1. `source devel/setup.bash`
 1. `roscore`
 1. `rviz`
-1. `roslaunch ada_launch simulation.launch` (will put 2 simulated *cantaloupe* on the plate)
+1. `roslaunch libada simulation.launch` (will put 2 simulated *cantaloupe* on the plate)
 1. `roslaunch ada_feeding feeding.launch` (will quit after writing ROS parameters)
 1. `cd my_catkin_workspace/devel/bin/` and `./feeding`
 1.  In RViz, subscribe to the topic `feeding/update/InteractiveMarkers` to actually see the robot.
