@@ -26,6 +26,8 @@ bool moveAbove(
   const CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
   double planningTimeout = feedingDemo->mPlanningTimeout;
   int maxNumTrials = feedingDemo->mMaxNumTrials;
+  int batchSize = feedingDemo->mBatchSize;
+  int maxNumBatches = feedingDemo->mMaxNumBatches;
   const Eigen::Vector6d& velocityLimits = feedingDemo->mVelocityLimits;
 
   ROS_WARN_STREAM("CALLED MOVE ABOVE; Rotation: " << rotationTolerance);
@@ -53,7 +55,11 @@ bool moveAbove(
       auto trajectory = ada->getArm()->planToTSR(
         ada->getEndEffectorBodyNode()->getName(),
         targetPtr,
-        ada->getArm()->getWorldCollisionConstraint());
+        ada->getArm()->getWorldCollisionConstraint(),
+        aikido::robot::util::PlanToTSRParameters(
+          maxNumTrials,
+          batchSize,
+          maxNumBatches));
 
       //  ada->getArm()->getWorldCollisionConstraint());
       bool success = true;

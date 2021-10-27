@@ -55,7 +55,6 @@ feedingDemo:
   moveOutofFood: 0.025
   #distanceToPerson: 0.25
   distanceToPerson: 0.05
-  distanceFromPerson: 0.15
   waitMillisecsAtFood: 00     # short pause after skewering the food
   waitMillisecsAtPerson: 1000   # long pause so person can take a bite
   fixedFaceY: 0.28
@@ -64,6 +63,8 @@ feedingDemo:
 planning:
   maxNumberOfTrials: 1
   timeoutSeconds: 2
+  batchSize: 5
+  maxNumberOfBatches: 20
   tsr:
     horizontalToleranceAbovePlate: 0.01
     verticalToleranceAbovePlate: 0.03
@@ -95,7 +96,7 @@ ftSensor:
     afterGrabFood:  # active when going up after food has been grabbed
       force: 50
       torque: 2
-    
+
 
 # Perception parameters
 perception:

@@ -82,7 +82,6 @@ private:
   /// loaded skeleton.
   /// \param[in] name The name of the object that should be loaded.
   /// \param[in] robotPose The pose of the robot relative to the workspace.
-  /// \param[in] nodeHandle Handle of the ros node.
   void addToWorld(
       dart::dynamics::SkeletonPtr& skeleton,
       const std::string& name,

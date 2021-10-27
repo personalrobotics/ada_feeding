@@ -38,6 +38,8 @@ void feedFoodToPerson(
   double verticalToleranceForPerson = feedingDemo->mPersonTSRParameters.at("verticalTolerance");
   double planningTimeout = feedingDemo->mPlanningTimeout;
   int maxNumTrials = feedingDemo->mMaxNumTrials;
+  int batchSize = feedingDemo->mBatchSize;
+  int maxNumBatches = feedingDemo->mMaxNumBatches;
   const Eigen::Vector6d& velocityLimits = feedingDemo->mVelocityLimits;
 
   auto moveIFOPerson = [&] {
@@ -263,7 +265,11 @@ void feedFoodToPerson(
     auto personTSRPtr = std::make_shared<aikido::constraint::dart::TSR>(personTSR);
     auto tsr_trajectory = ada->getArm()->planToTSR(
         ada->getEndEffectorBodyNode()->getName(),
-        personTSRPtr);
+        personTSRPtr,
+        aikido::robot::util::PlanToTSRParameters(
+          maxNumTrials,
+          batchSize,
+          maxNumBatches));
     bool tsr_success = true;
     auto tsr_future = ada->getArm()->executeTrajectory(tsr_trajectory); // check velocity limits are set in FeedingDemo
     try

@@ -110,6 +110,8 @@ public:
 
   double mPlanningTimeout;
   int mMaxNumTrials;
+  int mBatchSize;
+  int mMaxNumBatches;
   double mEndEffectorOffsetPositionTolerance;
   double mEndEffectorOffsetAngularTolerance;
   std::chrono::milliseconds mWaitTimeForFood;

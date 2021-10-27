@@ -19,6 +19,8 @@ void moveAboveForque(
   std::vector<double> forkHolderTranslation = feedingDemo->mForkHolderTranslation;
   double planningTimeout = feedingDemo->mPlanningTimeout;
   int maxNumTrials = feedingDemo->mMaxNumTrials;
+  int batchSize = feedingDemo->mBatchSize;
+  int maxNumBatches = feedingDemo->mMaxNumBatches;
 
   auto aboveForqueTSR = pr_tsr::getDefaultPlateTSR();
   Eigen::Isometry3d forquePose = Eigen::Isometry3d::Identity();
@@ -36,7 +38,7 @@ void moveAboveForque(
 
   aboveForqueTSR.mBw = createBwMatrixForTSR(0.0001, 0.0001, 0.0001, 0, 0, 0);
 
-  // TODO: Remove hardcoded transform for plate 
+  // TODO: Remove hardcoded transform for plate
   Eigen::Isometry3d eeTransformPlate;
   Eigen::Matrix3d rot;
   rot << 1., 0., 0.,
@@ -49,8 +51,12 @@ void moveAboveForque(
   auto aboveForqueTSRPtr = std::make_shared<aikido::constraint::dart::TSR>(aboveForqueTSR);
   auto trajectory = ada->getArm()->planToTSR(
       ada->getEndEffectorBodyNode()->getName(),
-      aboveForqueTSRPtr, 
-      ada->getArm()->getWorldCollisionConstraint());
+      aboveForqueTSRPtr,
+      ada->getArm()->getWorldCollisionConstraint(),
+      aikido::robot::util::PlanToTSRParameters(
+        maxNumTrials,
+        batchSize,
+        maxNumBatches));
   bool success = true;
   auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
   try
