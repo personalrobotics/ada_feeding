@@ -159,6 +159,8 @@ FeedingDemo::FeedingDemo(
 
   mFoodTSRParameters["height"]
       = getRosParam<double>("/feedingDemo/heightAboveFood", *mNodeHandle);
+  mFoodTSRParameters["heightInto"]
+      = getRosParam<double>("/feedingDemo/heightIntoFood", *mNodeHandle);
   mFoodTSRParameters["horizontalTolerance"] = getRosParam<double>(
       "/planning/tsr/horizontalToleranceNearFood", *mNodeHandle);
   mFoodTSRParameters["verticalTolerance"] = getRosParam<double>(

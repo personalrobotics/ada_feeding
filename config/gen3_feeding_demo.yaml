@@ -58,7 +58,7 @@ wheelchair:
 feedingDemo:
   heightAbovePlate: 0.15
   heightAboveFood: 0.33
-  heightIntoFood: 0.05           # the real robot plans *below* the food. This parameter specifies how far
+  heightIntoFood: 0.035
   moveOutofFood: 0.025
   #distanceToPerson: 0.25
   distanceToPerson: 0.05
