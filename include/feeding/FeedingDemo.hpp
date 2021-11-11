@@ -112,6 +112,7 @@ public:
   int mMaxNumTrials;
   int mBatchSize;
   int mMaxNumBatches;
+  int mNumMaxIterations;
   double mEndEffectorOffsetPositionTolerance;
   double mEndEffectorOffsetAngularTolerance;
   std::chrono::milliseconds mWaitTimeForFood;

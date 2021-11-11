@@ -28,6 +28,7 @@ bool moveAbove(
   int maxNumTrials = feedingDemo->mMaxNumTrials;
   int batchSize = feedingDemo->mBatchSize;
   int maxNumBatches = feedingDemo->mMaxNumBatches;
+  int numMaxIterations = feedingDemo->mNumMaxIterations;
   const Eigen::Vector6d& velocityLimits = feedingDemo->mVelocityLimits;
 
   ROS_WARN_STREAM("CALLED MOVE ABOVE; Rotation: " << rotationTolerance);
@@ -59,7 +60,8 @@ bool moveAbove(
         aikido::robot::util::PlanToTSRParameters(
           maxNumTrials,
           batchSize,
-          maxNumBatches));
+          maxNumBatches,
+          numMaxIterations));
 
       //  ada->getArm()->getWorldCollisionConstraint());
       bool success = true;

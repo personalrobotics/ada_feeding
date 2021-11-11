@@ -26,6 +26,7 @@ bool moveDirectlyToPerson(
   int maxNumTrials = feedingDemo->mMaxNumTrials;
   int batchSize = feedingDemo->mBatchSize;
   int maxNumBatches = feedingDemo->mMaxNumBatches;
+  int numMaxIterations = feedingDemo->mNumMaxIterations;
   const Eigen::Vector6d& velocityLimits = feedingDemo->mVelocityLimits;
 
   Eigen::Isometry3d person = Eigen::Isometry3d::Identity();
@@ -101,7 +102,8 @@ bool moveDirectlyToPerson(
       aikido::robot::util::PlanToTSRParameters(
         maxNumTrials,
         batchSize,
-        maxNumBatches));
+        maxNumBatches,
+        numMaxIterations));
   bool success = true;
   auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
   try

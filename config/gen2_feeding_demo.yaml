@@ -11,6 +11,10 @@
 
 af_named_configs: package://ada_feeding/config/named_configs_gen2_6dof.yaml
 
+adaConf:
+  end_effector: j2n6s200_forque_end_effector
+  arm_controller: move_until_touch_topic_controller
+
 # Visualization parameters
 visualization:
   topicName: dart_markers/feeding
@@ -63,8 +67,9 @@ feedingDemo:
 planning:
   maxNumberOfTrials: 1
   timeoutSeconds: 2
-  batchSize: 5
-  maxNumberOfBatches: 20
+  batchSize: 100
+  maxNumberOfBatches: 1
+  numMaxIterations: 100
   tsr:
     horizontalToleranceAbovePlate: 0.01
     verticalToleranceAbovePlate: 0.03

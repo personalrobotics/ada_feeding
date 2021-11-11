@@ -70,8 +70,9 @@ feedingDemo:
 planning:
   maxNumberOfTrials: 1
   timeoutSeconds: 2
-  batchSize: 5
-  maxNumberOfBatches: 20
+  batchSize: 100
+  maxNumberOfBatches: 1
+  numMaxIterations: 100
   tsr:
     horizontalToleranceAbovePlate: 0.01
     verticalToleranceAbovePlate: 0.03

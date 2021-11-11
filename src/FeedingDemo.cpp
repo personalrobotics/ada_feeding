@@ -175,6 +175,7 @@ FeedingDemo::FeedingDemo(
   mMaxNumTrials = getRosParam<int>("/planning/maxNumberOfTrials", *mNodeHandle);
   mBatchSize = getRosParam<int>("/planning/batchSize", *mNodeHandle);
   mMaxNumBatches = getRosParam<int>("/planning/maxNumberOfBatches", *mNodeHandle);
+  mNumMaxIterations = getRosParam<int>("/planning/numMaxIterations", *mNodeHandle);
 
   mEndEffectorOffsetPositionTolerance = getRosParam<double>(
       "/planning/endEffectorOffset/positionTolerance", *mNodeHandle),

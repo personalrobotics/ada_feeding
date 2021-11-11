@@ -21,6 +21,7 @@ void moveAboveForque(
   int maxNumTrials = feedingDemo->mMaxNumTrials;
   int batchSize = feedingDemo->mBatchSize;
   int maxNumBatches = feedingDemo->mMaxNumBatches;
+  int numMaxIterations = feedingDemo->mNumMaxIterations;
 
   auto aboveForqueTSR = pr_tsr::getDefaultPlateTSR();
   Eigen::Isometry3d forquePose = Eigen::Isometry3d::Identity();
@@ -56,7 +57,8 @@ void moveAboveForque(
       aikido::robot::util::PlanToTSRParameters(
         maxNumTrials,
         batchSize,
-        maxNumBatches));
+        maxNumBatches,
+        numMaxIterations));
   bool success = true;
   auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
   try
