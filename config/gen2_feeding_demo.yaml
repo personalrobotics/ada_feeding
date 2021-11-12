@@ -20,11 +20,16 @@ visualization:
   topicName: dart_markers/feeding
   baseFrameName: map
 
+
+# Libada Robot parameters
+adaConf:
+  end_effector: j2n6s200_forque_end_effector
+  arm_controller: move_until_touch_topic_controller
+
 # Robot parameters
 ada:
   urdfUri: package://ada_description/robots_urdf/ada_with_camera_forque.urdf
   srdfUri: package://ada_description/robots_urdf/ada_with_camera_forque.srdf
-  endEffectorName: j2n6s200_forque_end_effector
   homeConfiguration: [3.89015, 3.34645, 2.28738, -1.39666, 2.96761, 2.49281]      # the start configuration of the robot joints
   baseFramePose: [0.7, -0.1, -0.25, 0, 0, 3.1415]                                 # the transform between the robot base and the left front corner of the table
 
@@ -55,7 +60,7 @@ wheelchair:
 feedingDemo:
   heightAbovePlate: 0.15
   heightAboveFood: 0.08
-  heightIntoFood: 0.05           # the real robot plans *below* the food. This parameter specifies how far
+  heightIntoFood: 0.085
   moveOutofFood: 0.025
   #distanceToPerson: 0.25
   distanceToPerson: 0.05
@@ -119,7 +124,7 @@ foodItems:
   #forces: [15,3,3,7,22,15,7]
   #pickUpAngleModes: [0, 2, 2, 0, 0, 0, 0]
   names: ["apple", "banana", "bell_pepper", "broccoli", "cantaloupe", "carrot", "cauliflower", "celery", "cherry_tomato", "grape", "honeydew", "kiwi", "strawberry", "lettuce", "spinach", "kale"]
-  forces: [10, 10, 10, 10, 15, 30, 7, 22, 7, 10, 7, 7, 15, 7, 7, 7]
+  forces: [10, 10, 10, 10, 15, 15, 7, 22, 7, 10, 7, 7, 15, 7, 7, 7]
   pickUpAngleModes: [1, 5, 1, 2, 1, 1, 0, 1, 1, 3, 3, 3, 0, 1, 2, 0]
 
 humanStudy:
@@ -134,7 +139,7 @@ rotationFree:
   names: ["banana", "broccoli", "cantaloupe", "cauliflower", "cherry_tomato", "grape", "honeydew", "kiwi", "strawberry"]
 
 tiltFood:
-  names: ["apple", "bell_pepper", "carrot", "celery"]
+  names: ["apple", "bell_pepper", "celery"] # TODO:carrot should be added here once the tilt motion is fixed
 
 study:
   skipSkewering: false

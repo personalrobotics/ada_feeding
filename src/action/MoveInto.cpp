@@ -22,6 +22,7 @@ bool moveInto(
   const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
   const ros::NodeHandle* nodeHandle = feedingDemo->getNodeHandle().get();
   const aikido::constraint::dart::CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
+  double heightIntoFood = feedingDemo->mFoodTSRParameters.at("heightInto");
   double planningTimeout = feedingDemo->mPlanningTimeout;
   double endEffectorOffsetPositionTolerance = feedingDemo->mEndEffectorOffsetPositionTolerance;
   double endEffectorOffsetAngularTolerance = feedingDemo->mEndEffectorOffsetAngularTolerance;
@@ -89,12 +90,11 @@ bool moveInto(
   // int n;
   // std::cin >> n;
   {
-    double length = 0.035;
     int numDofs = ada->getArm()->getMetaSkeleton()->getNumDofs();
     // Collision constraint is not set because f/t sensor stops execution.
     auto trajectory = ada->getArm()->planToOffset(
       ada->getEndEffectorBodyNode()->getName(),
-      Eigen::Vector3d{0.0, 0.0, -length});
+      Eigen::Vector3d{0.0, 0.0, -heightIntoFood});
 
     bool success = true;
     try

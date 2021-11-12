@@ -113,7 +113,7 @@ Run the following commands from your ROS workspace:
    * You may have to adjust the camera exposure, depending on the lighting condition. Either run `run_adjust_camera_daylight.sh` or `run_adjust_camera_all.sh` after running `run_camera.sh`. Check the image stream via rviz, by adding the image topic `/camera/color/image_raw/color`. If some area is too bright and look burnt or saturated, reduce the exposure.
 6) `roslaunch forque_sensor_hardware forque.launch` (Optionally add `forque_ip:=<IPv4>` if your Net-FT is on a non-default IP)
 6) `rosrun face_detection face_detection`
-7) `roslaunch ada_launch default.launch feeding:=true detector:=spanet`
+7) `roslaunch libada default.launch use_forque:=true perception:=true detector:=spanet`
    * Optionally, run with `perception:=false` if you want to run perception manually in another terminal.
    * To run perception manually in another terminal: `rosrun food_detector run_perception_module.py --demo-type spanet`
 8) `roslaunch ada_feeding feeding.launch` (will quit after writing ROS parameters)
