@@ -16,7 +16,8 @@ void feedFoodToPerson(
     const Eigen::Isometry3d& plate,
     const Eigen::Isometry3d& plateEndEffectorTransform,
     const Eigen::Vector3d* tiltOffset,
-    FeedingDemo* feedingDemo);
+    FeedingDemo* feedingDemo,
+    const std::string& foodName);
 }
 } // namespace feeding
 

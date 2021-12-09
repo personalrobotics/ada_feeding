@@ -61,6 +61,8 @@ public:
   std::vector<std::unique_ptr<FoodItem>> perceiveFood(
       const std::string& foodName = "");
 
+  FoodItem* getTargetFoodItem();
+
   void setFoodItemToTrack(FoodItem* target);
 
   /// Throws exception if target item is not set.

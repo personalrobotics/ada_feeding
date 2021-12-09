@@ -46,7 +46,7 @@ bool moveAboveFood(
 
   // Apply base rotation to food
   Eigen::Vector3d foodVec = foodTransform.rotation() * Eigen::Vector3d::UnitX();
-  double baseRotateAngle = atan2(foodVec[1], foodVec[0]);
+  double baseRotateAngle = 0; //atan2(foodVec[1], foodVec[0]);
   if (angleGuess)
   {
     while (abs(baseRotateAngle - *angleGuess) > (M_PI / 2.0))
@@ -71,28 +71,37 @@ bool moveAboveFood(
   if (tiltStyle == TiltStyle::NONE)
   {
     eeTransform.linear() = eeTransform.linear() * rotation;
-    eeTransform.translation()[2] = heightAboveFood;
-    eeTransform.translation()[0] += 0.01;
-    eeTransform.translation()[1] += 0.02;
+    eeTransform.translation()[2] = heightAboveFood * 0.96;
+    if (foodName == std::string("carrot") || foodName == std::string("celery"))
+    {
+      eeTransform.translation()[0] += 0.01;
+      eeTransform.translation()[1] += 0.025;  
+    }
+    else
+    {
+      eeTransform.translation()[0] += 0.01;
+      eeTransform.translation()[1] += 0.02;
+    }
   }
   else if (tiltStyle == TiltStyle::VERTICAL)
   {
-    eeTransform.linear() = eeTransform.linear() * rotation
-                           * Eigen::AngleAxisd(0.5, Eigen::Vector3d::UnitX());
-    eeTransform.translation()[2] = heightAboveFood;
+    // eeTransform.linear() = eeTransform.linear() * rotation
+    //                        * Eigen::AngleAxisd(0.5, Eigen::Vector3d::UnitX());
+    eeTransform.linear()
+        = eeTransform.linear() * rotation
+          * Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(-M_PI / 8, Eigen::Vector3d::UnitY());
+    eeTransform.translation()[2] = heightAboveFood*0.93;
+    eeTransform.translation()[0] -= 0.10;
+    // eeTransform.translation()[1] += 0.0;
   }
   else // angled
   {
     eeTransform.linear()
         = eeTransform.linear() * rotation
-          * Eigen::AngleAxisd(-M_PI / 8, Eigen::Vector3d::UnitX());
-    eeTransform.translation()
-        = Eigen::AngleAxisd(
-              rotateAngle,
-              Eigen::Vector3d::UnitZ()) // Take into account action rotation
-          * Eigen::Vector3d{0,
-                            -sin(M_PI * 0.25) * heightAboveFood * 0.7,
-                            cos(M_PI * 0.25) * heightAboveFood * 0.9};
+          * Eigen::AngleAxisd(-M_PI / 2, Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(M_PI / 6, Eigen::Vector3d::UnitY());
+    eeTransform.translation()[2] = heightAboveFood * 0.82;
+    eeTransform.translation()[0] -= 0.16;
+    eeTransform.translation()[1] += 0.0;
   }
 
   auto retval = moveAbove(

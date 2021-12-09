@@ -83,7 +83,8 @@ void humanStudyDemo(
         plate,
         feedingDemo.getPlateEndEffectorTransform(),
         tilted ? &feedingDemo.mTiltOffset : nullptr,
-        &feedingDemo
+        &feedingDemo,
+        foodName
         );
 
   }

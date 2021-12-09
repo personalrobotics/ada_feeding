@@ -34,10 +34,10 @@ af_named_configs: package://ada_feeding/config/named_configs_gen3_6dof.yaml
 # TODO: modify other poses based on new dimensions and poses for the plate and table?
 plate:
   urdfUri: package://pr_assets/data/objects/plate.urdf
-  pose: [.445, 0.19, -0.045, 0, 0, 0]
+  pose: [.505, 0.38, 0.19, 0, 0, 0]
 table:
   urdfUri: package://pr_assets/data/furniture/emprise_table_feeding.urdf
-  pose: [0.76, 0.5, -0.765, 0, 0, 0]
+  pose: [0.76, 0.5, -0.530, 0, 0, 0]
 defaultFoodItem:
   urdfUri: package://pr_assets/data/objects/food_item.urdf
   pose: [.445, 0.19, -0.045, 3.1415, 0, 0]
@@ -58,8 +58,8 @@ wheelchair:
 feedingDemo:
   heightAbovePlate: 0.15
   heightAboveFood: 0.33
-  heightIntoFood: 0.035
-  moveOutofFood: 0.025
+  heightIntoFood: 0.033
+  moveOutofFood: 0.015
   #distanceToPerson: 0.25
   distanceToPerson: 0.05
   distanceFromPerson: 0.15
@@ -94,8 +94,8 @@ ftSensor:
   ftTopic: /forque/forqueSensor
   thresholds:
     standard:       # used when no other thresholds are specified
-      force: 4
-      torque: 4
+      force: 2
+      torque: 2
     grabFood:       # active when going down to grab the food
       force: 22
       torque: 2
@@ -120,7 +120,7 @@ foodItems:
   #forces: [15,3,3,7,22,15,7]
   #pickUpAngleModes: [0, 2, 2, 0, 0, 0, 0]
   names: ["apple", "banana", "bell_pepper", "broccoli", "cantaloupe", "carrot", "cauliflower", "celery", "cherry_tomato", "grape", "honeydew", "kiwi", "strawberry", "lettuce", "spinach", "kale"]
-  forces: [10, 10, 10, 10, 6, 30, 7, 22, 7, 10, 7, 7, 15, 7, 7, 7]
+  forces: [4, 10, 10, 10, 7, 10, 5, 5, 7, 7, 7, 7, 15, 7, 7, 7]
   pickUpAngleModes: [1, 5, 1, 2, 1, 1, 0, 1, 1, 3, 3, 3, 0, 1, 2, 0]
 
 humanStudy:
@@ -162,7 +162,8 @@ study:
   # personPose: [0.295, 0.24, 0.73, 0, 0, 3.1415]
   # ERRONEOUS:
   personPose: [0.295, 0.24, 0.73, 0, 0, 3.1415]
-  tiltOffset: [0.0, 0.05, -0.02]
+  tiltOffset: [-0.15, 0.2, 0.2]
+  # -0.2, 0.3, 0.07
 
   # FAST:
   velocityLimits: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7]

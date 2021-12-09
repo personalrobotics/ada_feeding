@@ -44,6 +44,8 @@ std::unique_ptr<FoodItem> ShortestDistanceRanker::createFoodItem(
     rotation = (actionNum % 2 == 0) ? 0.0 : M_PI / 2.0;
   }
 
+  std::cout<<"Rotation angle: "<<rotation<<std::endl;
+
   // TODO: check if rotation and tilt angle should change
   AcquisitionAction action(tiltStyle, rotation, 0.0, Eigen::Vector3d(0, 0, -1));
 

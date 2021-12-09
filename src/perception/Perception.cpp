@@ -152,10 +152,15 @@ std::vector<std::unique_ptr<FoodItem>> Perception::perceiveFood(
     if (mRemoveRotationForFood)
     {
       removeRotation(foodItem.get());
+      std::cout << "rotation removed added \n";
     }
 
+    std::cout << "A: " << foodItem->getName() << " B: " << foodName << std::endl;
     if (foodName != "" && foodItem->getName() != foodName)
+    {
+      std::cout << "Not added \n";
       continue;
+    }
     detectedFoodItems.emplace_back(std::move(foodItem));
   }
 
@@ -258,6 +263,12 @@ bool Perception::isMouthOpen()
 void Perception::setFoodItemToTrack(FoodItem* target)
 {
   mTargetFoodItem = target;
+}
+
+//==============================================================================
+FoodItem* Perception::getTargetFoodItem()
+{
+  return mTargetFoodItem;
 }
 
 //==============================================================================

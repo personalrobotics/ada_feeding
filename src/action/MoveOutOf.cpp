@@ -36,16 +36,23 @@ void moveOutOf(
     ftThresholdHelper->setThresholds(AFTER_GRAB_FOOD_FT_THRESHOLD);
   }
 
+  std::cout << "Before plan call \n";
   auto trajectory = ada->getArm()->planToOffset(
       ada->getEndEffectorBodyNode()->getName(),
       direction * length,
       collisionFree);
 
+
+  std::cout << "After plan call \n";
+  std::cout << "Plan duration : " << trajectory->getDuration() << std::endl;
   bool success = true;
   auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+  std::cout << "After execute call \n";
   try
   {
+    std::cout<<"In try"<<std::endl;
     future.get();
+    std::cout<<"Out"<<std::endl;
   }
   catch (const std::exception& e)
   {
@@ -57,7 +64,7 @@ void moveOutOf(
   // along the way and the trajectory was aborted
   if (ftThresholdHelper)
   {
-    ftThresholdHelper->setThresholds(STANDARD_FT_THRESHOLD);
+    ftThresholdHelper->setThresholds(STANDARD_FT_THRESHOLD, true);
   }
 }
 

@@ -116,7 +116,7 @@ bool skewer(
           rotationFreeFoodNames.begin(), rotationFreeFoodNames.end(), foodName)
       != rotationFreeFoodNames.end())
   {
-    rotationToleranceForFood = M_PI;
+    rotationToleranceForFood = M_PI/8;
     if (actionOverride == 1)
     {
       actionOverride = 0;
@@ -170,16 +170,17 @@ bool skewer(
         Eigen::Vector3d foodVec
             = item->getPose().rotation() * Eigen::Vector3d::UnitX();
         double baseRotateAngle = atan2(foodVec[1], foodVec[0]);
-        detectAndMoveAboveFood(
-            perception,
-            foodName,
-            rotationToleranceForFood,
-            feedingDemo,
-            &baseRotateAngle,
-            actionNum);
+        // detectAndMoveAboveFood(
+        //     perception,
+        //     foodName,
+        //     rotationToleranceForFood,
+        //     feedingDemo,
+        //     &baseRotateAngle,
+        //     actionNum);
         auto tiltStyle = item->getAction()->getTiltStyle();
         if (tiltStyle == TiltStyle::ANGLED)
         {
+          std::cout << "Enter angled tilt\n";
           // Apply base rotation of food
           Eigen::Isometry3d eePose
               = ada->getHand()->getEndEffectorBodyNode()->getTransform();
@@ -216,6 +217,8 @@ bool skewer(
           // Note: Should be (-0.02, -0.005) for Gen2
           endEffectorDirection += ((0.0 * forkYAxis) + (0.0 * forkXAxis));
           endEffectorDirection.normalize();
+
+          endEffectorDirection = Eigen::Vector3d(0.0, 0.0, -1);
         }
         else if (tiltStyle == TiltStyle::VERTICAL)
         {
@@ -237,7 +240,7 @@ bool skewer(
         break;
       }
 
-      ROS_INFO_STREAM("Detect and Move above food");
+      ROS_INFO_STREAM("Detect and Move above food - 1");
       item = detectAndMoveAboveFood(
           perception,
           foodName,
@@ -284,6 +287,11 @@ bool skewer(
       ftThresholdHelper->setThresholds(
           foodSkeweringForces.at(foodName), torqueThreshold);
 
+    std::cout<<"FT Threshold for "<<foodName<<" set to "<<foodSkeweringForces.at(foodName)<<std::endl;
+
+    // std::cin.get();
+    // std::cin.get();
+    
     // ===== INTO FOOD =====
     talk("Here we go!", true);
     auto moveIntoSuccess = moveInto(

@@ -41,6 +41,7 @@ bool moveInto(
       Eigen::Vector3d(0, 0.01, 0),
       ada->getArm()->getWorldCollisionConstraint());
 
+    std::cout<<"Moving 1 cm down - hardcoded!"<<std::endl;
     bool success = true;
     auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
     try
@@ -94,7 +95,7 @@ bool moveInto(
     // Collision constraint is not set because f/t sensor stops execution.
     auto trajectory = ada->getArm()->planToOffset(
       ada->getEndEffectorBodyNode()->getName(),
-      Eigen::Vector3d{0.0, 0.0, -heightIntoFood});
+      heightIntoFood * endEffectorDirection);
 
     bool success = true;
     try

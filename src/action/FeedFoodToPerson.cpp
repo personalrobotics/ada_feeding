@@ -23,7 +23,8 @@ void feedFoodToPerson(
     const Eigen::Isometry3d& plate,
     const Eigen::Isometry3d& plateEndEffectorTransform,
     const Eigen::Vector3d* tiltOffset,
-    FeedingDemo* feedingDemo)
+    FeedingDemo* feedingDemo,
+    const std::string& foodName)
 {
   // Load necessary parameters from feedingDemo
   const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
@@ -130,21 +131,27 @@ void feedFoodToPerson(
   {
     nodeHandle->setParam("/feeding/facePerceptionOn", true);
     talk("Open your mouth when ready.", false);
-    // TODO: Add mouth-open detection.
-    while (true)
+    // std::cout<<"Food name: "<<perception->getTargetFoodItem()->getName()<<std::endl;
+    // if(perception->getTargetFoodItem()->getName() != std::string("carrot"))
+    std::cout << "Food name: " << foodName << std::endl;
+    if(foodName != std::string("carrot") && foodName != std::string("celery"))
     {
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      if (perception->isMouthOpen())
+      // TODO: Add mouth-open detection.
+      while (true)
       {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         if (perception->isMouthOpen())
         {
-          break;
+          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+          if (perception->isMouthOpen())
+          {
+            break;
+          }
         }
       }
+      nodeHandle->setParam("/feeding/facePerceptionOn", false);
     }
-    nodeHandle->setParam("/feeding/facePerceptionOn", false);
-
+    
     if (getRosParam<bool>("/humanStudy/createError", *nodeHandle))
     {
       // Wait an extra 5 seconds
@@ -229,8 +236,9 @@ void feedFoodToPerson(
     eeTransform.linear()
         = eeTransform.linear()
           * Eigen::Matrix3d(
-                Eigen::AngleAxisd(M_PI * -0.25, Eigen::Vector3d::UnitY())
-                * Eigen::AngleAxisd(M_PI * 0.25, Eigen::Vector3d::UnitX()));
+                Eigen::AngleAxisd(M_PI * -0.44, Eigen::Vector3d::UnitY())
+                * Eigen::AngleAxisd(M_PI * -0.1, Eigen::Vector3d::UnitX())
+                * Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()));
     personTSR.mTw_e.matrix() *= eeTransform.matrix();
 
     // Actually execute movement
@@ -247,18 +255,18 @@ void feedFoodToPerson(
 
     talk("Tilting, hold tight.", true);
 
-    auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("home_config"),ada->getArm()->getSelfCollisionConstraint());
-    bool success = true;
-    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
-    try
-    {
-      future.get();
-    }
-    catch (const std::exception& e)
-    {
-      dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
-      success = false;
-    }
+    // auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("home_config"),ada->getArm()->getSelfCollisionConstraint());
+    // bool success = true;
+    // auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+    // try
+    // {
+    //   future.get();
+    // }
+    // catch (const std::exception& e)
+    // {
+    //   dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+    //   success = false;
+    // }
 
     auto personTSRPtr = std::make_shared<aikido::constraint::dart::TSR>(personTSR);
     auto tsr_trajectory = ada->getArm()->planToTSR(

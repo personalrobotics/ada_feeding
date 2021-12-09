@@ -128,8 +128,12 @@ void demo(
         plate,
         feedingDemo.getPlateEndEffectorTransform(),
         tilted ? &feedingDemo.mTiltOffset : nullptr,
-        &feedingDemo
+        &feedingDemo,
+        foodName
         );
+
+      if (feedingDemo.getFTThresholdHelper())
+        feedingDemo.getFTThresholdHelper()->setThresholds(STANDARD_FT_THRESHOLD,true);
     }
   }
 
