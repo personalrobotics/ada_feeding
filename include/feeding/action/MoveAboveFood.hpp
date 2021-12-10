@@ -11,14 +11,10 @@
 namespace feeding {
 namespace action {
 
-bool moveAboveFood(
-    std::string foodName,
-    const Eigen::Isometry3d& foodTransform,
-    float rotateAngle,
-    TiltStyle tiltStyle,
-    double rotationTolerance,
-    FeedingDemo* feedingDemo,
-    double* angleGuess = nullptr);
+bool moveAboveFood(std::string foodName, const Eigen::Isometry3d &foodTransform,
+                   float rotateAngle, TiltStyle tiltStyle,
+                   double rotationTolerance, FeedingDemo *feedingDemo,
+                   double *angleGuess = nullptr);
 
 } // namespace action
 } // namespace feeding

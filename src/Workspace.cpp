@@ -11,13 +11,10 @@ using ada::util::getRosParam;
 namespace feeding {
 
 //==============================================================================
-Workspace::Workspace(
-    aikido::planner::WorldPtr world,
-    const Eigen::Isometry3d& robotPose,
-    bool adaReal,
-    ros::NodeHandle nodeHandle)
-  : mNodeHandle(nodeHandle), mWorld(world), mRobotPose(robotPose)
-{
+Workspace::Workspace(aikido::planner::WorldPtr world,
+                     const Eigen::Isometry3d &robotPose, bool adaReal,
+                     ros::NodeHandle nodeHandle)
+    : mNodeHandle(nodeHandle), mWorld(world), mRobotPose(robotPose) {
   addToWorld(mPlate, "plate", robotPose);
   addToWorld(mTable, "table", robotPose);
   addToWorld(mWheelchair, "wheelchair", Eigen::Isometry3d::Identity());
@@ -27,48 +24,41 @@ Workspace::Workspace(
 }
 
 //==============================================================================
-void Workspace::reset()
-{
+void Workspace::reset() {
   if (mDefaultFoodItem)
     deleteFood();
 }
 //==============================================================================
-void Workspace::addDefaultFoodItemAtPose(const Eigen::Isometry3d& pose)
-{
+void Workspace::addDefaultFoodItemAtPose(const Eigen::Isometry3d &pose) {
   addToWorldAtPose(mDefaultFoodItem, "defaultFoodItem", pose);
   mDefaultFoodItem->getRootBodyNode()->setCollidable(false);
 }
 
 //==============================================================================
-void Workspace::addToWorld(
-    dart::dynamics::SkeletonPtr& skeleton,
-    const std::string& name,
-    const Eigen::Isometry3d& robotPose)
-{
-  Eigen::Isometry3d pose = robotPose.inverse()
-                           * createIsometry(getRosParam<std::vector<double>>(
-                                 "/" + name + "/pose", mNodeHandle));
+void Workspace::addToWorld(dart::dynamics::SkeletonPtr &skeleton,
+                           const std::string &name,
+                           const Eigen::Isometry3d &robotPose) {
+  Eigen::Isometry3d pose =
+      robotPose.inverse() * createIsometry(getRosParam<std::vector<double>>(
+                                "/" + name + "/pose", mNodeHandle));
   addToWorldAtPose(skeleton, name, pose);
 }
 
 //==============================================================================
-void Workspace::addToWorldAtPose(
-    dart::dynamics::SkeletonPtr& skeleton,
-    const std::string& name,
-    const Eigen::Isometry3d& pose)
-{
-  const auto resourceRetriever
-      = std::make_shared<aikido::io::CatkinResourceRetriever>();
-  std::string urdfUri
-      = getRosParam<std::string>("/" + name + "/urdfUri", mNodeHandle);
+void Workspace::addToWorldAtPose(dart::dynamics::SkeletonPtr &skeleton,
+                                 const std::string &name,
+                                 const Eigen::Isometry3d &pose) {
+  const auto resourceRetriever =
+      std::make_shared<aikido::io::CatkinResourceRetriever>();
+  std::string urdfUri =
+      getRosParam<std::string>("/" + name + "/urdfUri", mNodeHandle);
   skeleton = loadSkeletonFromURDF(resourceRetriever, urdfUri, pose);
   mWorld->addSkeleton(skeleton);
 }
 
 //==============================================================================
-void Workspace::deleteFood()
-{
-  auto freeJoint = dynamic_cast<dart::dynamics::FreeJoint*>(
+void Workspace::deleteFood() {
+  auto freeJoint = dynamic_cast<dart::dynamics::FreeJoint *>(
       mDefaultFoodItem->getRootJoint());
 
   if (!freeJoint)
@@ -84,51 +74,37 @@ void Workspace::deleteFood()
 }
 
 //==============================================================================
-dart::dynamics::ConstSkeletonPtr Workspace::getPlate() const
-{
-  return mPlate;
-}
+dart::dynamics::ConstSkeletonPtr Workspace::getPlate() const { return mPlate; }
 
 //==============================================================================
-dart::dynamics::ConstSkeletonPtr Workspace::getTable() const
-{
-  return mTable;
-}
+dart::dynamics::ConstSkeletonPtr Workspace::getTable() const { return mTable; }
 
 //==============================================================================
-dart::dynamics::ConstSkeletonPtr Workspace::getWorkspaceEnvironment() const
-{
+dart::dynamics::ConstSkeletonPtr Workspace::getWorkspaceEnvironment() const {
   return mWorkspaceEnvironment;
 }
 
 //==============================================================================
 dart::dynamics::ConstSkeletonPtr
-Workspace::getWorkspaceEnvironmentWithWallFurtherBack() const
-{
+Workspace::getWorkspaceEnvironmentWithWallFurtherBack() const {
   return mWorkspaceEnvironmentWithWallFurtherBack;
 }
 
 //==============================================================================
-dart::dynamics::SkeletonPtr Workspace::getDefaultFoodItem() const
-{
+dart::dynamics::SkeletonPtr Workspace::getDefaultFoodItem() const {
   return mDefaultFoodItem;
 }
 
 //==============================================================================
-dart::dynamics::ConstSkeletonPtr Workspace::getPerson() const
-{
+dart::dynamics::ConstSkeletonPtr Workspace::getPerson() const {
   return mPerson;
 }
 
 //==============================================================================
-Eigen::Isometry3d Workspace::getPersonPose() const
-{
-  return mPersonPose;
-}
+Eigen::Isometry3d Workspace::getPersonPose() const { return mPersonPose; }
 
 //==============================================================================
-dart::dynamics::ConstSkeletonPtr Workspace::getWheelchair() const
-{
+dart::dynamics::ConstSkeletonPtr Workspace::getWheelchair() const {
   return mWheelchair;
 }
 } // namespace feeding

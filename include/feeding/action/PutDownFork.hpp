@@ -3,16 +3,15 @@
 
 #include <libada/Ada.hpp>
 
-#include "feeding/FeedingDemo.hpp"
 #include "feeding/FTThresholdHelper.hpp"
+#include "feeding/FeedingDemo.hpp"
 
 namespace feeding {
 namespace action {
 
-void putDownFork(
-    const Eigen::Isometry3d& plate,
-    const Eigen::Isometry3d& plateEndEffectorTransform,
-    FeedingDemo* feedingDemo);
+void putDownFork(const Eigen::Isometry3d &plate,
+                 const Eigen::Isometry3d &plateEndEffectorTransform,
+                 FeedingDemo *feedingDemo);
 }
 } // namespace feeding
 

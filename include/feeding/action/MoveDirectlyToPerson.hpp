@@ -8,10 +8,9 @@
 namespace feeding {
 namespace action {
 
-bool moveDirectlyToPerson(
-    const Eigen::Isometry3d& personPose,
-    const Eigen::Vector3d* tiltOffset,
-    FeedingDemo* feedingDemo);
+bool moveDirectlyToPerson(const Eigen::Isometry3d &personPose,
+                          const Eigen::Vector3d *tiltOffset,
+                          FeedingDemo *feedingDemo);
 
 } // namespace action
 } // namespace feeding
