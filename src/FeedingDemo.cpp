@@ -52,45 +52,6 @@ FeedingDemo::FeedingDemo(bool adaReal,
   mWorkspace =
       std::make_shared<Workspace>(mWorld, robotPose, mAdaReal, *mNodeHandle);
 
-  // Setting up collisions
-  // dart::collision::CollisionDetectorPtr collisionDetector
-  //     = dart::collision::FCLCollisionDetector::create();
-  // std::shared_ptr<dart::collision::CollisionGroup> armCollisionGroup
-  //     = collisionDetector->createCollisionGroup(
-  //         mAda->getMetaSkeleton().get(),
-  //         mAda->getHand()->getEndEffectorBodyNode());
-  // std::shared_ptr<dart::collision::CollisionGroup> envCollisionGroup
-  //     = collisionDetector->createCollisionGroup(
-  //         mWorkspace->getTable().get(),
-  //         mWorkspace->getWorkspaceEnvironment().get(),
-  //         mWorkspace->getWheelchair().get());
-
-  // mCollisionFreeConstraint
-  //     = std::make_shared<aikido::constraint::dart::CollisionFree>(
-  //         mArmSpace, mAda->getArm()->getMetaSkeleton(), collisionDetector);
-  // mCollisionFreeConstraint->addPairwiseCheck(
-  //     armCollisionGroup, envCollisionGroup);
-
-  // dart::collision::CollisionDetectorPtr relaxedCollisionDetector
-  //     = dart::collision::FCLCollisionDetector::create();
-  // std::shared_ptr<dart::collision::CollisionGroup> relaxedArmCollisionGroup
-  //     = relaxedCollisionDetector->createCollisionGroup(
-  //         mAda->getMetaSkeleton().get(),
-  //         mAda->getHand()->getEndEffectorBodyNode());
-  // std::shared_ptr<dart::collision::CollisionGroup> relaxedEnvCollisionGroup
-  //     = relaxedCollisionDetector->createCollisionGroup(
-  //         mWorkspace->getTable().get(),
-  //         mWorkspace->getWorkspaceEnvironmentWithWallFurtherBack().get(),
-  //         mWorkspace->getWheelchair().get());
-
-  // mCollisionFreeConstraintWithWallFurtherBack
-  //     = std::make_shared<aikido::constraint::dart::CollisionFree>(
-  //         mArmSpace,
-  //         mAda->getArm()->getMetaSkeleton(),
-  //         relaxedCollisionDetector);
-  // mCollisionFreeConstraintWithWallFurtherBack->addPairwiseCheck(
-  //     relaxedArmCollisionGroup, relaxedEnvCollisionGroup);
-
   // visualization
   mViewer = std::make_shared<aikido::rviz::InteractiveMarkerViewer>(
       getRosParam<std::string>("/visualization/topicName", *mNodeHandle),

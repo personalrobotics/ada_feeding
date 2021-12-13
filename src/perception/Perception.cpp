@@ -167,6 +167,7 @@ Eigen::Isometry3d Perception::perceiveFace() {
       double fixedFaceY =
           getRosParam<double>("/feedingDemo/fixedFaceY", *mNodeHandle);
       faceTransform.translation().y() = fixedFaceY;
+      // Plan slightly below the stomion since the neck bends down when acquiring food
       faceTransform.translation().z() -= 0.01;
 
       oldFaceTransform = faceTransform;

@@ -63,8 +63,8 @@ bool moveAboveFood(std::string foodName, const Eigen::Isometry3d &foodTransform,
   if (tiltStyle == TiltStyle::NONE) {
     eeTransform.linear() = eeTransform.linear() * rotation;
     eeTransform.translation()[2] = heightAboveFood;
-    eeTransform.translation()[0] += 0.01;
-    eeTransform.translation()[1] += 0.02;
+    // eeTransform.translation()[0] += 0.01;
+    // eeTransform.translation()[1] += 0.02;
   } else if (tiltStyle == TiltStyle::VERTICAL) {
     eeTransform.linear() = eeTransform.linear() * rotation *
                            Eigen::AngleAxisd(0.5, Eigen::Vector3d::UnitX());

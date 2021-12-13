@@ -167,7 +167,7 @@ bool skewer(const std::shared_ptr<Perception> &perception,
           forkXAxis[2] = 0.0;
           forkXAxis.normalize();
           endEffectorDirection *= heightAboveFood;
-          endEffectorDirection += (0.01 * forkXAxis);
+          // endEffectorDirection += (0.01 * forkXAxis);
           endEffectorDirection.normalize();
         } else if (tiltStyle == TiltStyle::NONE) {
           // Apply base rotation of food
@@ -182,9 +182,6 @@ bool skewer(const std::shared_ptr<Perception> &perception,
           forkXAxis[2] = 0.0;
           forkXAxis.normalize();
           endEffectorDirection *= heightAboveFood;
-          // TODO: add the coefficients below as parameters to demo config for
-          // compatibility with Gen2/3 Note: Should be (-0.02, -0.005) for Gen2
-          endEffectorDirection += ((0.0 * forkYAxis) + (0.0 * forkXAxis));
           endEffectorDirection.normalize();
         } else if (tiltStyle == TiltStyle::VERTICAL) {
           // Apply base rotation of food
@@ -199,7 +196,7 @@ bool skewer(const std::shared_ptr<Perception> &perception,
           forkYAxis[2] = 0.0;
           forkYAxis.normalize();
           endEffectorDirection *= heightAboveFood;
-          endEffectorDirection += ((-0.025 * forkYAxis) + (-0.01 * forkXAxis));
+          // endEffectorDirection += ((-0.025 * forkYAxis) + (-0.01 * forkXAxis));
           endEffectorDirection.normalize();
         }
         break;

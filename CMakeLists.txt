@@ -25,18 +25,17 @@ find_package(aikido 0.3.0 REQUIRED
     control
     control_ros
     distance
+    io
     perception
     planner
     planner_kunzretimer
     planner_ompl
     planner_parabolic
     planner_vectorfield
-    planner_kunzretimer
     robot
     robot_ros
-    statespace
-    io
     rviz
+    statespace
 )
 include_directories(${aikido_INCLUDE_DIRS})
 
