@@ -18,13 +18,12 @@
 
 namespace feeding {
 
-class PerceptionServoClient
-{
+class PerceptionServoClient {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   PerceptionServoClient(
-      const ::ros::NodeHandle* node,
+      const ::ros::NodeHandle *node,
       boost::function<Eigen::Isometry3d(void)> getTransform,
       aikido::statespace::dart::ConstMetaSkeletonStateSpacePtr
           metaSkeletonStateSpace,
@@ -33,13 +32,10 @@ public:
       ::dart::dynamics::BodyNodePtr bodyNode,
       std::shared_ptr<aikido::control::TrajectoryExecutor> trajectoryExecutor,
       aikido::constraint::dart::CollisionFreePtr collisionFreeConstraint,
-      double perceptionUpdateTime,
-      float goalPrecision,
-      double planningTimeout,
+      double perceptionUpdateTime, float goalPrecision, double planningTimeout,
       double endEffectorOffsetPositionTolerance,
-      double endEffectorOffsetAngularTolerance,
-      bool servoFood,
-      const Eigen::Vector6d& velocityLimits);
+      double endEffectorOffsetAngularTolerance, bool servoFood,
+      const Eigen::Vector6d &velocityLimits);
 
   virtual ~PerceptionServoClient();
 
@@ -52,22 +48,23 @@ public:
   bool wait(double timelimit);
 
 protected:
-  void nonRealtimeCallback(const ros::TimerEvent& event);
+  void nonRealtimeCallback(const ros::TimerEvent &event);
 
-  bool updatePerception(Eigen::Isometry3d& goalPose);
+  bool updatePerception(Eigen::Isometry3d &goalPose);
 
-  aikido::trajectory::SplinePtr planEndEffectorOffset(
-      const Eigen::Isometry3d& goalPose);
+  aikido::trajectory::SplinePtr
+  planEndEffectorOffset(const Eigen::Isometry3d &goalPose);
 
-  aikido::trajectory::SplinePtr planToGoalPose(
-      const Eigen::Isometry3d& goalPose);
+  aikido::trajectory::SplinePtr
+  planToGoalPose(const Eigen::Isometry3d &goalPose);
 
-  aikido::trajectory::TrajectoryPtr planEndEffectorOffset(
-      const Eigen::Vector3d& goalDirection, double threshold = 0.1);
+  aikido::trajectory::TrajectoryPtr
+  planEndEffectorOffset(const Eigen::Vector3d &goalDirection,
+                        double threshold = 0.1);
 
   aikido::trajectory::UniqueSplinePtr
   createPartialTimedTrajectoryFromCurrentConfig(
-      const aikido::trajectory::Spline* trajectory);
+      const aikido::trajectory::Spline *trajectory);
 
   ::ros::NodeHandle mNodeHandle;
   boost::function<Eigen::Isometry3d(void)> mGetTransform;

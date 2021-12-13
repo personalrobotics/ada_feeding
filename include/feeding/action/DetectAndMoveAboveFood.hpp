@@ -12,13 +12,11 @@
 namespace feeding {
 namespace action {
 
-std::unique_ptr<FoodItem> detectAndMoveAboveFood(
-    const std::shared_ptr<Perception>& perception,
-    const std::string& foodName,
-    double rotationTolerance,
-    FeedingDemo* feedingDemo,
-    double* angleGuess = nullptr,
-    int actionOverride = -1);
+std::unique_ptr<FoodItem>
+detectAndMoveAboveFood(const std::shared_ptr<Perception> &perception,
+                       const std::string &foodName, double rotationTolerance,
+                       FeedingDemo *feedingDemo, double *angleGuess = nullptr,
+                       int actionOverride = -1);
 }
 } // namespace feeding
 

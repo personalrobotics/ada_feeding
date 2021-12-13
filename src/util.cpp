@@ -25,76 +25,53 @@ using aikido::distance::NominalConfigurationRanker;
 
 namespace feeding {
 
-inline int sgn(double x)
-{
-  return (x < 0) ? -1 : (x > 0);
-}
+inline int sgn(double x) { return (x < 0) ? -1 : (x > 0); }
 
 //==============================================================================
-void handleArguments(
-    int argc,
-    char** argv,
-    bool& adaReal,
-    bool& autoContinueDemo,
-    bool& useFTSensing,
-    std::string& demoType,
-    std::string& foodName,
-    std::size_t& directionIndex,
-    std::size_t& trialIndex,
-    std::string& dataCollectorPath,
-    const std::string& description)
-{
+void handleArguments(int argc, char **argv, bool &adaReal,
+                     bool &autoContinueDemo, bool &useFTSensing,
+                     std::string &demoType, std::string &foodName,
+                     std::size_t &directionIndex, std::size_t &trialIndex,
+                     std::string &dataCollectorPath,
+                     const std::string &description) {
   namespace po = boost::program_options;
 
   // Default options for flags
   po::options_description po_desc(description);
   po_desc.add_options()("help,h", "Produce help message")(
       "adareal,a", po::bool_switch(&adaReal), "Run ADA in real")(
-      "continueAuto,c",
-      po::bool_switch(&autoContinueDemo),
-      "Continue Demo automatically")(
-      "ftSensing,f",
-      po::bool_switch(&useFTSensing),
-      "Use Force/Torque sensing")(
-      "demoType,d", po::value<std::string>(&demoType), "Demo type")(
-      "foodName",
-      po::value<std::string>(&foodName),
-      "Name of food (for data collection)")(
-      "direction",
-      po::value<std::size_t>(&directionIndex),
+      "continueAuto,c", po::bool_switch(&autoContinueDemo),
+      "Continue Demo automatically")("ftSensing,f",
+                                     po::bool_switch(&useFTSensing),
+                                     "Use Force/Torque sensing")(
+      "demoType,d", po::value<std::string>(&demoType),
+      "Demo type")("foodName", po::value<std::string>(&foodName),
+                   "Name of food (for data collection)")(
+      "direction", po::value<std::size_t>(&directionIndex),
       "Direction index(for data collection)")(
-      "trial",
-      po::value<std::size_t>(&trialIndex),
+      "trial", po::value<std::size_t>(&trialIndex),
       "Trial index (for data collection)")(
-      "output,o",
-      po::value<std::string>(&dataCollectorPath),
+      "output,o", po::value<std::string>(&dataCollectorPath),
       "Output directory (for data collection)");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, po_desc), vm);
   po::notify(vm);
 
-  if (vm.count("help"))
-  {
+  if (vm.count("help")) {
     std::cout << po_desc << std::endl;
     exit(0);
   }
 }
 
 //==============================================================================
-void printStateWithTime(
-    double t,
-    std::size_t dimension,
-    Eigen::VectorXd& stateVec,
-    Eigen::VectorXd& velocityVec,
-    std::ofstream& cout)
-{
+void printStateWithTime(double t, std::size_t dimension,
+                        Eigen::VectorXd &stateVec, Eigen::VectorXd &velocityVec,
+                        std::ofstream &cout) {
   cout << t << ",";
-  for (std::size_t i = 0; i < dimension; i++)
-  {
+  for (std::size_t i = 0; i < dimension; i++) {
     cout << stateVec[i] << "," << velocityVec[i];
-    if (i < dimension - 1)
-    {
+    if (i < dimension - 1) {
       cout << ",";
     }
   }
@@ -103,11 +80,8 @@ void printStateWithTime(
 }
 
 //==============================================================================
-void dumpSplinePhasePlot(
-    const aikido::trajectory::Spline& spline,
-    const std::string& filename,
-    double timeStep)
-{
+void dumpSplinePhasePlot(const aikido::trajectory::Spline &spline,
+                         const std::string &filename, double timeStep) {
   std::ofstream phasePlotFile;
   phasePlotFile.open(filename);
   auto stateSpace = spline.getStateSpace();
@@ -119,8 +93,7 @@ void dumpSplinePhasePlot(
   Eigen::VectorXd stateVec(dim);
   Eigen::VectorXd velocityVec(dim);
 
-  for (std::size_t i = 0; i < sequence.getLength(); i++)
-  {
+  for (std::size_t i = 0; i < sequence.getLength(); i++) {
     double t = sequence[i];
     spline.evaluate(t, state);
     spline.evaluateDerivative(t, 1, velocityVec);
@@ -133,8 +106,7 @@ void dumpSplinePhasePlot(
 }
 
 //==============================================================================
-std::string getCurrentTimeDate()
-{
+std::string getCurrentTimeDate() {
   auto now = std::chrono::system_clock::now();
   auto in_time_t = std::chrono::system_clock::to_time_t(now);
 
@@ -144,111 +116,88 @@ std::string getCurrentTimeDate()
 }
 
 //==============================================================================
-std::string getUserFoodInput(
-    bool food_only, ros::NodeHandle& nodeHandle, bool useAlexa, double timeout)
-{
+std::string getUserFoodInput(bool food_only, ros::NodeHandle &nodeHandle,
+                             bool useAlexa, double timeout) {
 
   std::string foodName;
   std::string foodTopic;
-  nodeHandle.param<std::string>(
-      "/humanStudy/foodTopic", foodTopic, "/study_food_msgs");
-  foodName
-      = useAlexa ? getInputFromTopic(foodTopic, nodeHandle, true, timeout) : "";
-  if (foodName != "")
-  {
+  nodeHandle.param<std::string>("/humanStudy/foodTopic", foodTopic,
+                                "/study_food_msgs");
+  foodName =
+      useAlexa ? getInputFromTopic(foodTopic, nodeHandle, true, timeout) : "";
+  if (foodName != "") {
     ROS_INFO_STREAM("Got " << foodName << " from Alexa.");
     return foodName;
   }
 
-  ROS_INFO_STREAM("Which food item do you want? (Enter the desired item's number)");
-  for (std::size_t i = 0; i < FOOD_NAMES.size(); ++i)
-  {
+  ROS_INFO_STREAM(
+      "Which food item do you want? (Enter the desired item's number)");
+  for (std::size_t i = 0; i < FOOD_NAMES.size(); ++i) {
     ROS_INFO_STREAM("(" << i + 1 << ") " << FOOD_NAMES[i] << std::endl);
   }
-  if (!food_only)
-  {
-    for (std::size_t i = 0; i < ACTIONS.size(); ++i)
-    {
-      ROS_INFO_STREAM(
-          "(" << i + FOOD_NAMES.size() + 1 << ") [" << ACTIONS[i] << "]"
-              << std::endl);
+  if (!food_only) {
+    for (std::size_t i = 0; i < ACTIONS.size(); ++i) {
+      ROS_INFO_STREAM("(" << i + FOOD_NAMES.size() + 1 << ") [" << ACTIONS[i]
+                          << "]" << std::endl);
     }
   }
 
   int max_id;
 
-  if (!food_only)
-  {
+  if (!food_only) {
     max_id = FOOD_NAMES.size() + ACTIONS.size();
-  }
-  else
-  {
+  } else {
     max_id = FOOD_NAMES.size();
   }
 
-  while (true)
-  {
+  while (true) {
     std::cout << "> ";
     int id;
     std::cin >> id;
-    if (id < 1 || id > max_id)
-    {
+    if (id < 1 || id > max_id) {
       ROS_WARN_STREAM("Invalid argument. Quitting...");
       return "quit";
     }
-    if (id <= FOOD_NAMES.size())
-    {
+    if (id <= FOOD_NAMES.size()) {
       foodName = FOOD_NAMES[id - 1];
       nodeHandle.setParam("/deep_pose/forceFoodName", foodName);
       nodeHandle.setParam("/deep_pose/spnet_food_name", foodName);
-    }
-    else
+    } else
       foodName = ACTIONS[id - FOOD_NAMES.size()];
     return foodName;
   }
 }
 
 //==============================================================================
-std::string getInputFromTopic(
-    std::string topic,
-    const ros::NodeHandle& nodeHandle,
-    bool validateAsFood,
-    double timeout)
-{
+std::string getInputFromTopic(std::string topic,
+                              const ros::NodeHandle &nodeHandle,
+                              bool validateAsFood, double timeout) {
   boost::shared_ptr<std_msgs::String const> sharedPtr;
   std_msgs::String rosFoodWord;
 
-  if (timeout > 0)
-  {
+  if (timeout > 0) {
     sharedPtr = ros::topic::waitForMessage<std_msgs::String>(
         topic, ros::Duration(timeout));
-  }
-  else
-  {
+  } else {
     sharedPtr = ros::topic::waitForMessage<std_msgs::String>(topic);
   }
 
-  if (sharedPtr == nullptr)
-  {
+  if (sharedPtr == nullptr) {
     ROS_INFO_STREAM("No message from topic, please input manually");
     return "";
   }
   rosFoodWord = *sharedPtr;
   std::string foodWord = rosFoodWord.data.c_str();
-  if (foodWord.compare("~~no_input~~") == 0)
-  {
+  if (foodWord.compare("~~no_input~~") == 0) {
     std_msgs::String rosFoodWord;
     sharedPtr = ros::topic::waitForMessage<std_msgs::String>(topic);
     rosFoodWord = *sharedPtr;
     std::string foodWord = rosFoodWord.data.c_str();
   }
   ROS_INFO_STREAM("Got Input " << foodWord);
-  if (validateAsFood)
-  {
-    for (std::size_t i = 0; i < FOOD_NAMES.size(); ++i)
-    {
-      if (FOOD_NAMES[i].compare(foodWord) == 0)
-      {
+  if (validateAsFood) {
+    for (std::size_t i = 0; i < FOOD_NAMES.size(); ++i) {
+      if (FOOD_NAMES[i].compare(foodWord) == 0) {
         ROS_INFO_STREAM("Sucessfully returned");
         nodeHandle.setParam("/deep_pose/forceFoodName", foodWord);
         nodeHandle.setParam("/deep_pose/spnet_food_name", foodWord);
@@ -261,13 +210,11 @@ std::string getInputFromTopic(
 }
 
 //==============================================================================
-int getUserInputWithOptions(
-    const std::vector<std::string>& optionPrompts, const std::string& prompt)
-{
+int getUserInputWithOptions(const std::vector<std::string> &optionPrompts,
+                            const std::string &prompt) {
   ROS_INFO_STREAM(prompt);
 
-  for (const auto& option : optionPrompts)
-  {
+  for (const auto &option : optionPrompts) {
     ROS_INFO_STREAM(option);
   }
   std::cout << "> ";
@@ -278,12 +225,11 @@ int getUserInputWithOptions(
 }
 
 //==============================================================================
-std::pair<Eigen::VectorXd, Eigen::VectorXd> setPositionLimits(
-    const ::dart::dynamics::MetaSkeletonPtr& metaSkeleton,
-    const Eigen::VectorXd& lowerLimits,
-    const Eigen::VectorXd& upperLimits,
-    const std::vector<std::size_t>& indices)
-{
+std::pair<Eigen::VectorXd, Eigen::VectorXd>
+setPositionLimits(const ::dart::dynamics::MetaSkeletonPtr &metaSkeleton,
+                  const Eigen::VectorXd &lowerLimits,
+                  const Eigen::VectorXd &upperLimits,
+                  const std::vector<std::size_t> &indices) {
   auto llimits = metaSkeleton->getPositionLowerLimits();
   auto ulimits = metaSkeleton->getPositionUpperLimits();
 
@@ -293,8 +239,7 @@ std::pair<Eigen::VectorXd, Eigen::VectorXd> setPositionLimits(
   Eigen::VectorXd oldLowerLimits(indices.size());
   Eigen::VectorXd oldUpperLimits(indices.size());
 
-  for (int i = 0; i < indices.size(); ++i)
-  {
+  for (int i = 0; i < indices.size(); ++i) {
     newLowerLimits(indices[i]) = lowerLimits[i];
     newUpperLimits(indices[i]) = upperLimits[i];
 
@@ -308,20 +253,15 @@ std::pair<Eigen::VectorXd, Eigen::VectorXd> setPositionLimits(
 }
 
 //==============================================================================
-Eigen::Isometry3d getRelativeTransform(
-    tf::TransformListener& tfListener,
-    const std::string& from,
-    const std::string& to)
-{
+Eigen::Isometry3d getRelativeTransform(tf::TransformListener &tfListener,
+                                       const std::string &from,
+                                       const std::string &to) {
   tf::StampedTransform tfStampedTransform;
-  try
-  {
+  try {
     tfListener.lookupTransform(from, to, ros::Time(0), tfStampedTransform);
-  }
-  catch (tf::TransformException ex)
-  {
-    throw std::runtime_error(
-        "Failed to get TF Transform: " + std::string(ex.what()));
+  } catch (tf::TransformException ex) {
+    throw std::runtime_error("Failed to get TF Transform: " +
+                             std::string(ex.what()));
   }
 
   Eigen::Isometry3d transform;
@@ -330,8 +270,7 @@ Eigen::Isometry3d getRelativeTransform(
 }
 
 //==============================================================================
-Eigen::Isometry3d removeRotation(const Eigen::Isometry3d& transform)
-{
+Eigen::Isometry3d removeRotation(const Eigen::Isometry3d &transform) {
   Eigen::Isometry3d withoutRotation(Eigen::Isometry3d::Identity());
   withoutRotation.translation() = transform.translation();
 
@@ -339,34 +278,24 @@ Eigen::Isometry3d removeRotation(const Eigen::Isometry3d& transform)
 }
 
 //==============================================================================
-void printRobotConfiguration(const std::shared_ptr<ada::Ada>& ada)
-{
-  Eigen::IOFormat CommaInitFmt(
-      Eigen::StreamPrecision,
-      Eigen::DontAlignCols,
-      ", ",
-      ", ",
-      "",
-      "",
-      " << ",
-      ";");
+void printRobotConfiguration(const std::shared_ptr<ada::Ada> &ada) {
+  Eigen::IOFormat CommaInitFmt(Eigen::StreamPrecision, Eigen::DontAlignCols,
+                               ", ", ", ", "", "", " << ", ";");
   auto defaultPose = ada->getArm()->getMetaSkeleton()->getPositions();
   ROS_INFO_STREAM("Current configuration" << defaultPose.format(CommaInitFmt));
 }
 
 //==============================================================================
-double getDistance(
-    const Eigen::Isometry3d& item1, const Eigen::Isometry3d& item2)
-{
+double getDistance(const Eigen::Isometry3d &item1,
+                   const Eigen::Isometry3d &item2) {
   auto translation = item1.translation() - item2.translation();
   return translation.norm();
 }
 
 //==============================================================================
-Eigen::Isometry3d getForqueTransform(tf::TransformListener& tfListener)
-{
-  return getRelativeTransform(
-      tfListener, "/map", "/j2n6s200_forque_end_effector");
+Eigen::Isometry3d getForqueTransform(tf::TransformListener &tfListener) {
+  return getRelativeTransform(tfListener, "/map",
+                              "/j2n6s200_forque_end_effector");
 }
 
 //==============================================================================
@@ -374,8 +303,7 @@ static ros::Publisher actionPub;
 static ros::Publisher timingPub;
 static ros::Publisher transferPub;
 static ros::Publisher talkPub;
-void initTopics(ros::NodeHandle* nodeHandle)
-{
+void initTopics(ros::NodeHandle *nodeHandle) {
   actionPub = nodeHandle->advertise<std_msgs::String>("/action_done", 100);
   timingPub = nodeHandle->advertise<std_msgs::String>("/timing_done", 100);
   transferPub = nodeHandle->advertise<std_msgs::String>("/transfer_done", 100);
@@ -383,38 +311,30 @@ void initTopics(ros::NodeHandle* nodeHandle)
 }
 
 //==============================================================================
-void talk(const std::string& statement, bool background)
-{
+void talk(const std::string &statement, bool background) {
   std::string cmd;
-  if (background)
-  {
+  if (background) {
     cmd = "aoss swift \"" + statement + "\"" + " &";
-  }
-  else
-  {
+  } else {
     cmd = "aoss swift \"" + statement + "\"";
   }
   std::system(cmd.c_str());
   std_msgs::String msg;
   msg.data = statement;
-  if (talkPub.getNumSubscribers() < 1)
-  {
+  if (talkPub.getNumSubscribers() < 1) {
     ROS_INFO_STREAM("Waiting for subscribers...");
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
   }
   talkPub.publish(msg);
 }
 
-void publishActionDoneToWeb(ros::NodeHandle* nodeHandle)
-{
-  if (!actionPub)
-  {
+void publishActionDoneToWeb(ros::NodeHandle *nodeHandle) {
+  if (!actionPub) {
     ROS_WARN_STREAM("EMPTY ACTION PUBLISHER");
   }
   std_msgs::String msg;
   msg.data = "action done";
-  if (actionPub.getNumSubscribers() < 1)
-  {
+  if (actionPub.getNumSubscribers() < 1) {
     ROS_INFO_STREAM("Waiting for subscribers...");
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
   }
@@ -422,12 +342,10 @@ void publishActionDoneToWeb(ros::NodeHandle* nodeHandle)
   ROS_INFO_STREAM("action done published to web page");
 }
 
-void publishTimingDoneToWeb(ros::NodeHandle* nodeHandle)
-{
+void publishTimingDoneToWeb(ros::NodeHandle *nodeHandle) {
   std_msgs::String msg;
   msg.data = "timing done";
-  if (timingPub.getNumSubscribers() < 1)
-  {
+  if (timingPub.getNumSubscribers() < 1) {
     ROS_INFO_STREAM("Waiting for subscribers...");
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
   }
@@ -435,12 +353,10 @@ void publishTimingDoneToWeb(ros::NodeHandle* nodeHandle)
   ROS_INFO_STREAM("timing done published to web page");
 }
 
-void publishTransferDoneToWeb(ros::NodeHandle* nodeHandle)
-{
+void publishTransferDoneToWeb(ros::NodeHandle *nodeHandle) {
   std_msgs::String msg;
   msg.data = "transfer done";
-  if (transferPub.getNumSubscribers() < 1)
-  {
+  if (transferPub.getNumSubscribers() < 1) {
     ROS_INFO_STREAM("Waiting for subscribers...");
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
   }

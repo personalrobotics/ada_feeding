@@ -9,8 +9,7 @@ namespace feeding {
 
 /// The Workspace deals with everything in the aikido world
 /// that is not a robot or something perceived by the camera.
-class Workspace
-{
+class Workspace {
 
 public:
   /// Constructor of the Workspace.
@@ -23,11 +22,8 @@ public:
   /// \param[in] robotPose The pose of the robot relative to the workspace.
   /// \param[in] adaReal True if the real robot is used.
   /// \param[in] nodeHandle Handle of the ros node.
-  Workspace(
-      aikido::planner::WorldPtr world,
-      const Eigen::Isometry3d& robotPose,
-      bool adaReal,
-      ros::NodeHandle nodeHandle);
+  Workspace(aikido::planner::WorldPtr world, const Eigen::Isometry3d &robotPose,
+            bool adaReal, ros::NodeHandle nodeHandle);
 
   /// Gets the plate
   dart::dynamics::ConstSkeletonPtr getPlate() const;
@@ -38,8 +34,8 @@ public:
   /// Gets the workspace environment
   dart::dynamics::ConstSkeletonPtr getWorkspaceEnvironment() const;
 
-  dart::dynamics::ConstSkeletonPtr getWorkspaceEnvironmentWithWallFurtherBack()
-      const;
+  dart::dynamics::ConstSkeletonPtr
+  getWorkspaceEnvironmentWithWallFurtherBack() const;
 
   /// Gets the default food item
   dart::dynamics::SkeletonPtr getDefaultFoodItem() const;
@@ -55,7 +51,7 @@ public:
   /// Removes the default food item from the world.
   void deleteFood();
 
-  void addDefaultFoodItemAtPose(const Eigen::Isometry3d& pose);
+  void addDefaultFoodItemAtPose(const Eigen::Isometry3d &pose);
 
   /// Resets the environmnet.
   void reset();
@@ -82,16 +78,13 @@ private:
   /// loaded skeleton.
   /// \param[in] name The name of the object that should be loaded.
   /// \param[in] robotPose The pose of the robot relative to the workspace.
-  void addToWorld(
-      dart::dynamics::SkeletonPtr& skeleton,
-      const std::string& name,
-      const Eigen::Isometry3d& robotPose);
+  /// \param[in] nodeHandle Handle of the ros node.
+  void addToWorld(dart::dynamics::SkeletonPtr &skeleton,
+                  const std::string &name, const Eigen::Isometry3d &robotPose);
 
   /// TODO: docstring
-  void addToWorldAtPose(
-      dart::dynamics::SkeletonPtr& skeleton,
-      const std::string& name,
-      const Eigen::Isometry3d& pose);
+  void addToWorldAtPose(dart::dynamics::SkeletonPtr &skeleton,
+                        const std::string &name, const Eigen::Isometry3d &pose);
 };
 } // namespace feeding
 

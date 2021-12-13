@@ -11,12 +11,10 @@
 namespace feeding {
 namespace action {
 
-bool skewer(
-    const std::shared_ptr<Perception>& perception,
-    const std::string& foodName,
-    const Eigen::Isometry3d& plate,
-    const Eigen::Isometry3d& plateEndEffectorTransform,
-    FeedingDemo* feedingDemo);
+bool skewer(const std::shared_ptr<Perception> &perception,
+            const std::string &foodName, const Eigen::Isometry3d &plate,
+            const Eigen::Isometry3d &plateEndEffectorTransform,
+            FeedingDemo *feedingDemo);
 }
 } // namespace feeding
 

@@ -12,47 +12,45 @@
 namespace feeding {
 namespace action {
 
-bool moveInto(
-    const std::shared_ptr<Perception>& perception,
-    TargetItem item,
-    const Eigen::Vector3d& endEffectorDirection,
-    FeedingDemo* feedingDemo)
-{
+bool moveInto(const std::shared_ptr<Perception> &perception, TargetItem item,
+              const Eigen::Vector3d &endEffectorDirection,
+              FeedingDemo *feedingDemo) {
   // Load necessary parameters from feedingDemo
-  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
-  const ros::NodeHandle* nodeHandle = feedingDemo->getNodeHandle().get();
-  const aikido::constraint::dart::CollisionFreePtr& collisionFree = feedingDemo->getCollisionConstraint();
+  const std::shared_ptr<::ada::Ada> &ada = feedingDemo->getAda();
+  const ros::NodeHandle *nodeHandle = feedingDemo->getNodeHandle().get();
+  const aikido::constraint::dart::CollisionFreePtr &collisionFree =
+      feedingDemo->getCollisionConstraint();
   double heightIntoFood = feedingDemo->mFoodTSRParameters.at("heightInto");
   double planningTimeout = feedingDemo->mPlanningTimeout;
-  double endEffectorOffsetPositionTolerance = feedingDemo->mEndEffectorOffsetPositionTolerance;
-  double endEffectorOffsetAngularTolerance = feedingDemo->mEndEffectorOffsetAngularTolerance;
-  std::shared_ptr<FTThresholdHelper> ftThresholdHelper = feedingDemo->getFTThresholdHelper();
-  const Eigen::Vector6d& velocityLimits = feedingDemo->mVelocityLimits;
+  double endEffectorOffsetPositionTolerance =
+      feedingDemo->mEndEffectorOffsetPositionTolerance;
+  double endEffectorOffsetAngularTolerance =
+      feedingDemo->mEndEffectorOffsetAngularTolerance;
+  std::shared_ptr<FTThresholdHelper> ftThresholdHelper =
+      feedingDemo->getFTThresholdHelper();
+  const Eigen::Vector6d &velocityLimits = feedingDemo->mVelocityLimits;
 
   ROS_INFO_STREAM("Move into " + TargetToString.at(item));
 
   if (item != FOOD && item != FORQUE)
-    throw std::invalid_argument(
-        "MoveInto[" + TargetToString.at(item) + "] not supported");
+    throw std::invalid_argument("MoveInto[" + TargetToString.at(item) +
+                                "] not supported");
 
   if (item == TargetItem::FORQUE) {
     auto trajectory = ada->planToOffset(
-      ada->getEndEffectorBodyNode()->getName(),
-      Eigen::Vector3d(0, 0.01, 0),
-      ada->getArm()->getWorldCollisionConstraint());
+        ada->getEndEffectorBodyNode()->getName(), Eigen::Vector3d(0, 0.01, 0),
+        ada->getArm()->getWorldCollisionConstraint());
 
     bool success = true;
-    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
-    try
-    {
+    auto future = ada->getArm()->executeTrajectory(
+        trajectory); // check velocity limits are set in FeedingDemo
+    try {
       future.get();
-    }
-    catch (const std::exception& e)
-    {
+    } catch (const std::exception &e) {
       dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
       success = false;
     }
-    if(!success)
+    if (!success)
       throw std::runtime_error("Trajectory execution failed");
   }
 
@@ -92,18 +90,16 @@ bool moveInto(
   {
     int numDofs = ada->getArm()->getMetaSkeleton()->getNumDofs();
     // Collision constraint is not set because f/t sensor stops execution.
-    auto trajectory = ada->getArm()->planToOffset(
-      ada->getEndEffectorBodyNode()->getName(),
-      Eigen::Vector3d{0.0, 0.0, -heightIntoFood});
+    auto trajectory =
+        ada->getArm()->planToOffset(ada->getEndEffectorBodyNode()->getName(),
+                                    Eigen::Vector3d{0.0, 0.0, -heightIntoFood});
 
     bool success = true;
-    try
-    {
-      auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+    try {
+      auto future = ada->getArm()->executeTrajectory(
+          trajectory); // check velocity limits are set in FeedingDemo
       future.get();
-    }
-    catch (const std::exception& e)
-    {
+    } catch (const std::exception &e) {
       dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
       success = false;
     }

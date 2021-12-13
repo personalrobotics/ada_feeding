@@ -8,24 +8,17 @@
 
 namespace feeding {
 
-enum TiltStyle
-{
-  NONE = 0,
-  VERTICAL = 1,
-  ANGLED = 2
-};
+enum TiltStyle { NONE = 0, VERTICAL = 1, ANGLED = 2 };
 
 static const std::map<const std::string, TiltStyle> StringToTiltStyle{
     {"vertical", NONE},
     {"tilted-vertical", VERTICAL},
     {"tilted-angled", ANGLED}};
 
-class AcquisitionAction
-{
+class AcquisitionAction {
 public:
   explicit AcquisitionAction(
-      TiltStyle tiltStyle = TiltStyle::NONE,
-      double rotationAngle = 0.0,
+      TiltStyle tiltStyle = TiltStyle::NONE, double rotationAngle = 0.0,
       double tiltAngle = 0.0,
       Eigen::Vector3d moveIntoDirection = Eigen::Vector3d(-1.0, 0.0, 0.0));
 

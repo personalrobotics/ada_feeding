@@ -10,14 +10,11 @@
 namespace feeding {
 namespace action {
 
-bool moveAbove(
-    const Eigen::Isometry3d& targetTransform,
-    const Eigen::Isometry3d& endEffectorTransform,
-    double horizontalTolerance,
-    double verticalTolerance,
-    double rotationTolerance,
-    double tiltTolerance,
-    FeedingDemo* feedingDemo);
+bool moveAbove(const Eigen::Isometry3d &targetTransform,
+               const Eigen::Isometry3d &endEffectorTransform,
+               double horizontalTolerance, double verticalTolerance,
+               double rotationTolerance, double tiltTolerance,
+               FeedingDemo *feedingDemo);
 }
 } // namespace feeding
 

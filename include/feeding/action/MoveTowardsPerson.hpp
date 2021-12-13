@@ -11,10 +11,9 @@ namespace feeding {
 namespace action {
 
 bool moveTowardsPerson(
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
-    const std::shared_ptr<Perception>& perception,
-    double distanceToPerson,
-    FeedingDemo* feedingDemo);
+    const aikido::constraint::dart::CollisionFreePtr &collisionFree,
+    const std::shared_ptr<Perception> &perception, double distanceToPerson,
+    FeedingDemo *feedingDemo);
 }
 } // namespace feeding
 

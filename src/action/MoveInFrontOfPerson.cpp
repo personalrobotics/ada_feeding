@@ -13,41 +13,40 @@ using aikido::constraint::dart::TSR;
 namespace feeding {
 namespace action {
 
-bool moveInFrontOfPerson(
-    const aikido::constraint::TestablePtr& collisionFree,
-    const Eigen::Isometry3d& workspacePersonPose,
-    double distanceToPerson,
-    double horizontalToleranceForPerson,
-    double verticalToleranceForPerson,
-    FeedingDemo* feedingDemo)
-{
+bool moveInFrontOfPerson(const aikido::constraint::TestablePtr &collisionFree,
+                         const Eigen::Isometry3d &workspacePersonPose,
+                         double distanceToPerson,
+                         double horizontalToleranceForPerson,
+                         double verticalToleranceForPerson,
+                         FeedingDemo *feedingDemo) {
   // Load necessary parameters from feedingDemo
-  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const std::shared_ptr<::ada::Ada> &ada = feedingDemo->getAda();
   double planningTimeout = feedingDemo->mPlanningTimeout;
   int maxNumTrials = feedingDemo->mMaxNumTrials;
   int batchSize = feedingDemo->mBatchSize;
   int maxNumBatches = feedingDemo->mMaxNumBatches;
   int numMaxIterations = feedingDemo->mNumMaxIterations;
-  const Eigen::Vector6d& velocityLimits = feedingDemo->mVelocityLimits;
+  const Eigen::Vector6d &velocityLimits = feedingDemo->mVelocityLimits;
 
   ROS_INFO_STREAM("move in front of person");
 
-  auto trajectory = ada->getArm()->planToConfiguration(ada->getArm()->getNamedConfiguration("in_front_person_pose"), collisionFree);
+  auto trajectory = ada->getArm()->planToConfiguration(
+      ada->getArm()->getNamedConfiguration("in_front_person_pose"),
+      collisionFree);
   bool success = true;
-  try
-  {
-    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+  try {
+    auto future = ada->getArm()->executeTrajectory(
+        trajectory); // check velocity limits are set in FeedingDemo
     future.get();
-  }
-  catch (const std::exception& e)
-  {
+  } catch (const std::exception &e) {
     dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
     success = false;
   }
   if (success)
     return true;
 
-  else return false;
+  else
+    return false;
   /*
 
   TSR personTSR;
@@ -76,8 +75,9 @@ bool moveInFrontOfPerson(
   personTSR.mTw_e.matrix()
       *= eeTransformPerson.matrix();
 
-  auto personTSRPtr = std::make_shared<aikido::constraint::dart::TSR>(personTSR);
-  auto tsr_trajectory = ada->getArm()->planToTSR(
+  auto personTSRPtr =
+  std::make_shared<aikido::constraint::dart::TSR>(personTSR); auto
+  tsr_trajectory = ada->getArm()->planToTSR(
       ada->getEndEffectorBodyNode()->getName(),
       personTSRPtr,
       collisionFree,
@@ -87,8 +87,8 @@ bool moveInFrontOfPerson(
         maxNumBatches,
         numMaxIterations));
   bool tsr_success = true;
-  auto tsr_future = ada->getArm()->executeTrajectory(tsr_trajectory); // check velocity limits are set in FeedingDemo
-  try
+  auto tsr_future = ada->getArm()->executeTrajectory(tsr_trajectory); // check
+  velocity limits are set in FeedingDemo try
   {
     tsr_future.get();
   }
@@ -100,7 +100,6 @@ bool moveInFrontOfPerson(
 
   return tsr_success;
   */
-
 }
 } // namespace action
 } // namespace feeding

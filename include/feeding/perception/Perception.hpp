@@ -32,8 +32,7 @@ namespace feeding {
 /// Currently, this means that it calls the detectObjects function in aikido,
 /// which adds some objects to the aikido world. The Perception class is also
 /// responsible for dealing with those objects.
-class Perception
-{
+class Perception {
 
 public:
   /// Constructor
@@ -42,15 +41,12 @@ public:
   /// \param[in] adasMetaSkeleton Ada's MetaSkeleton.
   /// \param[in] nodeHandle Handle of the ros node.
   /// \param[in] ranker Ranker to rank detected items.
-  Perception(
-      aikido::planner::WorldPtr world,
-      std::shared_ptr<ada::Ada> ada,
-      dart::dynamics::MetaSkeletonPtr adaMetaSkeleton,
-      std::shared_ptr<ros::NodeHandle> nodeHandle,
-      std::shared_ptr<TargetFoodRanker> ranker
-      = std::make_shared<ShortestDistanceRanker>(),
-      float faceZOffset = 0.0,
-      bool removeRotationForFood = true);
+  Perception(aikido::planner::WorldPtr world, std::shared_ptr<ada::Ada> ada,
+             dart::dynamics::MetaSkeletonPtr adaMetaSkeleton,
+             std::shared_ptr<ros::NodeHandle> nodeHandle,
+             std::shared_ptr<TargetFoodRanker> ranker =
+                 std::make_shared<ShortestDistanceRanker>(),
+             float faceZOffset = 0.0, bool removeRotationForFood = true);
 
   /// Gets food items of the name set by setFoodName
   /// from active perception ros nodes and adds their new
@@ -58,10 +54,10 @@ public:
   /// the item ranked highest by the ranker.
   /// \param[out] foodTransform The transform of the detected food.
   /// \return All food items on the plate of matching name.
-  std::vector<std::unique_ptr<FoodItem>> perceiveFood(
-      const std::string& foodName = "");
+  std::vector<std::unique_ptr<FoodItem>>
+  perceiveFood(const std::string &foodName = "");
 
-  void setFoodItemToTrack(FoodItem* target);
+  void setFoodItemToTrack(FoodItem *target);
 
   /// Throws exception if target item is not set.
   Eigen::Isometry3d getTrackedFoodItemPose();
@@ -74,13 +70,13 @@ public:
   void setFaceZOffset();
 
   /// Change tilt, yaw of fork
-  void correctForkTip(const geometry_msgs::Pose2D::ConstPtr& msg);
+  void correctForkTip(const geometry_msgs::Pose2D::ConstPtr &msg);
 
   void setCorrectForkTip(bool val);
 
 private:
   // Optionally used to remove rotation if mRemoveRotation is true..
-  void removeRotation(const FoodItem* foodItem);
+  void removeRotation(const FoodItem *foodItem);
   bool mRemoveRotationForFood;
 
   tf::TransformListener mTFListener;
@@ -93,7 +89,7 @@ private:
   std::shared_ptr<aikido::perception::AssetDatabase> mAssetDatabase;
 
   std::shared_ptr<TargetFoodRanker> mTargetFoodRanker;
-  FoodItem* mTargetFoodItem;
+  FoodItem *mTargetFoodItem;
 
   float mFaceZOffset;
   std::string mPerceivedFaceName;
@@ -111,7 +107,7 @@ private:
 
   /// Received image message and updates
   /// \param[out] cv_ptr Updates image to cv_ptr.
-  void receiveImageMessage(cv_bridge::CvImagePtr& cv_ptr);
+  void receiveImageMessage(cv_bridge::CvImagePtr &cv_ptr);
   std::shared_ptr<ada::Ada> mAda;
 
   Eigen::Isometry3d mDefaultEETransform;

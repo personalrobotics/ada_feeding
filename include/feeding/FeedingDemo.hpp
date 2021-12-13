@@ -27,8 +27,7 @@ namespace feeding {
 /// like moveInFrontOfPerson(). It uses the robot, workspace info and ros
 /// parameters
 /// to accomplish these tasks.
-class FeedingDemo
-{
+class FeedingDemo {
 
 public:
   /// Constructor for the Feeding Demo.
@@ -41,14 +40,11 @@ public:
   /// \param[in] allowFreeRotation, If true, items specified as rotationFree
   /// get rotational freedom.
   /// \param[in] nodeHandle Handle of the ros node.
-  FeedingDemo(
-      bool adaReal,
-      std::shared_ptr<ros::NodeHandle> nodeHandle,
-      bool useFTSensingToStopTrajectories,
-      bool useVisualServo,
-      bool allowFreeRotation,
-      std::shared_ptr<FTThresholdHelper> ftThresholdHelper = nullptr,
-      bool autoContinueDemo = false);
+  FeedingDemo(bool adaReal, std::shared_ptr<ros::NodeHandle> nodeHandle,
+              bool useFTSensingToStopTrajectories, bool useVisualServo,
+              bool allowFreeRotation,
+              std::shared_ptr<FTThresholdHelper> ftThresholdHelper = nullptr,
+              bool autoContinueDemo = false);
 
   /// Destructor for the Feeding Demo.
   /// Also shuts down the trajectory controllers.
@@ -77,7 +73,7 @@ public:
 
   aikido::rviz::InteractiveMarkerViewerPtr getViewer();
 
-  void waitForUser(const std::string& prompt);
+  void waitForUser(const std::string &prompt);
 
   aikido::constraint::dart::CollisionFreePtr getCollisionConstraint();
 
