@@ -11,10 +11,6 @@
 
 af_named_configs: package://ada_feeding/config/named_configs_gen2_6dof.yaml
 
-adaConf:
-  end_effector: j2n6s200_forque_end_effector
-  arm_controller: move_until_touch_topic_controller
-
 # Visualization parameters
 visualization:
   topicName: dart_markers/feeding
@@ -66,7 +62,7 @@ feedingDemo:
   distanceToPerson: 0.05
   waitMillisecsAtFood: 00     # short pause after skewering the food
   waitMillisecsAtPerson: 1000   # long pause so person can take a bite
-  fixedFaceY: 0.28
+  fixedFaceY: 0.33
 
 # Planning parameters
 planning:
@@ -79,7 +75,7 @@ planning:
     horizontalToleranceAbovePlate: 0.01
     verticalToleranceAbovePlate: 0.03
     rotationToleranceAbovePlate: 3.1416
-    horizontalToleranceNearFood: 0.003
+    horizontalToleranceNearFood: 0.001
     verticalToleranceNearFood: 0.008
     rotationToleranceNearFood: 0.01
     tiltToleranceNearFood: 0.00
@@ -124,7 +120,7 @@ foodItems:
   #forces: [15,3,3,7,22,15,7]
   #pickUpAngleModes: [0, 2, 2, 0, 0, 0, 0]
   names: ["apple", "banana", "bell_pepper", "broccoli", "cantaloupe", "carrot", "cauliflower", "celery", "cherry_tomato", "grape", "honeydew", "kiwi", "strawberry", "lettuce", "spinach", "kale"]
-  forces: [10, 10, 10, 10, 15, 15, 7, 22, 7, 10, 7, 7, 15, 7, 7, 7]
+  forces: [10, 10, 10, 10, 15, 22, 7, 22, 7, 10, 7, 7, 15, 7, 7, 7]
   pickUpAngleModes: [1, 5, 1, 2, 1, 1, 0, 1, 1, 3, 3, 3, 0, 1, 2, 0]
 
 humanStudy:
@@ -132,8 +128,9 @@ humanStudy:
   autoTiming: true
   autoTransfer: true
   createError: false
-  foodTopic: /study_food_msgs
-  actionTopic: /study_action_msgs
+  useAlexa: true
+  foodTopic: /alexa_msgs
+  actionTopic: /alexa_msgs
 
 rotationFree:
   names: ["banana", "broccoli", "cantaloupe", "cauliflower", "cherry_tomato", "grape", "honeydew", "kiwi", "strawberry"]
@@ -168,7 +165,7 @@ study:
   personPose: [0.295, 0.24, 0.73, 0, 0, 3.1415]
   tiltOffset: [0.0, 0.05, -0.02]
 
-  # FAST:
+  # FAST: # NOTE: these parameters are not currently used
   velocityLimits: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7]
   # SLOW:
-  #velocityLimits: [0.2, 0.2, 0.2, 0.2, 0.2, 0.4]
+  # velocityLimits: [0.2, 0.2, 0.2, 0.2, 0.2, 0.4]
