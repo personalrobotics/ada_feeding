@@ -128,7 +128,7 @@ humanStudy:
   autoTiming: true
   autoTransfer: true
   createError: false
-  useAlexa: true
+  useAlexa: false
   foodTopic: /alexa_msgs
   actionTopic: /alexa_msgs
 

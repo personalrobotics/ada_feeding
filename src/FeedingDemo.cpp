@@ -29,12 +29,12 @@ namespace feeding {
 FeedingDemo::FeedingDemo(bool adaReal,
                          std::shared_ptr<ros::NodeHandle> nodeHandle,
                          bool useFTSensingToStopTrajectories,
-                         bool useVisualServo, bool allowFreeRotation,
+                         bool useVisualServo, bool allowFreeRotation, bool useSound,
                          std::shared_ptr<FTThresholdHelper> ftThresholdHelper,
                          bool autoContinueDemo)
     : mAdaReal(adaReal), mNodeHandle(nodeHandle),
       mFTThresholdHelper(ftThresholdHelper), mVisualServo(useVisualServo),
-      mAllowRotationFree(allowFreeRotation),
+      mAllowRotationFree(allowFreeRotation), mUseSound(useSound),
       mAutoContinueDemo(autoContinueDemo),
       mIsFTSensingEnabled(useFTSensingToStopTrajectories) {
   mWorld = std::make_shared<aikido::planner::World>("feeding");
@@ -167,6 +167,8 @@ FeedingDemo::FeedingDemo(bool adaReal,
   }
 
   mTableHeight = getRosParam<double>("/study/tableHeight", *mNodeHandle);
+
+  mUseAlexa = getRosParam<bool>("/humanStudy/useAlexa", *mNodeHandle);
 }
 
 //==============================================================================

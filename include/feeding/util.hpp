@@ -44,7 +44,7 @@ static aikido::rviz::InteractiveMarkerViewerPtr VIEWER;
 /// \param[out] dataCollectorPath Directory to store data collection
 /// on and off
 void handleArguments(int argc, char **argv, bool &adaReal,
-                     bool &autoContinueDemo, bool &useFTSensing,
+                     bool &autoContinueDemo, bool &useFTSensing, bool& useSound,
                      std::string &demoType, std::string &foodName,
                      std::size_t &directionIndex, std::size_t &trialIndex,
                      std::string &dataCollectorPath,
@@ -61,7 +61,7 @@ void dumpSplinePhasePlot(const aikido::trajectory::Spline &spline,
 /// param[in] food_only If true, only food choices are valid
 /// param[in]] nodeHandle Ros Node to set food name for detection.
 std::string getUserFoodInput(bool food_only, ros::NodeHandle &nodeHandle,
-                             bool useAlexa = true, double timeout = 5);
+                             bool useAlexa = true, double timeout = 10);
 
 int getUserInputWithOptions(const std::vector<std::string> &optionPrompts,
                             const std::string &prompt);
@@ -101,7 +101,7 @@ std::string getInputFromTopic(std::string topic,
                               const ros::NodeHandle &nodeHandle,
                               bool validateAsFood, double timeout = 20);
 
-void talk(const std::string &, bool background = false);
+void talk(const std::string&, bool background = true);
 
 void initTopics(ros::NodeHandle *nodeHandle);
 

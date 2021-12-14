@@ -20,6 +20,7 @@ bool moveAbove(const Eigen::Isometry3d &targetTransform,
   // Load necessary parameters from feedingDemo
   const std::shared_ptr<::ada::Ada> &ada = feedingDemo->getAda();
   const CollisionFreePtr &collisionFree = feedingDemo->getCollisionConstraint();
+  bool useSound = feedingDemo->mUseSound;
   double planningTimeout = feedingDemo->mPlanningTimeout;
   int maxNumTrials = feedingDemo->mMaxNumTrials;
   int batchSize = feedingDemo->mBatchSize;
@@ -83,7 +84,8 @@ bool moveAbove(const Eigen::Isometry3d &targetTransform,
 
   } while (rotationTolerance <= 2.0);
   if (!trajectoryCompleted) {
-    // talk("No trajectory, check T.S.R.", true);
+    // if (useSound) 
+    //   talk("No trajectory, check T.S.R.", true);
     if (feedingDemo && feedingDemo->getViewer()) {
       feedingDemo->getViewer()->addTSRMarker(target);
       std::cout << "Check TSR" << std::endl;

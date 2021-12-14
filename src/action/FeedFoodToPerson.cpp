@@ -34,6 +34,7 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
   // feedingDemo->getCollisionConstraintWithWallFurtherBack();
   const Eigen::Isometry3d &personPose = workspace->getPersonPose();
   std::chrono::milliseconds waitAtPerson = feedingDemo->mWaitTimeForPerson;
+  bool useSound = feedingDemo->mUseSound;
   double distanceToPerson = feedingDemo->mPersonTSRParameters.at("distance");
   double horizontalToleranceForPerson =
       feedingDemo->mPersonTSRParameters.at("horizontalTolerance");
@@ -60,7 +61,8 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
     moveIFOSuccess = moveIFOPerson();
     if (!moveIFOSuccess) {
       ROS_WARN_STREAM("Failed to move in front of person, retry");
-      talk("Sorry, I'm having a little trouble moving. Let me try again.");
+      if (useSound) 
+        talk("Sorry, I'm having a little trouble moving. Let me try again.");
       continue;
     } else
       break;
@@ -73,7 +75,8 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
   auto overrideTiltOffset = tiltOffset;
 
   if (!getRosParam<bool>("/humanStudy/autoTransfer", *nodeHandle)) {
-    talk("Should I tilt the food item?", false);
+    if (useSound) 
+      talk("Should I tilt the food item?", false);
     std::string done = "";
     std::string actionTopic;
     nodeHandle->param<std::string>("/humanStudy/actionTopic", actionTopic,
@@ -106,7 +109,8 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
 
   // Check autoTiming, and if false, wait for topic
   if (!getRosParam<bool>("/humanStudy/autoTiming", *nodeHandle)) {
-    talk("Let me know when you are ready.", false);
+    if (useSound) 
+      talk("Let me know when you are ready.", false);
     std::string done = "";
     while (done != "continue") {
       std::string actionTopic;
@@ -116,7 +120,8 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
     }
   } else {
     nodeHandle->setParam("/feeding/facePerceptionOn", true);
-    talk("Open your mouth when ready.", false);
+    if (useSound) 
+      talk("Open your mouth when ready.", false);
     // TODO: Add mouth-open detection.
     while (true) {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -132,7 +137,8 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
     if (getRosParam<bool>("/humanStudy/createError", *nodeHandle)) {
       // Wait an extra 5 seconds
       ROS_WARN_STREAM("Error Requested for Timing!");
-      talk("Calculating...");
+      if (useSound) 
+        talk("Calculating...");
       std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     }
   }
@@ -163,7 +169,8 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
         success = false;
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-      talk("Oops, let me try that again.", true);
+      if (useSound) 
+        talk("Oops, let me try that again.", true);
       moveIFOSuccess = moveInFrontOfPerson(
           ada->getArm()->getSelfCollisionConstraint(), personPose,
           distanceToPerson, horizontalToleranceForPerson,
@@ -215,7 +222,8 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
     double slowFactor = (velocityLimits[0] > 0.5) ? 2.0 : 1.0;
     slowerVelocity /= slowFactor;
 
-    talk("Tilting, hold tight.", true);
+    if (useSound) 
+      talk("Tilting, hold tight.", true);
 
     auto trajectory = ada->getArm()->planToConfiguration(
         ada->getArm()->getNamedConfiguration("home_config"),
@@ -261,12 +269,14 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
   if (moveIFOSuccess) {
     // ===== EATING =====
     ROS_WARN("Human is eating");
-    talk("Ready to eat!");
+    if (useSound) 
+      talk("Ready to eat!");
     std::this_thread::sleep_for(waitAtPerson);
 
     // Backward
     ada::util::waitForUser("Move backward", ada);
-    talk("Let me get out of your way.", true);
+    if (useSound) 
+      talk("Let me get out of your way.", true);
     Eigen::Vector3d goalDirection(0, -1, 0);
     bool success = moveInFrontOfPerson(
         ada->getArm()->getWorldCollisionConstraint(
@@ -281,7 +291,8 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
 
   // TODO: add a back-out motion and then do move above plate with
   // collisionFree.
-  talk("And now back to the plate.", true);
+  // if (useSound) 
+  //   talk("And now back to the plate.", true);
   moveAbovePlate(plate, plateEndEffectorTransform, feedingDemo);
 
   publishTimingDoneToWeb((ros::NodeHandle *)nodeHandle);

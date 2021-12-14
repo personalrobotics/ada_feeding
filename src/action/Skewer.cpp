@@ -31,6 +31,7 @@ bool skewer(const std::shared_ptr<Perception> &perception,
       feedingDemo->getCollisionConstraint();
   const std::unordered_map<std::string, double> &foodSkeweringForces =
       feedingDemo->mFoodSkeweringForces;
+  bool useSound = feedingDemo->mUseSound;
   double heightAboveFood = feedingDemo->mFoodTSRParameters.at("height");
   double rotationToleranceForFood =
       feedingDemo->mFoodTSRParameters.at("rotationTolerance");
@@ -53,8 +54,10 @@ bool skewer(const std::shared_ptr<Perception> &perception,
       moveAbovePlate(plate, plateEndEffectorTransform, feedingDemo);
 
   if (!abovePlaceSuccess) {
-    talk("Sorry, I'm having a little trouble moving. Mind if I get a little "
-         "help?");
+    if (useSound) 
+      talk(
+          "Sorry, I'm having a little trouble moving. Mind if I get a little "
+          "help?");
     ROS_WARN_STREAM("Move above plate failed. Please restart");
     return false;
   }
@@ -64,7 +67,8 @@ bool skewer(const std::shared_ptr<Perception> &perception,
   if (!getRosParam<bool>("/humanStudy/autoAcquisition",
                          *(feedingDemo->getNodeHandle()))) {
     // Read Action from Topic
-    talk("How should I pick up the food?", true);
+    if (useSound) 
+      talk("How should I pick up the food?", true);
     ROS_INFO_STREAM("Waiting for action...");
     std::string actionName;
     std::string actionTopic;
@@ -72,7 +76,9 @@ bool skewer(const std::shared_ptr<Perception> &perception,
         "/humanStudy/actionTopic", actionTopic, "/study_action_msgs");
     actionName = getInputFromTopic(actionTopic, *(feedingDemo->getNodeHandle()),
                                    false, -1);
-    talk("Alright, let me use " + actionName, false);
+    if (useSound) 
+      talk("Alright, let me use " + actionName, false);
+
 
     if (actionName == "skewer") {
       actionOverride = 1;
@@ -121,10 +127,12 @@ bool skewer(const std::shared_ptr<Perception> &perception,
     std::unique_ptr<FoodItem> item;
     for (std::size_t i = 0; i < 2; ++i) {
       if (i == 0) {
-        talk(std::string("Planning to the ") + foodName, true);
+        if (useSound) 
+          talk(std::string("Planning to the ") + foodName, true);
       }
       if (i == 1) {
-        talk("Adjusting, hold tight!", true);
+        // if (useSound) 
+        //   talk("Adjusting, hold tight!", true);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // Set Action Override
@@ -208,7 +216,8 @@ bool skewer(const std::shared_ptr<Perception> &perception,
                                  feedingDemo, nullptr, actionOverride);
 
       if (!item) {
-        talk("Failed, let me start from the beginning");
+        if (useSound) 
+          talk("Failed, let me start from the beginning");
         return false;
       }
 
@@ -242,13 +251,15 @@ bool skewer(const std::shared_ptr<Perception> &perception,
                                        torqueThreshold);
 
     // ===== INTO FOOD =====
-    talk("Here we go!", true);
+    // if (useSound) 
+    //   talk("Here we go!", true);
     auto moveIntoSuccess = moveInto(perception, TargetItem::FOOD,
                                     endEffectorDirection, feedingDemo);
 
     if (!moveIntoSuccess) {
       ROS_INFO_STREAM("Failed. Retry");
-      talk("Sorry, I'm having a little trouble moving. Let me try again.");
+      if (useSound) 
+        talk("Sorry, I'm having a little trouble moving. Let me try again.");
       return false;
     }
 
@@ -263,12 +274,14 @@ bool skewer(const std::shared_ptr<Perception> &perception,
         1) // true)//
     {
       ROS_INFO_STREAM("Successful");
-      talk("Success.");
+      if (useSound) 
+        talk("Success.");
       return true;
     }
 
     ROS_INFO_STREAM("Failed.");
-    talk("Failed, let me try again.");
+    if (useSound) 
+      talk("Failed, let me try again.");
   }
   return false;
 }

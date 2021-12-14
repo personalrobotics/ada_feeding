@@ -29,7 +29,7 @@ inline int sgn(double x) { return (x < 0) ? -1 : (x > 0); }
 
 //==============================================================================
 void handleArguments(int argc, char **argv, bool &adaReal,
-                     bool &autoContinueDemo, bool &useFTSensing,
+                     bool &autoContinueDemo, bool &useFTSensing, bool& useSound,
                      std::string &demoType, std::string &foodName,
                      std::size_t &directionIndex, std::size_t &trialIndex,
                      std::string &dataCollectorPath,
@@ -44,6 +44,9 @@ void handleArguments(int argc, char **argv, bool &adaReal,
       "Continue Demo automatically")("ftSensing,f",
                                      po::bool_switch(&useFTSensing),
                                      "Use Force/Torque sensing")(
+      "useSound,s",
+      po::bool_switch(&useSound),
+      "Whether the play sound during the demo")(
       "demoType,d", po::value<std::string>(&demoType),
       "Demo type")("foodName", po::value<std::string>(&foodName),
                    "Name of food (for data collection)")(
