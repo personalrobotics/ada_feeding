@@ -121,7 +121,7 @@ foodItems:
   #pickUpAngleModes: [0, 2, 2, 0, 0, 0, 0]
   names: ["apple", "banana", "bell_pepper", "broccoli", "cantaloupe", "carrot", "cauliflower", "celery", "cherry_tomato", "grape", "honeydew", "kiwi", "strawberry", "lettuce", "spinach", "kale"]
   forces: [10, 10, 10, 10, 15, 22, 7, 22, 7, 10, 7, 7, 15, 7, 7, 7]
-  pickUpAngleModes: [1, 5, 1, 2, 1, 1, 0, 1, 1, 3, 3, 3, 0, 1, 2, 0]
+  pickUpAngleModes: [1, 5, 1, 2, 1, 1, 0, 1, 1, 1, 3, 3, 0, 1, 2, 0]
 
 humanStudy:
   autoAcquisition: true

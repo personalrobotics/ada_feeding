@@ -156,8 +156,8 @@ bool skewer(const std::shared_ptr<Perception> &perception,
         Eigen::Vector3d foodVec =
             item->getPose().rotation() * Eigen::Vector3d::UnitX();
         double baseRotateAngle = atan2(foodVec[1], foodVec[0]);
-        detectAndMoveAboveFood(perception, foodName, rotationToleranceForFood,
-                               feedingDemo, &baseRotateAngle, actionNum);
+        // detectAndMoveAboveFood(perception, foodName, rotationToleranceForFood,
+        //                        feedingDemo, &baseRotateAngle, actionNum);
         auto tiltStyle = item->getAction()->getTiltStyle();
         if (tiltStyle == TiltStyle::ANGLED) {
           // Apply base rotation of food
