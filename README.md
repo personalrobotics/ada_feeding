@@ -71,13 +71,13 @@ Note that some of the directories installed with the above rosinstall file may h
 
 ### Kinova JACO SDK (Optional: Real Robot Only)
 
-Install the Debian Package in [this ZIP file](https://drive.google.com/file/d/0B790iVm0vRTlUjhOb0FURm9KcjA/view)
+Download the **Gen2 SDK** ZIP file from [Kinova's Website](https://www.kinovarobotics.com/resources). Install the Debian Package inside.
 
-It should be in `KINOVA SDK JACO/Ubuntu/64 bits/`.
+It should be in `Ubuntu/16_04/64 bits/`.
 
-You can install it using `dpkg`:
+You can install it using `dpkg`, e.g. (for version 6.1.0):
 ```
-sudo dpkg -i JACO1APi-5.2.0-amd64.deb
+sudo dpkg -i KinovaAPi-6.1.0-amd64.deb
 ```
 
 Note that the current demo has only been tested on the JACO 2.
