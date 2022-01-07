@@ -25,8 +25,10 @@ bool moveDirectlyToPerson(const Eigen::Isometry3d &personPose,
       feedingDemo->mPersonTSRParameters.at("verticalTolerance");
   double planningTimeout = feedingDemo->mPlanningTimeout;
   int maxNumTrials = feedingDemo->mMaxNumTrials;
+  int batchSize = feedingDemo->mBatchSize;
+  int maxNumBatches = feedingDemo->mMaxNumBatches;
+  int numMaxIterations = feedingDemo->mNumMaxIterations;
   const Eigen::Vector6d &velocityLimits = feedingDemo->mVelocityLimits;
-
   Eigen::Isometry3d person = Eigen::Isometry3d::Identity();
   person.translation() = personPose.translation();
   person.linear() =
@@ -79,7 +81,12 @@ bool moveDirectlyToPerson(const Eigen::Isometry3d &personPose,
       std::make_shared<aikido::constraint::dart::TSR>(personTSR);
   auto trajectory = ada->getArm()->planToTSR(
       ada->getEndEffectorBodyNode()->getName(), personTSRPtr,
-      ada->getArm()->getWorldCollisionConstraint());
+      ada->getArm()->getWorldCollisionConstraint(),
+      aikido::robot::util::PlanToTSRParameters(
+        maxNumTrials,
+        batchSize,
+        maxNumBatches,
+        numMaxIterations));
   bool success = true;
   auto future = ada->getArm()->executeTrajectory(
       trajectory); // check velocity limits are set in FeedingDemo

@@ -23,6 +23,9 @@ bool moveInFrontOfPerson(const aikido::constraint::TestablePtr &collisionFree,
   const std::shared_ptr<::ada::Ada> &ada = feedingDemo->getAda();
   double planningTimeout = feedingDemo->mPlanningTimeout;
   int maxNumTrials = feedingDemo->mMaxNumTrials;
+  int batchSize = feedingDemo->mBatchSize;
+  int maxNumBatches = feedingDemo->mMaxNumBatches;
+  int numMaxIterations = feedingDemo->mNumMaxIterations;
   const Eigen::Vector6d &velocityLimits = feedingDemo->mVelocityLimits;
 
   ROS_INFO_STREAM("move in front of person");
@@ -77,7 +80,12 @@ bool moveInFrontOfPerson(const aikido::constraint::TestablePtr &collisionFree,
   tsr_trajectory = ada->getArm()->planToTSR(
       ada->getEndEffectorBodyNode()->getName(),
       personTSRPtr,
-      collisionFree);
+      collisionFree,
+      aikido::robot::util::PlanToTSRParameters(
+        maxNumTrials,
+        batchSize,
+        maxNumBatches,
+        numMaxIterations));
   bool tsr_success = true;
   auto tsr_future = ada->getArm()->executeTrajectory(tsr_trajectory); // check
   velocity limits are set in FeedingDemo try

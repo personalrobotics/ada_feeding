@@ -22,6 +22,9 @@ bool moveAbove(const Eigen::Isometry3d &targetTransform,
   const CollisionFreePtr &collisionFree = feedingDemo->getCollisionConstraint();
   double planningTimeout = feedingDemo->mPlanningTimeout;
   int maxNumTrials = feedingDemo->mMaxNumTrials;
+  int batchSize = feedingDemo->mBatchSize;
+  int maxNumBatches = feedingDemo->mMaxNumBatches;
+  int numMaxIterations = feedingDemo->mNumMaxIterations;
   const Eigen::Vector6d &velocityLimits = feedingDemo->mVelocityLimits;
 
   ROS_WARN_STREAM("CALLED MOVE ABOVE; Rotation: " << rotationTolerance);
@@ -39,12 +42,17 @@ bool moveAbove(const Eigen::Isometry3d &targetTransform,
               << ada->getMetaSkeleton()->getPositions().transpose()
               << std::endl;
 
-    std::cout << "EE name : " << ada->getEndEffectorBodyNode()->getName()
+      std::cout << "EE name : " << ada->getEndEffectorBodyNode()->getName()
               << std::endl;
     auto targetPtr = std::make_shared<aikido::constraint::dart::TSR>(target);
     auto trajectory = ada->getArm()->planToTSR(
         ada->getEndEffectorBodyNode()->getName(), targetPtr,
-        ada->getArm()->getWorldCollisionConstraint());
+        ada->getArm()->getWorldCollisionConstraint(),
+        aikido::robot::util::PlanToTSRParameters(
+          maxNumTrials,
+          batchSize,
+          maxNumBatches,
+          numMaxIterations));
 
     //  ada->getArm()->getWorldCollisionConstraint());
     bool success = true;
