@@ -32,8 +32,8 @@ find_package(aikido 0.3.0 REQUIRED
     planner_ompl
     planner_parabolic
     planner_vectorfield
-    planner_kunzretimer
     robot
+    robot_ros
     rviz
     statespace
 )

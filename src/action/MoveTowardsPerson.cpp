@@ -8,17 +8,17 @@ namespace feeding {
 namespace action {
 
 bool moveTowardsPerson(
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
-    const std::shared_ptr<Perception>& perception,
-    double distanceToPerson,
-    FeedingDemo* feedingDemo)
-{
+    const aikido::constraint::dart::CollisionFreePtr &collisionFree,
+    const std::shared_ptr<Perception> &perception, double distanceToPerson,
+    FeedingDemo *feedingDemo) {
   // Load necessary parameters from feedingDemo
-  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
-  const ros::NodeHandle* nodeHandle = feedingDemo->getNodeHandle().get();
+  const std::shared_ptr<::ada::Ada> &ada = feedingDemo->getAda();
+  const ros::NodeHandle *nodeHandle = feedingDemo->getNodeHandle().get();
   double planningTimeout = feedingDemo->mPlanningTimeout;
-  double endEffectorOffsetPositionTolerance = feedingDemo->mEndEffectorOffsetPositionTolerance;
-  double endEffectorOffsetAngularTolerance = feedingDemo->mEndEffectorOffsetAngularTolerance;
+  double endEffectorOffsetPositionTolerance =
+      feedingDemo->mEndEffectorOffsetPositionTolerance;
+  double endEffectorOffsetAngularTolerance =
+      feedingDemo->mEndEffectorOffsetAngularTolerance;
 
   ROS_INFO_STREAM("Move towards person");
 
@@ -53,27 +53,23 @@ bool moveTowardsPerson(
   // Read Person Pose
   bool seePerson = false;
   Eigen::Isometry3d personPose;
-  while (!seePerson)
-  {
-    try
-    {
+  while (!seePerson) {
+    try {
       personPose = perception->perceiveFace();
       seePerson = true;
-    }
-    catch (...)
-    {
+    } catch (...) {
       ROS_WARN_STREAM("No Face Detected!");
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
       continue;
     }
   }
 
-  Eigen::Isometry3d currentPose
-      = ada->getHand()->getEndEffectorBodyNode()->getTransform();
+  Eigen::Isometry3d currentPose =
+      ada->getHand()->getEndEffectorBodyNode()->getTransform();
 
   // Plan from current to goal pose
-  Eigen::Vector3d vectorToGoalPose
-      = personPose.translation() - currentPose.translation();
+  Eigen::Vector3d vectorToGoalPose =
+      personPose.translation() - currentPose.translation();
   vectorToGoalPose.y() -= distanceToPerson;
   auto length = vectorToGoalPose.norm();
   vectorToGoalPose.normalize();
@@ -83,19 +79,19 @@ bool moveTowardsPerson(
   ROS_WARN_STREAM("Offset: " << distanceToPerson);
   ROS_WARN_STREAM("Goal Pose: " << vectorToGoalPose);
 
-  if (!ada->moveArmToEndEffectorOffset(
-          vectorToGoalPose,
-          length,
-          nullptr,
-          planningTimeout,
-          endEffectorOffsetPositionTolerance,
-          endEffectorOffsetAngularTolerance,
-          velocityLimits))
-  {
-    ROS_WARN_STREAM("Execution failed");
-    return false;
+  auto trajectory = ada->getArm()->planToOffset(
+      ada->getEndEffectorBodyNode()->getName(), vectorToGoalPose * length);
+
+  bool success = true;
+  try {
+    auto future = ada->getArm()->executeTrajectory(
+        trajectory); // check velocity limits are set in FeedingDemo
+    future.get();
+  } catch (const std::exception &e) {
+    dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+    success = false;
   }
-  return true;
+  return success;
 }
 } // namespace action
 } // namespace feeding

@@ -15,28 +15,22 @@ using ada::util::getRosParam;
 namespace feeding {
 namespace action {
 
-std::unique_ptr<FoodItem> detectAndMoveAboveFood(
-    const std::shared_ptr<Perception>& perception,
-    const std::string& foodName,
-    double rotationTolerance,
-    FeedingDemo* feedingDemo,
-    double* angleGuess,
-    int actionOverride)
-{
+std::unique_ptr<FoodItem>
+detectAndMoveAboveFood(const std::shared_ptr<Perception> &perception,
+                       const std::string &foodName, double rotationTolerance,
+                       FeedingDemo *feedingDemo, double *angleGuess,
+                       int actionOverride) {
   std::vector<std::unique_ptr<FoodItem>> candidateItems;
-  while (true)
-  {
+  while (true) {
     // Perception returns the list of good candidates, any one of them is good.
     // Multiple candidates are preferrable since planning may fail.
     candidateItems = perception->perceiveFood(foodName);
 
-    if (candidateItems.size() == 0)
-    {
+    if (candidateItems.size() == 0) {
       // talk("I can't find that food. Try putting it on the plate.");
       ROS_WARN_STREAM(
           "Failed to detect any food. Please place food on the plate.");
-    }
-    else
+    } else
       break;
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -48,12 +42,10 @@ std::unique_ptr<FoodItem> detectAndMoveAboveFood(
 
   std::unique_ptr<FoodItem> ret;
 
-  for (auto& item : candidateItems)
-  {
+  for (auto &item : candidateItems) {
     // actionOverride = 5;
 
-    if (actionOverride >= 0)
-    {
+    if (actionOverride >= 0) {
       // Overwrite action in item
       item->setAction(actionOverride);
     }
@@ -62,15 +54,9 @@ std::unique_ptr<FoodItem> detectAndMoveAboveFood(
 
     std::cout << "Tilt style " << action->getTiltStyle() << std::endl;
     moveAboveSuccessful = moveAboveFood(
-            item->getName(),
-            item->getPose(),
-            action->getRotationAngle(),
-            action->getTiltStyle(),
-            rotationTolerance,
-            feedingDemo,
-            angleGuess);
-    if (!moveAboveSuccessful)
-    {
+        item->getName(), item->getPose(), action->getRotationAngle(),
+        action->getTiltStyle(), rotationTolerance, feedingDemo, angleGuess);
+    if (!moveAboveSuccessful) {
       ROS_INFO_STREAM("Failed to move above " << item->getName());
       talk("Sorry, I'm having a little trouble moving. Let's try again.");
       return nullptr;
@@ -81,12 +67,10 @@ std::unique_ptr<FoodItem> detectAndMoveAboveFood(
     break;
   }
 
-  if (!moveAboveSuccessful)
-  {
+  if (!moveAboveSuccessful) {
     ROS_ERROR("Failed to move above any food.");
-    talk(
-        "Sorry, I'm having a little trouble moving. Mind if I get a little "
-        "help?");
+    talk("Sorry, I'm having a little trouble moving. Mind if I get a little "
+         "help?");
     return nullptr;
   }
 

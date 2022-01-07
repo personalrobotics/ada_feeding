@@ -27,6 +27,7 @@ ros-noetic-message-generation \
 ros-noetic-message-runtime \
 ros-noetic-octomap-ros \
 ros-noetic-ompl \
+ros-noetic-robot-state-publisher \
 ros-noetic-rosbash \
 ros-noetic-roscpp \
 ros-noetic-roslaunch \

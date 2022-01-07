@@ -10,13 +10,12 @@
 namespace feeding {
 namespace action {
 
-bool moveInFrontOfPerson(
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
-    const Eigen::Isometry3d& workspacePersonPose,
-    double distanceToPerson,
-    double horizontalToleranceForPerson,
-    double verticalToleranceForPerson,
-    FeedingDemo* feedingDemo);
+bool moveInFrontOfPerson(const aikido::constraint::TestablePtr &collisionFree,
+                         const Eigen::Isometry3d &workspacePersonPose,
+                         double distanceToPerson,
+                         double horizontalToleranceForPerson,
+                         double verticalToleranceForPerson,
+                         FeedingDemo *feedingDemo);
 }
 } // namespace feeding
 

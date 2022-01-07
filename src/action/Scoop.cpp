@@ -26,8 +26,7 @@ namespace action {
 
 // }
 
-void scoop(const std::shared_ptr<ada::Ada>& ada)
-{
+void scoop(const std::shared_ptr<ada::Ada> &ada) {
   //  temporarily disabling
   // std::vector<std::string> twists{
   //   "/scoop/twist1", "/scoop/twist2", "/scoop/twist3"};

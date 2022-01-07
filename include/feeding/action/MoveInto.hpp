@@ -13,11 +13,9 @@
 namespace feeding {
 namespace action {
 
-bool moveInto(
-    const std::shared_ptr<Perception>& perception,
-    TargetItem item,
-    const Eigen::Vector3d& endEffectorDirection,
-    FeedingDemo* feedingDemo);
+bool moveInto(const std::shared_ptr<Perception> &perception, TargetItem item,
+              const Eigen::Vector3d &endEffectorDirection,
+              FeedingDemo *feedingDemo);
 
 } // namespace action
 } // namespace feeding

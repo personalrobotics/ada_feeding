@@ -13,8 +13,7 @@
 
 namespace feeding {
 
-enum FTThreshold
-{
+enum FTThreshold {
   STANDARD_FT_THRESHOLD,
   GRAB_FOOD_FT_THRESHOLD,
   AFTER_GRAB_FOOD_FT_THRESHOLD,
@@ -24,8 +23,7 @@ enum FTThreshold
 /// The FTThresholdHelper configures the MoveUntilTouchController's
 /// thresholds.
 /// When those thresholds are exceeded, the controller stops the movement.
-class FTThresholdHelper
-{
+class FTThresholdHelper {
 
 public:
   /// Constructor.
@@ -34,18 +32,16 @@ public:
   /// these thresholds.
   /// \param[in] nodeHandle Handle of the ros node.
   /// \param[in] topicOverride manually specify FTThreshold Action Server
-  FTThresholdHelper(
-      bool useThresholdControl,
-      ros::NodeHandle nodeHandle);
+  FTThresholdHelper(bool useThresholdControl, ros::NodeHandle nodeHandle);
 
   /// Swaps the action client to a new server.
   /// Blocks until server is online.
-  void swapTopic(const std::string& topic);
+  void swapTopic(const std::string &topic);
 
   /// Needs to be called before setting the first thresholds.
   /// Blocks until the threshold could be set successfully.
   /// Can be aborted with Ctrl-C.
-  void init(bool retare = true, const std::string& topicOverride = "");
+  void init(bool retare = true, const std::string &topicOverride = "");
 
   /// Sets the MoveUntilTouchControllers Thresholds accordingly.
   /// Throws a runtime_error if we useThresholdControl and we are unable to set
@@ -57,8 +53,8 @@ public:
   bool setThresholds(double forces, double torques, bool retare = false);
 
   bool startDataCollection(int numberOfDataPoints);
-  bool isDataCollectionFinished(
-      Eigen::Vector3d& forces, Eigen::Vector3d& torques);
+  bool isDataCollectionFinished(Eigen::Vector3d &forces,
+                                Eigen::Vector3d &torques);
 
 private:
   bool mUseThresholdControl;
@@ -81,7 +77,7 @@ private:
   /**
    * \brief Called whenever a new Force/Torque message arrives on the ros topic
    */
-  void forceTorqueDataCallback(const geometry_msgs::WrenchStamped& msg);
+  void forceTorqueDataCallback(const geometry_msgs::WrenchStamped &msg);
 };
 } // namespace feeding
 

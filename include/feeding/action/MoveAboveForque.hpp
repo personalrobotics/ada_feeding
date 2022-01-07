@@ -10,8 +10,8 @@ namespace feeding {
 namespace action {
 
 void moveAboveForque(
-    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
-    FeedingDemo* feedingDemo);
+    const aikido::constraint::dart::CollisionFreePtr &collisionFree,
+    FeedingDemo *feedingDemo);
 
 } // namespace action
 } // namespace feeding

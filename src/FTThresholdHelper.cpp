@@ -11,22 +11,18 @@ using ada::util::getRosParam;
 namespace feeding {
 
 //==============================================================================
-FTThresholdHelper::FTThresholdHelper(
-    bool useThresholdControl,
-    ros::NodeHandle nodeHandle)
-  : mUseThresholdControl(useThresholdControl), mNodeHandle(nodeHandle)
-{
+FTThresholdHelper::FTThresholdHelper(bool useThresholdControl,
+                                     ros::NodeHandle nodeHandle)
+    : mUseThresholdControl(useThresholdControl), mNodeHandle(nodeHandle) {
   if (!mUseThresholdControl)
     return;
 }
 
 //==============================================================================
-void FTThresholdHelper::swapTopic(const std::string& topic)
-{
+void FTThresholdHelper::swapTopic(const std::string &topic) {
 #ifdef REWD_CONTROLLERS_FOUND
   std::string ftThresholdTopic = topic;
-  if (topic == "")
-  {
+  if (topic == "") {
     ftThresholdTopic = getRosParam<std::string>(
         "/ftSensor/controllerFTThresholdTopic", mNodeHandle);
   }
@@ -38,8 +34,7 @@ void FTThresholdHelper::swapTopic(const std::string& topic)
 }
 
 //==============================================================================
-void FTThresholdHelper::init(bool retare, const std::string& topicOverride)
-{
+void FTThresholdHelper::init(bool retare, const std::string &topicOverride) {
   if (!mUseThresholdControl)
     return;
 
@@ -47,12 +42,12 @@ void FTThresholdHelper::init(bool retare, const std::string& topicOverride)
 
 #ifdef REWD_CONTROLLERS_FOUND
   auto thresholdPair = getThresholdValues(STANDARD_FT_THRESHOLD);
-  mFTThresholdClient->setThresholds(
-      thresholdPair.first, thresholdPair.second, retare);
+  mFTThresholdClient->setThresholds(thresholdPair.first, thresholdPair.second,
+                                    retare);
   ROS_WARN_STREAM("initial threshold set finished");
 
-  std::string ftTopic
-      = getRosParam<std::string>("/ftSensor/ftTopic", mNodeHandle);
+  std::string ftTopic =
+      getRosParam<std::string>("/ftSensor/ftTopic", mNodeHandle);
   ROS_INFO_STREAM("FTThresholdHelper is listening for " << ftTopic);
   mForceTorqueDataSub = mNodeHandle.subscribe(
       ftTopic, 1, &FTThresholdHelper::forceTorqueDataCallback, this);
@@ -61,11 +56,9 @@ void FTThresholdHelper::init(bool retare, const std::string& topicOverride)
 
 //=============================================================================
 void FTThresholdHelper::forceTorqueDataCallback(
-    const geometry_msgs::WrenchStamped& msg)
-{
+    const geometry_msgs::WrenchStamped &msg) {
   std::lock_guard<std::mutex> lock(mDataCollectionMutex);
-  if (mCollectedForces.size() >= mDataPointsToCollect)
-  {
+  if (mCollectedForces.size() >= mDataPointsToCollect) {
     return;
   }
   Eigen::Vector3d force;
@@ -80,8 +73,7 @@ void FTThresholdHelper::forceTorqueDataCallback(
   mCollectedTorques.push_back(torque);
 }
 
-bool FTThresholdHelper::startDataCollection(int numberOfDataPoints)
-{
+bool FTThresholdHelper::startDataCollection(int numberOfDataPoints) {
   if (!mUseThresholdControl)
     return false;
   std::lock_guard<std::mutex> lock(mDataCollectionMutex);
@@ -91,21 +83,18 @@ bool FTThresholdHelper::startDataCollection(int numberOfDataPoints)
   return true;
 }
 
-bool FTThresholdHelper::isDataCollectionFinished(
-    Eigen::Vector3d& forces, Eigen::Vector3d& torques)
-{
+bool FTThresholdHelper::isDataCollectionFinished(Eigen::Vector3d &forces,
+                                                 Eigen::Vector3d &torques) {
   std::lock_guard<std::mutex> lock(mDataCollectionMutex);
   forces.fill(0);
   torques.fill(0);
-  if (mCollectedForces.size() < mDataPointsToCollect)
-  {
+  if (mCollectedForces.size() < mDataPointsToCollect) {
     return false;
   }
   Eigen::Vector3d summedForces, summedTorques;
   summedForces.fill(0);
   summedTorques.fill(0);
-  for (int i = 0; i < mCollectedForces.size(); i++)
-  {
+  for (int i = 0; i < mCollectedForces.size(); i++) {
     summedForces = summedForces + mCollectedForces[i];
     summedTorques = summedTorques + mCollectedTorques[i];
   }
@@ -119,17 +108,16 @@ bool FTThresholdHelper::isDataCollectionFinished(
 }
 
 //==============================================================================
-bool FTThresholdHelper::setThresholds(FTThreshold threshold, bool retare)
-{
+bool FTThresholdHelper::setThresholds(FTThreshold threshold, bool retare) {
   if (!mUseThresholdControl)
     return true;
 
 #ifdef REWD_CONTROLLERS_FOUND
   auto thresholdPair = getThresholdValues(threshold);
-  ROS_INFO_STREAM(
-      "Set thresholds " << thresholdPair.first << " " << thresholdPair.second);
-  return mFTThresholdClient->setThresholds(
-      thresholdPair.first, thresholdPair.second, retare);
+  ROS_INFO_STREAM("Set thresholds " << thresholdPair.first << " "
+                                    << thresholdPair.second);
+  return mFTThresholdClient->setThresholds(thresholdPair.first,
+                                           thresholdPair.second, retare);
 #endif
 
   // Handle no rewd_controllers case as if thresholds disabled
@@ -137,9 +125,8 @@ bool FTThresholdHelper::setThresholds(FTThreshold threshold, bool retare)
 }
 
 //==============================================================================
-bool FTThresholdHelper::setThresholds(
-    double forces, double torques, bool retare)
-{
+bool FTThresholdHelper::setThresholds(double forces, double torques,
+                                      bool retare) {
   if (!mUseThresholdControl)
     return true;
 
@@ -153,40 +140,38 @@ bool FTThresholdHelper::setThresholds(
 }
 
 //==============================================================================
-std::pair<double, double> FTThresholdHelper::getThresholdValues(
-    FTThreshold threshold)
-{
+std::pair<double, double>
+FTThresholdHelper::getThresholdValues(FTThreshold threshold) {
   double forceThreshold = 0;
   double torqueThreshold = 0;
-  switch (threshold)
-  {
-    case STANDARD_FT_THRESHOLD:
-      forceThreshold = getRosParam<double>(
-          "/ftSensor/thresholds/standard/force", mNodeHandle);
-      torqueThreshold = getRosParam<double>(
-          "/ftSensor/thresholds/standard/torque", mNodeHandle);
-      break;
-    case GRAB_FOOD_FT_THRESHOLD:
-      forceThreshold = getRosParam<double>(
-          "/ftSensor/thresholds/grabFood/force", mNodeHandle);
-      torqueThreshold = getRosParam<double>(
-          "/ftSensor/thresholds/grabFood/torque", mNodeHandle);
-      break;
-    case AFTER_GRAB_FOOD_FT_THRESHOLD:
-      forceThreshold = getRosParam<double>(
-          "/ftSensor/thresholds/afterGrabFood/force", mNodeHandle);
-      torqueThreshold = getRosParam<double>(
-          "/ftSensor/thresholds/afterGrabFood/torque", mNodeHandle);
-      break;
-    case PUSH_FOOD_FT_THRESHOLD:
-      forceThreshold = getRosParam<double>(
-          "/ftSensor/thresholds/pushFood/force", mNodeHandle);
-      torqueThreshold = getRosParam<double>(
-          "/ftSensor/thresholds/pushFood/torque", mNodeHandle);
-      break;
-    default:
-      throw std::runtime_error(
-          "Unknown F/T Threshold type: " + std::to_string(threshold));
+  switch (threshold) {
+  case STANDARD_FT_THRESHOLD:
+    forceThreshold =
+        getRosParam<double>("/ftSensor/thresholds/standard/force", mNodeHandle);
+    torqueThreshold = getRosParam<double>(
+        "/ftSensor/thresholds/standard/torque", mNodeHandle);
+    break;
+  case GRAB_FOOD_FT_THRESHOLD:
+    forceThreshold =
+        getRosParam<double>("/ftSensor/thresholds/grabFood/force", mNodeHandle);
+    torqueThreshold = getRosParam<double>(
+        "/ftSensor/thresholds/grabFood/torque", mNodeHandle);
+    break;
+  case AFTER_GRAB_FOOD_FT_THRESHOLD:
+    forceThreshold = getRosParam<double>(
+        "/ftSensor/thresholds/afterGrabFood/force", mNodeHandle);
+    torqueThreshold = getRosParam<double>(
+        "/ftSensor/thresholds/afterGrabFood/torque", mNodeHandle);
+    break;
+  case PUSH_FOOD_FT_THRESHOLD:
+    forceThreshold =
+        getRosParam<double>("/ftSensor/thresholds/pushFood/force", mNodeHandle);
+    torqueThreshold = getRosParam<double>(
+        "/ftSensor/thresholds/pushFood/torque", mNodeHandle);
+    break;
+  default:
+    throw std::runtime_error("Unknown F/T Threshold type: " +
+                             std::to_string(threshold));
   }
   return std::pair<double, double>(forceThreshold, torqueThreshold);
 }

@@ -152,8 +152,13 @@ void bite_location_detector(
       aboveFoodTSR.mT0_w = foodTransform;
       aboveFoodTSR.mTw_e.translation() = Eigen::Vector3d{0, 0, -0.03};
       aboveFoodTSR.mBw = createBwMatrixForTSR(0.001, 0.001, 0, 0);
-      Eigen::Isometry3d eeTransform
-          = *feedingDemo.getAda().getHand()->getEndEffectorTransform("food");
+      // TODO: remove hardcoded transform for food
+      Eigen::Isometry3d eeTransform;
+      Eigen::Matrix3d rot;
+      rot << -1, 0., 0.,
+            0., 1., 0.,
+            0., 0., -1;
+      eeTransform.linear() = rot;
       aboveFoodTSR.mTw_e.matrix() *= eeTransform.matrix();
 
       bool trajectoryCompleted

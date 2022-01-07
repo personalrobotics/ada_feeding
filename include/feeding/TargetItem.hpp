@@ -3,13 +3,7 @@
 
 namespace feeding {
 
-enum TargetItem
-{
-  FOOD,
-  PLATE,
-  FORQUE,
-  PERSON
-};
+enum TargetItem { FOOD, PLATE, FORQUE, PERSON };
 
 static const std::map<TargetItem, const std::string> TargetToString{
     {FOOD, "food"}, {PLATE, "plate"}, {FORQUE, "forque"}, {PERSON, "person"}};

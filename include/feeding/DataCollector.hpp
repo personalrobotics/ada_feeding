@@ -25,8 +25,7 @@
 namespace feeding {
 
 // Action types for data collection
-enum Action
-{
+enum Action {
   VERTICAL_SKEWER,
   TILTED_VERTICAL_SKEWER,
   TILTED_ANGLED_SKEWER,
@@ -34,11 +33,7 @@ enum Action
   IMAGE_ONLY
 };
 
-enum ImageType
-{
-  COLOR,
-  DEPTH
-};
+enum ImageType { COLOR, DEPTH };
 
 static const std::map<const std::string, Action> StringToAction{
     {"collect_skewer", VERTICAL_SKEWER},
@@ -52,20 +47,16 @@ static const std::map<Action, const std::string> ActionToString{
     {TILTED_ANGLED_SKEWER, "collect_tilted_angled_skewer"},
     {IMAGE_ONLY, "collect_images"}};
 
-class DataCollector
-{
+class DataCollector {
 public:
   /// Constructor
   /// \param[in] dataCollectionPath Directory to save all data collection.
-  explicit DataCollector(
-      std::shared_ptr<FeedingDemo> feedingDemo,
-      std::shared_ptr<ada::Ada> ada,
-      ros::NodeHandle nodeHandle,
-      bool autoContinueDemo,
-      bool adaReal,
-      bool perceptionReal,
-      const std::string& dataCollectionPath
-      = "/home/herb/feeding/data_collection");
+  explicit DataCollector(std::shared_ptr<FeedingDemo> feedingDemo,
+                         std::shared_ptr<ada::Ada> ada,
+                         ros::NodeHandle nodeHandle, bool autoContinueDemo,
+                         bool adaReal, bool perceptionReal,
+                         const std::string &dataCollectionPath =
+                             "/home/herb/feeding/data_collection");
 
   /// Collect data.
   /// \param[in] action Action to execute
@@ -73,24 +64,21 @@ public:
   /// \param[in] directionIndex Index of the direction as suggested by config
   /// file
   /// \param[in] trialIndex Index of trial
-  void collect(
-      Action action,
-      const std::string& foodName,
-      std::size_t directionIndex,
-      std::size_t trialIndex);
+  void collect(Action action, const std::string &foodName,
+               std::size_t directionIndex, std::size_t trialIndex);
 
   /// Collect images from multiple views.
   /// Does not perform any bite acquisition actions.
-  void collect_images(const std::string& foodName);
+  void collect_images(const std::string &foodName);
 
 private:
   void setDataCollectionParams(int foodId, int pushDirectionId, int trialId);
 
-  void infoCallback(
-      const sensor_msgs::CameraInfoConstPtr& msg, ImageType imageType);
+  void infoCallback(const sensor_msgs::CameraInfoConstPtr &msg,
+                    ImageType imageType);
 
-  void imageCallback(
-      const sensor_msgs::ImageConstPtr& msg, ImageType imageType);
+  void imageCallback(const sensor_msgs::ImageConstPtr &msg,
+                     ImageType imageType);
 
   bool skewer(float rotateForqueAngle, TiltStyle tiltStyle);
 
@@ -100,7 +88,7 @@ private:
 
   /// Update mColorImageCount and mDepthImageCount to match
   /// the number of images in the respective directories.
-  void updateImageCounts(const std::string& directory, ImageType imageType);
+  void updateImageCounts(const std::string &directory, ImageType imageType);
 
   std::shared_ptr<FeedingDemo> mFeedingDemo;
   std::shared_ptr<ada::Ada> mAda;

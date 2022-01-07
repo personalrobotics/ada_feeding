@@ -12,23 +12,15 @@ namespace feeding {
 
 AIKIDO_DECLARE_POINTERS(FoodItem)
 
-class FoodItem
-{
+class FoodItem {
 public:
-  FoodItem(
-      std::string name,
-      std::string uid,
-      dart::dynamics::MetaSkeletonPtr metaSkeleton,
-      AcquisitionAction action,
-      double score);
+  FoodItem(std::string name, std::string uid,
+           dart::dynamics::MetaSkeletonPtr metaSkeleton,
+           AcquisitionAction action, double score);
 
-  FoodItem(
-      std::string name,
-      std::string uid,
-      dart::dynamics::MetaSkeletonPtr metaSkeleton,
-      AcquisitionAction action,
-      double score,
-      const YAML::Node info);
+  FoodItem(std::string name, std::string uid,
+           dart::dynamics::MetaSkeletonPtr metaSkeleton,
+           AcquisitionAction action, double score, const YAML::Node info);
 
   Eigen::Isometry3d getPose() const;
 
@@ -38,7 +30,7 @@ public:
 
   dart::dynamics::MetaSkeletonPtr getMetaSkeleton() const;
 
-  AcquisitionAction const* getAction() const;
+  AcquisitionAction const *getAction() const;
   void setAction(int actionNum);
 
   double getScore() const;
