@@ -141,6 +141,8 @@ The model files will need to be downloaded by running `ada_demos/feeding/bash_sc
 #### Compilation Troubleshooting
 
 * **DLIB_NO_GUI_SUPPORT**: If you get this error when building `face_detection`: un-comment the `#define` statement in `/usr/include/dlib/config.h`.
+* `/usr/include/dlib/opencv/cv_image.h:37:29: error: conversion from ‘const cv::Mat’ to non-scalar type ‘IplImage’ {aka ‘_IplImage’} requested
+   37 |             IplImage temp = img;`: If you get this error when building 'face_detection': replace line 37 in `/usr/include/dlib/opencv/cv_image.h` with `IplImage temp = cvIplImage(img);`
 
 ##### Additional workspace notes
 - There are some repositories that have `ada` in their name but are out of date! Only the repositories in the rosinstall above should be required.
