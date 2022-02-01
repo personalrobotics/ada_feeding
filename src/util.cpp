@@ -126,6 +126,7 @@ std::string getUserFoodInput(bool food_only, ros::NodeHandle &nodeHandle,
   std::string foodTopic;
   nodeHandle.param<std::string>("/humanStudy/foodTopic", foodTopic,
                                 "/study_food_msgs");
+  ROS_INFO_STREAM("Waiting on Alexa for " << timeout << "secs.");
   foodName =
       useAlexa ? getInputFromTopic(foodTopic, nodeHandle, true, timeout) : "";
   if (foodName != "") {

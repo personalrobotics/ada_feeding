@@ -61,7 +61,7 @@ void dumpSplinePhasePlot(const aikido::trajectory::Spline &spline,
 /// param[in] food_only If true, only food choices are valid
 /// param[in]] nodeHandle Ros Node to set food name for detection.
 std::string getUserFoodInput(bool food_only, ros::NodeHandle &nodeHandle,
-                             bool useAlexa = true, double timeout = 10);
+                             bool useAlexa = true, double timeout = 13);
 
 int getUserInputWithOptions(const std::vector<std::string> &optionPrompts,
                             const std::string &prompt);

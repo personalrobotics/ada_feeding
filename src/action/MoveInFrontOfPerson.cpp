@@ -30,8 +30,16 @@ bool moveInFrontOfPerson(const aikido::constraint::TestablePtr &collisionFree,
 
   ROS_INFO_STREAM("move in front of person");
 
+  int ifo_pose_i = getUserInputWithOptions(std::vector<std::string>{"(1) front","(2) side"}, "Which in front of person pose would you like?");
+
+  std::string config_name;
+  if  (ifo_pose_i == 1) {
+    config_name = "in_front_person_pose";
+  } else {
+    config_name = "side_in_front_person_pose";
+  }
   auto trajectory = ada->getArm()->planToConfiguration(
-      ada->getArm()->getNamedConfiguration("in_front_person_pose"),
+      ada->getArm()->getNamedConfiguration(config_name),
       collisionFree);
   bool success = true;
   try {

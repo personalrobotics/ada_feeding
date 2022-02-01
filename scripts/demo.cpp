@@ -43,8 +43,28 @@ void demo(
     if (feedingDemo.getFTThresholdHelper())
         feedingDemo.getFTThresholdHelper()->setThresholds(STANDARD_FT_THRESHOLD);
 
+    const std::shared_ptr<::ada::Ada> &ada = feedingDemo.getAda();
+    int ifo_pose_i = getUserInputWithOptions(std::vector<std::string>{"(1) no","(2) yes"}, "Start in invisible pose?");
+    if  (ifo_pose_i == 2) {
+      // NOTE: This is dangerous since we aren't using a constraint! It is done
+      // to account for the strange orientation the head is sometimes placed in,
+      // after perceiveFace,which messes up collision checking. 
+      auto trajectory = ada->getArm()->planToConfiguration(
+        ada->getArm()->getNamedConfiguration("invisible_pose"));/*,
+        ada->getArm()->getWorldCollisionConstraint());*/
+      bool success = true;
+      try {
+        auto future = ada->getArm()->executeTrajectory(
+            trajectory); // check velocity limits are set in FeedingDemo
+        future.get();
+      } catch (const std::exception &e) {
+        dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+        success = false;
+      }
+    }
+
     if (useSound)
-      talk("What food would you like?", false);
+      talk("What food would you like?", true);
 
     auto foodName = getUserFoodInput(false, nodeHandle, feedingDemo.mUseAlexa);// "cantaloupe";//
     if (foodName == std::string("quit")) {

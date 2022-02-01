@@ -56,7 +56,7 @@ wheelchair:
 feedingDemo:
   heightAbovePlate: 0.15
   heightAboveFood: 0.08
-  heightIntoFood: 0.085
+  heightIntoFood: 0.105
   moveOutofFood: 0.025
   #distanceToPerson: 0.25
   distanceToPerson: 0.05
