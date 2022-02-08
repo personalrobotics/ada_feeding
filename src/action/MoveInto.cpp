@@ -92,7 +92,7 @@ bool moveInto(const std::shared_ptr<Perception> &perception, TargetItem item,
     // Collision constraint is not set because f/t sensor stops execution.
     auto trajectory =
         ada->getArm()->planToOffset(ada->getEndEffectorBodyNode()->getName(),
-                                    Eigen::Vector3d{0.0, 0.0, -heightIntoFood});
+                                    heightIntoFood * endEffectorDirection);
 
     bool success = true;
     try {

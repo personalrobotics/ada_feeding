@@ -37,7 +37,7 @@ bool moveAboveFood(std::string foodName, const Eigen::Isometry3d &foodTransform,
   rot << -1, 0., 0., 0., 1., 0., 0., 0., -1;
   eeTransform.linear() = rot;
   Eigen::AngleAxisd rotation =
-      Eigen::AngleAxisd(-rotateAngle, Eigen::Vector3d::UnitZ());
+      Eigen::AngleAxisd(rotateAngle, Eigen::Vector3d::UnitZ());
   ROS_WARN_STREAM("Rotate Angle: " << rotateAngle);
 
   // Apply base rotation to food
@@ -66,7 +66,7 @@ bool moveAboveFood(std::string foodName, const Eigen::Isometry3d &foodTransform,
     // eeTransform.translation()[0] += 0.01;
     // eeTransform.translation()[1] += 0.02;
   } else if (tiltStyle == TiltStyle::VERTICAL) {
-    eeTransform.linear() = eeTransform.linear() * rotation *
+    eeTransform.linear() = eeTransform.linear() * rotation * Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ()) *
                            Eigen::AngleAxisd(0.5, Eigen::Vector3d::UnitX());
     eeTransform.translation()[2] = heightAboveFood;
   } else // angled
@@ -76,7 +76,7 @@ bool moveAboveFood(std::string foodName, const Eigen::Isometry3d &foodTransform,
         Eigen::AngleAxisd(-M_PI / 8, Eigen::Vector3d::UnitX());
     eeTransform.translation() =
         Eigen::AngleAxisd(
-            rotateAngle,
+            -rotateAngle,
             Eigen::Vector3d::UnitZ()) // Take into account action rotation
         * Eigen::Vector3d{0, -sin(M_PI * 0.25) * heightAboveFood * 0.7,
                           cos(M_PI * 0.25) * heightAboveFood * 0.9};
