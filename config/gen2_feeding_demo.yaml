@@ -41,7 +41,7 @@ defaultFoodItem:
   pose: [.445, 0.19, -0.045, 3.1415, 0, 0]
 person: # the mannequin
   urdfUri: package://pr_assets/data/objects/tom.urdf
-  pose: [0.425, -0.45, 0.507, 0, 0, 1.57]
+  pose: [0.29, 0.28, 0.830, 0, 0, -1.57]
 workspaceEnvironment:
   urdfUri: package://pr_assets/data/furniture/workspace_feeding_demo.urdf
   pose: [0, 0, 0.005, 0, 0, 0]

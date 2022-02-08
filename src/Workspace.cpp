@@ -18,7 +18,7 @@ Workspace::Workspace(aikido::planner::WorldPtr world,
   addToWorld(mPlate, "plate", robotPose);
   addToWorld(mTable, "table", robotPose);
   addToWorld(mWheelchair, "wheelchair", Eigen::Isometry3d::Identity());
-  addToWorld(mPerson, "person", robotPose);
+  addToWorld(mPerson, "person", Eigen::Isometry3d::Identity());
   mPersonPose = mPerson->getRootBodyNode()->getWorldTransform();
   reset();
 }
