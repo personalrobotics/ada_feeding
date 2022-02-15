@@ -157,7 +157,7 @@ bool skewer(const std::shared_ptr<Perception> &perception,
               ada->getHand()->getEndEffectorBodyNode()->getTransform();
           Eigen::Vector3d newEEDir =
               eePose.rotation() * Eigen::Vector3d::UnitZ();
-          newEEDir[2] = sqrt(pow(newEEDir[0], 2.0) + pow(newEEDir[1], 2.0)) * (-1.0);
+          newEEDir[2] = sqrt(pow(newEEDir[0], 2.0) + pow(newEEDir[1], 2.0)) * (-1.4);
           endEffectorDirection = newEEDir;
           endEffectorDirection.normalize();
 

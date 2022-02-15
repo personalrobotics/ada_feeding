@@ -58,8 +58,8 @@ wheelchair:
 # Feeding demo movement parameters
 feedingDemo:
   heightAbovePlate: 0.15
-  heightAboveFood: 0.08
-  heightIntoFood: 0.06
+  heightAboveFood: 0.06
+  heightIntoFood: 0.04
   moveOutofFood: 0.025
   #distanceToPerson: 0.25
   distanceToPerson: 0.05
@@ -79,7 +79,7 @@ planning:
     verticalToleranceAbovePlate: 0.03
     rotationToleranceAbovePlate: 3.1416
     horizontalToleranceNearFood: 0.003
-    verticalToleranceNearFood: 0.008
+    verticalToleranceNearFood: 0.005
     rotationToleranceNearFood: 0.01
     tiltToleranceNearFood: 0.00
     horizontalToleranceNearPerson: 0.005
