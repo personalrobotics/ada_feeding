@@ -45,6 +45,9 @@ int main(int argc, char** argv)
   // the FT sensing can stop trajectories if the forces are too big
   bool useFTSensingToStopTrajectories = false;
 
+  // should the ADA speak between steps?
+  bool useSound = false;
+
   bool TERMINATE_AT_USER_PROMPT = true;
 
   std::string demoType{"default"};
@@ -56,7 +59,7 @@ int main(int argc, char** argv)
   std::size_t trialIndex{0};
 
   handleArguments(argc, argv,
-    adaReal, autoContinueDemo, useFTSensingToStopTrajectories,
+    adaReal, autoContinueDemo, useFTSensingToStopTrajectories, useSound,
     demoType, foodName, directionIndex, trialIndex, dataCollectorPath);
 
   bool useVisualServo = true;
@@ -113,6 +116,7 @@ int main(int argc, char** argv)
     useFTSensingToStopTrajectories,
     useVisualServo,
     allowRotationFree,
+    useSound,
     ftThresholdHelper,
     autoContinueDemo);
 

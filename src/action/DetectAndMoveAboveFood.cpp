@@ -20,6 +20,8 @@ detectAndMoveAboveFood(const std::shared_ptr<Perception> &perception,
                        const std::string &foodName, double rotationTolerance,
                        FeedingDemo *feedingDemo, double *angleGuess,
                        int actionOverride) {
+  bool useSound = feedingDemo->mUseSound;
+
   std::vector<std::unique_ptr<FoodItem>> candidateItems;
   while (true) {
     // Perception returns the list of good candidates, any one of them is good.
@@ -27,7 +29,8 @@ detectAndMoveAboveFood(const std::shared_ptr<Perception> &perception,
     candidateItems = perception->perceiveFood(foodName);
 
     if (candidateItems.size() == 0) {
-      // talk("I can't find that food. Try putting it on the plate.");
+      // if (useSound) 
+      //   talk("I can't find that food. Try putting it on the plate.");
       ROS_WARN_STREAM(
           "Failed to detect any food. Please place food on the plate.");
     } else
@@ -58,7 +61,8 @@ detectAndMoveAboveFood(const std::shared_ptr<Perception> &perception,
         action->getTiltStyle(), rotationTolerance, feedingDemo, angleGuess);
     if (!moveAboveSuccessful) {
       ROS_INFO_STREAM("Failed to move above " << item->getName());
-      talk("Sorry, I'm having a little trouble moving. Let's try again.");
+      if (useSound) 
+        talk("Sorry, I'm having a little trouble moving. Let's try again.");
       return nullptr;
     }
 
@@ -69,8 +73,10 @@ detectAndMoveAboveFood(const std::shared_ptr<Perception> &perception,
 
   if (!moveAboveSuccessful) {
     ROS_ERROR("Failed to move above any food.");
-    talk("Sorry, I'm having a little trouble moving. Mind if I get a little "
-         "help?");
+    if (useSound) 
+      talk(
+          "Sorry, I'm having a little trouble moving. Mind if I get a little "
+          "help?");
     return nullptr;
   }
 

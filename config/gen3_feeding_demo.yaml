@@ -130,6 +130,7 @@ humanStudy:
   autoTiming: true
   autoTransfer: true
   createError: false
+  useAlexa: false
   foodTopic: /study_food_msgs
   actionTopic: /study_action_msgs
 

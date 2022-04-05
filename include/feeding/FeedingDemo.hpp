@@ -36,13 +36,14 @@ public:
   /// simulation.
   /// \param[in] useFTSensing turns the FTSensor and the
   /// MoveUntilTouchController on and off
-  /// \param[in] useVisualServo If true, perception servo is used.
+  /// \param[in] useVisualServo If true, perception servo is used.\
+  /// \param[in] useSound If true, use audio to explain each step of the process.
   /// \param[in] allowFreeRotation, If true, items specified as rotationFree
   /// get rotational freedom.
   /// \param[in] nodeHandle Handle of the ros node.
   FeedingDemo(bool adaReal, std::shared_ptr<ros::NodeHandle> nodeHandle,
               bool useFTSensingToStopTrajectories, bool useVisualServo,
-              bool allowFreeRotation,
+              bool allowFreeRotation, bool useSound,
               std::shared_ptr<FTThresholdHelper> ftThresholdHelper = nullptr,
               bool autoContinueDemo = false);
 
@@ -103,6 +104,9 @@ public:
   std::unordered_map<std::string, double> mFoodTSRParameters;
   std::unordered_map<std::string, double> mPersonTSRParameters;
   double mMoveOufOfFoodLength;
+
+  bool mUseSound;
+  bool mUseAlexa;
 
   double mPlanningTimeout;
   int mMaxNumTrials;

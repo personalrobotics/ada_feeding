@@ -31,7 +31,10 @@ void demo(
   auto workspace = feedingDemo.getWorkspace();
   auto plate = workspace->getPlate()->getRootBodyNode()->getWorldTransform();
 
-  talk("Hello, my name is aid uh. It's my pleasure to serve you today!");
+  bool useSound = feedingDemo.mUseSound;
+
+  if (useSound) 
+    talk("Hello, my name is aid uh. I'm your feeding companion!");
 
   srand(time(NULL));
 
@@ -40,9 +43,10 @@ void demo(
     if (feedingDemo.getFTThresholdHelper())
         feedingDemo.getFTThresholdHelper()->setThresholds(STANDARD_FT_THRESHOLD);
 
-    talk("What food would you like?");
+    if (useSound)
+      talk("What food would you like?", false);
 
-    auto foodName = getUserFoodInput(false, nodeHandle);// "cantaloupe";//
+    auto foodName = getUserFoodInput(false, nodeHandle, feedingDemo.mUseAlexa);// "cantaloupe";//
     if (foodName == std::string("quit")) {
         break;
     }
@@ -55,34 +59,37 @@ void demo(
     ROS_INFO_STREAM("Running bite transfer study for " << foodName);
 
 /*
-    switch((rand() % 10)) {
-        case 0:
-        talk("Good choice!");
-        break;
-        case 1:
-        talk(std::string("Great! I love ") + foodName + std::string("'s!"));
-        break;
-        case 2:
-        talk("Sounds delicious. I wish I had taste buds.");
-        break;
-        case 4:
-        talk("Roger Roger.");
-        break;
-        case 5:
-        talk("Nothing beats fresh fruit.");
-        break;
-        case 6:
-        talk("Nothing escapes my fork!");
-        break;
-        case 7:
-        talk("Thanks Alexa!");
-        break;
-        default:
-        talk("Alright.");
+    if (useSound) {
+      switch((rand() % 10)) {
+          case 0:
+          talk("Good choice!");
+          break;
+          case 1:
+          talk(std::string("Great! I love ") + foodName + std::string("'s!"));
+          break;
+          case 2:
+          talk("Sounds delicious. I wish I had taste buds.");
+          break;
+          case 4:
+          talk("Roger Roger.");
+          break;
+          case 5:
+          talk("Nothing beats fresh fruit.");
+          break;
+          case 6:
+          talk("Nothing escapes my fork!");
+          break;
+          case 7:
+          talk("Thanks Alexa!");
+          break;
+          default:
+          talk("Alright.");
+      }
     }
 */
 
-    talk(std::string("One ") + foodName + std::string(" coming right up!"), true);
+    if (useSound) 
+      talk(std::string("One ") + foodName + std::string(" coming right up!"), true);
 
     // ===== FORQUE PICKUP =====
     if (foodName == "pickupfork")
@@ -135,6 +142,7 @@ void demo(
 
   // ===== DONE =====
   ROS_INFO("Demo finished.");
-  talk("Thank you, I hope I was helpful!");
+  if (useSound)
+    talk("Thank you, I look forward to feeding you again!");
 }
 };
