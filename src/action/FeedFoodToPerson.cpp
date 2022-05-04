@@ -66,6 +66,13 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
       break;
   }
 
+  // bool moveIFOSuccess = true;
+  // bool moveSuccess = false;
+
+  std::cout<<"Infront of the person!";
+  std::cin.get();
+  std::cin.get();
+
   // Send message to web interface to indicate skewer finished
   publishActionDoneToWeb((ros::NodeHandle *)nodeHandle);
 
@@ -176,10 +183,11 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
       distanceToPerson = 0;
     }
 
-    ROS_INFO_STREAM("Move towards person");
+    ROS_INFO_STREAM("Move towards person x1");
     moveSuccess =
         moveTowardsPerson(nullptr, perception, distanceToPerson, feedingDemo);
     nodeHandle->setParam("/feeding/facePerceptionOn", false);
+    ROS_INFO_STREAM("Move towards person x1 - exit");
   }
 
   // Execute Tilt

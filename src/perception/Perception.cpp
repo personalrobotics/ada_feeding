@@ -164,11 +164,11 @@ Eigen::Isometry3d Perception::perceiveFace() {
       auto faceTransform = perceivedFace->getBodyNode(0)->getWorldTransform();
 
       // fixed distance:
-      double fixedFaceY =
-          getRosParam<double>("/feedingDemo/fixedFaceY", *mNodeHandle);
-      faceTransform.translation().y() = fixedFaceY;
-      // Plan slightly below the stomion since the neck bends down when acquiring food
-      faceTransform.translation().z() -= 0.01;
+      // double fixedFaceY =
+          // getRosParam<double>("/feedingDemo/fixedFaceY", *mNodeHandle);
+      // faceTransform.translation().y() = fixedFaceY;
+      // // Plan slightly below the stomion since the neck bends down when acquiring food
+      // faceTransform.translation().z() -= 0.01;
 
       oldFaceTransform = faceTransform;
       saved = true;
@@ -253,6 +253,7 @@ void Perception::removeRotation(const FoodItem *item) {
            << item->getName() << std::endl;
     return;
   }
+  // Rajat Note: What is this?
   // Fix the food height
   foodPose.translation()[2] = 0.22;
   freejtptr->setTransform(foodPose);

@@ -1,4 +1,4 @@
-#include "feeding/action/MoveTowardsPerson.hpp"
+#include "feeding/action/MoveInsideMouth.hpp"
 
 #include <libada/util.hpp>
 
@@ -7,18 +7,20 @@
 namespace feeding {
 namespace action {
 
-bool moveTowardsPerson(
-    const aikido::constraint::dart::CollisionFreePtr &collisionFree,
-    const std::shared_ptr<Perception> &perception, double distanceToPerson,
-    FeedingDemo *feedingDemo) {
+bool moveInsideMouth(
+    const aikido::constraint::dart::CollisionFreePtr& collisionFree,
+    const std::shared_ptr<Perception>& perception,
+    double distanceToPerson,
+    FeedingDemo* feedingDemo)
+{
   // Load necessary parameters from feedingDemo
-  const std::shared_ptr<::ada::Ada> &ada = feedingDemo->getAda();
-  const ros::NodeHandle *nodeHandle = feedingDemo->getNodeHandle().get();
+  const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const std::shared_ptr<Workspace>& workspace = feedingDemo->getWorkspace();
+  const ros::NodeHandle* nodeHandle = feedingDemo->getNodeHandle().get();
+  // const Eigen::Isometry3d& personPose = workspace->getPersonPose();
   double planningTimeout = feedingDemo->mPlanningTimeout;
-  double endEffectorOffsetPositionTolerance =
-      feedingDemo->mEndEffectorOffsetPositionTolerance;
-  double endEffectorOffsetAngularTolerance =
-      feedingDemo->mEndEffectorOffsetAngularTolerance;
+  double endEffectorOffsetPositionTolerance = feedingDemo->mEndEffectorOffsetPositionTolerance;
+  double endEffectorOffsetAngularTolerance = feedingDemo->mEndEffectorOffsetAngularTolerance;
 
   ROS_INFO_STREAM("Move towards person");
 
@@ -50,34 +52,31 @@ bool moveTowardsPerson(
   return servoClient.wait(10);
   */
 
-  std::cout<<"In MoveTowardsPerson! :)";
-  std::cin.get();
-  std::cin.get();
-  std::cout<<"Okie dokie! :)";
-
-
   // Read Person Pose
   bool seePerson = false;
   Eigen::Isometry3d personPose;
-  while (!seePerson) {
-    try {
-      std::cout<<"In seePerson!"<<std::endl;
+  while (!seePerson)
+  {
+    try
+    {
       personPose = perception->perceiveFace();
       seePerson = true;
-    } catch (...) {
+    }
+    catch (...)
+    {
       ROS_WARN_STREAM("No Face Detected!");
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
       continue;
     }
   }
 
-  Eigen::Isometry3d currentPose =
-      ada->getHand()->getEndEffectorBodyNode()->getTransform();
+  Eigen::Isometry3d currentPose
+      = ada->getHand()->getEndEffectorBodyNode()->getTransform();
 
   // Plan from current to goal pose
-  Eigen::Vector3d vectorToGoalPose =
-      personPose.translation() - currentPose.translation();
-  vectorToGoalPose.y() -= distanceToPerson;
+  Eigen::Vector3d vectorToGoalPose
+      = personPose.translation() - currentPose.translation();
+  // vectorToGoalPose.y() -= distanceToPerson;
   auto length = vectorToGoalPose.norm();
   vectorToGoalPose.normalize();
 
@@ -87,18 +86,18 @@ bool moveTowardsPerson(
   ROS_WARN_STREAM("Goal Pose: " << vectorToGoalPose);
 
   auto trajectory = ada->getArm()->planToOffset(
-      ada->getEndEffectorBodyNode()->getName(), vectorToGoalPose * length);
-
-  std::cout<<"Found path in MoveTowardsPerson! :)";
-  std::cin.get();
-  std::cin.get();
+      ada->getEndEffectorBodyNode()->getName(),
+      vectorToGoalPose * length,
+      ada->getArm()->getWorldCollisionConstraint());
 
   bool success = true;
-  try {
-    auto future = ada->getArm()->executeTrajectory(
-        trajectory); // check velocity limits are set in FeedingDemo
+  try
+  {
+    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
     future.get();
-  } catch (const std::exception &e) {
+  }
+  catch (const std::exception& e)
+  {
     dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
     success = false;
   }

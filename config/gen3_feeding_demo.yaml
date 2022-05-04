@@ -23,7 +23,7 @@ adaConf:
 ada:
   urdfUri: package://kortex_description/robots/gen3_6dof_vision_forque.urdf
   srdfUri: package://kortex_description/robots/gen3_6dof.srdf
-  endEffectorName: robotiq_arg2f_base_link
+  endEffectorName: forque_end_effector
   homeConfiguration: [3.89015, 3.34645, 2.28738, -1.39666, 2.96761, 2.49281]      # the start configuration of the robot joints
   baseFramePose: [1.0, -0.24, -0.213, 0, 0, 3.1415]                               # the transform between the robot base and the left front top corner of the table
 
@@ -109,12 +109,12 @@ ftSensor:
 
 # Perception parameters
 perception:
-  detectorDataUri: package://pr_assets/data/objects/tag_data_foods.json
+  detectorDataUri: package://pr_assets/data/objects/tag_data_bite_transfer.json
   foodDetectorTopicName: /food_detector/marker_array
-  faceDetectorTopicName: /face_detector/marker_array
+  faceDetectorTopicName: /mouth_model_detector/marker_array
   referenceFrameName: base_link
   timeoutSeconds: 5
-  faceName: mouth
+  faceName: robot_mouth
 
 foodItems:
   # names: ["apricot", "apple", "cantaloupe", "egg", "bell_pepper", "cherry_tomato", "banana", "carrot", "grape_green", "watermelon", "blackberry", "celery", "strawberry", "broccoli", "cauliflower"]

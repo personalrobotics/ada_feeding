@@ -86,6 +86,7 @@ add_executable(feeding
   src/action/Grab.cpp
   src/action/DetectAndMoveAboveFood.cpp
   src/action/FeedFoodToPerson.cpp
+  src/action/FeedFoodToPersonInsideMouth.cpp
   src/action/MoveAbove.cpp
   src/action/MoveAboveFood.cpp
   src/action/MoveAboveForque.cpp
@@ -95,6 +96,8 @@ add_executable(feeding
   src/action/MoveInto.cpp
   src/action/MoveOutOf.cpp
   src/action/MoveTowardsPerson.cpp
+  src/action/MoveInsideMouth.cpp
+  src/action/MoveOutsideMouth.cpp
   src/action/PickUpFork.cpp
   src/action/PutDownFork.cpp
   src/action/Skewer.cpp

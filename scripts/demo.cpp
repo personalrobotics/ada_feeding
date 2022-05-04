@@ -8,6 +8,7 @@
 #include "feeding/action/PickUpFork.hpp"
 #include "feeding/action/PutDownFork.hpp"
 #include "feeding/action/FeedFoodToPerson.hpp"
+#include "feeding/action/FeedFoodToPersonInsideMouth.hpp"
 #include "feeding/action/Skewer.hpp"
 #include "feeding/action/MoveAbove.hpp"
 #include "feeding/action/MoveInFrontOfPerson.hpp"
@@ -42,7 +43,8 @@ void demo(
 
     talk("What food would you like?");
 
-    auto foodName = getUserFoodInput(false, nodeHandle);// "cantaloupe";//
+    // auto foodName = getUserFoodInput(false, nodeHandle);// "cantaloupe";//
+    std::string foodName = "cantaloupe";
     if (foodName == std::string("quit")) {
         break;
     }
@@ -101,21 +103,21 @@ void demo(
     }
     else
     {
-      bool skewer = action::skewer(
-        perception,
-        foodName,
-        plate,
-        feedingDemo.getPlateEndEffectorTransform(),
-        &feedingDemo);
+      // bool skewer = action::skewer(
+      //   perception,
+      //   foodName,
+      //   plate,
+      //   feedingDemo.getPlateEndEffectorTransform(),
+      //   &feedingDemo);
 
       if (feedingDemo.getFTThresholdHelper())
         feedingDemo.getFTThresholdHelper()->setThresholds(STANDARD_FT_THRESHOLD);
 
-      if (!skewer)
-      {
-        ROS_WARN_STREAM("Restart from the beginning");
-        continue;
-      }
+      // if (!skewer)
+      // {
+      //   ROS_WARN_STREAM("Restart from the beginning");
+      //   continue;
+      // }
 
       // ===== IN FRONT OF PERSON =====
       ROS_INFO_STREAM("Move forque in front of person");
@@ -123,13 +125,26 @@ void demo(
       auto tiltFoods = feedingDemo.mTiltFoodNames;
       bool tilted = (std::find(tiltFoods.begin(), tiltFoods.end(), foodName) != tiltFoods.end());
 
-      action::feedFoodToPerson(
-        perception,
-        plate,
-        feedingDemo.getPlateEndEffectorTransform(),
-        tilted ? &feedingDemo.mTiltOffset : nullptr,
-        &feedingDemo
-        );
+      if(false)
+      {
+        action::feedFoodToPerson(
+          perception,
+          plate,
+          feedingDemo.getPlateEndEffectorTransform(),
+          tilted ? &feedingDemo.mTiltOffset : nullptr,
+          &feedingDemo
+          );
+      }
+      else
+      {
+        action::feedFoodToPersonInsideMouth(
+          perception,
+          plate,
+          feedingDemo.getPlateEndEffectorTransform(),
+          tilted ? &feedingDemo.mTiltOffset : nullptr,
+          &feedingDemo
+          );
+      }
     }
   }
 
