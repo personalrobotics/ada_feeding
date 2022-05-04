@@ -65,20 +65,18 @@ void feedFoodToPersonInsideMouth(
 
   bool moveIFOSuccess = false;
   bool moveSuccess = false;
-  // for (std::size_t i = 0; i < 2; ++i)
-  // {
-  //   moveIFOSuccess = moveIFOPerson();
-  //   if (!moveIFOSuccess)
-  //   {
-  //     ROS_WARN_STREAM("Failed to move in front of person, retry");
-  //     talk("Sorry, I'm having a little trouble moving. Let me try again.");
-  //     continue;
-  //   }
-  //   else
-  //     break;
-  // }
-
-  moveIFOSuccess = true;
+  for (std::size_t i = 0; i < 2; ++i)
+  {
+    moveIFOSuccess = moveIFOPerson();
+    if (!moveIFOSuccess)
+    {
+      ROS_WARN_STREAM("Failed to move in front of person, retry");
+      talk("Sorry, I'm having a little trouble moving. Let me try again.");
+      continue;
+    }
+    else
+      break;
+  }
 
   // Send message to web interface to indicate skewer finished
   publishActionDoneToWeb((ros::NodeHandle*)nodeHandle);
@@ -119,13 +117,11 @@ void feedFoodToPersonInsideMouth(
         personPose,
         nullptr,
         feedingDemo);
-    moveSuccess = true;
 
     std::cout<<"YAY! - Moved directly to person!"<<std::endl;
     std::cin.get();
     std::cin.get();
     std::cout<<"moving on!"<<std::endl;
-    // moveSuccess = true;
 
     if(moveSuccess)
     {
@@ -162,26 +158,26 @@ void feedFoodToPersonInsideMouth(
           feedingDemo);
 
     Eigen::Vector3d goalDirection(0, -1, 0);
-    // bool success = moveInFrontOfPerson(
-    //     ada->getArm()->getWorldCollisionConstraint(std::vector<std::string>{"plate", "table", "wheelchair"}),
-    //     personPose,
-    //     distanceToPerson,
-    //     horizontalToleranceForPerson * 2,
-    //     verticalToleranceForPerson * 2,
-    //     feedingDemo);
-    // ROS_INFO_STREAM("Backward " << success << std::endl);
+    bool success = moveInFrontOfPerson(
+        ada->getArm()->getWorldCollisionConstraint(std::vector<std::string>{"plate", "table", "wheelchair"}),
+        personPose,
+        distanceToPerson,
+        horizontalToleranceForPerson * 2,
+        verticalToleranceForPerson * 2,
+        feedingDemo);
+    ROS_INFO_STREAM("Backward " << success << std::endl);
   }
 
-  // // ===== BACK TO PLATE =====
-  // ROS_INFO_STREAM("Move back to plate");
+  // ===== BACK TO PLATE =====
+  ROS_INFO_STREAM("Move back to plate");
 
-  // // TODO: add a back-out motion and then do move above plate with
-  // // collisionFree.
-  // talk("And now back to the plate.", true);
-  // moveAbovePlate(
-  //     plate,
-  //     plateEndEffectorTransform,
-  //     feedingDemo);
+  // TODO: add a back-out motion and then do move above plate with
+  // collisionFree.
+  talk("And now back to the plate.", true);
+  moveAbovePlate(
+      plate,
+      plateEndEffectorTransform,
+      feedingDemo);
 
   publishTimingDoneToWeb((ros::NodeHandle*)nodeHandle);
 }
