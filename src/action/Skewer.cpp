@@ -59,6 +59,8 @@ bool skewer(const std::shared_ptr<Perception> &perception,
     return false;
   }
 
+  return true;
+
   bool detectAndMoveAboveFoodSuccess = true;
 
   if (!getRosParam<bool>("/humanStudy/autoAcquisition",

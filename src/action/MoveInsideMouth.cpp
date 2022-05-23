@@ -15,6 +15,7 @@ bool moveInsideMouth(
 {
   // Load necessary parameters from feedingDemo
   const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const std::shared_ptr<::ada::Ada>& adaSim = feedingDemo->getAdaSimulation();
   const std::shared_ptr<Workspace>& workspace = feedingDemo->getWorkspace();
   const ros::NodeHandle* nodeHandle = feedingDemo->getNodeHandle().get();
   // const Eigen::Isometry3d& personPose = workspace->getPersonPose();
@@ -89,6 +90,19 @@ bool moveInsideMouth(
       ada->getEndEffectorBodyNode()->getName(),
       vectorToGoalPose * length,
       ada->getArm()->getWorldCollisionConstraint());
+
+  try
+  {
+    auto sim_future = adaSim->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+    sim_future.get();
+  }
+  catch (const std::exception& e)
+  {
+    dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+  }
+  
+  std::cout<<"Executed simulation trajectory! Press [ENTER] to continue:";
+  std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get(); 
 
   bool success = true;
   try

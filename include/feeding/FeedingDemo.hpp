@@ -64,6 +64,9 @@ public:
   /// Gets Ada
   std::shared_ptr<ada::Ada> getAda();
 
+  /// Gets Ada replication in Simulation
+  std::shared_ptr<ada::Ada> getAdaSimulation();
+
   /// Determines if Demo is Real or Sim
   bool isAdaReal();
 
@@ -139,7 +142,12 @@ private:
 
   aikido::planner::WorldPtr mWorld;
 
+  aikido::planner::WorldPtr mWorldSimulation;
+
   std::shared_ptr<ada::Ada> mAda;
+
+  std::shared_ptr<ada::Ada> mAdaSimulation;
+
   aikido::statespace::dart::MetaSkeletonStateSpacePtr mArmSpace;
   std::shared_ptr<Workspace> mWorkspace;
   aikido::constraint::dart::CollisionFreePtr mCollisionFreeConstraint;
@@ -151,6 +159,8 @@ private:
   std::vector<aikido::rviz::TSRMarkerPtr> tsrMarkers;
 
   aikido::rviz::InteractiveMarkerViewerPtr mViewer;
+  aikido::rviz::InteractiveMarkerViewerPtr mViewerSim;
+  
   aikido::rviz::FrameMarkerPtr frameMarker;
   aikido::rviz::TrajectoryMarkerPtr trajectoryMarkerPtr;
 };

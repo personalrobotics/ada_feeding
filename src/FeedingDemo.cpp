@@ -37,8 +37,11 @@ FeedingDemo::FeedingDemo(bool adaReal,
       mAllowRotationFree(allowFreeRotation),
       mAutoContinueDemo(autoContinueDemo),
       mIsFTSensingEnabled(useFTSensingToStopTrajectories) {
+
+  mWorldSimulation = std::make_shared<aikido::planner::World>("feeding_simulation");
   mWorld = std::make_shared<aikido::planner::World>("feeding");
 
+  mAdaSimulation = std::make_shared<ada::Ada>(true,mWorldSimulation,std::string("adasim"));
   mAda = std::make_shared<ada::Ada>(!mAdaReal, mWorld);
   // mArmSpace = mAda->getArm()->getStateSpace();
 
@@ -47,6 +50,13 @@ FeedingDemo::FeedingDemo(bool adaReal,
 
   mWorkspace =
       std::make_shared<Workspace>(mWorld, robotPose, mAdaReal, *mNodeHandle);
+
+  mViewerSim = std::make_shared<aikido::rviz::InteractiveMarkerViewer>(
+      getRosParam<std::string>("/visualization_sim/topicName", *mNodeHandle),
+      getRosParam<std::string>("/visualization_sim/baseFrameName", *mNodeHandle),
+      mWorldSimulation);
+  mViewerSim->setAutoUpdate(true);
+
 
   // visualization
   mViewer = std::make_shared<aikido::rviz::InteractiveMarkerViewer>(
@@ -192,6 +202,9 @@ std::shared_ptr<Workspace> FeedingDemo::getWorkspace() { return mWorkspace; }
 
 //==============================================================================
 std::shared_ptr<ada::Ada> FeedingDemo::getAda() { return mAda; }
+
+//==============================================================================
+std::shared_ptr<ada::Ada> FeedingDemo::getAdaSimulation() { return mAdaSimulation; }
 
 //==============================================================================
 bool FeedingDemo::isAdaReal() { return mAdaReal; }

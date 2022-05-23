@@ -52,6 +52,28 @@ void feedFoodToPersonInsideMouth(
   //   return retval;
   // }; 
 
+
+  {
+      // Read Person Pose
+    bool seePerson = false;
+    Eigen::Isometry3d personPose;
+    while (!seePerson) {
+      try {
+        std::cout<<"In seePerson!"<<std::endl;
+        personPose = perception->perceiveFace();
+        // seePerson = true;
+      } catch (...) {
+        ROS_WARN_STREAM("No Face Detected!");
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        continue;
+      }
+    }
+  }
+
+
+  std::cout<<"Press [ENTER] to moveInFrontOfPerson:"<<std::endl;
+  std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
+
   auto moveIFOPerson = [&] {
     auto retval = moveInFrontOfPerson(
         ada->getArm()->getWorldCollisionConstraint(),
@@ -78,6 +100,20 @@ void feedFoodToPersonInsideMouth(
       break;
   }
 
+  // moveIFOSuccess = true;
+
+  // std::cout<<"Press [ENTER] to switch controllers:"<<std::endl;
+  // std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
+
+  ada->switchControllersHack(std::string("EFFORT"),
+    std::string("towards_mouth_bite_transfer_controller"),std::string("move_until_touch_topic_controller"));
+
+  std::cout<<"Successfully switched controllers!"<<std::endl;
+
+  ada->switchTrajectoryLimits(std::string("transfer"));
+
+  std::cout<<"Successfully switched trajectory limits!"<<std::endl;
+
   // Send message to web interface to indicate skewer finished
   publishActionDoneToWeb((ros::NodeHandle*)nodeHandle);
 
@@ -85,11 +121,6 @@ void feedFoodToPersonInsideMouth(
   auto overrideTiltOffset = tiltOffset;
 
   publishTransferDoneToWeb((ros::NodeHandle*)nodeHandle);
-
-  std::cout<<"YAY! - Moved infront of person!"<<std::endl;
-  std::cin.get();
-  std::cin.get();
-  std::cout<<"moving on!"<<std::endl;
 
   if (moveIFOSuccess)
   {
@@ -111,6 +142,9 @@ void feedFoodToPersonInsideMouth(
       }
     }
 
+    // std::cout<<"Press [ENTER] to moveDirectlyToPerson:"<<std::endl;
+    // std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
+
 
     ROS_INFO_STREAM("Move infront of mouth");
     moveSuccess = moveDirectlyToPerson(
@@ -118,10 +152,13 @@ void feedFoodToPersonInsideMouth(
         nullptr,
         feedingDemo);
 
-    std::cout<<"YAY! - Moved directly to person!"<<std::endl;
-    std::cin.get();
-    std::cin.get();
-    std::cout<<"moving on!"<<std::endl;
+    // std::cout<<"ABORT CODE:"<<std::endl;
+    // std::cin.get();std::cout<<"REPEAT! ABORT CODE: ";std::cin.get();
+
+    moveSuccess = moveDirectlyToPerson(
+        personPose,
+        nullptr,
+        feedingDemo);
 
     if(moveSuccess)
     {
@@ -130,12 +167,22 @@ void feedFoodToPersonInsideMouth(
         distanceToPerson = 0;
       }
 
+      ada->switchControllersHack(std::string(""),
+      std::string("inside_mouth_bite_transfer_controller"),std::string("towards_mouth_bite_transfer_controller"));
+
       ROS_INFO_STREAM("Move towards person");
+
+      std::cout<<"Press [ENTER] to moveInsideMouth:"<<std::endl;
+      std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
+
       moveSuccess = moveInsideMouth(
           nullptr,
           perception,
           distanceToPerson,
           feedingDemo);
+
+      // std::cout<<"ABORT CODE:"<<std::endl;
+      // std::cin.get();std::cout<<"REPEAT! ABORT CODE: ";std::cin.get();
     }
     nodeHandle->setParam("/feeding/facePerceptionOn", false);
   }
@@ -157,7 +204,9 @@ void feedFoodToPersonInsideMouth(
           distanceToPerson,
           feedingDemo);
 
-    Eigen::Vector3d goalDirection(0, -1, 0);
+    ada->switchControllersHack(std::string(""),
+      std::string("towards_mouth_bite_transfer_controller"),std::string("inside_mouth_bite_transfer_controller"));
+
     bool success = moveInFrontOfPerson(
         ada->getArm()->getWorldCollisionConstraint(std::vector<std::string>{"plate", "table", "wheelchair"}),
         personPose,
@@ -168,16 +217,26 @@ void feedFoodToPersonInsideMouth(
     ROS_INFO_STREAM("Backward " << success << std::endl);
   }
 
-  // ===== BACK TO PLATE =====
-  ROS_INFO_STREAM("Move back to plate");
+  std::cout<<"Press [ENTER] to switch controllers:"<<std::endl;
+  std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
 
-  // TODO: add a back-out motion and then do move above plate with
-  // collisionFree.
-  talk("And now back to the plate.", true);
-  moveAbovePlate(
-      plate,
-      plateEndEffectorTransform,
-      feedingDemo);
+  ada->switchControllersHack(std::string("VELOCITY"),
+  std::string("move_until_touch_topic_controller"),std::string("towards_mouth_bite_transfer_controller"));
+
+  std::cout<<"Successfully switched controllers!"<<std::endl;
+
+  ada->switchTrajectoryLimits(std::string("acquisition"));
+
+  // // ===== BACK TO PLATE =====
+  // ROS_INFO_STREAM("Move back to plate");
+
+  // // TODO: add a back-out motion and then do move above plate with
+  // // collisionFree.
+  // talk("And now back to the plate.", true);
+  // moveAbovePlate(
+  //     plate,
+  //     plateEndEffectorTransform,
+  //     feedingDemo);
 
   publishTimingDoneToWeb((ros::NodeHandle*)nodeHandle);
 }

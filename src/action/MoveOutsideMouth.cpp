@@ -18,6 +18,7 @@ bool moveOutsideMouth(
 {
   // Load necessary parameters from feedingDemo
   const std::shared_ptr<::ada::Ada>& ada = feedingDemo->getAda();
+  const std::shared_ptr<::ada::Ada>& adaSim = feedingDemo->getAdaSimulation();
   const std::shared_ptr<Workspace>& workspace = feedingDemo->getWorkspace();
   const ros::NodeHandle* nodeHandle = feedingDemo->getNodeHandle().get();
   // const Eigen::Isometry3d& personPose = workspace->getPersonPose();
@@ -46,46 +47,46 @@ bool moveOutsideMouth(
   }
 
   bool success = true;
-  // {
-  //   ROS_INFO_STREAM("Tilt inside mouth");
+  {
+    ROS_INFO_STREAM("Tilt inside mouth");
 
-  //   std::cout << "EE name : " << ada->getHand()->getEndEffectorBodyNode()->getName() << std::endl;
+    std::cout << "EE name : " << ada->getHand()->getEndEffectorBodyNode()->getName() << std::endl;
 
-  //   Eigen::Isometry3d currentPose
-  //       = ada->getHand()->getEndEffectorBodyNode()->getTransform();
+    Eigen::Isometry3d currentPose
+        = ada->getHand()->getEndEffectorBodyNode()->getTransform();
 
-  //   TSR personTSR;
-  //   personTSR.mT0_w = currentPose;
-  //   // TODO: Remove this Erroneous offset
-  //   personTSR.mTw_e = Eigen::Isometry3d::Identity();
-  //   personTSR.mTw_e.linear() = personTSR.mTw_e.linear()*Eigen::AngleAxisd(0.3, Eigen::Vector3d::UnitX());
+    TSR personTSR;
+    personTSR.mT0_w = currentPose;
+    // TODO: Remove this Erroneous offset
+    personTSR.mTw_e = Eigen::Isometry3d::Identity();
+    personTSR.mTw_e.linear() = personTSR.mTw_e.linear()*Eigen::AngleAxisd(0.2, Eigen::Vector3d::UnitX());
 
-  //   personTSR.mBw = createBwMatrixForTSR(
-  //       0.001,
-  //       0.001,
-  //       0.001,
-  //       0,
-  //       0,
-  //       0);
+    personTSR.mBw = createBwMatrixForTSR(
+        0.001,
+        0.001,
+        0.001,
+        0,
+        0,
+        0);
 
-  //   auto personTSRPtr = std::make_shared<aikido::constraint::dart::TSR>(personTSR);
-  //   auto trajectory = ada->getArm()->planToTSR(
-  //       ada->getEndEffectorBodyNode()->getName(),
-  //       personTSRPtr, 
-  //       ada->getArm()->getWorldCollisionConstraint(std::vector<std::string>{"plate", "table", "wheelchair","person"}));
+    auto personTSRPtr = std::make_shared<aikido::constraint::dart::TSR>(personTSR);
+    auto trajectory = ada->getArm()->planToTSR(
+        ada->getEndEffectorBodyNode()->getName(),
+        personTSRPtr, 
+        ada->getArm()->getWorldCollisionConstraint(std::vector<std::string>{"plate", "table", "wheelchair","person"}));
     
-  //   auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
-  //   try
-  //   {
-  //     future.get();
-  //   }
-  //   catch (const std::exception& e)
-  //   {
-  //     dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
-  //     success = false;
-  //     return success;
-  //   }
-  // }
+    auto future = ada->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+    try
+    {
+      future.get();
+    }
+    catch (const std::exception& e)
+    {
+      dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+      success = false;
+      return success;
+    }
+  }
 
   {
 
@@ -105,7 +106,7 @@ bool moveOutsideMouth(
     //     = personPose.translation() - currentPose.translation();
     // vectorToGoalPose.y() -= distanceToPerson;
 
-    Eigen::Vector3d offsetPersonFrame = {0.1, 0.0, 0.0};
+    Eigen::Vector3d offsetPersonFrame = {0.06, 0.0, 0.00};
 
     Eigen::Vector3d offsetWorldFrame = personPose.linear() * offsetPersonFrame;
 
@@ -121,6 +122,21 @@ bool moveOutsideMouth(
     auto trajectory = ada->getArm()->planToOffset(
         ada->getEndEffectorBodyNode()->getName(),
         offsetWorldFrame * length);
+
+    try
+    {
+      auto sim_future = adaSim->getArm()->executeTrajectory(trajectory); // check velocity limits are set in FeedingDemo
+      sim_future.get();
+    }
+    catch (const std::exception& e)
+    {
+      dtwarn << "Exception in trajectoryExecution: " << e.what() << std::endl;
+    }
+
+
+    std::cout<<"Executed simulation trajectory! Press [ENTER] to continue:";
+    std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
+
 
     // bool success = true;
     try
