@@ -65,10 +65,6 @@ FeedingDemo::FeedingDemo(bool adaReal,
       mWorld);
   mViewer->setAutoUpdate(true);
 
-  if (mAdaReal) {
-    mAda->startTrajectoryControllers();
-  }
-
   // Load the named configurations if available
   auto retriever = std::make_shared<aikido::io::CatkinResourceRetriever>();
   std::string nameConfigs =
@@ -180,7 +176,7 @@ FeedingDemo::~FeedingDemo() {
   if (mAdaReal) {
     // wait for a bit so controller actually stops moving
     std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-    mAda->stopTrajectoryControllers();
+    mAda->deactivateExecutor();
   }
 }
 

@@ -105,12 +105,11 @@ void feedFoodToPersonInsideMouth(
   // std::cout<<"Press [ENTER] to switch controllers:"<<std::endl;
   // std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
 
-  ada->switchControllersHack(std::string("EFFORT"),
-    std::string("towards_mouth_bite_transfer_controller"),std::string("move_until_touch_topic_controller"));
+  ada->activateExecutor("bite_transfer_trajectory_executor");
 
   std::cout<<"Successfully switched controllers!"<<std::endl;
 
-  ada->switchTrajectoryLimits(std::string("transfer"));
+  ada->setTrajectoryLimitsFromParam("transfer");
 
   std::cout<<"Successfully switched trajectory limits!"<<std::endl;
 
@@ -167,8 +166,7 @@ void feedFoodToPersonInsideMouth(
         distanceToPerson = 0;
       }
 
-      ada->switchControllersHack(std::string(""),
-      std::string("inside_mouth_bite_transfer_controller"),std::string("towards_mouth_bite_transfer_controller"));
+      ada->activateExecutor("bite_transfer_inside_mouth_executor");
 
       ROS_INFO_STREAM("Move towards person");
 
@@ -204,8 +202,7 @@ void feedFoodToPersonInsideMouth(
           distanceToPerson,
           feedingDemo);
 
-    ada->switchControllersHack(std::string(""),
-      std::string("towards_mouth_bite_transfer_controller"),std::string("inside_mouth_bite_transfer_controller"));
+    ada->activateExecutor("bite_transfer_trajectory_executor");
 
     bool success = moveInFrontOfPerson(
         ada->getArm()->getWorldCollisionConstraint(std::vector<std::string>{"plate", "table", "wheelchair"}),
@@ -220,12 +217,11 @@ void feedFoodToPersonInsideMouth(
   std::cout<<"Press [ENTER] to switch controllers:"<<std::endl;
   std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
 
-  ada->switchControllersHack(std::string("VELOCITY"),
-  std::string("move_until_touch_topic_controller"),std::string("towards_mouth_bite_transfer_controller"));
+  ada->activateExecutor("bite_transfer_trajectory_executor");
 
   std::cout<<"Successfully switched controllers!"<<std::endl;
 
-  ada->switchTrajectoryLimits(std::string("acquisition"));
+  ada->setTrajectoryLimitsFromParam("acquisition");
 
   // // ===== BACK TO PLATE =====
   // ROS_INFO_STREAM("Move back to plate");
