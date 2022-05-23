@@ -42,8 +42,11 @@ FeedingDemo::FeedingDemo(bool adaReal,
   mWorld = std::make_shared<aikido::planner::World>("feeding");
 
   mAdaSimulation = std::make_shared<ada::Ada>(true,mWorldSimulation,std::string("adasim"));
+
+  std::cout<<"Created ADA in simulation!"<<std::endl;
   mAda = std::make_shared<ada::Ada>(!mAdaReal, mWorld);
   // mArmSpace = mAda->getArm()->getStateSpace();
+  std::cout<<"Created ADA in real!"<<std::endl;
 
   Eigen::Isometry3d robotPose = createIsometry(
       getRosParam<std::vector<double>>("/ada/baseFramePose", *mNodeHandle));

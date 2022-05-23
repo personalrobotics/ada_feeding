@@ -118,11 +118,11 @@ perception:
   foodDetectorTopicName: /food_detector/marker_array
   referenceFrameName: base_link
   timeoutSeconds: 5
-  # faceDetectorTopicName: /mouth_model_detector/marker_array
-  # faceName: robot_mouth
+  faceDetectorTopicName: /mouth_model_detector/marker_array
+  faceName: robot_mouth
   # faceDetectorTopicName: /face_detector/face/marker_array
-  faceDetectorTopicName: /face_detector/head/marker_array
-  faceName: mouth
+  # faceDetectorTopicName: /face_detector/head/marker_array
+  # faceName: mouth
 
 foodItems:
   # names: ["apricot", "apple", "cantaloupe", "egg", "bell_pepper", "cherry_tomato", "banana", "carrot", "grape_green", "watermelon", "blackberry", "celery", "strawberry", "broccoli", "cauliflower"]

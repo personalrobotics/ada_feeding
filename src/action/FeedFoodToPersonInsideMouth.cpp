@@ -53,22 +53,22 @@ void feedFoodToPersonInsideMouth(
   // }; 
 
 
-  {
-      // Read Person Pose
-    bool seePerson = false;
-    Eigen::Isometry3d personPose;
-    while (!seePerson) {
-      try {
-        std::cout<<"In seePerson!"<<std::endl;
-        personPose = perception->perceiveFace();
-        // seePerson = true;
-      } catch (...) {
-        ROS_WARN_STREAM("No Face Detected!");
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        continue;
-      }
-    }
-  }
+  // {
+  //     // Read Person Pose
+  //   bool seePerson = false;
+  //   Eigen::Isometry3d personPose;
+  //   while (!seePerson) {
+  //     try {
+  //       std::cout<<"In seePerson!"<<std::endl;
+  //       personPose = perception->perceiveFace();
+  //       // seePerson = true;
+  //     } catch (...) {
+  //       ROS_WARN_STREAM("No Face Detected!");
+  //       std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  //       continue;
+  //     }
+  //   }
+  // }
 
 
   std::cout<<"Press [ENTER] to moveInFrontOfPerson:"<<std::endl;
@@ -102,10 +102,10 @@ void feedFoodToPersonInsideMouth(
 
   // moveIFOSuccess = true;
 
-  // std::cout<<"Press [ENTER] to switch controllers:"<<std::endl;
-  // std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
+  std::cout<<"Press [ENTER] to switch controllers:"<<std::endl;
+  std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
 
-  ada->activateExecutor("bite_transfer_trajectory_executor");
+  ada->getArm()->activateExecutor("bite_transfer_trajectory_executor");
 
   std::cout<<"Successfully switched controllers!"<<std::endl;
 
@@ -141,8 +141,8 @@ void feedFoodToPersonInsideMouth(
       }
     }
 
-    // std::cout<<"Press [ENTER] to moveDirectlyToPerson:"<<std::endl;
-    // std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
+    std::cout<<"Press [ENTER] to moveDirectlyToPerson:"<<std::endl;
+    std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
 
 
     ROS_INFO_STREAM("Move infront of mouth");
@@ -166,7 +166,7 @@ void feedFoodToPersonInsideMouth(
         distanceToPerson = 0;
       }
 
-      ada->activateExecutor("bite_transfer_inside_mouth_executor");
+      ada->getArm()->activateExecutor("bite_transfer_inside_mouth_executor");
 
       ROS_INFO_STREAM("Move towards person");
 
@@ -202,7 +202,7 @@ void feedFoodToPersonInsideMouth(
           distanceToPerson,
           feedingDemo);
 
-    ada->activateExecutor("bite_transfer_trajectory_executor");
+    ada->getArm()->activateExecutor("bite_transfer_trajectory_executor");
 
     bool success = moveInFrontOfPerson(
         ada->getArm()->getWorldCollisionConstraint(std::vector<std::string>{"plate", "table", "wheelchair"}),
@@ -217,7 +217,7 @@ void feedFoodToPersonInsideMouth(
   std::cout<<"Press [ENTER] to switch controllers:"<<std::endl;
   std::cin.get();std::cout<<"Press [ENTER] again: ";std::cin.get();
 
-  ada->activateExecutor("bite_transfer_trajectory_executor");
+  ada->getArm()->activateExecutor("bite_acquisition_trajectory_executor");
 
   std::cout<<"Successfully switched controllers!"<<std::endl;
 

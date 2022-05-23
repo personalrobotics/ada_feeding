@@ -116,6 +116,9 @@ int main(int argc, char** argv)
     ftThresholdHelper,
     autoContinueDemo);
 
+  std::cout<<"Init demo. Press [ENTER] to continue:"<<std::endl;
+  std::cin.get();
+
   std::shared_ptr<TargetFoodRanker> ranker;
 
   if (demoType == "spanet")
@@ -135,8 +138,14 @@ int main(int argc, char** argv)
       0.0,
       false);
 
+  std::cout<<"Init perception. Press [ENTER] to continue:"<<std::endl;
+  std::cin.get();
+
   if (ftThresholdHelper)
     ftThresholdHelper->init();
+
+  std::cout<<"Init ftThresholdHelper. Press [ENTER] to continue:"<<std::endl;
+  std::cin.get();
 
   // TODO: uncomment this once we can send actions to hand
   // feedingDemo->getAda()->closeHand();
