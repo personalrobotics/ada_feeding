@@ -179,9 +179,9 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
 
     nodeHandle->setParam("/feeding/facePerceptionOn", true);
 
-    if (overrideTiltOffset == nullptr) {
-      distanceToPerson = 0;
-    }
+    // if (overrideTiltOffset == nullptr) {
+    //   distanceToPerson = 0;
+    // }
 
     ROS_INFO_STREAM("Move towards person");
     moveSuccess =
@@ -277,6 +277,10 @@ void feedFoodToPerson(const std::shared_ptr<Perception> &perception,
     ada::util::waitForUser("Move backward", ada);
     if (useSound) 
       talk("Let me get out of your way.", true);
+
+    if (feedingDemo->getFTThresholdHelper())
+        feedingDemo->getFTThresholdHelper()->setThresholds(STANDARD_FT_THRESHOLD, true);
+
     Eigen::Vector3d goalDirection(0, -1, 0);
     bool success = moveInFrontOfPerson(
         ada->getArm()->getWorldCollisionConstraint(

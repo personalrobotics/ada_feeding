@@ -200,11 +200,11 @@ std::string getInputFromTopic(std::string topic,
   ROS_INFO_STREAM("Got Input " << foodWord);
   if (validateAsFood) {
     for (std::size_t i = 0; i < FOOD_NAMES.size(); ++i) {
-      if (FOOD_NAMES[i].compare(foodWord) == 0) {
+      if (foodWord.find(FOOD_NAMES[i]) != std::string::npos) {
         ROS_INFO_STREAM("Sucessfully returned");
-        nodeHandle.setParam("/deep_pose/forceFoodName", foodWord);
-        nodeHandle.setParam("/deep_pose/spnet_food_name", foodWord);
-        return foodWord;
+        nodeHandle.setParam("/deep_pose/forceFoodName", FOOD_NAMES[i]);
+        nodeHandle.setParam("/deep_pose/spnet_food_name", FOOD_NAMES[i]);
+        return FOOD_NAMES[i];
       }
     }
     return "";

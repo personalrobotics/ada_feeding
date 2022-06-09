@@ -253,6 +253,11 @@ bool skewer(const std::shared_ptr<Perception> &perception,
     // ===== INTO FOOD =====
     // if (useSound) 
     //   talk("Here we go!", true);
+
+    // Set end effector to move into food
+    endEffectorDirection = perception->getTrackedFoodItemPose().translation() - ada->getEndEffectorBodyNode()->getTransform().translation();
+    endEffectorDirection.normalize();
+
     auto moveIntoSuccess = moveInto(perception, TargetItem::FOOD,
                                     endEffectorDirection, feedingDemo);
 
