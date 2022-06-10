@@ -157,3 +157,6 @@ The model files will need to be downloaded by running `ada_demos/feeding/bash_sc
 - You can stop Ada's movement by `Ctrl-C`-ing the controller node started in step 7.
 - **Never use the joystick while the controllers (step 7) are running.** Both will fight over control of Ada and they will not care about collision boxes.
 - Be familiar with the location of Ada's on/off-switch :)
+
+## Misc Notes
+- 3D models and details for the joule, which mounts the RealSense onto the gen2 arm, can be found [here](https://github.com/ramonidea/wireless-data-transmission/tree/master/wiki).
