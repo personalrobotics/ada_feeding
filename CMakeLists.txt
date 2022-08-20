@@ -6,6 +6,26 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+)
+
+
+###################################
+## catkin specific configuration ##
+###################################
+## The catkin_package macro generates cmake config files for your package
+## Declare things to be passed to dependent projects
+## INCLUDE_DIRS: uncomment this if your package contains header files
+## LIBRARIES: libraries you create in this project that dependent projects also need
+## CATKIN_DEPENDS: catkin_packages dependent projects also need
+## DEPENDS: system dependencies of this project that dependent projects also need
+catkin_package(
+  LIBRARIES feeding
+  CATKIN_DEPENDS roscpp 
+)
+
+
 # ===============================================================================
 # Dependencies
 #
@@ -87,7 +107,10 @@ IF (rewd_controllers_FOUND)
 ENDIF()
 
 install(TARGETS feeding
-        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ )
 
 # ===============================================================================
 # Formatting
