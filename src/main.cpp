@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
   // Register Behavior Tree Nodes
   ROS_INFO("Initializing Behavior Tree...");
   BT::BehaviorTreeFactory factory;
-  // feeding::registerNodes(factory, nh, robot);
+  feeding::registerNodes(factory, nh, robot);
 
   // Create tree
   std::string defaultTree =
