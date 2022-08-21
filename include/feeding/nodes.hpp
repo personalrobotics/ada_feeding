@@ -28,7 +28,7 @@ void registerNodeFn(RegistrationFn Fn);
 
 // Register all BT Nodes to provided factory
 // Nodes may use robot / nh for initialization.
-void registerNodes(BT::BehaviorTreeFactory &factorh, ros::NodeHandle &nh,
+void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
                    ada::Ada &robot);
 
 } // end namespace feeding

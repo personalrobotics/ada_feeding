@@ -1,0 +1,5 @@
+<root main_tree_to_execute = "Default" >
+     <BehaviorTree ID="Default">
+        <Success name="success" />
+     </BehaviorTree>
+ </root>

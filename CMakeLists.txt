@@ -92,7 +92,8 @@ include_directories(include)
 file(GLOB_RECURSE SOURCES
     LIST_DIRECTORIES false
     src/main.cpp
-    src/nodes/nodes.cpp)
+    src/nodes/nodes.cpp
+    src/nodes/debug.cpp)
 
 add_executable(feeding ${SOURCES})
 

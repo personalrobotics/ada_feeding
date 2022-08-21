@@ -46,12 +46,26 @@ int main(int argc, char **argv) {
 
   // Run Tree until SUCCESS or FAILURE
   // Then repeat
+  bool autoRestart = nh.param("autoRestart", false);
   ros::Rate rate(100); // ROS Rate at 100Hz (10ms)
   while (ros::ok()) {
     auto status = BT::NodeStatus::RUNNING;
     while (status == BT::NodeStatus::RUNNING) {
       status = tree.tickRoot();
       rate.sleep();
+    }
+
+    // User input to confirm demo restart
+    if (!autoRestart) {
+      std::string decision = "";
+      while (decision != "y" && decision != "n" && decision != "Y" &&
+             decision != "N") {
+        std::cout << "Tree complete (" << status << "). Restart (Y/n)? ";
+        decision = std::cin.get();
+        std::cin.ignore();
+      }
+      if (decision == "n" || decision == "N")
+        break;
     }
   }
   return 0;
