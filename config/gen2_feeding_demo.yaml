@@ -56,7 +56,7 @@ wheelchair:
 feedingDemo:
   heightAbovePlate: 0.15
   heightAboveFood: 0.08
-  heightIntoFood: 0.085
+  heightIntoFood: 0.08
   moveOutofFood: 0.025
   #distanceToPerson: 0.25
   distanceToPerson: 0.05
@@ -120,7 +120,7 @@ foodItems:
   #forces: [15,3,3,7,22,15,7]
   #pickUpAngleModes: [0, 2, 2, 0, 0, 0, 0]
   names: ["apple", "banana", "bell_pepper", "broccoli", "cantaloupe", "carrot", "cauliflower", "celery", "cherry_tomato", "grape", "honeydew", "kiwi", "strawberry", "lettuce", "spinach", "kale"]
-  forces: [10, 10, 10, 10, 15, 22, 7, 22, 7, 10, 7, 7, 15, 7, 7, 7]
+  forces: [10, 10, 10, 10, 7, 15, 7, 15, 7, 7, 7, 7, 15, 7, 7, 7]
   pickUpAngleModes: [1, 5, 1, 2, 1, 1, 0, 1, 1, 1, 3, 3, 0, 1, 2, 0]
 
 humanStudy:
@@ -128,7 +128,7 @@ humanStudy:
   autoTiming: true
   autoTransfer: true
   createError: false
-  useAlexa: false
+  useAlexa: true
   foodTopic: /alexa_msgs
   actionTopic: /alexa_msgs
 

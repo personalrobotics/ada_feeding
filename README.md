@@ -111,19 +111,23 @@ Run the following commands from your ROS workspace:
 3) Once the lights on the joystick go solid, home ADA by holding the orange button until the robot stops moving.
 4) `ssh nano` (you may need to add `nano` to your `.ssh/config`, this is the Jetson on the robot). Once there, set your ROS Master using `uselovelace`, `useweebo`, or `useweebowired` (or set your ROS_MASTER_URI manually), execute `./run_camera.sh` to start streaming RGBD data.
    * You may have to adjust the camera exposure, depending on the lighting condition. Either run `run_adjust_camera_daylight.sh` or `run_adjust_camera_all.sh` after running `run_camera.sh`. Check the image stream via rviz, by adding the image topic `/camera/color/image_raw/color`. If some area is too bright and look burnt or saturated, reduce the exposure.
-6) `roslaunch forque_sensor_hardware forque.launch` (Optionally add `forque_ip:=<IPv4>` if your Net-FT is on a non-default IP)
+5) `roslaunch forque_sensor_hardware forque.launch` (Optionally add `forque_ip:=<IPv4>` if your Net-FT is on a non-default IP)
 6) `rosrun face_detection face_detection`
-7) `roslaunch libada default.launch use_forque:=true perception:=true detector:=spanet use_apriltag_calib:=true`
+7) If you are also running the Alexa code, cd to the `ADA_Talk` directory, and run:
+      a) `roslaunch rosbridge_server rosbridge_websocket.launch`
+      b) `bst proxy lambda index.js`
+8) `roslaunch libada default.launch use_forque:=true perception:=true detector:=spanet use_apriltag_calib:=true`
    * Optionally, run with `perception:=false` if you want to run perception manually in another terminal.
    * To run perception manually in another terminal: `rosrun food_detector run_perception_module.py --demo-type spanet`
-8) `roslaunch ada_feeding feeding.launch` (will quit after writing ROS parameters)
+9) `roslaunch ada_feeding feeding.launch` (will quit after writing ROS parameters)
    * Optionally run `roslaunch ada_feeding data_collection.launch` after `feeding.launch` if you're doing data collection.
-9) `cd ~/Workspace/ada_ws/devel/bin/` and `./feeding -af`
+10) `cd ~/Workspace/ada_ws/devel/bin/` and `./feeding -af`
     * `-a`: specified that this is the real robot, and not a simulation
     * `-f`: enables the force/torque sensor on the real robot (**REQUIRED when picking up food for safety**)
     * `-c`: causes demo to proceed without the user pressing \[ENTER\] between steps
     * `-d`: Select demo to run.
-10) Advance the demo by pressing Return or terminate nicely by pressing `n` and then return
+    * `-s`: Whether to run it with sound or not.
+11) Advance the demo by pressing Return or terminate nicely by pressing `n` and then return
 
 ## Running with acquisition detection
 To run with acquisition detection (and not require manual success/failure input from the supervisor) run
