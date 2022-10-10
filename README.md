@@ -84,24 +84,24 @@ Note that the current demo has only been tested on the JACO 2.
 
 ## Running the Demo in Simulation
 
-Run the following commands from your ROS workspace:
+Run the following commands from your ROS workspace (each in a new terminal unless it terminates immediately).
 
 1. `catkin build`
-1. `source devel/setup.bash`
+1. `source devel/setup.bash` (in *every* new terminal)
 1. `roscore`
 1. `rviz`
 1. `roslaunch libada simulation.launch` (will put 2 simulated *cantaloupe* on the plate)
 1. `roslaunch ada_feeding feeding.launch` (will quit after writing ROS parameters)
 1. `cd my_catkin_workspace/devel/bin/` and `./feeding`
-1.  In RViz, subscribe to the topic `feeding/update/InteractiveMarkers` to actually see the robot.
+1.  In RViz, subscribe to the topic `feeding/update/InteractiveMarkers` ("Add" -> "By Topic") to actually see the robot.
 
 ## Running the Demo on the JACO 2
 
 ### Additional Workspace Setup
 
 1) Build your workspace with `catkin build`
-2) Download the checkpoint by going into `src/pytorch_retinanet` and running `load_checkpoint.sh` (or train your own checkpoint)
-2) Do the same in `src/bite_selection_package`: run `load_checkpoint.sh` (or train your own checkpoint)
+2) Download the PRL checkpoint with `. src/pytorch_retinanet/load_checkpoint.sh` (or train your own checkpoint)
+2) Do the same in: `. src/bite_selection_package/load_checkpoint.sh` (or train your own checkpoint)
 3) Make sure your source `devel/setup.bash` in *every* terminal you use.
 
 ###
@@ -109,7 +109,7 @@ Run the following commands from your ROS workspace:
 1) Start `roscore`, `rviz`
 2) Turn on ADA
 3) Once the lights on the joystick go solid, home ADA by holding the orange button until the robot stops moving.
-4) `ssh nano` (you may need to add `nano` to your `.ssh/config`, this is the Jetson on the robot). Once there, set your ROS Master using `uselovelace`, `useweebo`, or `useweebowired` (or set your ROS_MASTER_URI manually), execute `./run_camera.sh` to start streaming RGBD data.
+4) `ssh nano` (you may need to add `nano` to your `.ssh/config`, this is the Nvidia Jetson Nano on the robot). Once there, set your ROS Master using `uselovelace`, `useweebo`, or `useweebowired` (or set your ROS_MASTER_URI manually), execute `./run_camera.sh` to start streaming RGBD data.
    * You may have to adjust the camera exposure, depending on the lighting condition. Either run `run_adjust_camera_daylight.sh` or `run_adjust_camera_all.sh` after running `run_camera.sh`. Check the image stream via rviz, by adding the image topic `/camera/color/image_raw/color`. If some area is too bright and look burnt or saturated, reduce the exposure.
 5) `roslaunch forque_sensor_hardware forque.launch` (Optionally add `forque_ip:=<IPv4>` if your Net-FT is on a non-default IP)
 6) `rosrun face_detection face_detection`
