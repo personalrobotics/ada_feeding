@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10.0)
 project(ada_feeding)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -36,7 +36,7 @@ find_package(DART 6.6.2 REQUIRED
 )
 include_directories(${DART_INCLUDE_DIRS})
 
-find_package(aikido 0.3.0 REQUIRED
+find_package(aikido 0.4.0 REQUIRED
   COMPONENTS
     common
     constraint
@@ -75,8 +75,8 @@ include_directories(${pr_assets_INCLUDE_DIRS})
 find_package(pr_tsr REQUIRED)
 include_directories(${pr_tsr_INCLUDE_DIRS})
 
-find_package(behaviortree_cpp_v3 REQUIRED)
-include_directories(${behaviortree_cpp_v3_INCLUDE_DIRS})
+find_package(behaviortree_cpp REQUIRED)
+include_directories(${behaviortree_cpp_INCLUDE_DIRS})
 
 #================================================================================
 # Compiler settings
@@ -101,7 +101,7 @@ target_link_libraries(feeding
   ${DART_LIBRARIES}
   ${aikido_LIBRARIES}
   libada
-  ${behaviortree_cpp_v3_LIBRARIES})
+  ${behaviortree_cpp_LIBRARIES})
 
 IF (rewd_controllers_FOUND)
   target_link_libraries(feeding ${rewd_controllers_LIBRARIES})

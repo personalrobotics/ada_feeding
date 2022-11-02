@@ -3,7 +3,7 @@
  * Test and debugging BT nodes
  **/
 
-#include <behaviortree_cpp_v3/behavior_tree.h>
+#include <behaviortree_cpp/behavior_tree.h>
 #include <iostream>
 
 namespace feeding {

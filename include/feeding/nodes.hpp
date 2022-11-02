@@ -8,7 +8,7 @@
  * static_block { feeding::registerNodeFn(RegistrationFn); }
  **/
 
-#include <behaviortree_cpp_v3/bt_factory.h>
+#include <behaviortree_cpp/bt_factory.h>
 #include <feeding/static_block.hpp>
 #include <functional>
 #include <libada/Ada.hpp>

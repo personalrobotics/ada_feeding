@@ -2,8 +2,8 @@
  * Entry point to the ADA Feeding System
  **/
 #include <aikido/rviz.hpp>
-#include <behaviortree_cpp_v3/bt_factory.h>
-#include <behaviortree_cpp_v3/loggers/bt_cout_logger.h>
+#include <behaviortree_cpp/bt_factory.h>
+#include <behaviortree_cpp/loggers/bt_cout_logger.h>
 #include <feeding/nodes.hpp>
 #include <libada/Ada.hpp>
 #include <ros/package.h>
@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
   while (ros::ok()) {
     auto status = BT::NodeStatus::RUNNING;
     while (status == BT::NodeStatus::RUNNING) {
-      status = tree.tickRoot();
+      status = tree.tickOnce();
       rate.sleep();
     }
 
