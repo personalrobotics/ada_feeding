@@ -8,6 +8,7 @@
  * static_block { feeding::registerNodeFn(RegistrationFn); }
  **/
 
+#include <behaviortree_cpp/behavior_tree.h>
 #include <behaviortree_cpp/bt_factory.h>
 #include <feeding/static_block.hpp>
 #include <functional>
