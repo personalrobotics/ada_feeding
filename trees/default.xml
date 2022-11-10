@@ -1,8 +1,9 @@
 <root main_tree_to_execute = "Default" >
      <BehaviorTree ID="Default">
         <Sequence>
-         <AdaCloseHand />
-         <AdaOpenHand />
+         <RosSetD param="/test/double" value="1.5" />
+         <RosGetD param="/test/double2" target="{double2}" default="2.0" />
+         <RosSetD param="/test/double3" value="{double2}" />
         </Sequence>
      </BehaviorTree>
  </root>
