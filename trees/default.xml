@@ -1,9 +1,11 @@
 <root main_tree_to_execute = "Default" >
      <BehaviorTree ID="Default">
         <Sequence>
-         <RosSetD param="/test/double" value="1.5" />
-         <RosGetD param="/test/double2" target="{double2}" default="2.0" />
-         <RosSetD param="/test/double3" value="{double2}" />
+         <Debug />
+         <WorldAddUpdate urdfUri="package://pr_assets/data/furniture/wheelchair.urdf" skelName="wheelchair" />
+         <Debug />
+         <WorldAddUpdate skelName="wheelchair" pos="0.0;0.0;0.0" quat="0;0;-1;0" />
+         <Debug />
         </Sequence>
      </BehaviorTree>
  </root>

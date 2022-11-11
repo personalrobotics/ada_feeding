@@ -19,7 +19,6 @@ BT::NodeStatus DebugNode() {
   std::cout << "f - return FAILURE" << std::endl;
   std::cout << "s - return SUCCESS" << std::endl;
   std::cout << "r - return RUNNING" << std::endl;
-  std::cout << "b - Investigate Blackboard" << std::endl;
 
   char choice = '\0';
   const std::set<char> valid = {'f', 's', 'r'};

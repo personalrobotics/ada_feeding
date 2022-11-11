@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
   std::string vizTopic =
       nh.param<std::string>("visualization/topicName", "dart_markers/feeding");
   std::string vizBaseFrame =
-      nh.param<std::string>("visualization/basecFrameName", "map");
+      nh.param<std::string>("visualization/baseFrameName", "map");
   aikido::rviz::InteractiveMarkerViewer viewer(vizTopic, vizBaseFrame,
                                                robot.getWorld());
   viewer.setAutoUpdate(true);
