@@ -30,7 +30,7 @@ BT::NodeStatus AddUpdateSkeleton(BT::TreeNode &self, ada::Ada &robot) {
   if (quat && quat.value().size() == 4) {
     vquat = quat.value();
   }
-  Eigen::Quaterniond eQuat(vquat.data());
+  Eigen::Quaterniond eQuat(vquat[0], vquat[1], vquat[2], vquat[3]);
   eQuat.normalize();
 
   Eigen::Isometry3d pose = Eigen::Isometry3d::Identity();
@@ -40,6 +40,13 @@ BT::NodeStatus AddUpdateSkeleton(BT::TreeNode &self, ada::Ada &robot) {
   // Determine if add or update operation
   auto urdfUri = self.getInput<std::string>("urdfUri");
   auto name = self.getInput<std::string>("skelName");
+
+  // Cannot operate on ADA
+  if (name && name.value() == robot.getRootSkeleton()->getName()) {
+    ROS_WARN_STREAM("Cannot update ADA itself!");
+    return BT::NodeStatus::FAILURE;
+  }
+
   if (!urdfUri) {
     // Pose-only update operation
     if (!name) {
@@ -65,7 +72,7 @@ BT::NodeStatus AddUpdateSkeleton(BT::TreeNode &self, ada::Ada &robot) {
     freeJoint->setTransform(pose);
   } else {
     // Skeleton Update Operation, remove old skeleton
-    if(name) {
+    if (name) {
       auto oldSkeleton = world->getSkeleton(name.value());
       if (oldSkeleton) {
         world->removeSkeleton(oldSkeleton);
@@ -73,7 +80,8 @@ BT::NodeStatus AddUpdateSkeleton(BT::TreeNode &self, ada::Ada &robot) {
     }
 
     // Add new skeleton
-    auto skeleton = loadSkeletonFromURDF(resourceRetriever, urdfUri.value(), pose);
+    auto skeleton =
+        loadSkeletonFromURDF(resourceRetriever, urdfUri.value(), pose);
     if (name) {
       skeleton->setName(name.value());
     }

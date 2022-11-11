@@ -2,9 +2,11 @@
      <BehaviorTree ID="Default">
         <Sequence>
          <Debug />
-         <WorldAddUpdate urdfUri="package://pr_assets/data/furniture/wheelchair.urdf" skelName="wheelchair" />
+         <WorldAddUpdate urdfUri="package://pr_assets/data/furniture/wheelchair.urdf" skelName="wheelchair" pos="0.0;0.0;0.005" quat="1;0;0;0" />
          <Debug />
-         <WorldAddUpdate skelName="wheelchair" pos="0.0;0.0;0.0" quat="0;0;-1;0" />
+         <WorldAddUpdate skelName="j2n6s200" />
+         <Debug />
+         <WorldRemove skelName="j2n6s200"  />
          <Debug />
         </Sequence>
      </BehaviorTree>
