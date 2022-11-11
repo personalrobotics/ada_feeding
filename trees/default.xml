@@ -1,13 +1,19 @@
 <root main_tree_to_execute = "Default" >
      <BehaviorTree ID="Default">
         <Sequence>
-         <Debug />
          <WorldAddUpdate urdfUri="package://pr_assets/data/furniture/wheelchair.urdf" skelName="wheelchair" pos="0.0;0.0;0.005" quat="1;0;0;0" />
          <Debug />
-         <WorldAddUpdate skelName="j2n6s200" />
+         <AdaPlanToConfig config="-2.11666;3.34967;2.04129;-2.30031;-2.34026;2.9545" traj="{traj}" />
+         <AdaExecuteTrajectory traj="{traj}" />
          <Debug />
-         <WorldRemove skelName="j2n6s200"  />
+         <AdaPlanToOffset offset="0;0;-0.05" traj="{traj}" />
+         <AdaExecuteTrajectory traj="{traj}" />
          <Debug />
+         <AdaGetEEPose pos="{pos}" quat="{quat}" />
+         <AdaPlanToPose orig_pos="{pos}" orig_quat="{quat}" pos="0;0;0.05" quat="1;0;0;0" bounds="0.001;0.001;0.001;0.001;0.001;0.001" viz="true" traj="{traj}" />
+         <AdaExecuteTrajectory traj="{traj}" />
+         <Debug />
+         <WorldClearFrames />
         </Sequence>
      </BehaviorTree>
  </root>

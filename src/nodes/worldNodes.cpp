@@ -8,6 +8,9 @@
 #include <behaviortree_cpp/behavior_tree.h>
 #include <iostream>
 
+#include <aikido/rviz.hpp>
+extern aikido::rviz::InteractiveMarkerViewerPtr gMarkerViewer;
+
 namespace feeding {
 namespace nodes {
 
@@ -112,6 +115,16 @@ BT::NodeStatus RemoveSkeleton(BT::TreeNode &self, ada::Ada &robot) {
   return BT::NodeStatus::SUCCESS;
 }
 
+// Clear Frame and Trajectory Markers
+BT::NodeStatus ClearFrameMarkers(BT::TreeNode & /* self */) {
+  gMarkerViewer->clearFrameMarkers();
+  return BT::NodeStatus::SUCCESS;
+}
+BT::NodeStatus ClearTrajMarkers(BT::TreeNode & /* self */) {
+  gMarkerViewer->clearTrajectoryMarkers();
+  return BT::NodeStatus::SUCCESS;
+}
+
 /// Node registration
 static void registerNodes(BT::BehaviorTreeFactory &factory,
                           ros::NodeHandle & /*nh*/, ada::Ada &robot) {
@@ -127,6 +140,9 @@ static void registerNodes(BT::BehaviorTreeFactory &factory,
       "WorldRemove",
       std::bind(RemoveSkeleton, std::placeholders::_1, std::ref(robot)),
       {BT::InputPort<std::string>("skelName")});
+
+  factory.registerSimpleAction("WorldClearFrames", ClearFrameMarkers);
+  factory.registerSimpleAction("WorldClearTraj", ClearTrajMarkers);
 }
 static_block { feeding::registerNodeFn(&registerNodes); }
 

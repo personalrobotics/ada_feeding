@@ -9,6 +9,8 @@
 #include <ros/package.h>
 #include <ros/ros.h>
 
+aikido::rviz::InteractiveMarkerViewerPtr gMarkerViewer;
+
 int main(int argc, char **argv) {
   // Initialize ROS node
   ros::init(argc, argv, "feeding");
@@ -27,9 +29,9 @@ int main(int argc, char **argv) {
       nh.param<std::string>("visualization/topicName", "dart_markers/feeding");
   std::string vizBaseFrame =
       nh.param<std::string>("visualization/baseFrameName", "map");
-  aikido::rviz::InteractiveMarkerViewer viewer(vizTopic, vizBaseFrame,
-                                               robot.getWorld());
-  viewer.setAutoUpdate(true);
+  gMarkerViewer = std::make_shared<aikido::rviz::InteractiveMarkerViewer>(
+      vizTopic, vizBaseFrame, robot.getWorld());
+  gMarkerViewer->setAutoUpdate(true);
 
   // Register Behavior Tree Nodes
   ROS_INFO("Initializing Behavior Tree...");
@@ -68,5 +70,8 @@ int main(int argc, char **argv) {
         break;
     }
   }
+
+  // Cleanup
+  gMarkerViewer.reset();
   return 0;
 }

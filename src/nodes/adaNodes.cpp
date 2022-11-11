@@ -74,7 +74,6 @@ public:
   }
 
   BT::NodeStatus onStart() override {
-    std::cout << "Entering OnStart" << std::endl;
     BT::Expected<std::string> preshape;
     switch (T) {
     case kOPEN:
@@ -104,7 +103,6 @@ public:
     }
 
     // Do initial check of Future
-    std::cout << "Entering OnRunning" << std::endl;
     return onRunning();
   }
 
