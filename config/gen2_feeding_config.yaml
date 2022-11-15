@@ -78,6 +78,6 @@ move_out:
 
 # Transfer Parameters
 move_face:
-  undershoot: 0.03
+  undershoot: 0.08
 move_away:
   offset: [0.0, -0.05, 0.0]

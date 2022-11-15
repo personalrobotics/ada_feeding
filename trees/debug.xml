@@ -1,0 +1,22 @@
+<root main_tree_to_execute = "Root" >
+  <!-- Subtree Includes -->
+
+  <!-- Watchdog -->
+  <BehaviorTree ID="Root">
+    <Sequence>
+    <ClearPerceptionList target="{faces}" />
+    <ReactiveSequence name="DetectFaceWrapper">
+            <ForceSuccess>
+            <PerceiveFace timeout="1" objects="{faces}" />
+            </ForceSuccess>
+
+            <ReactiveFallback name="IsUserReady">
+              <IsMouthOpen faces="{faces}" />
+              <RosSubBool topic="user_ready" target="{ready}" />
+            </ReactiveFallback>
+          </ReactiveSequence>
+          <Debug />
+        </Sequence>
+  </BehaviorTree>
+
+</root>

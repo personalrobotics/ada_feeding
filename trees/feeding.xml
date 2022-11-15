@@ -38,6 +38,7 @@
         <ForceSuccess>
         <Sequence name="FeedBite">
           <!-- Acquisition -->
+          <!--
           <RetryUntilSuccessful num_attempts="3">
           <Sequence name="AcquireBite">
             <PerceiveFood name_filter="{food_name}" timeout="5" objects="{foods}" />
@@ -45,6 +46,7 @@
             <SubTree ID="AcquisitionAction" food_name="{food_name}" foods="{foods}" action="{action}" />
           </Sequence>
           </RetryUntilSuccessful>
+        -->
 
           <!-- Transfer -->
 
@@ -54,6 +56,7 @@
           <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
 
           <!-- Detect Face at least once -->
+          <ClearPerceptionList target="{faces}" />
           <RetryUntilSuccessful name="WaitForFace" num_attempts="-1">
             <PerceiveFace timeout="1" objects="{faces}" />
           </RetryUntilSuccessful>
@@ -76,7 +79,9 @@
           </ForceSuccess>
           <RosGetD param="move_face/undershoot" target="{undershoot}" />
           <ConfigMoveToFace faces="{faces}" undershoot="{undershoot}" offset="{offset}" />
-          <SubTree ID="MoveToOffset" offset="{offset}" worldCollision="{FALSE}" />
+          <!-- FT Sensor Trip is Okay -->
+          <AdaPlanToOffset name="PlanOffsetToUser" offset="{offset}" worldCollision="{FALSE}" traj="{traj}" />
+          <ForceSuccess><AdaExecuteTrajectory name="MoveToUser" traj="{traj}" /></ForceSuccess>
 
           <!-- Wait for User Ready -->
           <RosSubBool topic="user_ready" target="{ready}" />
@@ -152,7 +157,9 @@
     <RosGetD param="move_into/overshoot" target="{overshoot}" />
     <ConfigMoveInto objects="{foods}" overshoot="{overshoot}" offset="{offset}" />
     <SetFTThreshold preset="grabFood" />
-    <SubTree ID="MoveToOffset" offset="{offset}" worldCollision="{FALSE}" />
+    <!-- FT Sensor Trip is Okay -->
+    <AdaPlanToOffset name="PlanOffsetInto" offset="{offset}" worldCollision="{FALSE}" traj="{traj}" />
+    <ForceSuccess><AdaExecuteTrajectory name="MoveInto" traj="{traj}" /></ForceSuccess>
 
     <!-- Move Out -->
     <RosGetVecD param="move_out/offset" target="{offset}" />

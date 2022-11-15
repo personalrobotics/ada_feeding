@@ -39,7 +39,7 @@ void FTThresholdHelper::init(bool retare, const std::string &topicOverride) {
   swapTopic(topicOverride);
 
 #ifdef REWD_CONTROLLERS_FOUND
-  auto thresholdPair = getThresholdValues(STANDARD_FT_THRESHOLD);
+  auto thresholdPair = getThresholdValues("standard");
   mFTThresholdClient->setThresholds(thresholdPair.first, thresholdPair.second,
                                     retare);
   ROS_WARN_STREAM("initial threshold set finished");
@@ -56,7 +56,7 @@ void FTThresholdHelper::init(bool retare, const std::string &topicOverride) {
 void FTThresholdHelper::forceTorqueDataCallback(
     const geometry_msgs::WrenchStamped &msg) {
   std::lock_guard<std::mutex> lock(mDataCollectionMutex);
-  if (mCollectedForces.size() >= mDataPointsToCollect) {
+  if ((int)mCollectedForces.size() >= mDataPointsToCollect) {
     return;
   }
   Eigen::Vector3d force;
@@ -86,13 +86,13 @@ bool FTThresholdHelper::isDataCollectionFinished(Eigen::Vector3d &forces,
   std::lock_guard<std::mutex> lock(mDataCollectionMutex);
   forces.fill(0);
   torques.fill(0);
-  if (mCollectedForces.size() < mDataPointsToCollect) {
+  if ((int)mCollectedForces.size() < mDataPointsToCollect) {
     return false;
   }
   Eigen::Vector3d summedForces, summedTorques;
   summedForces.fill(0);
   summedTorques.fill(0);
-  for (int i = 0; i < mCollectedForces.size(); i++) {
+  for (int i = 0; i < (int)mCollectedForces.size(); i++) {
     summedForces = summedForces + mCollectedForces[i];
     summedTorques = summedTorques + mCollectedTorques[i];
   }

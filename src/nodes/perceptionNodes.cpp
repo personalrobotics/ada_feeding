@@ -79,6 +79,8 @@ public:
   }
 
   void enableTimers() {
+    currentFood.clear();
+    currentFace.clear();
     mFoodTimer.start();
     mFaceTimer.start();
   }
@@ -86,6 +88,8 @@ public:
   void disableTimers() {
     mFoodTimer.stop();
     mFaceTimer.stop();
+    currentFood.clear();
+    currentFace.clear();
   }
 
 private:
@@ -178,7 +182,6 @@ public:
       sPerception.disableTimers();
       // Apply Name Filter
       if (mNameFilter != "") {
-        ROS_WARN_STREAM("Filter: " << mNameFilter);
         objects.erase(std::remove_if(objects.begin(), objects.end(),
                                      [this](const DetectedObject &x) {
                                        return x.getName() != mNameFilter;
@@ -220,7 +223,6 @@ BT::NodeStatus IsMouthOpen(BT::TreeNode &self) {
   bool mouthOpen = false;
   try {
     auto yamlNode = obj.getYamlNode();
-    ROS_WARN_STREAM("Yaml Node: " << yamlNode);
     if (yamlNode["mouth-status"].as<std::string>() == "open") {
       mouthOpen = true;
     }
@@ -228,6 +230,12 @@ BT::NodeStatus IsMouthOpen(BT::TreeNode &self) {
   }
 
   return mouthOpen ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// Clear List of objects
+BT::NodeStatus ClearList(BT::TreeNode &self) {
+  self.setOutput("target", std::vector<DetectedObject>());
+  return BT::NodeStatus::SUCCESS;
 }
 
 /// Node registration
@@ -242,6 +250,10 @@ static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
   factory.registerSimpleAction(
       "IsMouthOpen", IsMouthOpen,
       {BT::InputPort<std::vector<DetectedObject>>("faces")});
+
+  factory.registerSimpleAction(
+      "ClearPerceptionList", ClearList,
+      {BT::OutputPort<std::vector<DetectedObject>>("target")});
 }
 static_block { feeding::registerNodeFn(&registerNodes); }
 

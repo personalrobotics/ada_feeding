@@ -40,15 +40,4 @@
     <rosparam file="$(find ada_feeding)/config/gen$(arg version)_feeding_config.yaml" command="load" />
   </node>
 
-  <!-- Simulated pose estimators -->
-  <group if="$(arg sim)">
-    <node pkg="ada_feeding"
-          name="food_detector"
-          type="run_sim_food_detector.py" />
-
-    <node pkg="ada_feeding"
-          name="face_detector"
-          type="run_sim_face_detector.py" />
-  </group>
-
 </launch>
