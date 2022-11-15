@@ -10,6 +10,8 @@ from pose_estimators.detected_item import DetectedItem
 import rospy
 import numpy as np
 
+from visualization_msgs.msg import Marker
+
 
 # This script runs a sim face detector which publishes markers for a
 # hypothetical user face with a perpetually open mouth.
@@ -50,7 +52,11 @@ if __name__ == "__main__":
     rospy.init_node("face_pose")
 
     pose_estimator = SimFaceDetector(detection_frame)
-    marker_manager = MarkerManager(count_items=False)
+    marker_manager = MarkerManager(count_items=False,
+        marker_type=Marker.MESH_RESOURCE, 
+        mesh_resource="package://pr_assets/data/objects/tom.dae",
+        scale=[1.0, 1.0, 1.0],
+        color=[1.0, 0.5, 0.5, 0.5],)
 
     perception_module = PerceptionModule(
         pose_estimator=pose_estimator,
