@@ -108,7 +108,7 @@ public:
       : BT::StatefulActionNode(name, config), mNode(nh) {}
 
   static BT::PortsList providedPorts() {
-    return {BT::InputPort<std::string>("topic"), BT::InputPort<T>("output")};
+    return {BT::InputPort<std::string>("topic"), BT::OutputPort<T>("target")};
   }
 
   BT::NodeStatus onStart() override {
@@ -131,7 +131,7 @@ public:
     if (!returnDataReady)
       return BT::NodeStatus::RUNNING;
 
-    setOutput("output", returnData);
+    setOutput("target", returnData);
 
     mSub.shutdown();
     return BT::NodeStatus::SUCCESS;

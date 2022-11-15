@@ -1,6 +1,6 @@
 #include "feeding/nodes.hpp"
 /**
- * Nodes for controlling ADA
+ * Nodes for interfacing with aikido::perception
  **/
 
 #include <Eigen/Core>
@@ -16,6 +16,8 @@ using aikido::perception::DetectedObject;
 
 #include <libada/util.hpp>
 using ada::util::getRosParam;
+
+#include <yaml-cpp/exceptions.h>
 
 namespace feeding {
 namespace nodes {
@@ -100,7 +102,7 @@ private:
 
   void faceCallback(const ros::TimerEvent &) {
     std::vector<DetectedObject> detectedObjects;
-    mFoodDetector->detectObjects(mAda->getWorld(),
+    mFaceDetector->detectObjects(mAda->getWorld(),
                                  ros::Duration(mPerceptionTimeout),
                                  ros::Time(0), &detectedObjects);
     std::lock_guard<std::mutex> lock(mFaceMutex);
@@ -176,6 +178,7 @@ public:
       sPerception.disableTimers();
       // Apply Name Filter
       if (mNameFilter != "") {
+        ROS_WARN_STREAM("Filter: " << mNameFilter);
         objects.erase(std::remove_if(objects.begin(), objects.end(),
                                      [this](const DetectedObject &x) {
                                        return x.getName() != mNameFilter;
@@ -203,6 +206,30 @@ private:
   std::string mNameFilter;
 };
 
+// Detect if mouth is open
+BT::NodeStatus IsMouthOpen(BT::TreeNode &self) {
+  // Input FAces
+  auto objectInput = self.getInput<std::vector<DetectedObject>>("faces");
+  if (!objectInput || objectInput.value().size() < 1) {
+    return BT::NodeStatus::FAILURE;
+  }
+  // Just select the first object
+  // TODO: more intelligent object selection
+  DetectedObject obj = objectInput.value()[0];
+
+  bool mouthOpen = false;
+  try {
+    auto yamlNode = obj.getYamlNode();
+    ROS_WARN_STREAM("Yaml Node: " << yamlNode);
+    if (yamlNode["mouth-status"].as<std::string>() == "open") {
+      mouthOpen = true;
+    }
+  } catch (const YAML::Exception &e) { /* Do Nothing */
+  }
+
+  return mouthOpen ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
 /// Node registration
 static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
                           ada::Ada &robot) {
@@ -211,6 +238,10 @@ static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
   // Perception Functions
   factory.registerNodeType<PerceiveFn<kFOOD>>("PerceiveFood");
   factory.registerNodeType<PerceiveFn<kFACE>>("PerceiveFace");
+
+  factory.registerSimpleAction(
+      "IsMouthOpen", IsMouthOpen,
+      {BT::InputPort<std::vector<DetectedObject>>("faces")});
 }
 static_block { feeding::registerNodeFn(&registerNodes); }
 

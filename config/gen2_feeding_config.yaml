@@ -6,7 +6,7 @@
 #     All distances are in m.
 #     All rotations are in radians.
 #     All robot configurations specify 6 joint angles in a list
-#     All transform use the format [x,y,z,rx,ry,rz] of positions and rotations in a list.
+#     All positiosn are [x, y, z], and quaternions are [w, x, y, z]
 #
 
 # Main.cpp Params
@@ -21,3 +21,48 @@ perception:
   referenceFrameName: j2n6s200_link_base
   rateSeconds: 0.5
   timeoutSeconds: 0.5
+
+# Workspace Params
+# Pose relative to robot base
+workspace:
+  wheelchair:
+    urdf: package://pr_assets/data/furniture/wheelchair.urdf
+    pos: [0.0, 0.0, 0.005]
+    quat: [1.0, 0.0, 0.0, 0.0]
+  plate:
+    urdf: package://pr_assets/data/objects/plate.urdf
+    pos: [0.255, -0.29, 0.205]
+    quat: [1.0, 0.0, 0.0, 0.0]
+  table:
+    urdf: package://pr_assets/data/furniture/table_feeding.urdf
+    pos: [0.06, -0.48, -0.515]
+    quat: [1.0, 0.0, 0.0, 0.0]
+
+# Hard-coded Configurations
+configs:
+  wheelchair:
+    # Ready for Transfer
+    in_front_person: [-2.30252, 4.23221, 3.84109, -4.65546, 3.94225, 4.26543]
+    # Ready for Acquisition
+    above_plate: [-2.11666, 3.34967, 2.04129, -2.30031, -2.34026, 2.9545]
+
+# Hard-coded Action Selection
+action_selection:
+  food_names: ["banana", "cantaloupe", "carrot", "grape", "strawberry"]
+  actions: [5.0, 1.0, 1.0, 3.0, 1.0]
+
+# Acquisition Parameters
+move_above:
+  rotation_agnostic: ["banana", "cantaloupe", "grape", "strawberry"]
+  tsr_bounds: [0.005, 0.005, 0.005, 0.01, 0.01, 0.01]
+  height: 0.1
+move_into:
+  overshoot: 0.005 # how far to plan past food surface
+move_out:
+  offset: [0.0, 0.0, 0.05]
+
+# Transfer Parameters
+move_face:
+  undershoot: 0.03
+move_away:
+  offset: [0.0, -0.05, 0.0]

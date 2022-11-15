@@ -1,4 +1,7 @@
 <root main_tree_to_execute = "Root" >
+  <!-- Subtree Includes -->
+
+  <!-- Watchdog -->
   <BehaviorTree ID="Root">
     <ReactiveSequence>
       <CheckWatchdog />
@@ -6,10 +9,152 @@
     </ReactiveSequence>
   </BehaviorTree>
 
+  <!-- Main Meal Sequence -->
   <BehaviorTree ID="Meal">
-    <Sequence>
-      <PerceiveFood timeout="5" name_filter="cantaloupe" objects="{foods}" />
-      <PerceiveFace timeout="1" objects="{face}" />
+    <Sequence name="MealSeq">
+      <!-- Scripting constants -->
+      <Script code=" TRUE:=true " />
+      <Script code=" FALSE:=false " />
+
+      <!-- Setup Workspace -->
+      <SubTree ID="ParamToWorld" obj_name="wheelchair" /> 
+      <SubTree ID="ParamToWorld" obj_name="table" /> 
+      <SubTree ID="ParamToWorld" obj_name="plate" />
+
+      <!-- Bite Sequence -->
+      <Repeat num_cycles="-1">
+      <Sequence name="BiteSeq">
+        <!-- Move Aboe Plate -->
+        <RosGetVecD param="configs/wheelchair/above_plate" target="{config}" />
+        <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
+        
+        <!-- Request Food -->
+        <RosSubString topic="food_request" target="{food_name}" />
+
+        <!-- Failure Just Restarts -->
+        <ForceSuccess>
+        <Sequence name="FeedBite">
+          <!-- Acquisition -->
+          <RetryUntilSuccessful num_attempts="3">
+          <Sequence name="AcquireBite">
+            <PerceiveFood name_filter="{food_name}" timeout="5" objects="{foods}" />
+            <ConfigActionSelect foods="{foods}" action="{action}" />
+            <SubTree ID="AcquisitionAction" food_name="{food_name}" foods="{foods}" action="{action}" />
+          </Sequence>
+          </RetryUntilSuccessful>
+
+          <!-- Transfer -->
+
+          <!-- Move in Front of Person -->
+          <RosGetVecD param="configs/wheelchair/in_front_person" target="{config}" />
+          <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
+
+          <!-- Detect Face at least once -->
+          <RetryUntilSuccessful name="WaitForFace" num_attempts="-1">
+            <PerceiveFace timeout="1" objects="{faces}" />
+          </RetryUntilSuccessful>
+
+          <!-- Wait for User Ready -->
+          <ReactiveSequence name="DetectFaceWrapper">
+            <ForceSuccess>
+            <PerceiveFace timeout="1" objects="{faces}" />
+            </ForceSuccess>
+
+            <ReactiveFallback name="IsUserReady">
+              <IsMouthOpen faces="{faces}" />
+              <RosSubBool topic="user_ready" target="{ready}" />
+            </ReactiveFallback>
+          </ReactiveSequence>
+
+          <!-- Move to User -->
+          <ForceSuccess>
+            <PerceiveFace timeout="1" objects="{faces}" />
+          </ForceSuccess>
+          <RosGetD param="move_face/undershoot" target="{undershoot}" />
+          <ConfigMoveToFace faces="{faces}" undershoot="{undershoot}" offset="{offset}" />
+          <SubTree ID="MoveToOffset" offset="{offset}" worldCollision="{FALSE}" />
+
+          <!-- Wait for User Ready -->
+          <RosSubBool topic="user_ready" target="{ready}" />
+
+          <!-- Move away from User -->
+          <RosGetVecD param="move_away/offset" target="{offset}" />
+          <SubTree ID="MoveToOffset" offset="{offset}" worldCollision="{FALSE}" />
+          <RosGetVecD param="configs/wheelchair/in_front_person" target="{config}" />
+          <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
+
+        </Sequence>
+        </ForceSuccess>
+      </Sequence>
+      </Repeat>
     </Sequence>
-  </BehaviorTree>  
+  </BehaviorTree>
+
+  <!-- Pull from Param Server and add to World -->
+  <BehaviorTree ID="ParamToWorld">
+    <Sequence name="ParamToWorldSeq">
+      <Script code=" urdfParam:='workspace/'+obj_name+'/urdf' " />
+      <RosGetString param="{urdfParam}" target="{urdf}" />
+
+      <Script code=" posParam:='workspace/'+obj_name+'/pos' " />
+      <RosGetVecD param="{posParam}" target="{pos}" />
+
+      <Script code=" quatParam:='workspace/'+obj_name+'/quat' " />
+      <RosGetVecD param="{quatParam}" target="{quat}" />
+      <WorldAddUpdate urdfUri="{urdf}" pos="{pos}" quat="{quat}" name="{obj_name}" />
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Movement Trees -->
+  <BehaviorTree ID="MoveToConfig">
+    <Sequence name="MoveToConfigSeq">
+      <AdaPlanToConfig config="{config}" worldCollision="{worldCollision}" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+    </Sequence>
+  </BehaviorTree>
+  <BehaviorTree ID="MoveToOffset">
+    <Sequence name="MoveToOffsetSeq">
+      <AdaPlanToOffset offset="{offset}" worldCollision="{worldCollision}" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+    </Sequence>
+  </BehaviorTree>
+  <BehaviorTree ID="MoveToPose">
+    <Sequence name="MoveToPoseSeq">
+      <AdaPlanToPose orig_pos="{orig_pos}" orig_quat="{orig_quat}"
+         pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{worldCollision}" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+    </Sequence>
+  </BehaviorTree>
+
+
+  <!-- Bite Acquisition -->
+  <BehaviorTree ID="AcquisitionAction">
+  <Sequence name="AcquisitionSeq">
+    <!-- Scripting constants -->
+    <Script code=" TRUE:=true " />
+    <Script code=" FALSE:=false " />
+
+    <!-- Move Above -->
+    <ConfigMoveAbove objects="{foods}" action="{action}" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" />
+    <SubTree ID="MoveToPose" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" />
+
+    <!-- Try Redetect Foods -->
+    <ForceSuccess>
+      <PerceiveFood name_filter="{food_name}" timeout="1" objects="{foods}" />
+    </ForceSuccess>
+
+    <!-- Move Into -->
+    <RosGetD param="move_into/overshoot" target="{overshoot}" />
+    <ConfigMoveInto objects="{foods}" overshoot="{overshoot}" offset="{offset}" />
+    <SubTree ID="MoveToOffset" offset="{offset}" worldCollision="{FALSE}" />
+
+    <!-- Move Out -->
+    <RosGetVecD param="move_out/offset" target="{offset}" />
+    <SubTree ID="MoveToOffset" offset="{offset}" worldCollision="{FALSE}" />
+
+    <!-- Check Acquisition -->
+    <RosSubBool topic="check_acquire" target="{acquired}" />
+    <Failure _successIf="acquired==true" />
+  </Sequence>
+  </BehaviorTree>
 </root>
