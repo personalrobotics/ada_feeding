@@ -42,6 +42,7 @@ int main(int argc, char **argv) {
   std::string defaultTree =
       ros::package::getPath("ada_feeding") + "/trees/default.xml";
   std::string treeFile = nh.param<std::string>("treeFile", defaultTree);
+  ROS_INFO_STREAM("Tree Root File: " << treeFile);
   auto tree = factory.createTreeFromFile(treeFile);
   // This logger prints state changes on console
   BT::StdCoutLogger logger_cout(tree);
@@ -52,10 +53,12 @@ int main(int argc, char **argv) {
   ros::Rate rate(100); // ROS Rate at 100Hz (10ms)
   while (ros::ok()) {
     auto status = BT::NodeStatus::RUNNING;
-    while (status == BT::NodeStatus::RUNNING) {
+    while (status == BT::NodeStatus::RUNNING && ros::ok()) {
       status = tree.tickOnce();
       rate.sleep();
     }
+    if (!ros::ok())
+      break;
 
     // User input to confirm demo restart
     if (!autoRestart) {

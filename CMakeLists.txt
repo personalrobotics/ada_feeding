@@ -97,6 +97,7 @@ file(GLOB_RECURSE SOURCES
     src/nodes/nodes.cpp
     src/nodes/robotNodes.cpp
     src/nodes/rosNodes.cpp
+    src/nodes/safetyNodes.cpp
     src/nodes/worldNodes.cpp)
 
 add_executable(feeding ${SOURCES})

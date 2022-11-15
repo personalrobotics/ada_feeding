@@ -1,0 +1,16 @@
+# Configuration file for the feeding demo with the Gen2 arm
+#
+# If not otherwise specified:
+#     All units are metric.
+#     All forces and torques are in N and Nm, respectively.
+#     All distances are in m.
+#     All rotations are in radians.
+#     All robot configurations specify 6 joint angles in a list
+#     All transform use the format [x,y,z,rx,ry,rz] of positions and rotations in a list.
+#
+
+# Main.cpp Params
+visualization:
+  topicName: dart_markers/feeding
+  baseFrameName: map
+  

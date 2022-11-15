@@ -1,0 +1,6 @@
+# ADA configuration overrides
+default_urdf: package://ada_description/robots_urdf/ada_with_camera_forque.urdf
+default_srdf: package://ada_description/robots_urdf/ada_with_camera_forque.srdf
+# TODO: read EE, arm, and hand from SRDF
+end_effector: j2n6s200_forque_end_effector
+arm_controller: move_until_touch_topic_controller
