@@ -15,6 +15,21 @@ visualization:
   topicName: dart_markers/feeding
   baseFrameName: map
 
+# FT Sensor Params
+ftSensor:
+  controllerFTThresholdTopic: /move_until_touch_topic_controller/set_forcetorque_threshold/
+  ftTopic: /forque/forqueSensor
+  thresholds:
+    standard:       # used when no other thresholds are specified
+      force: 4
+      torque: 4
+    grabFood:       # active when going down to grab the food
+      force: 15
+      torque: 2
+    afterGrabFood:  # active when going up after food has been grabbed
+      force: 50
+      torque: 2
+
 # Perception parameters
 perception:
   detectorDataUri: package://pr_assets/data/objects/tag_data_foods.json

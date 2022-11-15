@@ -21,6 +21,15 @@ int main(int argc, char **argv) {
   // Construct ADA Robot Object
   ROS_INFO("Initializing ADA...");
   bool isSim = nh.param("sim", true);
+
+  // Check for rewd_controllers on real robot
+#ifndef REWD_CONTROLLERS_FOUND
+  if (!isSim) {
+    ROS_ERROR_STREAM("MUST have rewd_controllers for real robot!");
+    return -1;
+  }
+#endif
+
   ada::Ada robot(isSim);
 
   // Start Visualization

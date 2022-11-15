@@ -48,7 +48,7 @@ public:
   /// because of an error.
   /// \return True if the thresholds were set successfully or false if we
   /// experienced a timeout.
-  bool setThresholds(FTThreshold, bool retare = false);
+  bool setThresholds(std::string preset, bool retare = false);
 
   bool setThresholds(double forces, double torques, bool retare = false);
 
@@ -72,7 +72,7 @@ private:
   std::unique_ptr<rewd_controllers::FTThresholdClient> mFTThresholdClient;
 #endif
 
-  std::pair<double, double> getThresholdValues(FTThreshold threshold);
+  std::pair<double, double> getThresholdValues(std::string preset);
 
   /**
    * \brief Called whenever a new Force/Torque message arrives on the ros topic

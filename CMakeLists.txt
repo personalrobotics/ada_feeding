@@ -92,9 +92,11 @@ include_directories(include)
 file(GLOB_RECURSE SOURCES
     LIST_DIRECTORIES false
     src/main.cpp
+    src/FTThresholdHelper.cpp
     src/nodes/adaNodes.cpp
     src/nodes/configNodes.cpp
     src/nodes/debug.cpp
+    src/nodes/forqueNodes.cpp
     src/nodes/nodes.cpp
     src/nodes/perceptionNodes.cpp
     src/nodes/robotNodes.cpp

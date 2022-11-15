@@ -97,7 +97,7 @@ ftSensor:
       force: 4
       torque: 4
     grabFood:       # active when going down to grab the food
-      force: 22
+      force: 15
       torque: 2
     afterGrabFood:  # active when going up after food has been grabbed
       force: 50
