@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
   // Initialize ROS node
   ros::init(argc, argv, "feeding");
   ros::NodeHandle nh("~");
-  ros::AsyncSpinner spinner(2); // 2 threads
+  ros::AsyncSpinner spinner(3); // 3 threads
   spinner.start();
 
   // Construct ADA Robot Object

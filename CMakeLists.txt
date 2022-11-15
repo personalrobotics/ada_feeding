@@ -95,6 +95,7 @@ file(GLOB_RECURSE SOURCES
     src/nodes/adaNodes.cpp
     src/nodes/debug.cpp
     src/nodes/nodes.cpp
+    src/nodes/perceptionNodes.cpp
     src/nodes/robotNodes.cpp
     src/nodes/rosNodes.cpp
     src/nodes/safetyNodes.cpp

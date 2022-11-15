@@ -21,6 +21,8 @@ public:
   }
 
   void init(ros::NodeHandle &nh) {
+    double timeout = nh.param("watchdogTimeout", 0.005);
+    mTimeout = ros::Duration(timeout);
     mSub = nh.subscribe<std_msgs::Bool>(
         "watchdog", 1, [this](const std_msgs::BoolConstPtr &msg) {
           if (msg->data)
@@ -40,8 +42,14 @@ public:
       if (!mWatchdogFed.load()) {
         return BT::NodeStatus::RUNNING;
       } else {
+        mLastFeed = ros::Time::now();
         mFirstRun = false;
       }
+    }
+
+    // If within timeout, no issues
+    if (ros::Time::now() - mLastFeed < mTimeout) {
+      return BT::NodeStatus::SUCCESS;
     }
 
     // If watchdog not fed, drop to e-stop
@@ -50,6 +58,7 @@ public:
       return BT::NodeStatus::FAILURE;
     } else {
       mWatchdogFed.store(false);
+      mLastFeed = ros::Time::now();
     }
     return BT::NodeStatus::SUCCESS;
   }
@@ -59,6 +68,8 @@ private:
   bool mFirstRun;
   std::atomic<bool> mWatchdogFed;
   std::atomic<bool> mEStop;
+  ros::Time mLastFeed;
+  ros::Duration mTimeout;
 };
 
 /// Node registration

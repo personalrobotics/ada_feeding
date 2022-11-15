@@ -10,7 +10,14 @@
 #
 
 # Main.cpp Params
+watchdogTimeout: 0.05 #50ms until watchdog dies
 visualization:
   topicName: dart_markers/feeding
   baseFrameName: map
-  
+
+# Perception parameters
+perception:
+  detectorDataUri: package://pr_assets/data/objects/tag_data_foods.json
+  referenceFrameName: j2n6s200_link_base
+  rateSeconds: 0.5
+  timeoutSeconds: 0.5

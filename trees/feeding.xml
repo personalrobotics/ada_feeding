@@ -2,7 +2,14 @@
   <BehaviorTree ID="Root">
     <ReactiveSequence>
       <CheckWatchdog />
-      <RosSubBool topic="testing" output="{output}" />
+      <SubTree ID="Meal"/>
     </ReactiveSequence>
   </BehaviorTree>
+
+  <BehaviorTree ID="Meal">
+    <Sequence>
+      <PerceiveFood timeout="5" name_filter="cantaloupe" objects="{foods}" />
+      <PerceiveFace timeout="1" objects="{face}" />
+    </Sequence>
+  </BehaviorTree>  
 </root>
