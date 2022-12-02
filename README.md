@@ -78,7 +78,22 @@ Note that the current demo has only been tested on the JACO 2.
 
 ### Demo Run Steps
 
-TODO
+1. Ensure that your Workspace is built: `cd <catkin_ws>; catkin build; . devel/setup.bash`
+2. Start up **ROS** and **Rviz**: `roscore` and `roslaunch ada_feeding rviz.launch`
+3. **Turn on and home ADA.** Once the lights on the joystick go solid, home ADA by holding the orange button until the robot stops moving.
+4. **Start the Camera**: `ssh nano` (you may need to add `nano` to your `.ssh/config`, this is the Nvidia Jetson Nano on the robot).
+    1. Once there, set your ROS Master using `uselovelace` or `useweebo` (or set your ROS_MASTER_URI manually).
+    2. Execute `./run_camera.sh` to start streaming RGBD data.
+    3. *Note: You may have to adjust the camera exposure, depending on the lighting condition. Either run `run_adjust_camera_daylight.sh` or `run_adjust_camera_all.sh` after running `run_camera.sh`.* 
+    4. Check the image stream via Rviz (`/camera/color/image_raw/color`). If some area is too bright and look burnt or saturated, reduce the exposure.
+5. **Run F/T Sensor**: `roslaunch forque_sensor_hardware forque.launch` (Optionally add `forque_ip:=<IPv4>` if your Net-FT is on a non-default IP)
+6. **Run Face Detection**: `rosrun face_detection face_detection`
+7. **(Optional) Run Alexa code**: cd to the `ADA_Talk` directory, and run:
+      a) `roslaunch rosbridge_server rosbridge_websocket.launch`
+      b) `bst proxy lambda index.js`
+8. **Start Demo Code**: `roslaunch ada_feeding feeding.launch sim:=false` (*Note: this should also set `use_forque:=true` and `use_apriltag_calib:=true`*)
+9. **Start Perception**: `roslaunch ada_feeding perception.launch`
+10. Follows steps 5-6 of "Running the Demo in Simulation" to actually run the demo with `rqt_publisher`.
 
 ## Other things to note
 - After running the demo one time, the Joystick switches from cartesian control to joint control until you restart Ada.
