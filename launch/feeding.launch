@@ -34,6 +34,7 @@
     <remap from="~watchdog" to="/watchdog" />
     <remap from="~food_detector" to="/food_detector/marker_array" />
     <remap from="~face_detector" to="/face_detector/marker_array" />
+    <remap from="~food_request" to="/alexa_msgs" />
     <param name="sim" value="$(arg sim)" />
     <param name="autoRestart" value="$(arg autoRestart)" />
     <param name="treeFile" value="$(find ada_feeding)/trees/$(arg treeFile)" />

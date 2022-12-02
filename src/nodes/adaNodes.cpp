@@ -135,6 +135,16 @@ private:
   std::future<void> mFuture;
 };
 
+BT::NodeStatus Talk(BT::TreeNode &self) {
+  auto input = self.getInput<std::string>("say");
+  if (!input)
+    return BT::NodeStatus::FAILURE;
+  std::string cmd = "aoss swift \"" + input.value() + "\"" + " &";
+  std::system(cmd.c_str());
+
+  return BT::NodeStatus::SUCCESS;
+}
+
 /// Node registration
 static void registerNodes(BT::BehaviorTreeFactory &factory,
                           ros::NodeHandle & /*&nh */, ada::Ada &robot) {
@@ -158,6 +168,10 @@ static void registerNodes(BT::BehaviorTreeFactory &factory,
   factory.registerNodeType<AdaHandNode<kCLOSE>>("AdaCloseHand", &robot);
   factory.registerNodeType<AdaHandNode<kPRESHAPE>>("AdaHandPreshape", &robot);
   factory.registerNodeType<AdaHandNode<kCONFIG>>("AdaHandConfig", &robot);
+
+  // Simple Talking Action
+  factory.registerSimpleAction("Talk", Talk,
+                               {BT::InputPort<std::string>("say")});
 }
 static_block { feeding::registerNodeFn(&registerNodes); }
 

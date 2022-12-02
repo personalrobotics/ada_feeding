@@ -21,6 +21,12 @@
       <SubTree ID="ParamToWorld" obj_name="table" /> 
       <SubTree ID="ParamToWorld" obj_name="plate" />
 
+      <!-- Setup ADA -->
+      <RosGetVecD param="velocityLimits/standard" target="{vel_standard}" />
+      <AdaSetLimits velocity="{vel_standard}" />
+
+      <Talk say="Hello! My name is Ayduh, it's a pleasure to serve you today!" />
+
       <!-- Bite Sequence -->
       <Repeat num_cycles="-1">
       <Sequence name="BiteSeq">
@@ -32,19 +38,19 @@
         <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
         
         <!-- Request Food -->
+        <Talk say="What food would you like?" />
         <RosSubString topic="food_request" target="{food_name}" />
+        <Script code=" statement := 'One '+food_name+' coming right up!'" />
+        <Talk say="{statement}" />
 
         <!-- Failure Just Restarts -->
         <ForceSuccess>
         <Sequence name="FeedBite">
           <!-- Acquisition -->
-          
+          <PerceiveFood name_filter="{food_name}" timeout="5" objects="{foods}" />
+          <ConfigActionSelect foods="{foods}" action="{action}" />
           <RetryUntilSuccessful num_attempts="3">
-          <Sequence name="AcquireBite">
-            <PerceiveFood name_filter="{food_name}" timeout="5" objects="{foods}" />
-            <ConfigActionSelect foods="{foods}" action="{action}" />
             <SubTree ID="AcquisitionAction" food_name="{food_name}" foods="{foods}" action="{action}" />
-          </Sequence>
           </RetryUntilSuccessful>
         
 
@@ -56,6 +62,7 @@
           <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
 
           <!-- Detect Face at least once -->
+          <Talk say="Open your mouth when ready." />
           <ClearPerceptionList target="{faces}" />
           <RetryUntilSuccessful name="WaitForFace" num_attempts="-1">
             <PerceiveFace timeout="1" objects="{faces}" />
@@ -74,6 +81,8 @@
           </ReactiveSequence>
 
           <!-- Move to User -->
+          <RosGetVecD param="velocityLimits/approach" target="{vel_approach}" />
+          <AdaSetLimits velocity="{vel_approach}" />
           <ForceSuccess>
             <PerceiveFace timeout="1" objects="{faces}" />
           </ForceSuccess>
@@ -84,11 +93,14 @@
           <ForceSuccess><AdaExecuteTrajectory name="MoveToUser" traj="{traj}" /></ForceSuccess>
 
           <!-- Wait for User Ready -->
+          <Talk say="Enjoy!" />
           <RosSubBool topic="user_ready" target="{ready}" />
 
           <!-- Move away from User -->
+          <Talk say="Let me get out of your way!" />
           <RosGetVecD param="move_away/offset" target="{offset}" />
           <SubTree ID="MoveToOffset" offset="{offset}" worldCollision="{FALSE}" />
+          <AdaSetLimits velocity="{vel_standard}" />
           <RosGetVecD param="configs/wheelchair/in_front_person" target="{config}" />
           <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
 

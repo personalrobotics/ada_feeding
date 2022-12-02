@@ -56,7 +56,16 @@ Note that the current demo has only been tested on the JACO 2.
 
 ## Running the Demo in Simulation
 
-TODO
+1. Ensure that your Workspace is built: `cd <catkin_ws>; catkin build; . devel/setup.bash`
+2. Start up ROS and rviz: `roscore` and `roslaunch ada_feeding rviz.launch`
+3. Start up simulated perception: `roslaunch ada_feeding perception.launch sim:=true`
+4. Run Simulation: `roslaunch ada_feeding feeding.launch sim:=true`. This runs `trees/feeding.xml` by default.
+5. Start up an RQT Publisher: `rosrun rqt_publisher rqt_publisher`
+6. Set up publications to the following topics:
+    1. `/watchdog`: (std_mgs/Bool). A heartbeat that triggers E-Stop if it stops publishing. Publish `True` at 100Hz. **(Note: This will start the demo)**
+    2. `/feeding/check_acquire` (std_msgs/Bool). Is checked for True/False after acquisition to determine success.
+    3. `/feeding/user_ready` (std_msgs/Bool). Is checked for True for pre-transfer and after transfer to determine when to advance the demo.
+    4. `/alexa_msgs` (std_msgs/String). (Mapped from `~food_request`). Is checked pre-acquisition to determine which food type to acquire.
 
 ## Running the Demo on the JACO 2
 
@@ -67,15 +76,24 @@ TODO
 2) Do the same in `src/bite_selection_package`: run `load_checkpoint.sh` (or train your own checkpoint)
 3) Make sure your source `devel/setup.bash` in *every* terminal you use.
 
-###
+### Demo Run Steps
 
-TODO
-
-## Running with acquisition detection
-To run with acquisition detection (and not require manual success/failure input from the supervisor) run
-`roslaunch ada_launch default.launch feeding:=true acquisition_detection:=true`
-
-The model files will need to be downloaded by running `ada_demos/feeding/bash_scripts/download_detector_checkpoint.sh`
+1. Ensure that your Workspace is built: `cd <catkin_ws>; catkin build; . devel/setup.bash`
+2. Start up **ROS** and **Rviz**: `roscore` and `roslaunch ada_feeding rviz.launch`
+3. **Turn on and home ADA.** Once the lights on the joystick go solid, home ADA by holding the orange button until the robot stops moving.
+4. **Start the Camera**: `ssh nano` (you may need to add `nano` to your `.ssh/config`, this is the Nvidia Jetson Nano on the robot).
+    1. Once there, set your ROS Master using `uselovelace` or `useweebo` (or set your ROS_MASTER_URI manually).
+    2. Execute `./run_camera.sh` to start streaming RGBD data.
+    3. *Note: You may have to adjust the camera exposure, depending on the lighting condition. Either run `run_adjust_camera_daylight.sh` or `run_adjust_camera_all.sh` after running `run_camera.sh`.* 
+    4. Check the image stream via Rviz (`/camera/color/image_raw/color`). If some area is too bright and look burnt or saturated, reduce the exposure.
+5. **Run F/T Sensor**: `roslaunch forque_sensor_hardware forque.launch` (Optionally add `forque_ip:=<IPv4>` if your Net-FT is on a non-default IP)
+6. **Run Face Detection**: `rosrun face_detection face_detection`
+7. **(Optional) Run Alexa code**: cd to the `ADA_Talk` directory, and run:
+      a) `roslaunch rosbridge_server rosbridge_websocket.launch`
+      b) `bst proxy lambda index.js`
+8. **Start Demo Code**: `roslaunch ada_feeding feeding.launch sim:=false` (*Note: this should also set `use_forque:=true` and `use_apriltag_calib:=true`*)
+9. **Start Perception**: `roslaunch ada_feeding perception.launch`
+10. Follows steps 5-6 of "Running the Demo in Simulation" to actually run the demo with `rqt_publisher`.
 
 ## Other things to note
 - After running the demo one time, the Joystick switches from cartesian control to joint control until you restart Ada.
@@ -92,13 +110,11 @@ The model files will need to be downloaded by running `ada_demos/feeding/bash_sc
 - Whenever you install something to fix dependencies, make sure to _clean_ the affected repositories before you build them again!
 - Whenever you run something, make sure to _source the setup.bash_ in the workspace in _every terminal_ you use! We recommend putting it in your `~/.bashrc` file.
 - If you have dartsim in the workspace, it might not link to `libnlopt` correctly and you might see an error message when compiling `libada`. When this happens, remove dartsim and install `sudo apt-get libdart6-all-dev`.
-- If you run into internet connection problems, try running `sudo route delete default gw 192.168.1.1`. In general, when running `route -n`, you should see the gateway `192.168.2.1` *above* `192.168.1.1`.
 
 ## Safety notes
-- The feeding demo has collision boxes for you and your computer, so the robot shouldn't try to hit you usually. But still:
 - You can stop Ada's movement by `Ctrl-C`-ing `feeding.launch`.
 - **Never use the joystick while the controllers (step 7) are running.** Both will fight over control of Ada and they will not care about collision boxes.
 - Be familiar with the location of Ada's on/off-switch :)
 
 ## Misc Notes
-- 3D models and details for the joule, which mounts the RealSense onto the gen2 arm, can be found [here](https://github.com/ramonidea/wireless-data-transmission/tree/master/wiki).
+- 3D models and details for the Jetson Nano, which mounts the RealSense onto the gen2 arm, can be found [here](https://github.com/ramonidea/wireless-data-transmission/tree/master/wiki).

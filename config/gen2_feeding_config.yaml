@@ -15,6 +15,11 @@ visualization:
   topicName: dart_markers/feeding
   baseFrameName: map
 
+# Ada Node Params
+velocityLimits:
+  standard: [0.6, 0.6, 0.6, 0.6, 0.6, 0.6]
+  approach: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
+
 # FT Sensor Params
 ftSensor:
   controllerFTThresholdTopic: /move_until_touch_topic_controller/set_forcetorque_threshold/
