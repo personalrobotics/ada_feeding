@@ -14,7 +14,8 @@ Runs the Feeding Demo. See the [Miro board](https://miro.com/app/board/uXjVPF445
 
 It relies on sub-trees in the `feeding` folder.
 
-### Tree TODOs
+## Tree TODOs
 
 * Small trees for moving the robot (i.e. combining planning and execute operations)
-
+* Update trees to explicitly use BT_v4 root header
+* Separate acquisition and transfer into different sub-tree files.
