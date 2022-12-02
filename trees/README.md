@@ -17,5 +17,6 @@ It relies on sub-trees in the `feeding` folder.
 ## Tree TODOs
 
 * Small trees for moving the robot (i.e. combining planning and execute operations)
+* Small tree wrapping WorldAddUpdate (see `feeding.xml`)
 * Update trees to explicitly use BT_v4 root header
 * Separate acquisition and transfer into different sub-tree files.
