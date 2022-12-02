@@ -74,6 +74,7 @@ int main(int argc, char **argv) {
       status = tree.tickOnce();
       rate.sleep();
     }
+    ros::Duration(0.1).sleep();
     if (!ros::ok())
       break;
 
