@@ -1,0 +1,45 @@
+# whole-arm base trajectory controller
+move_until_touch_topic_controller:
+  mode: TRAJECTORY
+  is_lazy: NOPE
+  type: rewd_controllers/MoveUntilTouchTopicController
+  # Forque Sensor
+  forcetorque_wrench_name: /forque/forqueSensor
+  forcetorque_tare_name: /forque/bias_controller/trigger
+  # FingerVision
+  # forcetorque_wrench_name: /fingervision/fv_3_l/wrench
+  # forcetorque_tare_name: /fingervision/fingerVisionTaring
+  sensor_force_limit: 50
+  sensor_torque_limit: 5
+  max_ft_delay: 100
+  joints: [joint_1, joint_2, joint_3,
+    joint_4, joint_5, joint_6]
+  control_type: velocity
+  constraints:
+    stopped_velocity_tolerance: 1.0
+    joint_1:
+      goal: 0.04
+      trajectory: 5.0
+    joint_2:
+      goal: 0.04
+      trajectory: 5.0
+    joint_3:
+      goal: 0.04
+      trajectory: 5.0
+    joint_4:
+      goal: 0.04
+      trajectory: 5.0
+    joint_5:
+      goal: 0.04
+      trajectory: 5.0
+    joint_6:
+      goal: 0.04
+      trajectory: 5.0
+  gains: # Required because we're controlling a velocity interface
+    joint_1: {p: 1.2,  d: 0, i: 0, i_clamp: 1.0}
+    joint_2: {p: 1.2,  d: 0, i: 0, i_clamp: 1.0}
+    joint_3: {p: 1.2,  d: 0, i: 0, i_clamp: 1.0}
+    joint_4: {p: 1.2,  d: 0, i: 0, i_clamp: 1.0}
+    joint_5: {p: 1.2,  d: 0, i: 0, i_clamp: 1.0}
+    joint_6: {p: 1.2,  d: 0, i: 0, i_clamp: 1.0}
+  mode_handle: joint_mode

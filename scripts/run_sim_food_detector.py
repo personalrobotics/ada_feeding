@@ -44,10 +44,25 @@ class SimFoodDetector(PoseEstimator):
             detected_time=rospy.Time.now(),
             info_map=dict(action="vertical", rotation=90.0, score=1.0))
 
+        # Pose at which the food is on the plate
+        pose3 = np.array([[1, 0, 0, 0.2],
+                          [0, 1, 0, -0.42],
+                          [0, 0, 1, 0.25],
+                          [0, 0, 0, 1]])
+        self.item3 = DetectedItem(
+            frame_id=frame_id,
+            marker_namespace="banana",
+            marker_id=1,
+            db_key="food_item",
+            pose=pose3,
+            detected_time=rospy.Time.now(),
+            info_map=dict(action="angled-vertical", rotation=0.0, score=1.0))
+
     def detect_objects(self):
         self.item1.detected_time = rospy.Time.now()
         self.item2.detected_time = rospy.Time.now()
-        return [self.item1, self.item2]
+        self.item3.detected_time = rospy.Time.now()
+        return [self.item1, self.item2, self.item3]
 
 
 # When running without a robot, publish a static transform between map and another frame

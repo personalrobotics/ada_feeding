@@ -76,7 +76,7 @@ find_package(pr_tsr REQUIRED)
 include_directories(${pr_tsr_INCLUDE_DIRS})
 
 find_package(behaviortree_cpp REQUIRED)
-include_directories(${behaviortree_cpp_INCLUDE_DIRS})
+#include_directories(${behaviortree_cpp_INCLUDE_DIRS})
 
 #================================================================================
 # Compiler settings
@@ -110,7 +110,7 @@ target_link_libraries(feeding
   ${DART_LIBRARIES}
   ${aikido_LIBRARIES}
   libada
-  ${behaviortree_cpp_LIBRARIES})
+  BT::behaviortree_cpp)
 
 IF (rewd_controllers_FOUND)
   target_link_libraries(feeding ${rewd_controllers_LIBRARIES})

@@ -1,4 +1,4 @@
-# Configuration file for the feeding demo with the Gen2 arm
+# Configuration file for the feeding demo with the Gen3 arm
 #
 # If not otherwise specified:
 #     All units are metric.
@@ -33,7 +33,7 @@ ftSensor:
 # Perception parameters
 perception:
   detectorDataUri: package://pr_assets/data/objects/tag_data_foods.json
-  referenceFrameName: j2n6s200_link_base
+  referenceFrameName: base_link
   rateSeconds: 0.5
   timeoutSeconds: 0.5
 
@@ -42,24 +42,24 @@ perception:
 workspace:
   wheelchair:
     urdf: package://pr_assets/data/furniture/wheelchair.urdf
-    pos: [0.0, 0.0, 0.005]
+    pos: [0.03, 0.0, -0.245]
     quat: [1.0, 0.0, 0.0, 0.0]
   plate:
     urdf: package://pr_assets/data/objects/plate.urdf
-    pos: [0.255, -0.29, 0.205]
+    pos: [0.24, -0.39, 0.213]
     quat: [1.0, 0.0, 0.0, 0.0]
   table:
-    urdf: package://pr_assets/data/furniture/table_feeding.urdf
-    pos: [-0.06, -0.48, -0.515]
+    urdf: package://pr_assets/data/furniture/emprise_table_feeding.urdf
+    pos: [0.24, -0.695, -0.517]
     quat: [1.0, 0.0, 0.0, 0.0]
 
 # Hard-coded Configurations
 configs:
   wheelchair:
     # Ready for Transfer
-    in_front_person: [-2.30252, 4.23221, 3.84109, -4.65546, 3.94225, 4.26543]
+    in_front_person: [-0.38631117663642467, 1.4616608886676912, 1.0877240964279062, 0.4555658413555599, 1.906789661096325, -1.3934010616221935]
     # Ready for Acquisition
-    above_plate: [-2.11666, 3.34967, 2.04129, -2.30031, -2.34026, 2.9545]
+    above_plate: [-0.43100905877999907, 0.3052406328812883, -0.8256803625334772, -0.0732514687062018, -1.9089015094912378, 1.043968692080408]
 
 # Hard-coded Action Selection
 action_selection:

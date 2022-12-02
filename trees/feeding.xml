@@ -38,7 +38,7 @@
         <ForceSuccess>
         <Sequence name="FeedBite">
           <!-- Acquisition -->
-          <!--
+          
           <RetryUntilSuccessful num_attempts="3">
           <Sequence name="AcquireBite">
             <PerceiveFood name_filter="{food_name}" timeout="5" objects="{foods}" />
@@ -46,7 +46,7 @@
             <SubTree ID="AcquisitionAction" food_name="{food_name}" foods="{foods}" action="{action}" />
           </Sequence>
           </RetryUntilSuccessful>
-        -->
+        
 
           <!-- Transfer -->
 
