@@ -15,6 +15,11 @@ visualization:
   topicName: dart_markers/feeding
   baseFrameName: map
 
+# Ada Node Params
+velocityLimits:
+  standard: [0.6, 0.6, 0.6, 0.6, 0.6, 0.6]
+  approach: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
+
 # FT Sensor Params
 ftSensor:
   controllerFTThresholdTopic: /move_until_touch_topic_controller/set_forcetorque_threshold/
@@ -70,14 +75,14 @@ action_selection:
 move_above:
   rotation_agnostic: ["banana", "cantaloupe", "grape", "strawberry"]
   tsr_bounds: [0.005, 0.005, 0.005, 0.01, 0.01, 0.01]
-  height: 0.1
+  height: 0.07
 move_into:
-  overshoot: 0.005 # how far to plan past food surface
+  overshoot: -0.02 # how far to plan past food surface
 move_out:
   offset: [0.0, 0.0, 0.05]
 
 # Transfer Parameters
 move_face:
-  undershoot: 0.08
+  undershoot: 0.15
 move_away:
   offset: [0.0, -0.05, 0.0]

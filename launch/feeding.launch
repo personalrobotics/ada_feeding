@@ -3,7 +3,7 @@
   <arg name="sim" default="false" doc="Whether to run in Aikido-sim only" />
   <arg name="version" default="2" doc="Kinova Arm Version (JACO = 2, Kortex = 3)" />
   <arg name="use_forque" value="true" />
-  <arg name="use_apriltag_calib" value="$(eval not arg('sim'))" />
+  <arg name="use_apriltag_calib" value="false" />
 
   <!-- Feeding Args -->
   <arg name="autoRestart" default="false" doc="Whether to restart behavior tree at end without command line input." />
@@ -40,5 +40,9 @@
     <param name="treeFile" value="$(find ada_feeding)/trees/$(arg treeFile)" />
     <rosparam file="$(find ada_feeding)/config/gen$(arg version)_feeding_config.yaml" command="load" />
   </node>
+
+  <node name="relay_camera_info" pkg="topic_tools" type="relay" args="/camera/depth_registered/sw_registered/camera_info /camera/aligned_depth_to_color/camera_info" /> 
+
+  <node name="relay_depth_info" pkg="topic_tools" type="relay" args="/camera/depth_registered/sw_registered/image_rect_raw /camera/aligned_depth_to_color/image_raw" /> 
 
 </launch>
