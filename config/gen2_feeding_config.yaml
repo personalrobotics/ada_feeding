@@ -83,6 +83,6 @@ move_out:
 
 # Transfer Parameters
 move_face:
-  undershoot: 0.08
+  overshoot: -0.08 # How far from mouth to stop
 move_away:
   offset: [0.0, -0.05, 0.0]

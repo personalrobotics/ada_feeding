@@ -232,57 +232,11 @@ private:
   ros::NodeHandle *mNode;
 };
 
-class ConfigMoveToFace : public BT::SyncActionNode {
-public:
-  ConfigMoveToFace(const std::string &name, const BT::NodeConfig &config,
-                   ada::Ada *robot, ros::NodeHandle *nh)
-      : BT::SyncActionNode(name, config), mAda(robot), mNode(nh) {}
-
-  static BT::PortsList providedPorts() {
-    return {BT::InputPort<std::vector<DetectedObject>>("faces"),
-            BT::InputPort<double>("undershoot"),
-            BT::OutputPort<std::vector<double>>("offset")};
-  }
-
-  BT::NodeStatus tick() override {
-    // Read Params
-    auto objectInput = getInput<std::vector<DetectedObject>>("faces");
-    if (!objectInput || objectInput.value().size() < 1) {
-      return BT::NodeStatus::FAILURE;
-    }
-    // Just select the first object
-    // TODO: more intelligent object selection
-    DetectedObject obj = objectInput.value()[0];
-
-    auto undershootInput = getInput<double>("undershoot");
-    double undershoot = undershootInput ? undershootInput.value() : 0.0;
-
-    Eigen::Isometry3d objTransform =
-        obj.getMetaSkeleton()->getBodyNode(0)->getWorldTransform();
-    Eigen::Isometry3d eeTransform =
-        mAda->getEndEffectorBodyNode()->getWorldTransform();
-    Eigen::Vector3d eOffset =
-        objTransform.translation() - eeTransform.translation();
-    // Add overshoot
-    eOffset = eOffset.normalized() * (eOffset.norm() - undershoot);
-
-    std::vector<double> offset{eOffset.x(), eOffset.y(), eOffset.z()};
-
-    setOutput("offset", offset);
-    return BT::NodeStatus::SUCCESS;
-  }
-
-private:
-  ada::Ada *mAda;
-  ros::NodeHandle *mNode;
-};
-
 /// Node registration
 static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
                           ada::Ada &robot) {
   factory.registerNodeType<ConfigMoveAbove>("ConfigMoveAbove", &robot, &nh);
   factory.registerNodeType<ConfigMoveInto>("ConfigMoveInto", &robot, &nh);
-  factory.registerNodeType<ConfigMoveToFace>("ConfigMoveToFace", &robot, &nh);
   factory.registerSimpleAction(
       "ConfigActionSelect",
       std::bind(ConfigActionSelect, std::placeholders::_1, std::ref(nh)),

@@ -1,5 +1,6 @@
-<root main_tree_to_execute = "Root" >
+<root BTCPP_format="4" main_tree_to_execute = "Root" >
   <!-- Subtree Includes -->
+  <include path="./helpers.xml" />
 
   <!-- Watchdog -->
   <BehaviorTree ID="Root">
@@ -86,8 +87,8 @@
           <ForceSuccess>
             <PerceiveFace timeout="1" objects="{faces}" />
           </ForceSuccess>
-          <RosGetD param="move_face/undershoot" target="{undershoot}" />
-          <ConfigMoveToFace faces="{faces}" undershoot="{undershoot}" offset="{offset}" />
+          <RosGetD param="move_face/overshoot" target="{overshoot}" />
+          <ConfigMoveInto objects="{faces}" overshoot="{overshoot}" offset="{offset}" />
           <!-- FT Sensor Trip is Okay -->
           <AdaPlanToOffset name="PlanOffsetToUser" offset="{offset}" worldCollision="{FALSE}" traj="{traj}" />
           <ForceSuccess><AdaExecuteTrajectory name="MoveToUser" traj="{traj}" /></ForceSuccess>
@@ -110,43 +111,6 @@
       </Repeat>
     </Sequence>
   </BehaviorTree>
-
-  <!-- Pull from Param Server and add to World -->
-  <BehaviorTree ID="ParamToWorld">
-    <Sequence name="ParamToWorldSeq">
-      <Script code=" urdfParam:='workspace/'+obj_name+'/urdf' " />
-      <RosGetString param="{urdfParam}" target="{urdf}" />
-
-      <Script code=" posParam:='workspace/'+obj_name+'/pos' " />
-      <RosGetVecD param="{posParam}" target="{pos}" />
-
-      <Script code=" quatParam:='workspace/'+obj_name+'/quat' " />
-      <RosGetVecD param="{quatParam}" target="{quat}" />
-      <WorldAddUpdate urdfUri="{urdf}" pos="{pos}" quat="{quat}" name="{obj_name}" />
-    </Sequence>
-  </BehaviorTree>
-
-  <!-- Movement Trees -->
-  <BehaviorTree ID="MoveToConfig">
-    <Sequence name="MoveToConfigSeq">
-      <AdaPlanToConfig config="{config}" worldCollision="{worldCollision}" traj="{traj}" />
-      <AdaExecuteTrajectory traj="{traj}" />
-    </Sequence>
-  </BehaviorTree>
-  <BehaviorTree ID="MoveToOffset">
-    <Sequence name="MoveToOffsetSeq">
-      <AdaPlanToOffset offset="{offset}" worldCollision="{worldCollision}" traj="{traj}" />
-      <AdaExecuteTrajectory traj="{traj}" />
-    </Sequence>
-  </BehaviorTree>
-  <BehaviorTree ID="MoveToPose">
-    <Sequence name="MoveToPoseSeq">
-      <AdaPlanToPose orig_pos="{orig_pos}" orig_quat="{orig_quat}"
-         pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{worldCollision}" traj="{traj}" />
-      <AdaExecuteTrajectory traj="{traj}" />
-    </Sequence>
-  </BehaviorTree>
-
 
   <!-- Bite Acquisition -->
   <BehaviorTree ID="AcquisitionAction">

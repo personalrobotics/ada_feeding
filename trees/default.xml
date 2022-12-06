@@ -1,4 +1,4 @@
-<root main_tree_to_execute = "Default" >
+<root BTCPP_format="4" main_tree_to_execute = "Default" >
   <BehaviorTree ID="Default">
     <ReactiveSequence>
       <CheckWatchdog />
