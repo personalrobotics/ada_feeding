@@ -45,11 +45,6 @@ These are feeding-specific nodes used to configure the Blackboard Inputs for oth
   * `objects` {std::vector<DetectedObject>(variable), required}: List of detected objects from the Perception module. *Note: currently only the first object is used*
   * `overshoot` {double, optional}: if provided, calculate an offset that moves the end-effector *past* the detected object (e.g. into the food)
   * `offset` {std::vector<double>(3), output}: end-effector offset, to be used in future `PlanToOffset` node
-* `ConfigMoveToFace`: Prepars the action to move the fork towards an object with undershoot
-  * `faces` {std::vector<DetectedObject>(variable), required}: List of detected objects from the Perception module. *Note: currently only the first object is used*
-  * `undershoot` {double, optional}: if provided, calculate an offset that stops the end-effector *before* the detected object (e.g. the face)
-  * `offset` {std::vector<double>(3), output}: end-effector offset, to be used in future `PlanToOffset` node
-  * *Note: this is redundant with ConfigMoveInto, and should be merged*
 
 ## Debug Nodes
   
@@ -133,9 +128,9 @@ These are wrappers around common ROS operations.
 These are nodes used to handle critical safety-oriented user interaction.
   
 * `CheckWatchdog` (No Ports): returns FAILURE if the watchdog hasn't been fed (i.e. received `true`) recently.
-  * *Note: Will return RUNNING if the watchdog has never been fed since start-up`
+  * *Note: Will return RUNNING if the watchdog has never been fed since start-up*
   * *Note: "recently" is the `watchdogTimeout` defined by rosparameter*
-  * *Note: Listens to the `~watchdog` topic, expecting std_msgs::Bool`
+  * *Note: Listens to the `~watchdog` topic, expecting std_msgs::Bool*
   
 ## World Nodes
   
@@ -202,7 +197,6 @@ static_block { feeding::registerNodeFn(&registerNodes); }
 * Camera interaction nodes (i.e. pull a frame / camera info from the camera topic)
 * Generic ROS service interaction client nodes (use templates to remove repeated logic)
 * Augment `Talk` to block with `BT::NodeStatus::RUNNING`
-* Replace `ConfigMoveToFace` with `ConfigMoveInto` with negative overshoot.
 * Forque nodes to collect raw F/T values and their moments (mean, std, etc.)
 * Remove code reuse in AdaPerception object: replace `m<Food/Face>Detector` with map from `string` (i.e. the RosTopic) to PoseEstimatorModule. Have `EnablePerception` loop to create Timer with given RosTopic string, and `Perceive` that takes in the given RosTopic. 
 * Change CheckWatchdog to generic node where you can pass a topic name to listen to. Requires the static EStopInterface to have a map of topics to subscribers. Useful to separate Watchdog and Bite Cancellation actions.

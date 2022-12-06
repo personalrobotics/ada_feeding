@@ -2,7 +2,7 @@
 
 ## debug.xml
 
-Use this file for Behavior Tree scratch that won't be picked up by Git. It will be added to the .gitignore file. Use `git add -f` to override.
+Use this file for Behavior Tree scratch that won't be picked up by Git. It has been added to the .gitignore file. Use `git add -f` to override.
 
 ## default.xml
 
