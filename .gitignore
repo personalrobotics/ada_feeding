@@ -55,3 +55,6 @@ flycheck_*.el
 *.vscode
 .vscode/
 feeding/.vscode/
+
+# Debug/scratch tree
+trees/debug.xml
