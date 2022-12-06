@@ -10,7 +10,7 @@
 #
 
 # Main.cpp Params
-watchdogTimeout: 0.05 #50ms until watchdog dies
+watchdogTimeout: 0.1 #50ms until watchdog dies
 visualization:
   topicName: dart_markers/feeding
   baseFrameName: map

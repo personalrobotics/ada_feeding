@@ -1,0 +1,170 @@
+<root main_tree_to_execute = "Root" >
+  <!-- Subtree Includes -->
+
+  <!-- Watchdog -->
+  <BehaviorTree ID="Root">
+    <ReactiveSequence>
+      <CheckWatchdog />
+      <SubTree ID="Meal"/>
+    </ReactiveSequence>
+  </BehaviorTree>
+
+  <!-- Main Meal Sequence -->
+  <BehaviorTree ID="Meal">
+    <Sequence name="MealSeq">
+      <!-- Scripting constants -->
+      <Script code=" TRUE:=true " />
+      <Script code=" FALSE:=false " />
+
+      <!-- Setup Workspace -->
+      <SubTree ID="ParamToWorld" obj_name="wheelchair" /> 
+      <SubTree ID="ParamToWorld" obj_name="table" /> 
+      <SubTree ID="ParamToWorld" obj_name="plate" />
+
+      <!-- Setup ADA -->
+      <RosGetVecD param="velocityLimits/standard" target="{vel_standard}" />
+      <AdaSetLimits velocity="{vel_standard}" />
+
+      <Talk say="Hello! My name is Ayduh, it's a pleasure to serve you today!" />
+
+      <!-- Bite Sequence -->
+      <Repeat num_cycles="-1">
+      <Sequence name="BiteSeq">
+        <!-- Init FT Sensor -->
+        <SetFTThreshold preset="standard" />
+
+        <!-- Failure Just Restarts -->
+        <ForceSuccess>
+        <Sequence name="FeedBite"> 
+
+          <!-- Transfer -->
+
+          <!-- Move in Front of Person -->
+          <SetFTThreshold preset="standard" />
+          <RosGetVecD param="configs/wheelchair/in_front_person" target="{config}" />
+          <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
+
+          <!-- Detect Face at least once -->
+          <Talk say="Open your mouth when ready." />
+          <ClearPerceptionList target="{faces}" />
+          <RetryUntilSuccessful name="WaitForFace" num_attempts="-1">
+            <PerceiveFace timeout="1" objects="{faces}" />
+          </RetryUntilSuccessful>
+
+          <!-- Wait for User Ready -->
+          <ReactiveSequence name="DetectFaceWrapper">
+            <ForceSuccess>
+            <PerceiveFace timeout="1" objects="{faces}" />
+            </ForceSuccess>
+
+            <ReactiveFallback name="IsUserReady">
+              <IsMouthOpen faces="{faces}" />
+              <RosSubBool topic="user_ready" target="{ready}" />
+            </ReactiveFallback>
+          </ReactiveSequence>
+
+          <!-- Move to User -->
+          <RosGetVecD param="velocityLimits/approach" target="{vel_approach}" />
+          <AdaSetLimits velocity="{vel_approach}" />
+          <ForceSuccess>
+            <PerceiveFace timeout="1" objects="{faces}" />
+          </ForceSuccess>
+          <RosGetD param="move_face/undershoot" target="{undershoot}" />
+          <ConfigMoveToFace faces="{faces}" undershoot="{undershoot}" offset="{offset}" />
+          <!-- FT Sensor Trip is Okay -->
+          <AdaPlanToOffset name="PlanOffsetToUser" offset="{offset}" worldCollision="{FALSE}" traj="{traj}" />
+          <ForceSuccess><AdaExecuteTrajectory name="MoveToUser" traj="{traj}" /></ForceSuccess>
+
+          <!-- Wait for User Ready -->
+          <Talk say="Enjoy!" />
+          <RosSubBool topic="user_ready" target="{ready}" />
+
+          <!-- Move away from User -->
+          <Talk say="Let me get out of your way!" />
+          <RosGetVecD param="move_away/offset" target="{offset}" />
+          <SubTree ID="MoveToOffset" offset="{offset}" worldCollision="{FALSE}" />
+          <AdaSetLimits velocity="{vel_standard}" />
+          <RosGetVecD param="configs/wheelchair/in_front_person" target="{config}" />
+          <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
+
+        </Sequence>
+        </ForceSuccess>
+      </Sequence>
+      </Repeat>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Pull from Param Server and add to World -->
+  <BehaviorTree ID="ParamToWorld">
+    <Sequence name="ParamToWorldSeq">
+      <Script code=" urdfParam:='workspace/'+obj_name+'/urdf' " />
+      <RosGetString param="{urdfParam}" target="{urdf}" />
+
+      <Script code=" posParam:='workspace/'+obj_name+'/pos' " />
+      <RosGetVecD param="{posParam}" target="{pos}" />
+
+      <Script code=" quatParam:='workspace/'+obj_name+'/quat' " />
+      <RosGetVecD param="{quatParam}" target="{quat}" />
+      <WorldAddUpdate urdfUri="{urdf}" pos="{pos}" quat="{quat}" name="{obj_name}" />
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Movement Trees -->
+  <BehaviorTree ID="MoveToConfig">
+    <Sequence name="MoveToConfigSeq">
+      <AdaPlanToConfig config="{config}" worldCollision="{worldCollision}" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+    </Sequence>
+  </BehaviorTree>
+  <BehaviorTree ID="MoveToOffset">
+    <Sequence name="MoveToOffsetSeq">
+      <AdaPlanToOffset offset="{offset}" worldCollision="{worldCollision}" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+    </Sequence>
+  </BehaviorTree>
+  <BehaviorTree ID="MoveToPose">
+    <Sequence name="MoveToPoseSeq">
+      <AdaPlanToPose orig_pos="{orig_pos}" orig_quat="{orig_quat}"
+         pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{worldCollision}" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+    </Sequence>
+  </BehaviorTree>
+
+
+  <!-- Bite Acquisition -->
+  <BehaviorTree ID="AcquisitionAction">
+  <Sequence name="AcquisitionSeq">
+    <!-- Scripting constants -->
+    <Script code=" TRUE:=true " />
+    <Script code=" FALSE:=false " />
+
+    <!-- Move Above -->
+    <SetFTThreshold preset="standard" />
+    <ConfigMoveAbove objects="{foods}" action="{action}" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" />
+    <SubTree ID="MoveToPose" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" />
+
+    <!-- Try Redetect Foods -->
+    <ForceSuccess>
+      <PerceiveFood name_filter="{food_name}" timeout="1" objects="{foods}" />
+    </ForceSuccess>
+
+    <!-- Move Into -->
+    <RosGetD param="move_into/overshoot" target="{overshoot}" />
+    <ConfigMoveInto objects="{foods}" overshoot="{overshoot}" offset="{offset}" />
+    <SetFTThreshold preset="grabFood" />
+    <!-- FT Sensor Trip is Okay -->
+    <AdaPlanToOffset name="PlanOffsetInto" offset="{offset}" worldCollision="{FALSE}" traj="{traj}" />
+    <ForceSuccess><AdaExecuteTrajectory name="MoveInto" traj="{traj}" /></ForceSuccess>
+
+    <!-- Move Out -->
+    <RosGetVecD param="move_out/offset" target="{offset}" />
+    <SetFTThreshold preset="afterGrabFood" />
+    <SubTree ID="MoveToOffset" offset="{offset}" worldCollision="{FALSE}" />
+
+    <!-- Check Acquisition -->
+    <RosSubBool topic="check_acquire" target="{acquired}" />
+    <SetFTThreshold preset="standard" retare="true" />
+    <Failure _successIf="acquired==true" />
+  </Sequence>
+  </BehaviorTree>
+</root>

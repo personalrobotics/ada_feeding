@@ -44,18 +44,32 @@ perception:
 
 # Workspace Params
 # Pose relative to robot base
+# workspace:
+#   wheelchair:
+#     urdf: package://pr_assets/data/furniture/wheelchair.urdf
+#     pos: [0.03, 0.0, -0.245]
+#     quat: [1.0, 0.0, 0.0, 0.0]
+#   plate:
+#     urdf: package://pr_assets/data/objects/plate.urdf
+#     pos: [0.24, -0.39, 0.213]
+#     quat: [1.0, 0.0, 0.0, 0.0]
+#   table:
+#     urdf: package://pr_assets/data/furniture/emprise_table_feeding.urdf
+#     pos: [0.24, -0.695, -0.517]
+#     quat: [1.0, 0.0, 0.0, 0.0]
+
 workspace:
   wheelchair:
     urdf: package://pr_assets/data/furniture/wheelchair.urdf
-    pos: [0.03, 0.0, -0.245]
+    pos: [0.03, 0.0, -0.305]
     quat: [1.0, 0.0, 0.0, 0.0]
   plate:
     urdf: package://pr_assets/data/objects/plate.urdf
-    pos: [0.24, -0.39, 0.213]
+    pos: [0.24, -0.39, 0.153]
     quat: [1.0, 0.0, 0.0, 0.0]
   table:
     urdf: package://pr_assets/data/furniture/emprise_table_feeding.urdf
-    pos: [0.24, -0.695, -0.517]
+    pos: [0.24, -0.695, -0.577]
     quat: [1.0, 0.0, 0.0, 0.0]
 
 # Hard-coded Configurations
@@ -64,7 +78,7 @@ configs:
     # Ready for Transfer
     in_front_person: [-0.38631117663642467, 1.4616608886676912, 1.0877240964279062, 0.4555658413555599, 1.906789661096325, -1.3934010616221935]
     # Ready for Acquisition
-    above_plate: [-0.43100905877999907, 0.3052406328812883, -0.8256803625334772, -0.0732514687062018, -1.9089015094912378, 1.043968692080408]
+    above_plate: [-0.3351977053383868, 0.22778351363059665, -0.8636556846616443, 3.102966697771502, 1.9007481374180457, -1.7883164004137342]
 
 # Hard-coded Action Selection
 action_selection:
@@ -77,12 +91,12 @@ move_above:
   tsr_bounds: [0.005, 0.005, 0.005, 0.01, 0.01, 0.01]
   height: 0.07
 move_into:
-  overshoot: -0.02 # how far to plan past food surface
+  overshoot: -0.025 # how far to plan past food surface
 move_out:
   offset: [0.0, 0.0, 0.05]
 
 # Transfer Parameters
 move_face:
-  undershoot: 0.15
+  undershoot: 0.08
 move_away:
   offset: [0.0, -0.05, 0.0]

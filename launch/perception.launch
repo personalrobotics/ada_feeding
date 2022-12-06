@@ -20,7 +20,11 @@
     <node pkg="food_detector" type="run_perception_module.py" name="food_detector"
           args="--demo-type $(arg detector)" output="screen" required="true"/>
 
+    <!-- <node pkg="face_detection" type="face_detection" name="face_detection"
+          required="true"/> -->
+
     <node pkg="face_detection" type="face_detection" name="face_detection"
           required="true"/>
+
   </group>
 </launch>
