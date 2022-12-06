@@ -299,6 +299,19 @@ BT::NodeStatus getEEPose(BT::TreeNode &self, ada::Ada &robot) {
   return BT::NodeStatus::SUCCESS;
 }
 
+// Read Configuration
+BT::NodeStatus getConfig(BT::TreeNode &self, ada::Ada &robot) {
+  auto sArmOnly = self.getInput<bool>("armOnly");
+  bool armOnly = (sArmOnly) ? sArmOnly.value() : true;
+  Eigen::VectorXd eConfig =
+      (armOnly) ? robot.getArm()->getMetaSkeleton()->getPositions()
+                : robot.getMetaSkeleton()->getPositions();
+  self.setOutput<std::vector<double>>(
+      "target",
+      std::vector<double>(eConfig.data(), eConfig.data() + eConfig.size()));
+  return BT::NodeStatus::SUCCESS;
+}
+
 /// Node registration
 static void registerNodes(BT::BehaviorTreeFactory &factory,
                           ros::NodeHandle & /*&nh */, ada::Ada &robot) {
@@ -316,6 +329,13 @@ static void registerNodes(BT::BehaviorTreeFactory &factory,
       std::bind(getEEPose, std::placeholders::_1, std::ref(robot)),
       {BT::OutputPort<std::vector<double>>("pos"),
        BT::OutputPort<std::vector<double>>("quat")});
+
+  // Get Joint Configuration
+  factory.registerSimpleAction(
+      "AdaGetConfig",
+      std::bind(getConfig, std::placeholders::_1, std::ref(robot)),
+      {BT::InputPort<bool>("armOnly"),
+       BT::OutputPort<std::vector<double>>("target")});
 }
 static_block { feeding::registerNodeFn(&registerNodes); }
 

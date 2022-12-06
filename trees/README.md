@@ -6,7 +6,7 @@ Use this file for Behavior Tree scratch that won't be picked up by Git. It has b
 
 ## default.xml
 
-Default tree to run when not running `feeding.launch`. Currently has a simple debug sequence.
+Default tree to run when not running `feeding.launch`. Currently has a simple trajectory test sequence.
 
 ## feeding.xml
 
@@ -30,4 +30,3 @@ workspace:
 
 ## Tree TODOs
 
-* Update `default.xml` to act as a `simple_trajectories` to be used to test system setup.

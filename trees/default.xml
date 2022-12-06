@@ -1,8 +1,42 @@
-<root BTCPP_format="4" main_tree_to_execute = "Default" >
+<root BTCPP_format="4" main_tree_to_execute="Default" >
+  <!-- Subtree Includes -->
+  <include path="./helpers.xml" />
+
+  <!-- Simple Trajectories -->
   <BehaviorTree ID="Default">
-    <ReactiveSequence>
-      <CheckWatchdog />
-      <RosSubBool topic="testing" output="{output}" />
-    </ReactiveSequence>
+    <Sequence>
+      <WorldAddUpdate 
+        urdfUri="package://pr_assets/data/objects/can.urdf" 
+        pos="1.0;0.0;0.73" 
+        quat="1.0;0.0;0.0;0.0" 
+        name="can" />
+      <WorldAddUpdate 
+        urdfUri="package://pr_assets/data/furniture/uw_demo_table.urdf"
+        pos="1.0;0.0;0.0" 
+        quat="0.707107;0.0;0.0;0.707107" 
+        name="table" />
+
+      <AdaGetConfig target="{config}" />
+      <AdaSetLimits velocity="0.7;0.7;0.7;0.7;0.7;0.7" />
+
+      <Debug />
+      <AdaPlanToConfig config="0.0;3.14;3.14;0.0;0.0;0.0;" worldCollision="false" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+      <Debug />
+      <AdaPlanToConfig config="0.0;2.74;3.74;0.0;0.0;0.0;" worldCollision="false" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+      <Debug />
+      <AdaCloseHand />
+      <Debug />
+      <AdaPlanToOffset offset="0.0;0.0;-0.05" worldCollision="true" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+      <Debug />
+      <AdaPlanToOffset offset="0.0;0.0;0.05" worldCollision="true" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+      <Debug />
+      <AdaOpenHand />
+      <Debug />
+      <SubTree ID="MoveToConfig" config="{config}" />
+    </Sequence>
   </BehaviorTree>
 </root>

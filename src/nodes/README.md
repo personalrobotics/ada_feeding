@@ -97,6 +97,9 @@ These are a wrapper around functions in the `aikido::robot::Robot` and `aikido::
   * `viz` {bool, optional}: If true, visualizes samples of the TSR in the InteractiveMarkerViewer until cleared. Useful for debugging. Default to false.
 * `AdaGetEEPose`: Gets the position of Ada's End Effector in the world frame.
   * `pos`, `quat` {std::vector<double>(3, 4), output}
+* `AdaGetConfig`: Gets the joint configuration of the robot
+  * `armOnly` {bool, optional}: if true, ignore the gripper. Defaults to true.
+  * `target` {std::vector<double>(Num_Arm_Dofs OR Num_Dofs), output}
 
 ## ROS Nodes
 
