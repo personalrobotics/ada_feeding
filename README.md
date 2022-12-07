@@ -82,9 +82,9 @@ Note that the current demo has only been tested on the JACO 2.
 2. Start up **ROS** and **Rviz**: `roscore` and `roslaunch ada_feeding rviz.launch`
 3. **Turn on and home ADA.** Once the lights on the joystick go solid, home ADA by holding the orange button until the robot stops moving.
 4. **Start the Camera**: `ssh nano` (you may need to add `nano` to your `.ssh/config`, this is the Nvidia Jetson Nano on the robot).
-    1. Once there, set your ROS Master using `uselovelace` or `useweebo` (or set your ROS_MASTER_URI manually).
-    2. Execute `./run_camera.sh` to start streaming RGBD data.
-    3. *Note: You may have to adjust the camera exposure, depending on the lighting condition. Either run `run_adjust_camera_daylight.sh` or `run_adjust_camera_all.sh` after running `run_camera.sh`.* 
+    1. Once there, set your ROS Master using `usemaster <hostname>` (e.g. `usemaster weebo` or `usemaster ed209`)
+    2. Execute `roslaunch realsense2_camera rs_aligned_depth.launch`  to start streaming RGBD data.
+    3. *Note: SSH Key for Nano is available on secrets drive for convenient access*
     4. Check the image stream via Rviz (`/camera/color/image_raw/color`). If some area is too bright and look burnt or saturated, reduce the exposure.
 5. **Run F/T Sensor**: `roslaunch forque_sensor_hardware forque.launch` (Optionally add `forque_ip:=<IPv4>` if your Net-FT is on a non-default IP)
 6. **Run Face Detection**: `rosrun face_detection face_detection`
