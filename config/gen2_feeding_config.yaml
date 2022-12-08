@@ -17,7 +17,7 @@ visualization:
 
 # Ada Node Params
 velocityLimits:
-  standard: [0.6, 0.6, 0.6, 0.6, 0.6, 0.6]
+  standard: [0.5, 0.5, 0.6, 0.6, 0.6, 0.6]
   approach: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
 
 # FT Sensor Params
@@ -61,8 +61,12 @@ workspace:
 # Hard-coded Configurations
 configs:
   wheelchair:
-    # Ready for Transfer
+    # Ready for Transfer (In Front)
     in_front_person: [-2.30252, 4.23221, 3.84109, -4.65546, 3.94225, 4.26543]
+    
+    # Ready for Transfer (Side)
+    #in_front_person: [2.74709, 2.01400, 1.85257, -2.83523, -1.61925, -2.67325]
+
     # Ready for Acquisition
     above_plate: [-2.11666, 3.34967, 2.04129, -2.30031, -2.34026, 2.9545]
 
@@ -75,7 +79,7 @@ action_selection:
 move_above:
   rotation_agnostic: ["banana", "cantaloupe", "grape", "strawberry"]
   tsr_bounds: [0.005, 0.005, 0.005, 0.01, 0.01, 0.01]
-  height: 0.1
+  height: 0.05
 move_into:
   overshoot: 0.005 # how far to plan past food surface
 move_out:
@@ -83,6 +87,6 @@ move_out:
 
 # Transfer Parameters
 move_face:
-  overshoot: -0.08 # How far from mouth to stop
+  overshoot: -0.06 # How far from mouth to stop
 move_away:
   offset: [0.0, -0.05, 0.0]

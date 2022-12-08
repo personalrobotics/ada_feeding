@@ -47,8 +47,15 @@
         <!-- Failure Just Restarts -->
         <ForceSuccess>
         <Sequence name="FeedBite">
+          <!-- First Food Detection -->
+          <Fallback>
+            <RetryUntilSuccessful num_attempts="2">
+              <PerceiveFood name_filter="{food_name}" timeout="3" objects="{foods}" />
+            </RetryUntilSuccessful>
+            <Talk say="Sorry. I can't see that." />
+          </Fallback>
+
           <!-- Acquisition -->
-          <PerceiveFood name_filter="{food_name}" timeout="5" objects="{foods}" />
           <ConfigActionSelect foods="{foods}" action="{action}" />
           <RetryUntilSuccessful num_attempts="3">
             <SubTree ID="AcquisitionAction" food_name="{food_name}" foods="{foods}" action="{action}" />
