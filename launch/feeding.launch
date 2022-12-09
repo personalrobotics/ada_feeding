@@ -2,7 +2,7 @@
   <!-- Base Args -->
   <arg name="sim" default="false" doc="Whether to run in Aikido-sim only" />
   <arg name="version" default="2" doc="Kinova Arm Version (JACO = 2, Kortex = 3)" />
-  <arg name="use_forque" value="true" />
+  <arg name="use_forque" default="true" />
   <arg name="use_apriltag_calib" value="$(eval not arg('sim'))" />
 
   <!-- Feeding Args -->
@@ -13,6 +13,11 @@
   <include file="$(find libada)/launch/libada.launch" pass_all_args="true" />
   <!-- Libada Overrides -->
   <rosparam file="$(find ada_feeding)/config/gen$(arg version)_ada_config.yaml" command="load" ns="adaConf" />
+
+  <!-- If No Forque, revert to basic traj controller -->
+  <group unless="$(arg use_forque)">
+    <rosparam param="adaConf/arm_controller">trajectory_controller</rosparam>
+  </group>
 
   <!-- Additional feeding-specific controllers -->
   <group unless="$(arg sim)" >
@@ -36,6 +41,7 @@
     <remap from="~face_detector" to="/face_detector/marker_array" />
     <remap from="~food_request" to="/alexa_msgs" />
     <param name="sim" value="$(arg sim)" />
+    <param name="use_forque" value="$(arg use_forque)" />
     <param name="autoRestart" value="$(arg autoRestart)" />
     <param name="treeFile" value="$(find ada_feeding)/trees/$(arg treeFile)" />
     <rosparam file="$(find ada_feeding)/config/gen$(arg version)_feeding_config.yaml" command="load" />

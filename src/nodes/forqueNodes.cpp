@@ -90,7 +90,11 @@ private:
 static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
                           ada::Ada & /*robot*/) {
   bool isSim = nh.param("sim", true);
-  sFTThreshHelper = std::make_shared<FTThresholdHelper>(!isSim, nh);
+  bool use_forque = nh.param("use_forque", true);
+  if (!use_forque && !isSim)
+    ROS_ERROR_STREAM("FORQUE IS DISABLED! DO NOT USE FOR FEEDING!");
+  sFTThreshHelper =
+      std::make_shared<FTThresholdHelper>((!isSim && use_forque), nh);
   sFTThreshHelper->init();
 
   factory.registerNodeType<SetFTThresh>("SetFTThreshold");
