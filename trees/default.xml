@@ -26,10 +26,10 @@
 
       <!-- Rotation about Z -->
       <Debug />
-      <AdaPlanToTwist offset="0.0;0.0;0.0" rotation="0.0;0.0;0.5" worldCollision="true" traj="{traj}" />
+      <AdaPlanToPoseOffset offset="0.0;0.0;0.0" rotation="0.0;0.0;0.5" worldCollision="true" traj="{traj}" />
       <AdaExecuteTrajectory traj="{traj}" />
       <Debug />
-      <AdaPlanToTwist offset="0.0;0.0;0.0" rotation="0.0;0.0;-0.5" worldCollision="true" traj="{traj}" />
+      <AdaPlanToPoseOffset offset="0.0;0.0;0.0" rotation="0.0;0.0;-0.5" worldCollision="true" traj="{traj}" />
       <AdaExecuteTrajectory traj="{traj}" />
 
       <!-- Test PlanToConfig -->
@@ -41,15 +41,15 @@
       <Debug />
       <AdaCloseHand />
 
-      <!-- Test PlanToOffset/Twist -->
+      <!-- Test PlanToOffset/PoseOffset -->
       <Debug />
       <AdaPlanToOffset offset="0.0;0.0;-0.04" worldCollision="true" traj="{traj}" />
       <AdaExecuteTrajectory traj="{traj}" />
       <Debug />
-      <AdaPlanToTwist offset="0.0;0.0;0.0" rotation="0.0;0.0;0.1" worldCollision="true" traj="{traj}" />
+      <AdaPlanToPoseOffset offset="0.0;0.0;0.0" rotation="0.0;0.0;0.1" worldCollision="true" traj="{traj}" />
       <AdaExecuteTrajectory traj="{traj}" />
       <Debug />
-      <AdaPlanToTwist offset="0.0;0.0;0.04" rotation="0.0;0.0;-0.1" worldCollision="true" traj="{traj}" />
+      <AdaPlanToPoseOffset offset="0.0;0.0;0.04" rotation="0.0;0.0;-0.1" worldCollision="true" traj="{traj}" />
       <AdaExecuteTrajectory traj="{traj}" />
 
       <!-- Re-open Hand -->
