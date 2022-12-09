@@ -74,20 +74,20 @@ BT::NodeStatus AddUpdateSkeleton(BT::TreeNode &self, ada::Ada &robot) {
 
     freeJoint->setTransform(pose);
   } else {
-    // Skeleton Update Operation, remove old skeleton
-    if (name) {
-      auto oldSkeleton = world->getSkeleton(name.value());
-      if (oldSkeleton) {
-        world->removeSkeleton(oldSkeleton);
-      }
-    }
-
-    // Add new skeleton
+    // Load Skeleton
     auto skeleton =
         loadSkeletonFromURDF(resourceRetriever, urdfUri.value(), pose);
     if (name) {
       skeleton->setName(name.value());
     }
+
+    // Skeleton Update Operation, remove old skeleton
+    auto oldSkeleton = world->getSkeleton(skeleton->getName());
+    if (oldSkeleton) {
+      world->removeSkeleton(oldSkeleton);
+    }
+
+    // Add new skeleton
     world->addSkeleton(skeleton);
   }
 
