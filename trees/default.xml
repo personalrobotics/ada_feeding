@@ -17,24 +17,46 @@
         name="table" />
 
       <AdaGetConfig target="{config}" />
-      <AdaSetLimits velocity="0.7;0.7;0.7;0.7;0.7;0.7" />
+      <AdaSetLimits velocity="0.5;0.5;0.5;0.5;0.5;0.5" />
 
+      <!-- Go to Candlestick -->
       <Debug />
       <AdaPlanToConfig config="0.0;3.14;3.14;0.0;0.0;0.0;" worldCollision="false" traj="{traj}" />
       <AdaExecuteTrajectory traj="{traj}" />
+
+      <!-- Rotation about Z -->
+      <Debug />
+      <AdaPlanToPoseOffset offset="0.0;0.0;0.0" rotation="0.0;0.0;0.5" worldCollision="true" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+      <Debug />
+      <AdaPlanToPoseOffset offset="0.0;0.0;0.0" rotation="0.0;0.0;-0.5" worldCollision="true" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+
+      <!-- Test PlanToConfig -->
       <Debug />
       <AdaPlanToConfig config="0.0;2.74;3.74;0.0;0.0;0.0;" worldCollision="false" traj="{traj}" />
       <AdaExecuteTrajectory traj="{traj}" />
+
+      <!-- Close Hand -->
       <Debug />
       <AdaCloseHand />
+
+      <!-- Test PlanToOffset/PoseOffset -->
       <Debug />
-      <AdaPlanToOffset offset="0.0;0.0;-0.05" worldCollision="true" traj="{traj}" />
+      <AdaPlanToOffset offset="0.0;0.0;-0.04" worldCollision="true" traj="{traj}" />
       <AdaExecuteTrajectory traj="{traj}" />
       <Debug />
-      <AdaPlanToOffset offset="0.0;0.0;0.05" worldCollision="true" traj="{traj}" />
+      <AdaPlanToPoseOffset offset="0.0;0.0;0.0" rotation="0.0;0.0;0.1" worldCollision="true" traj="{traj}" />
       <AdaExecuteTrajectory traj="{traj}" />
+      <Debug />
+      <AdaPlanToPoseOffset offset="0.0;0.0;0.04" rotation="0.0;0.0;-0.1" worldCollision="true" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
+
+      <!-- Re-open Hand -->
       <Debug />
       <AdaOpenHand />
+
+      <!-- Return to original config -->
       <Debug />
       <SubTree ID="MoveToConfig" config="{config}" />
     </Sequence>

@@ -16,7 +16,7 @@ namespace feeding {
 namespace nodes {
 
 //// Planning Nodes
-enum PlanToNodeType { kOFFSET, kCONFIG, kTSR };
+enum PlanToNodeType { kOFFSET, kCONFIG, kTSR, kPOSEOFFSET };
 template <PlanToNodeType T> class PlanToNode : public BT::StatefulActionNode {
 public:
   PlanToNode(const std::string &name, const BT::NodeConfig &config,
@@ -31,6 +31,9 @@ public:
         BT::OutputPort<aikido::trajectory::TrajectoryPtr>("traj")};
 
     switch (T) {
+    case kPOSEOFFSET:
+      ret.insert(BT::InputPort<std::vector<double>>("rotation"));
+      [[fallthrough]];
     case kOFFSET:
       ret.insert(BT::InputPort<std::vector<double>>("offset"));
       break;
@@ -60,6 +63,9 @@ public:
 
     bool success = false;
     switch (T) {
+    case kPOSEOFFSET:
+      success = planToPoseOffset(constraint);
+      break;
     case kOFFSET:
       success = planToOffset(constraint);
       break;
@@ -106,6 +112,29 @@ public:
 
 private:
   // Individual planning functions
+  bool planToPoseOffset(aikido::constraint::TestablePtr constraint) {
+    auto offset = getInput<std::vector<double>>("offset");
+    if (!offset || offset.value().size() != 3) {
+      return false;
+    }
+    Eigen::Vector3d eOffset(offset.value().data());
+    auto rotation = getInput<std::vector<double>>("rotation");
+    if (!rotation || rotation.value().size() != 3) {
+      return false;
+    }
+    Eigen::Vector3d eRotation(rotation.value().data());
+
+    mFuture = std::async(
+        std::launch::async,
+        [this](Eigen::Vector3d off, Eigen::Vector3d rot,
+               aikido::constraint::TestablePtr testable) {
+          return mAda->getArm()->planToPoseOffset(
+              mAda->getEndEffectorBodyNode()->getName(), off, rot, testable);
+        },
+        eOffset, eRotation, constraint);
+    return true;
+  }
+
   bool planToOffset(aikido::constraint::TestablePtr constraint) {
     auto offset = getInput<std::vector<double>>("offset");
     if (!offset || offset.value().size() != 3) {
@@ -316,6 +345,8 @@ BT::NodeStatus getConfig(BT::TreeNode &self, ada::Ada &robot) {
 static void registerNodes(BT::BehaviorTreeFactory &factory,
                           ros::NodeHandle & /*&nh */, ada::Ada &robot) {
   // Planning Functions
+  factory.registerNodeType<PlanToNode<kPOSEOFFSET>>("AdaPlanToPoseOffset",
+                                                    &robot);
   factory.registerNodeType<PlanToNode<kOFFSET>>("AdaPlanToOffset", &robot);
   factory.registerNodeType<PlanToNode<kCONFIG>>("AdaPlanToConfig", &robot);
   factory.registerNodeType<PlanToNode<kTSR>>("AdaPlanToPose", &robot);

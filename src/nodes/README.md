@@ -87,6 +87,9 @@ These are a wrapper around functions in the `aikido::robot::Robot` and `aikido::
   * `traj` {aikido::trajectory::TrajectoryPtr, output}: If SUCCESS, contains a valid trajectory to execute
 * `AdaPlanToOffset`: Wrapper for the VectorFieldPlanner. Plans an end-effector motion to the specified translation offset in world frame.
   * `offset` {std::vector<double>(3), required}
+* `AdaPlanToPoseOffset`: Wrapper for the VectorFieldPlanner. Plans an end-effector motion to a pose specified by a translaiton and rotation offset.
+  * `offset` {std::vector<double>(3), required}
+  * `rotation` {std::vector<double>(3), required}
 * `AdaPlanToConfig`: Wrapper for basic configuration planner. Plans the robot to a certain position in joint configuration space.
   * `config` {std::vector<double>(Num_Arm_Dofs), required}
 * `AdaPlanToPose`: Wrapper for Task Space Region (i.e. TSR) planner. Samples points in provided TSR, runs IK, and plans to the resulting joint configuration.
@@ -195,7 +198,6 @@ static_block { feeding::registerNodeFn(&registerNodes); }
 
 * ROS Publisher Nodes
 * ROS state service node (i.e. allow other nodes to query some String state)
-* PlanToTwist (once implemented in Aikido)
 * Executor/controller management (once merged into Aikido)
 * Camera interaction nodes (i.e. pull a frame / camera info from the camera topic)
 * Generic ROS service interaction client nodes (use templates to remove repeated logic)
