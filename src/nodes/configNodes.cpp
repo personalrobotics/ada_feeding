@@ -1,3 +1,4 @@
+#include "feeding/AcquisitionAction.hpp"
 #include "feeding/nodes.hpp"
 /**
  * Nodes for configuring movement actions
@@ -14,10 +15,11 @@ using aikido::perception::DetectedObject;
 namespace feeding {
 namespace nodes {
 
-class ConfigMoveAbove : public BT::SyncActionNode {
+// Write Movement Params from Action Struct
+class ConfigAcquisition : public BT::SyncActionNode {
 public:
-  ConfigMoveAbove(const std::string &name, const BT::NodeConfig &config,
-                  ada::Ada *robot, ros::NodeHandle *nh)
+  ConfigAcquisition(const std::string &name, const BT::NodeConfig &config,
+                    ada::Ada *robot, ros::NodeHandle *nh)
       : BT::SyncActionNode(name, config), mAda(robot), mNode(nh) {}
 
   static BT::PortsList providedPorts() {
@@ -150,7 +152,7 @@ private:
 };
 
 /// Action Selection
-BT::NodeStatus ConfigActionSelect(BT::TreeNode &self, ros::NodeHandle &nh) {
+BT::NodeStatus DefaultActionSelect(BT::TreeNode &self, ros::NodeHandle &nh) {
   // Input Param
   auto objectInput = self.getInput<std::vector<DetectedObject>>("foods");
   if (!objectInput || objectInput.value().size() < 1) {
@@ -235,11 +237,11 @@ private:
 /// Node registration
 static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
                           ada::Ada &robot) {
-  factory.registerNodeType<ConfigMoveAbove>("ConfigMoveAbove", &robot, &nh);
+  factory.registerNodeType<ConfigAcquisition>("ConfigAcquisition", &robot, &nh);
   factory.registerNodeType<ConfigMoveInto>("ConfigMoveInto", &robot, &nh);
   factory.registerSimpleAction(
       "ConfigActionSelect",
-      std::bind(ConfigActionSelect, std::placeholders::_1, std::ref(nh)),
+      std::bind(DefaultActionSelect, std::placeholders::_1, std::ref(nh)),
       {BT::InputPort<std::vector<DetectedObject>>("foods"),
        BT::OutputPort<std::vector<double>>("action")});
 }
