@@ -99,6 +99,7 @@ file(GLOB_RECURSE SOURCES
     src/nodes/forqueNodes.cpp
     src/nodes/nodes.cpp
     src/nodes/perceptionNodes.cpp
+    src/nodes/rankerNodes.cpp
     src/nodes/robotNodes.cpp
     src/nodes/rosNodes.cpp
     src/nodes/safetyNodes.cpp
