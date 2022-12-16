@@ -49,7 +49,9 @@
     </Action>
 
     <!-- Debug nodes -->
-    <Action ID="Failure" />
+    <Action ID="Failure">
+      <input_port name="_successIf" type="std::string" />
+    </Action>
     <Action ID="Success" />
     <Action ID="Debug" />
 
