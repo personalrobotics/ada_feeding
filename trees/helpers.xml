@@ -10,7 +10,7 @@
 
       <Script code=" quatParam:='workspace/'+obj_name+'/quat' " />
       <RosGetVecD param="{quatParam}" target="{quat}" />
-      <WorldAddUpdate urdfUri="{urdf}" pos="{pos}" quat="{quat}" name="{obj_name}" />
+      <WorldAddUpdate urdfUri="{urdf}" pos="{pos}" quat="{quat}" skelName="{obj_name}" />
     </Sequence>
   </BehaviorTree>
 
@@ -34,4 +34,27 @@
       <AdaExecuteTrajectory traj="{traj}" />
     </Sequence>
   </BehaviorTree>
+
+  <!-- For Groot Visualization -->
+  <TreeNodesModel>
+    <SubTree ID="ParamToWorld">
+      <input_port name="obj_name" type="std::string" />
+    </SubTree>
+    <SubTree ID="MoveToConfig">
+      <input_port name="config" type="double[]" />
+      <input_port name="worldCollision" type="bool" />
+    </SubTree>
+    <SubTree ID="MoveToPose">
+      <input_port name="orig_pos" type="double[]" />
+      <input_port name="orig_quat" type="double[]" />
+      <input_port name="pos" type="double[]" />
+      <input_port name="quat" type="double[]" />
+      <input_port name="bounds" type="double[]" />
+      <input_port name="worldCollision" type="bool" />
+    </SubTree>
+    <SubTree ID="MoveToOffset">
+      <input_port name="offset" type="double[]" />
+      <input_port name="worldCollision" type="bool" />
+    </SubTree>
+  </TreeNodesModel>
 </root>
