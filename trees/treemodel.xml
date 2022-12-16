@@ -20,8 +20,8 @@
     </Action>
 
     <Action ID="AdaSetLimits">
-      <input_port name="velocity" type="std::vector" />
-      <input_port name="acceleration" type="std::vector" />
+      <input_port name="velocity" type="std::vector" default="URDF" />
+      <input_port name="acceleration" type="std::vector" default="URDF" />
     </Action>
     <Action ID="AdaGetLimits">
       <output_port name="velocity" type="std::vector" />
@@ -44,7 +44,7 @@
     </Action>
     <Action ID="ConfigMoveInto">
       <input_port name="objects" type="DetectedObject[]" />
-      <input_port name="overshoot" type="double" />
+      <input_port name="overshoot" type="double" default="0" />
       <output_port name="offset" type="double[]" />
     </Action>
 
@@ -58,16 +58,16 @@
 
     <!-- Forque nodes -->
     <Action ID="SetFTThreshold">
-      <input_port name="preset" type="std::string" />
-      <input_port name="force" type="double" />
-      <input_port name="torque" type="double" />
-      <input_port name="retare" type="bool" />
+      <input_port name="preset" type="std::string" default="None" />
+      <input_port name="force" type="double" default="0" />
+      <input_port name="torque" type="double" default="0" />
+      <input_port name="retare" type="bool" default="false" />
     </Action>
 
     <!-- Perception nodes -->
     <Action ID="PerceiveFood">
-      <input_port name="timeout" type="double" />
-      <input_port name="name_filter" type="std::string" />
+      <input_port name="timeout" type="double" default="inf" />
+      <input_port name="name_filter" type="std::string" default="None" />
       <output_port name="objects" type="DetectedObject[]" />
     </Action>
     <Action ID="PerceiveFace">
@@ -87,40 +87,40 @@
     </Action>
     <Action ID="AdaPlanToConfig">
       <input_port name="config" type="double[]" />
-      <input_port name="worldCollision" type="bool" />
+      <input_port name="worldCollision" type="bool" default="false" />
       <output_port name="traj" type="aikido::trajectory::TrajectoryPtr" />
     </Action>
     <Action ID="AdaPlanToPose">
-      <input_port name="orig_pos" type="double[]" />
-      <input_port name="orig_quat" type="double[]" />
-      <input_port name="pos" type="double[]" />
-      <input_port name="quat" type="double[]" />
-      <input_port name="bounds" type="double[]" />
-      <input_port name="lbounds" type="double[]" />
-      <input_port name="viz" type="bool" />
-      <input_port name="worldCollision" type="bool" />
+      <input_port name="orig_pos" type="double[]" default="0.0;0.0;0.0" />
+      <input_port name="orig_quat" type="double[]" default="1.0;0.0;0.0;0.0" />
+      <input_port name="pos" type="double[]" default="0.0;0.0;0.0" />
+      <input_port name="quat" type="double[]" default="1.0;0.0;0.0;0.0" />
+      <input_port name="bounds" type="double[]" default="0.0;0.0;0.0;0.0;0.0;0.0" />
+      <input_port name="lbounds" type="double[]" default="-bounds" />
+      <input_port name="viz" type="bool" default="false" />
+      <input_port name="worldCollision" type="bool" default="false" />
       <output_port name="traj" type="aikido::trajectory::TrajectoryPtr" />
     </Action>
     <Action ID="AdaPlanToOffset">
       <input_port name="offset" type="double[]" />
-      <input_port name="worldCollision" type="bool" />
+      <input_port name="worldCollision" type="bool" default="false" />
       <output_port name="traj" type="aikido::trajectory::TrajectoryPtr" />
     </Action>
 
     <!-- ROS nodes -->
     <Action ID="RosGetString">
       <input_port name="param" type="std::string" />
-      <input_port name="default" type="std::string" />
+      <input_port name="default" type="std::string" default="None" />
       <output_port name="target" type="std::string" />
     </Action>
     <Action ID="RosGetD">
       <input_port name="param" type="std::string" />
-      <input_port name="default" type="double" />
+      <input_port name="default" type="double" default="None" />
       <output_port name="target" type="double" />
     </Action>
     <Action ID="RosGetVecD">
       <input_port name="param" type="std::string" />
-      <input_port name="default" type="double[]" />
+      <input_port name="default" type="double[]" default="None" />
       <output_port name="target" type="double[]" />
     </Action>
 

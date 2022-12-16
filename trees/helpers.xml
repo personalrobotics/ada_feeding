@@ -10,7 +10,7 @@
 
       <Script code=" quatParam:='workspace/'+obj_name+'/quat' " />
       <RosGetVecD param="{quatParam}" target="{quat}" />
-      <WorldAddUpdate urdfUri="{urdf}" pos="{pos}" quat="{quat}" name="{obj_name}" />
+      <WorldAddUpdate urdfUri="{urdf}" pos="{pos}" quat="{quat}" skelName="{obj_name}" />
     </Sequence>
   </BehaviorTree>
 
