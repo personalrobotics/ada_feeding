@@ -1,0 +1,146 @@
+<root BTCPP_format="4">
+  <!-- Used for Groot Visualization -->
+  <TreeNodesModel>
+
+    <Action ID="Script">
+      <input_port name="code" type="std::string" />
+    </Action>
+
+    <!-- Ada Nodes -->
+    <Action ID="Talk">
+      <input_port name="say" type="std::string" />
+    </Action>
+    <Action ID="AdaOpenHand" />
+    <Action ID="AdaCloseHand" />
+    <Action ID="AdaHandPreshape">
+      <input_port name="preshape" type="std::string" />
+    </Action>
+    <Action ID="AdaHandConfig">
+      <input_port name="config" type="std::vector" />
+    </Action>
+
+    <Action ID="AdaSetLimits">
+      <input_port name="velocity" type="std::vector" />
+      <input_port name="acceleration" type="std::vector" />
+    </Action>
+    <Action ID="AdaGetLimits">
+      <output_port name="velocity" type="std::vector" />
+      <output_port name="acceleration" type="std::vector" />
+    </Action>
+
+    <!-- Config nodes -->
+    <Action ID="ConfigActionSelect">
+      <input_port name="foods" type="DetectedObject[]" />
+      <output_port name="action" type="double[]" />
+    </Action>
+    <Action ID="ConfigMoveAbove">
+      <input_port name="objects" type="DetectedObject[]" />
+      <input_port name="action" type="double[]" />
+      <output_port name="orig_pos" type="double[]" />
+      <output_port name="orig_quat" type="double[]" />
+      <output_port name="pos" type="double[]" />
+      <output_port name="quat" type="double[]" />
+      <output_port name="bounds" type="double[]" />
+    </Action>
+    <Action ID="ConfigMoveInto">
+      <input_port name="objects" type="DetectedObject[]" />
+      <input_port name="overshoot" type="double" />
+      <output_port name="offset" type="double[]" />
+    </Action>
+
+    <!-- Debug nodes -->
+    <Action ID="Failure" />
+    <Action ID="Success" />
+    <Action ID="Debug" />
+
+
+    <!-- Forque nodes -->
+    <Action ID="SetFTThreshold">
+      <input_port name="preset" type="std::string" />
+      <input_port name="force" type="double" />
+      <input_port name="torque" type="double" />
+      <input_port name="retare" type="bool" />
+    </Action>
+
+    <!-- Perception nodes -->
+    <Action ID="PerceiveFood">
+      <input_port name="timeout" type="double" />
+      <input_port name="name_filter" type="std::string" />
+      <output_port name="objects" type="DetectedObject[]" />
+    </Action>
+    <Action ID="PerceiveFace">
+      <input_port name="timeout" type="double" />
+      <output_port name="objects" type="DetectedObject[]" />
+    </Action>
+    <Action ID="ClearPerceptionList">
+      <output_port name="target" type="DetectedObject[]" />
+    </Action>
+    <Condition ID="IsMouthOpen">
+      <input_port name="faces" type="DetectedObject[]" />
+    </Condition>
+
+    <!-- Robot nodes -->
+    <Action ID="AdaExecuteTrajectory">
+      <input_port name="traj" type="aikido::trajectory::TrajectoryPtr" />
+    </Action>
+    <Action ID="AdaPlanToConfig">
+      <input_port name="config" type="double[]" />
+      <input_port name="worldCollision" type="bool" />
+      <output_port name="traj" type="aikido::trajectory::TrajectoryPtr" />
+    </Action>
+    <Action ID="AdaPlanToPose">
+      <input_port name="orig_pos" type="double[]" />
+      <input_port name="orig_quat" type="double[]" />
+      <input_port name="pos" type="double[]" />
+      <input_port name="quat" type="double[]" />
+      <input_port name="bounds" type="double[]" />
+      <input_port name="lbounds" type="double[]" />
+      <input_port name="viz" type="bool" />
+      <input_port name="worldCollision" type="bool" />
+      <output_port name="traj" type="aikido::trajectory::TrajectoryPtr" />
+    </Action>
+    <Action ID="AdaPlanToOffset">
+      <input_port name="offset" type="double[]" />
+      <input_port name="worldCollision" type="bool" />
+      <output_port name="traj" type="aikido::trajectory::TrajectoryPtr" />
+    </Action>
+
+    <!-- ROS nodes -->
+    <Action ID="RosGetString">
+      <input_port name="param" type="std::string" />
+      <input_port name="default" type="std::string" />
+      <output_port name="target" type="std::string" />
+    </Action>
+    <Action ID="RosGetD">
+      <input_port name="param" type="std::string" />
+      <input_port name="default" type="double" />
+      <output_port name="target" type="double" />
+    </Action>
+    <Action ID="RosGetVecD">
+      <input_port name="param" type="std::string" />
+      <input_port name="default" type="double[]" />
+      <output_port name="target" type="double[]" />
+    </Action>
+
+    <Action ID="RosSubString">
+      <input_port name="topic" type="std::string" />
+      <output_port name="target" type="std::string" />
+    </Action>
+    <Action ID="RosSubBool">
+      <input_port name="topic" type="std::string" />
+      <output_port name="target" type="bool" />
+    </Action>
+
+
+    <!-- Safety nodes -->
+    <Action ID="CheckWatchdog" />
+
+    <!-- World nodes -->
+    <Action ID="WorldAddUpdate">
+      <input_port name="skelName" type="std::string" />
+      <input_port name="urdfUri" type="std::string" />
+      <input_port name="pos" type="double[]" />
+      <input_port name="quat" type="double[]" />
+    </Action>
+  </TreeNodesModel>
+</root>
