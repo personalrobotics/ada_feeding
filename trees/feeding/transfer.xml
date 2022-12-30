@@ -1,0 +1,67 @@
+<root BTCPP_format="4" main_tree_to_execute="BiteTransfer">
+  <!-- Subtree Includes -->
+  <include path="./helpers.xml"/>
+
+  <!-- Bite Transfer -->
+  <BehaviorTree ID="BiteTransfer">
+    <Sequence name="TransferSeq">
+      <!-- Scripting constants -->
+      <Script code=" TRUE:=true; FALSE:=false "/>
+      <Script code=" X:=0; Y:=1; Z:=2; PI:=3.1415926535 "/>
+
+      <!-- Move in Front of Person -->
+      <SetFTThreshold preset="standard"/>
+      <RosGetVecD param="configs/wheelchair/in_front_person" target="{config}"/>
+      <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}"/>
+
+      <!-- Detect Face at least once -->
+      <Talk say="Open your mouth when ready."/>
+      <ClearPerceptionList target="{faces}"/>
+      <RetryUntilSuccessful name="WaitForFace" num_attempts="-1">
+        <PerceiveFace timeout="1" objects="{faces}"/>
+      </RetryUntilSuccessful>
+      <RankDistance objects="{faces}" output="{face}" />
+
+      <!-- Wait for User Ready -->
+      <ReactiveSequence name="DetectFaceWrapper">
+        <ForceSuccess>
+          <PerceiveFace timeout="1" objects="{faces}"/>
+        </ForceSuccess>
+        <RankDistance objects="{faces}" nearestTo="{face}" output="{face}" />
+        <ReactiveFallback name="IsUserReady">
+          <IsMouthOpen face="{face}"/>
+          <RosSubBool topic="user_ready" target="{ready}"/>
+        </ReactiveFallback>
+      </ReactiveSequence>
+
+      <!-- Move to User -->
+      <RosGetVecD param="velocityLimits/approach" target="{vel_approach}"/>
+      <AdaSetLimits velocity="{vel_approach}"/>
+      <ForceSuccess>
+        <PerceiveFace timeout="1" objects="{faces}"/>
+      </ForceSuccess>
+      <RankDistance objects="{faces}" nearestTo="{face}" output="{face}" />
+      <FrameFromObject object="{face}" frame="{face_frame}" />
+      <RosGetD param="move_face/overshoot" target="{overshoot}"/>
+      <ConfigMoveInto obj_transform="{face_frame}" overshoot="{overshoot}" offset="{offset}"/>
+
+      <!-- FT Sensor Trip is Okay -->
+      <AdaPlanToOffset name="PlanOffsetToUser" offset="{offset}" worldCollision="{FALSE}" traj="{traj}"/>
+      <ForceSuccess>
+        <AdaExecuteTrajectory name="MoveToUser" traj="{traj}"/>
+      </ForceSuccess>
+
+      <!-- Wait for User Ready -->
+      <Talk say="Enjoy!"/>
+      <RosSubBool topic="user_ready" target="{ready}"/>
+
+      <!-- Move away from User -->
+      <Talk say="Let me get out of your way!"/>
+      <RosGetVecD param="move_away/offset" target="{offset}"/>
+      <SubTree ID="MoveToOffset" offset="{offset}" worldCollision="{FALSE}"/>
+      <AdaSetLimits velocity="{vel_standard}"/>
+      <RosGetVecD param="configs/wheelchair/in_front_person" target="{config}"/>
+      <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

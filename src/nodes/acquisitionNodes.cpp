@@ -14,9 +14,10 @@ namespace nodes {
 
 // Unpack AcquistiionAction Object to Blackboard
 BT::NodeStatus UnpackAction(BT::TreeNode &self) {
-  auto action = self.getInput<AcquisitionAction>("action");
-  if (!action)
+  auto actionInput = self.getInput<AcquisitionAction>("action");
+  if (!actionInput)
     return BT::NodeStatus::FAILURE;
+  auto action = actionInput.value();
 
   self.setOutput<Eigen::Isometry3d>("pre_transform", action.pre_transform);
   self.setOutput<Eigen::Vector3d>("pre_offset", action.pre_offset);

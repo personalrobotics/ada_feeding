@@ -282,14 +282,12 @@ private:
 
 // Detect if mouth is open
 BT::NodeStatus IsMouthOpen(BT::TreeNode &self) {
-  // Input FAces
-  auto objectInput = self.getInput<std::vector<DetectedObject>>("faces");
-  if (!objectInput || objectInput.value().size() < 1) {
+  // Input Faces
+  auto objectInput = self.getInput<DetectedObject>("face");
+  if (!objectInput) {
     return BT::NodeStatus::FAILURE;
   }
-  // Just select the first object
-  // TODO: more intelligent object selection
-  DetectedObject obj = objectInput.value()[0];
+  DetectedObject obj = objectInput.value();
 
   bool mouthOpen = false;
   try {
@@ -321,9 +319,8 @@ static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
   factory.registerNodeType<PerceiveFn<kFOOD>>("PerceiveFood");
   factory.registerNodeType<PerceiveFn<kFACE>>("PerceiveFace");
 
-  factory.registerSimpleAction(
-      "IsMouthOpen", IsMouthOpen,
-      {BT::InputPort<std::vector<DetectedObject>>("faces")});
+  factory.registerSimpleAction("IsMouthOpen", IsMouthOpen,
+                               {BT::InputPort<DetectedObject>("face")});
 
   factory.registerSimpleAction(
       "ClearPerceptionList", ClearList,

@@ -236,6 +236,24 @@ public:
                                 Eigen::Vector3d::UnitZ()) *
               actionOffset;
     }
+
+    // Clamp Z
+    double zHeight = eeTransform.translation().z() + eOff.z();
+    if (eOff.z() > 0 && !FuzzyZero(eOff.z())) {
+      double zMax = getInput<double>("z_max")
+                        ? std::min(getInput<double>("z_max").value(), zHeight)
+                        : zHeight;
+      double length = (zMax - eeTransform.translation().z()) / eOff.z();
+      eOff *= length;
+    }
+    if (eOff.z() < 0 && !FuzzyZero(eOff.z())) {
+      double zMin = getInput<double>("z_min")
+                        ? std::max(getInput<double>("z_min").value(), zHeight)
+                        : zHeight;
+      double length = (zMin - eeTransform.translation().z()) / eOff.z();
+      eOff *= length;
+    }
+
     std::vector<double> offset{eOff.x(), eOff.y(), eOff.z()};
     std::vector<double> rotation{eRot.x(), eRot.y(), eRot.z()};
 
