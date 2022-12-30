@@ -93,6 +93,7 @@ file(GLOB_RECURSE SOURCES
     LIST_DIRECTORIES false
     src/main.cpp
     src/FTThresholdHelper.cpp
+    src/nodes/acquisitionNodex.cpp
     src/nodes/adaNodes.cpp
     src/nodes/configNodes.cpp
     src/nodes/debug.cpp

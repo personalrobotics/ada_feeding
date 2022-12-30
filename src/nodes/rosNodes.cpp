@@ -214,6 +214,8 @@ static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
   factory.registerNodeType<RosGetParam<int>>("RosGetI", &nh);
   factory.registerNodeType<RosGetParam<std::vector<int>>>("RosGetVecI", &nh);
   factory.registerNodeType<RosGetParam<std::vector<double>>>("RosGetVecD", &nh);
+  factory.registerNodeType<RosGetParam<XmlRpc::XmlRpcValue>>("RosGetParam",
+                                                             &nh);
 
   // Set Params
   factory.registerNodeType<RosSetParam<std::string>>("RosSetString", &nh);
@@ -222,6 +224,8 @@ static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
   factory.registerNodeType<RosSetParam<int>>("RosSetI", &nh);
   factory.registerNodeType<RosSetParam<std::vector<int>>>("RosSetVecI", &nh);
   factory.registerNodeType<RosSetParam<std::vector<double>>>("RosSetVecD", &nh);
+  factory.registerNodeType<RosSetParam<XmlRpc::XmlRpcValue>>("RosSetParam",
+                                                             &nh);
 
   // Basic Subscribers
   factory.registerNodeType<RosSubTopic<std::string>>("RosSubString", &nh);
