@@ -12,9 +12,16 @@ using aikido::perception::DetectedObject;
 namespace feeding {
 namespace nodes {
 
+// Unpack AcquistiionAction Object to Blackboard
+BT::NodeStatus UnpackAction(BT::TreeNode &self) {
+  auto action = self.getInput<AcquisitionAction>("action");
+  if (!action)
+    return BT::NodeStatus::FAILURE;
+}
+
 /// Node registration
-static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
-                          ada::Ada &robot) {}
+static void registerNodes(BT::BehaviorTreeFactory &factory,
+                          ros::NodeHandle & /*nh*/, ada::Ada & /*robot*/) {}
 static_block { feeding::registerNodeFn(&registerNodes); }
 
 } // end namespace nodes

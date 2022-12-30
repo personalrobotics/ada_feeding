@@ -14,8 +14,8 @@
   <BehaviorTree ID="Meal">
     <Sequence name="MealSeq">
       <!-- Scripting constants -->
-      <Script code=" TRUE:=true " />
-      <Script code=" FALSE:=false " />
+      <Script code=" TRUE:=true; FALSE:=false " />
+      <Script code=" X:=0; Y:=1; Z:=2; PI:=3.1415926535 " />
 
       <!-- Setup Workspace -->
       <SubTree ID="ParamToWorld" obj_name="wheelchair" /> 
@@ -123,8 +123,8 @@
   <BehaviorTree ID="AcquisitionAction">
   <Sequence name="AcquisitionSeq">
     <!-- Scripting constants -->
-    <Script code=" TRUE:=true " />
-    <Script code=" FALSE:=false " />
+    <Script code=" TRUE:=true; FALSE:=false " />
+    <Script code=" X:=0; Y:=1; Z:=2; PI:=3.1415926535 " />
 
     <!-- Move Above -->
     <SetFTThreshold preset="standard" />

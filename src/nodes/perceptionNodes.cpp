@@ -22,6 +22,77 @@ using ada::util::getRosParam;
 namespace feeding {
 namespace nodes {
 
+// Utility to Extract
+class FrameFromObject : public BT::SyncActionNode {
+public:
+  FrameFromObject(const std::string &name, const BT::NodeConfig &config)
+      : BT::SyncActionNode(name, config) {}
+
+  static BT::PortsList providedPorts() {
+    return {BT::InputPort<DetectedObject>("object"),
+            BT::InputPort<double>("fixed_x"),
+            BT::InputPort<double>("fixed_y"),
+            BT::InputPort<double>("fixed_z"),
+            BT::InputPort<int>("align_idx"),
+            BT::InputPort<double>("rotate_aligned"),
+            BT::OutputPort<Eigen::Isometry3d>("frame")};
+  }
+
+  BT::NodeStatus tick() override {
+    // Read Params
+    auto objectInput = getInput<DetectedObject>("object");
+    if (!objectInput) {
+      return BT::NodeStatus::FAILURE;
+    }
+    DetectedObject obj = objectInput.value();
+    Eigen::Isometry3d objTransform =
+        obj.getMetaSkeleton()->getBodyNode(0)->getWorldTransform();
+    Eigen::Isometry3d frame = Eigen::Isometry3d::Identity();
+    frame.translation() = objTransform.translation();
+
+    // Set Fixed X,Y,Z if provided
+    if (getInput<double>("fixed_x"))
+      frame.translation()[0] = getInput<double>("fixed_x").value();
+    if (getInput<double>("fixed_y"))
+      frame.translation()[1] = getInput<double>("fixed_y").value();
+    if (getInput<double>("fixed_z"))
+      frame.translation()[2] = getInput<double>("fixed_z").value();
+
+    // "Flatten" orientation, so obj[idx] aligns ith world[idx]
+    // We do this by taking the idx+1 axis of the object frame
+    // and projecting it onto the idx+1/idx+2 plane of the world
+    // frame. This is the (idx+1)-axis of the new frame
+    auto alignInput = getInput<int>("align_idx");
+    if (alignInput) {
+      std::vector<Eigen::Vector3d> unitVecs{Eigen::Vector3d::UnitX(),
+                                            Eigen::Vector3d::UnitY(),
+                                            Eigen::Vector3d::UnitZ()};
+      auto alignIdx = alignInput.value() % 3;
+
+      Eigen::Vector3d flat =
+          objTransform.rotation() * unitVecs[(alignIdx + 1) % 3];
+      Eigen::AngleAxisd rotation = Eigen::AngleAxisd(
+          atan2(flat[(alignIdx + 2) % 3], flat[(alignIdx + 1) % 3]),
+          unitVecs[alignIdx % 3]);
+      frame.linear() = frame.linear() * rotation;
+
+      // Apply additional rotation about aligning idx if requested
+      auto rot = getInput<double>("rotate_aligned");
+      if (rot) {
+        frame.linear() = frame.linear() *
+                         Eigen::AngleAxisd(rot.value(), unitVecs[alignIdx % 3]);
+      }
+    }
+    // Else just use object rotation
+    else {
+      frame.linear() = objTransform.linear();
+    }
+
+    setOutput<Eigen::Isometry3d>("frame", frame);
+    return BT::NodeStatus::SUCCESS;
+  }
+};
+
 // Perception Module
 class AdaPerception {
 public:
@@ -242,6 +313,9 @@ BT::NodeStatus ClearList(BT::TreeNode &self) {
 static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
                           ada::Ada &robot) {
   sPerception.init(&nh, &robot);
+
+  // Perception Utility
+  factory.registerNodeType<FrameFromObject>("FrameFromObject");
 
   // Perception Functions
   factory.registerNodeType<PerceiveFn<kFOOD>>("PerceiveFood");

@@ -6,20 +6,25 @@
 
 namespace feeding {
 
-typedef Eigen::Matrix<double, 6, 1> Vector6d;
-
 // Acquisition Action Struct
 typedef struct AcquisitionAction {
-  // In Food Ref Frame
+  // In Food Ref Frame (unless stated)
   // Origin: center of food, Z == table
-  // +Z == against gravity
+  // +Z == against gravity == World +Z
   // +X == food major axis
+
+  // Approach Frame
+  // Food frame, but +X ==
+  //    -(pre_transform.translation())
+  //    projected onto X-Y plane
 
   // Default: Vertical Skewer
 
-  // Utensil Initial Transform
+  // Utensil Initial Transform in Food Frame
+  // Default: Straight above vertical skewer
   Eigen::Isometry3d pre_transform =
-      Eigen::Translation3d(Eigen::Vector3d(0.0, 0.0, 0.05)) *
+      Eigen::Translation3d(Eigen::Vector3d::UnitZ()) *
+      Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()) *
       Eigen::Isometry3d::Identity();
 
   // Approach Offset into Food
@@ -30,8 +35,10 @@ typedef struct AcquisitionAction {
   double pre_torque = 4.0;
 
   // In-Food Twist
-  // (dX, dY, dZ, omegaX, omegaY, omegaZ)
-  Vector6d grasp_twist = Vector6d::Zero();
+  // (dX, dY, dZ) in *approach frame*
+  Eigen::Vector3d grasp_offset = Eigen::Vector3d::Zero();
+  // (omegaX, omegaY, omegaZ) in *utensil frame*
+  Eigen::Vector3d grasp_rot = Eigen::Vector3d::Zero();
   double grasp_duration = 0.0;
 
   // In-Food Force Threshold
@@ -39,8 +46,10 @@ typedef struct AcquisitionAction {
   double grasp_torque = 4.0;
 
   // Extraction Twist
-  // (dX, dY, dZ, omegaX, omegaY, omegaZ)
-  Vector6d ext_twist = (Vector6d() << 0.0, 0.0, 0.05, 0.0, 0.0, 0.0).finished();
+  // (dX, dY, dZ) in *approach frame*
+  Eigen::Vector3d ext_offset = Eigen::Vector3d::UnitZ();
+  // (omegaX, omegaY, omegaZ) in *utensil frame*
+  Eigen::Vector3d ext_rot = Eigen::Vector3d::Zero();
   double ext_duration = 1.0;
 
   // Extraction Force Threshold
@@ -88,13 +97,18 @@ typedef struct AcquisitionAction {
         action.pre_torque = param["pre_torque"];
 
       // In-Food Twist
-      if (param.hasMember("grasp_twist") &&
-          param["grasp_twist"].getType() ==
+      if (param.hasMember("grasp_offset") &&
+          param["grasp_offset"].getType() ==
               XmlRpc::XmlRpcValue::Type::TypeArray &&
-          param["grasp_twist"].size() == 6)
-        action.grasp_twist << param["grasp_twist"][0], param["grasp_twist"][1],
-            param["grasp_twist"][2], param["grasp_twist"][3],
-            param["grasp_twist"][4], param["grasp_twist"][5];
+          param["grasp_offset"].size() == 3)
+        action.grasp_offset << param["grasp_offset"][0],
+            param["grasp_offset"][1], param["grasp_offset"][2];
+      if (param.hasMember("grasp_rot") &&
+          param["grasp_rot"].getType() ==
+              XmlRpc::XmlRpcValue::Type::TypeArray &&
+          param["grasp_rot"].size() == 3)
+        action.grasp_rot << param["grasp_rot"][0], param["grasp_rot"][1],
+            param["grasp_rot"][2];
       if (param.hasMember("grasp_duration") &&
           param["grasp_duration"].getType() ==
               XmlRpc::XmlRpcValue::Type::TypeDouble)
@@ -111,13 +125,17 @@ typedef struct AcquisitionAction {
         action.grasp_torque = param["grasp_torque"];
 
       // Extraction Twist
-      if (param.hasMember("ext_twist") &&
-          param["ext_twist"].getType() ==
+      if (param.hasMember("ext_offset") &&
+          param["ext_offset"].getType() ==
               XmlRpc::XmlRpcValue::Type::TypeArray &&
-          param["ext_twist"].size() == 6)
-        action.ext_twist << param["ext_twist"][0], param["ext_twist"][1],
-            param["ext_twist"][2], param["ext_twist"][3], param["ext_twist"][4],
-            param["ext_twist"][5];
+          param["ext_offset"].size() == 3)
+        action.ext_offset << param["ext_offset"][0], param["ext_offset"][1],
+            param["ext_offset"][2];
+      if (param.hasMember("ext_rot") &&
+          param["ext_rot"].getType() == XmlRpc::XmlRpcValue::Type::TypeArray &&
+          param["ext_rot"].size() == 3)
+        action.ext_rot << param["ext_rot"][0], param["ext_rot"][1],
+            param["ext_rot"][2];
       if (param.hasMember("ext_duration") &&
           param["ext_duration"].getType() ==
               XmlRpc::XmlRpcValue::Type::TypeDouble)

@@ -10,6 +10,10 @@
 
 #include <aikido/perception/DetectedObject.hpp>
 using aikido::perception::DetectedObject;
+#include "feeding/AcquisitionAction.hpp"
+
+#include <aikido/common/util.hpp>
+using aikido::common::FuzzyZero;
 
 namespace feeding {
 namespace nodes {
@@ -22,9 +26,9 @@ public:
       : BT::SyncActionNode(name, config), mAda(robot), mNode(nh) {}
 
   static BT::PortsList providedPorts() {
-    return {BT::InputPort<DetectedObject>("object"),
+    return {BT::InputPort<Eigen::Isometry3d>("obj_transform"),
+            BT::InputPort<AcquisitionAction>("action"),
             BT::InputPort<Eigen::Isometry3d>("ee_transform"),
-            BT::InputPort<bool>("yaw_flip"),
             BT::InputPort<bool>("yaw_agnostic"),
             BT::OutputPort<std::vector<double>>("orig_pos"),
             BT::OutputPort<std::vector<double>>("orig_quat"),
@@ -37,20 +41,23 @@ public:
     // Read Params
     // Default vertical skewer
     auto transformInput = getInput<Eigen::Isometry3d>("ee_transform");
-    Eigen::Isometry3d eeTransform =
-        (transformInput) ? transformInput.value()
-                         : Eigen::Translation3d(Eigen::Vector3d::UnitZ()) *
-                               Eigen::Isometry3d::Identity();
+    auto actionInput = getInput<AcquisitionAction>("action");
 
-    auto objectInput = getInput<DetectedObject>("objects");
+    // Concat two transforms if provided, else default
+    Eigen::Isometry3d eeTransform = AcquisitionAction().pre_transform;
+    if (actionInput || transformInput) {
+      eeTransform = ((actionInput) ? actionInput.value().pre_transform
+                                   : Eigen::Isometry3d::Identity()) *
+                    ((transformInput) ? transformInput.value()
+                                      : Eigen::Isometry3d::Identity());
+    }
+
+    // Origin is the food item
+    auto objectInput = getInput<Eigen::Isometry3d>("obj_transform");
     if (!objectInput) {
       return BT::NodeStatus::FAILURE;
     }
-    DetectedObject obj = objectInput.value();
-
-    // Default no yaw flip
-    auto yawFlipInput = getInput<bool>("yaw_flip");
-    bool yawFlip = yawFlipInput ? yawFlipInput.value() : false;
+    auto origin = objectInput.value();
 
     // Default normal yaw bounds
     auto yawAgnosticInput = getInput<bool>("yaw_agnostic");
@@ -73,25 +80,6 @@ public:
     if (yawAgnostic)
       bounds[5] = M_PI;
     setOutput<std::vector<double>>("bounds", bounds);
-
-    // Origin is the food item
-    Eigen::Isometry3d objTransform =
-        obj.getMetaSkeleton()->getBodyNode(0)->getWorldTransform();
-
-    // "Flatten" orientation, so Z is facing straight up
-    // We do this by taking the X axis of the object frame
-    // and projecting it onto the X/Y plane of the world
-    // frame. This is the X-axis of the new origin frame
-    Eigen::Isometry3d origin = Eigen::Isometry3d::Identity();
-    origin.translation() = objTransform.translation();
-    Eigen::Vector3d flatX = objTransform.rotation() * Eigen::Vector3d::UnitX();
-    Eigen::AngleAxisd zRotation =
-        Eigen::AngleAxisd(atan2(flatX[1], flatX[0]), Eigen::Vector3d::UnitZ());
-    origin.linear() = origin.linear() * zRotation;
-    // If yaw flip, rotate pi about Z
-    if (yawFlip)
-      origin.linear() =
-          origin.linear() * Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ());
 
     // Output origin frame
     Eigen::Vector3d eOrigPos = origin.translation();
@@ -130,34 +118,36 @@ public:
       : BT::SyncActionNode(name, config), mAda(robot), mNode(nh) {}
 
   static BT::PortsList providedPorts() {
-    return {BT::InputPort<DetectedObject>("object"),
+    return {BT::InputPort<Eigen::Isometry3d>("obj_transform"),
+            BT::InputPort<AcquisitionAction>("action"),
             BT::InputPort<double>("overshoot"),
-            BT::InputPort<std::vector<double>>("obj_off"),
+            BT::InputPort<std::vector<double>>("world_off"),
             BT::OutputPort<std::vector<double>>("offset")};
   }
 
   BT::NodeStatus tick() override {
-    // Read Params
-    auto objectInput = getInput<DetectedObject>("object");
+    // Read Object
+    auto objectInput = getInput<Eigen::Isometry3d>("obj_transform");
     if (!objectInput) {
       return BT::NodeStatus::FAILURE;
     }
-    // Just select the first object
-    // TODO: more intelligent object selection
-    DetectedObject obj = objectInput.value();
+    auto objTransform = objectInput.value();
 
     // Input other arguments
     auto overshootInput = getInput<double>("overshoot");
     double overshoot = overshootInput ? overshootInput.value() : 0.0;
-    auto offInput = getInput<std::vector<double>>("obj_off");
-    std::vector<double> off =
-        offInput ? offInput.value() : std::vector<double>{0.0, 0.0, 0.0};
-    Eigen::Vector3d eOff = Eigen::Vector3d::Zero();
-    eOff << off[0], off[1], off[2];
+    auto offInput = getInput<std::vector<double>>("world_off");
+    Eigen::Vector3d eOff = offInput ? Eigen::Vector3d(offInput.value().data())
+                                    : Eigen::Vector3d::Zero();
+
+    // If action provided, add offset from there
+    auto actionInput = getInput<AcquisitionAction>("action");
+    if (actionInput) {
+      auto action = actionInput.value();
+      eOff = eOff + (objTransform.linear() * action.pre_offset);
+    }
 
     // Compute offset
-    Eigen::Isometry3d objTransform =
-        obj.getMetaSkeleton()->getBodyNode(0)->getWorldTransform();
     Eigen::Isometry3d eeTransform =
         mAda->getEndEffectorBodyNode()->getWorldTransform();
     Eigen::Vector3d eOffset =
@@ -176,11 +166,95 @@ private:
   ros::NodeHandle *mNode;
 };
 
+class ConfigTwist : public BT::SyncActionNode {
+public:
+  ConfigTwist(const std::string &name, const BT::NodeConfig &config,
+              ada::Ada *robot, ros::NodeHandle *nh)
+      : BT::SyncActionNode(name, config), mAda(robot), mNode(nh) {}
+
+  static BT::PortsList providedPorts() {
+    return {BT::InputPort<AcquisitionAction>("action"),
+            BT::InputPort<bool>("is_extraction"),
+            BT::InputPort<std::vector<double>>("approach"),
+            BT::InputPort<std::vector<double>>("world_off"),
+            BT::InputPort<std::vector<double>>("world_rot"),
+            BT::InputPort<double>("z_max"),
+            BT::InputPort<double>("z_min"),
+            BT::OutputPort<std::vector<double>>("offset"),
+            BT::OutputPort<std::vector<double>>("rotation")};
+  }
+
+  BT::NodeStatus tick() override {
+    // Input arguments
+    auto offInput = getInput<std::vector<double>>("world_off");
+    Eigen::Vector3d eOff = offInput ? Eigen::Vector3d(offInput.value().data())
+                                    : Eigen::Vector3d::Zero();
+    auto rotInput = getInput<std::vector<double>>("world_rot");
+    Eigen::Vector3d eRot = rotInput ? Eigen::Vector3d(rotInput.value().data())
+                                    : Eigen::Vector3d::Zero();
+
+    Eigen::Isometry3d eeTransform =
+        mAda->getEndEffectorBodyNode()->getWorldTransform();
+
+    // If action provided, add twist from there
+    auto actionInput = getInput<AcquisitionAction>("action");
+    auto extractionInput = getInput<bool>("is_extraction");
+    if (actionInput) {
+      auto action = actionInput.value();
+      double actionDuration = (extractionInput && extractionInput.value())
+                                  ? action.ext_duration
+                                  : action.grasp_duration;
+      Eigen::Vector3d actionRotation =
+          actionDuration * ((extractionInput && extractionInput.value())
+                                ? action.ext_rot
+                                : action.grasp_rot);
+      Eigen::Vector3d actionOffset =
+          actionDuration * ((extractionInput && extractionInput.value())
+                                ? action.ext_offset
+                                : action.grasp_offset);
+
+      // Tranform rotation to world frame from EE/utensil frame
+      eRot += eeTransform.linear() * actionRotation;
+
+      // Transform offset to world frame from "approach" frame
+      // If not provided, impute approach vec from action
+      auto approachInput = getInput<std::vector<double>>("approach");
+      Eigen::Vector3d approachVec =
+          approachInput
+              ? Eigen::Vector3d(approachInput.value().data())
+              : action.pre_offset - action.pre_transform.translation();
+      // Address vertical cases:
+      // If vertical: default to +Y utensil frame (i.e. flat of fork)
+      // If utensil flat (i.e. +Y is also vertical): default to +Z utensil frame
+      if (FuzzyZero(approachVec[1]) && FuzzyZero(approachVec[0])) {
+        approachVec = eeTransform.linear() * Eigen::Vector3d::UnitY();
+      }
+      if (FuzzyZero(approachVec[1]) && FuzzyZero(approachVec[0])) {
+        approachVec = eeTransform.linear() * Eigen::Vector3d::UnitZ();
+      }
+      eOff += Eigen::AngleAxisd(atan2(approachVec[1], approachVec[0]),
+                                Eigen::Vector3d::UnitZ()) *
+              actionOffset;
+    }
+    std::vector<double> offset{eOff.x(), eOff.y(), eOff.z()};
+    std::vector<double> rotation{eRot.x(), eRot.y(), eRot.z()};
+
+    setOutput("offset", offset);
+    setOutput("rotation", rotation);
+    return BT::NodeStatus::SUCCESS;
+  }
+
+private:
+  ada::Ada *mAda;
+  ros::NodeHandle *mNode;
+};
+
 /// Node registration
 static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
                           ada::Ada &robot) {
   factory.registerNodeType<ConfigMoveAbove>("ConfigMoveAbove", &robot, &nh);
   factory.registerNodeType<ConfigMoveInto>("ConfigMoveInto", &robot, &nh);
+  factory.registerNodeType<ConfigTwist>("ConfigTwist", &robot, &nh);
 }
 static_block { feeding::registerNodeFn(&registerNodes); }
 
