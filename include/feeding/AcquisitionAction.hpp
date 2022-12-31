@@ -18,7 +18,7 @@ typedef struct AcquisitionAction {
   //    -(pre_transform.translation())
   //    projected onto X-Y plane
 
-  // Default: Vertical Skewer
+  // Default: Vertical Skewer (VS0)
 
   // Utensil Initial Transform in Food Frame
   // Default: Straight above vertical skewer
@@ -67,16 +67,18 @@ typedef struct AcquisitionAction {
       // Utensil Initial Transform
       if (param.hasMember("pre_pos") &&
           param["pre_pos"].getType() == XmlRpc::XmlRpcValue::Type::TypeArray &&
-          param["pre_pos"].size() == 3)
+          param["pre_pos"].size() == 3) {
         action.pre_transform.translation() = Eigen::Vector3d(
             param["pre_pos"][0], param["pre_pos"][1], param["pre_pos"][2]);
+      }
       if (param.hasMember("pre_quat") &&
           param["pre_quat"].getType() == XmlRpc::XmlRpcValue::Type::TypeArray &&
-          param["pre_quat"].size() == 4)
+          param["pre_quat"].size() == 4) {
         action.pre_transform.linear() =
             Eigen::Quaterniond(param["pre_quat"][0], param["pre_quat"][1],
                                param["pre_quat"][2], param["pre_quat"][3])
                 .toRotationMatrix();
+      }
 
       // Utensil Initial Offset
       if (param.hasMember("pre_offset") &&

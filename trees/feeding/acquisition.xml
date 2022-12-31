@@ -15,8 +15,17 @@
       <!-- Rank Foods Based on Distance to Fork -->
       <RankDistance objects="{foods}" output="{food}" />
 
-      <!-- Default Action -->
-      <AcquisitionDefaultAction target="{action}" />
+      <!-- Action Selection -->
+      <Fallback name="ActionSelectionFallback">
+        <Sequence>
+          <!-- Load Action Library -->
+          <RosGetParam param="action_selection/actions" target="{library}" />
+          <RosSubI topic="action_select" target="{action_idx}" />
+          <AcquisitionGetAction library="{library}" index="{action_idx}" target="{action}" />
+        </Sequence>
+        <!-- Default Action -->
+        <AcquisitionDefaultAction target="{action}" />
+      </Fallback>
 
       <!-- Acquisition -->
       <SubTree ID="BiteAcquisition" food_name="{food_name}" food="{food}" action="{action}" />
@@ -71,7 +80,8 @@
         <AcquisitionUnpackAction action="{action}" pre_force="{force}" pre_torque="{torque}" />
         <SetFTThreshold force="{force}" torque="{torque}" />
         <!-- FT Sensor Trip is Okay -->
-        <AdaPlanToOffset name="PlanOffsetInto" offset="{approach}" worldCollision="{FALSE}" traj="{traj}" />
+        <AdaPlanToPoseOffset name="PlanOffsetInto" offset="{approach}" rotation="0.0;0.0;0.0" worldCollision="{FALSE}" traj="{traj}" />
+        <!-- TODO: PlanToOffset isn't as accurate -->
         <ForceSuccess><AdaExecuteTrajectory name="MoveInto" traj="{traj}" /></ForceSuccess>
 
         <!-- Move Within -->

@@ -245,19 +245,21 @@ public:
         objectInput ? objectInput.value().translation().z() : 0.0;
     double zHeight = eeTransform.translation().z() + eOff.z();
     if (eOff.z() > 0 && !FuzzyZero(eOff.z())) {
-      double zMax = getInput<double>("z_max")
-                        ? std::min(getInput<double>("z_max").value(), zHeight)
-                        : zHeight;
-      zMax += objOffset;
-      double length = (zMax - eeTransform.translation().z()) / eOff.z();
+      double zMax =
+          getInput<double>("z_max")
+              ? std::min(getInput<double>("z_max").value() + objOffset, zHeight)
+              : zHeight;
+      double length =
+          std::max(0.0, (zMax - eeTransform.translation().z()) / eOff.z());
       eOff *= length;
     }
     if (eOff.z() < 0 && !FuzzyZero(eOff.z())) {
-      double zMin = getInput<double>("z_min")
-                        ? std::max(getInput<double>("z_min").value(), zHeight)
-                        : zHeight;
-      zMin += objOffset;
-      double length = (zMin - eeTransform.translation().z()) / eOff.z();
+      double zMin =
+          getInput<double>("z_min")
+              ? std::max(getInput<double>("z_min").value() + objOffset, zHeight)
+              : zHeight;
+      double length =
+          std::max(0.0, (zMin - eeTransform.translation().z()) / eOff.z());
       eOff *= length;
     }
 

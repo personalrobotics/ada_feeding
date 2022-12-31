@@ -330,6 +330,7 @@ BT::NodeStatus getEEPose(BT::TreeNode &self, ada::Ada &robot) {
   Eigen::Quaterniond eQuat(pose.linear());
   std::vector<double> quat{eQuat.w(), eQuat.x(), eQuat.y(), eQuat.z()};
   self.setOutput<std::vector<double>>("quat", quat);
+  ROS_INFO_STREAM("EE Pos: " << ePos);
   return BT::NodeStatus::SUCCESS;
 }
 

@@ -53,6 +53,8 @@ BT::NodeStatus GetAction(BT::TreeNode &self) {
     return BT::NodeStatus::FAILURE;
   auto idxInput = self.getInput<int>("index");
   auto index = (idxInput) ? idxInput.value() : 0;
+  if (index < 0 || (size_t)index >= library.size())
+    return BT::NodeStatus::FAILURE;
   self.setOutput<AcquisitionAction>("target", library[index]);
   return BT::NodeStatus::SUCCESS;
 }
@@ -83,7 +85,7 @@ static void registerNodes(BT::BehaviorTreeFactory &factory,
                                {BT::OutputPort<AcquisitionAction>("target")});
 
   factory.registerSimpleAction("AcquisitionGetAction",
-                               std::bind(DefaultAction, std::placeholders::_1),
+                               std::bind(GetAction, std::placeholders::_1),
                                {BT::InputPort<XmlRpc::XmlRpcValue>("library"),
                                 BT::InputPort<int>("index"),
                                 BT::OutputPort<AcquisitionAction>("target")});
