@@ -89,13 +89,12 @@ action_selection:
 
 # Acquisition Parameters
 move_above:
-  rotation_agnostic: ["banana", "cantaloupe", "grape", "strawberry"]
   tsr_bounds: [0.005, 0.005, 0.005, 0.01, 0.01, 0.01]
-  height: 0.05
+  distance: 0.05
 move_into:
-  overshoot: 0.005 # how far to plan past food surface
+  overshoot: 0.0 # how far to plan past food
 move_out:
-  offset: [0.0, 0.0, 0.05]
+  z_max: 0.05
 
 # Transfer Parameters
 move_face:

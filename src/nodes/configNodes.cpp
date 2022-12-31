@@ -180,6 +180,7 @@ public:
             BT::InputPort<std::vector<double>>("world_rot"),
             BT::InputPort<double>("z_max"),
             BT::InputPort<double>("z_min"),
+            BT::InputPort<Eigen::Isometry3d>("obj_transform"),
             BT::OutputPort<std::vector<double>>("offset"),
             BT::OutputPort<std::vector<double>>("rotation")};
   }
@@ -238,11 +239,16 @@ public:
     }
 
     // Clamp Z
+    // if object provided, z relative to object
+    auto objectInput = getInput<Eigen::Isometry3d>("obj_transform");
+    double objOffset =
+        objectInput ? objectInput.value().translation().z() : 0.0;
     double zHeight = eeTransform.translation().z() + eOff.z();
     if (eOff.z() > 0 && !FuzzyZero(eOff.z())) {
       double zMax = getInput<double>("z_max")
                         ? std::min(getInput<double>("z_max").value(), zHeight)
                         : zHeight;
+      zMax += objOffset;
       double length = (zMax - eeTransform.translation().z()) / eOff.z();
       eOff *= length;
     }
@@ -250,6 +256,7 @@ public:
       double zMin = getInput<double>("z_min")
                         ? std::max(getInput<double>("z_min").value(), zHeight)
                         : zHeight;
+      zMin += objOffset;
       double length = (zMin - eeTransform.translation().z()) / eOff.z();
       eOff *= length;
     }

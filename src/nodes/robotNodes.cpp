@@ -12,6 +12,9 @@
 #include <aikido/rviz.hpp>
 extern aikido::rviz::InteractiveMarkerViewerPtr gMarkerViewer;
 
+#include <aikido/common/util.hpp>
+using aikido::common::FuzzyZero;
+
 namespace feeding {
 namespace nodes {
 
@@ -228,8 +231,10 @@ private:
     }
 
     auto viz = getInput<bool>("viz");
-    if (viz && viz.value())
+    if (viz && viz.value()) {
+      ROS_WARN_STREAM("Visualizing Marker");
       gMarkerViewer->addTSRMarker(*tsr);
+    }
 
     mFuture = std::async(
         std::launch::async,

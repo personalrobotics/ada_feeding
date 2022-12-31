@@ -38,21 +38,22 @@
           <Sequence>
             <FrameFromObject object="{food}" align_idx="{Z}" frame="{food_frame}" />
             <ConfigMoveAbove obj_transform="{food_frame}" action="{action}" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" />
-            <AdaPlanToPose orig_pos="{orig_pos}" orig_quat="{orig_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" traj="{traj}" />
+            <AdaPlanToPose orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" traj="{traj}" />
           </Sequence>
           <!-- Flipped -->
           <Sequence>
             <FrameFromObject object="{food}" align_idx="{Z}" rotate_aligned="{PI}" frame="{food_frame}" />
             <ConfigMoveAbove obj_transform="{food_frame}" action="{action}" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" />
-            <AdaPlanToPose orig_pos="{orig_pos}" orig_quat="{orig_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" traj="{traj}" />
+            <AdaPlanToPose orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" traj="{traj}" />
           </Sequence>
           <!-- Yaw Agnostic -->
           <Sequence>
             <FrameFromObject object="{food}" align_idx="{Z}" frame="{food_frame}" />
             <ConfigMoveAbove obj_transform="{food_frame}" action="{action}" yaw_agnostic="{TRUE}" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" />
-            <AdaPlanToPose orig_pos="{orig_pos}" orig_quat="{orig_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" traj="{traj}" />
+            <AdaPlanToPose orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" traj="{traj}" />
           </Sequence>
         </Fallback>
+        <AdaExecuteTrajectory name="MoveAbove" traj="{traj}" />
         <!-- TODO (low-pri): add above logic to entire action by simulating action -->
 
         <!-- Try Redetect Foods -->
@@ -67,7 +68,7 @@
         <RosGetD param="move_into/overshoot" target="{overshoot}" default="0.0" />
         <RosGetVecD param="move_into/world_off" target="{world_off}" default="0.0;0.0;0.0" />
         <ConfigMoveInto obj_transform="{food_frame}" action="{action}" overshoot="{overshoot}" world_off="{world_off}" offset="{approach}" />
-        <AcquisitionUnpackAction pre_force="{force}" pre_torque="{torque}" />
+        <AcquisitionUnpackAction action="{action}" pre_force="{force}" pre_torque="{torque}" />
         <SetFTThreshold force="{force}" torque="{torque}" />
         <!-- FT Sensor Trip is Okay -->
         <AdaPlanToOffset name="PlanOffsetInto" offset="{approach}" worldCollision="{FALSE}" traj="{traj}" />
@@ -75,8 +76,8 @@
 
         <!-- Move Within -->
         <RosGetD param="move_within/z_min" target="{z_min}" default="0.0" />
-        <ConfigTwist action="{action}" is_extraction="{FALSE}" approach="{approach}" z_min="{z_min}" offset="{offset}" rotation="{rotation}" />
-        <AcquisitionUnpackAction grasp_force="{force}" grasp_torque="{torque}" />
+        <ConfigTwist action="{action}" is_extraction="{FALSE}" approach="{approach}" z_min="{z_min}" obj_transform="{food_frame}" offset="{offset}" rotation="{rotation}" />
+        <AcquisitionUnpackAction action="{action}" grasp_force="{force}" grasp_torque="{torque}" />
         <SetFTThreshold force="{force}" torque="{torque}" />
         <!-- FT Sensor Trip is Okay -->
         <AdaPlanToPoseOffset name="PlanTwistWithin" offset="{offset}" rotation="{rotation}" worldCollision="{FALSE}" traj="{traj}" />
@@ -84,8 +85,8 @@
 
         <!-- Move Out -->
         <RosGetD param="move_out/z_max" target="{z_max}" />
-        <ConfigTwist action="{action}" is_extraction="{TRUE}" approach="{approach}" z_max="{z_max}" offset="{offset}" rotation="{rotation}" />
-        <AcquisitionUnpackAction ext_force="{force}" ext_torque="{torque}" />
+        <ConfigTwist action="{action}" is_extraction="{TRUE}" approach="{approach}" z_max="{z_max}" obj_transform="{food_frame}" offset="{offset}" rotation="{rotation}" />
+        <AcquisitionUnpackAction action="{action}" ext_force="{force}" ext_torque="{torque}" />
         <SetFTThreshold force="{force}" torque="{torque}" />
         <AdaPlanToPoseOffset name="PlanTwistOut" offset="{offset}" rotation="{rotation}" worldCollision="{FALSE}" traj="{traj}" />
         <AdaExecuteTrajectory name="MoveOut" traj="{traj}" />
