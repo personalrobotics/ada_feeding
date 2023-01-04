@@ -1,6 +1,7 @@
 <launch>
 	<!-- Other options: retinanet, spnet, spanet -->
   <!-- See possible networks in https://github.com/personalrobotics/food_detector/ -->
+  <!-- Set to "apriltag" for apriltag-based detection -->
   <arg name="detector" default="spanet" doc="Which network to use for food perception."/>
   <arg name="sim" default="false" doc="Whether to run in Aikido-sim only" />
 
@@ -17,10 +18,36 @@
 
   <!-- Real Perception -->
   <group unless="$(arg sim)">
-    <node pkg="food_detector" type="run_perception_module.py" name="food_detector"
-          args="--demo-type $(arg detector)" output="screen" required="true"/>
+    <group unless="$(eval arg('detector') == 'apriltag')">
+      <node pkg="food_detector" type="run_perception_module.py" name="food_detector"
+            args="--demo-type $(arg detector)" output="screen" required="true"/>
 
-    <node pkg="face_detection" type="face_detection" name="face_detection"
-          required="true"/>
+      <node pkg="face_detection" type="face_detection" name="face_detection"
+            required="true"/>
+    </group>
+    <group if="$(eval arg('detector') == 'apriltag')">
+      <arg name="tag_image_topic" default="/camera/color/image_raw" doc="Image topic for apriltag" />
+      <arg name="tag_camera_info" default="/camera/color/camera_info" doc="Camera Info topic for apriltag" />
+
+      <arg name="camera_frame" default="camera_color_optical_frame" />
+      <arg name="tag_frame" default="detected_food_tag" />
+      
+      <rosparam ns="apriltag_perception" file="$(find ada_feeding)/config/gen2_apriltag_perception.yaml" />
+
+      <!-- Food Apriltag -->
+      <node pkg="apriltag_ros" type="apriltag_ros_continuous_node" name="apriltag_perception" output="screen">
+        <remap from="image_rect" to="$(arg tag_image_topic)"/>
+        <remap from="camera_info" to="$(arg tag_camera_info)"/>
+      </node>
+
+      <!-- Marker Publisher -->
+      <node pkg="ada_feeding" type="apriltag_food_perception.py" name="food_detector" output="screen">
+        <remap from="image_compressed" to="$(arg tag_image_topic)/compressed"/>
+        <remap from="camera_info" to="$(arg tag_camera_info)"/>
+        <param name="camera_frame" value="$(arg camera_frame)" />
+        <param name="tag_frame" value="$(arg tag_frame)" />
+        <param name="publish_tag_detections_image" type="bool" value="false" />
+      </node>
+    </group>
   </group>
 </launch>
