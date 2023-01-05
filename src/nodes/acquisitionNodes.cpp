@@ -33,6 +33,7 @@ BT::NodeStatus UnpackAction(BT::TreeNode &self) {
   self.setOutput<double>("ext_duration", action.ext_duration);
   self.setOutput<double>("ext_force", action.ext_force);
   self.setOutput<double>("ext_torque", action.ext_torque);
+  self.setOutput<double>("rotate_pref", action.rotate_pref);
 
   return BT::NodeStatus::SUCCESS;
 }
@@ -65,6 +66,7 @@ static void registerNodes(BT::BehaviorTreeFactory &factory,
   factory.registerSimpleAction(
       "AcquisitionUnpackAction", std::bind(UnpackAction, std::placeholders::_1),
       {BT::InputPort<AcquisitionAction>("action"),
+       BT::OutputPort<double>("rotate_pref"),
        BT::OutputPort<Eigen::Isometry3d>("pre_transform"),
        BT::OutputPort<Eigen::Vector3d>("pre_offset"),
        BT::OutputPort<double>("pre_force"),

@@ -2,9 +2,15 @@
   <!-- Subtree Includes -->
   <include path="./helpers.xml"/>
 
-  <!-- Default Action -->
+  <!-- Acquisition-Only -->
   <BehaviorTree ID="AcquisitionRoot">
     <Sequence name="AcquisitionRootSeq">
+
+      <!-- Move Above Plate -->
+      <RosGetVecD param="configs/wheelchair/above_plate" target="{config}" />
+      <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
+
+      <!-- Ask for Food -->
       <RetryUntilSuccessful num_attempts="-1">
         <Sequence>
           <RosSubString topic="food_request" target="{food_name}" />
@@ -36,28 +42,39 @@
   <BehaviorTree ID="BiteAcquisition">
     <RetryUntilSuccessful num_attempts="3">
       <Sequence name="AcquisitionSeq">
+        <AdaSetVFParams />
         <!-- Scripting constants -->
         <Script code=" TRUE:=true; FALSE:=false " />
         <Script code=" X:=0; Y:=1; Z:=2; PI:=3.1415926535 " />
 
+        <!-- Try Redetect Foods -->
+        <ForceSuccess>
+          <Sequence>
+            <PerceiveFood name_filter="{food_name}" timeout="1" objects="{foods}" />
+            <RankDistance objects="{foods}" nearestTo="{food}" output="{food}" />
+          </Sequence>
+        </ForceSuccess>
+
         <!-- Move Above -->
         <SetFTThreshold preset="standard" />
+        <AcquisitionUnpackAction action="{action}" rotate_pref="{rotate}" />
         <Fallback>
           <!-- Normal -->
           <Sequence>
-            <FrameFromObject object="{food}" align_idx="{Z}" frame="{food_frame}" />
+            <FrameFromObject object="{food}" align_idx="{Z}" rotate_aligned="{rotate}" frame="{food_frame}" />
             <ConfigMoveAbove obj_transform="{food_frame}" action="{action}" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" />
             <AdaPlanToPose orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" traj="{traj}" />
           </Sequence>
           <!-- Flipped -->
           <Sequence>
-            <FrameFromObject object="{food}" align_idx="{Z}" rotate_aligned="{PI}" frame="{food_frame}" />
+            <Script code=" rotate += PI " />
+            <FrameFromObject object="{food}" align_idx="{Z}" rotate_aligned="{rotate}" frame="{food_frame}" />
             <ConfigMoveAbove obj_transform="{food_frame}" action="{action}" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" />
             <AdaPlanToPose orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" traj="{traj}" />
           </Sequence>
           <!-- Yaw Agnostic -->
           <Sequence>
-            <FrameFromObject object="{food}" align_idx="{Z}" frame="{food_frame}" />
+            <FrameFromObject object="{food}" align_idx="{Z}" rotate_aligned="{rotate}" frame="{food_frame}" />
             <ConfigMoveAbove obj_transform="{food_frame}" action="{action}" yaw_agnostic="{TRUE}" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" />
             <AdaPlanToPose orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" traj="{traj}" />
           </Sequence>
@@ -85,6 +102,8 @@
         <ForceSuccess><AdaExecuteTrajectory name="MoveInto" traj="{traj}" /></ForceSuccess>
 
         <!-- Move Within -->
+        <RosGetParam param="move_within/vf_params" target="{vf_params}" />
+        <AdaSetVFParams vfparam="{vf_params}" />
         <RosGetD param="move_within/z_min" target="{z_min}" default="0.0" />
         <ConfigTwist action="{action}" is_extraction="{FALSE}" approach="{approach}" z_min="{z_min}" obj_transform="{food_frame}" offset="{offset}" rotation="{rotation}" />
         <AcquisitionUnpackAction action="{action}" grasp_force="{force}" grasp_torque="{torque}" />
@@ -94,6 +113,8 @@
         <ForceSuccess><AdaExecuteTrajectory name="MoveWithin" traj="{traj}" /></ForceSuccess>
 
         <!-- Move Out -->
+        <RosGetParam param="move_out/vf_params" target="{vf_params}" />
+        <AdaSetVFParams vfparam="{vf_params}" />
         <RosGetD param="move_out/z_max" target="{z_max}" />
         <ConfigTwist action="{action}" is_extraction="{TRUE}" approach="{approach}" z_max="{z_max}" obj_transform="{food_frame}" offset="{offset}" rotation="{rotation}" />
         <AcquisitionUnpackAction action="{action}" ext_force="{force}" ext_torque="{torque}" />

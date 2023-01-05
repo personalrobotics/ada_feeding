@@ -74,6 +74,7 @@ class AprilTagPerception(PoseEstimator):
       camera_frame = rospy.get_param("~camera_frame")
       detected_tag_frame = rospy.get_param("~tag_frame")
 
+      # TODO: Move from Hard-Coded to a ROS Param
       corner = np.array([[-0.01825, 0.02175, 0.02175, -0.01825], [-0.035, -0.0345, -0.0595, -0.060], [0.0, 0.0, 0.0, 0.0]])
 
       transform = None
@@ -99,6 +100,8 @@ class AprilTagPerception(PoseEstimator):
       box = cv2.boxPoints(rect)
       box = np.int0(box)
       crop = crop_minAreaRect(draw, rect)
+      if crop.size < 1:
+        return []
       # Debugging Only
       # cv2.drawContours(draw,[box],0,(255,0,0),2)
       # cv2.imshow('Image', draw)

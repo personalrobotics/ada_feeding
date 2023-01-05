@@ -347,6 +347,78 @@ BT::NodeStatus getConfig(BT::TreeNode &self, ada::Ada &robot) {
   return BT::NodeStatus::SUCCESS;
 }
 
+// Set Vector Field Planner Params
+BT::NodeStatus setVFParams(BT::TreeNode &self, ada::Ada &robot) {
+  auto paramInput = self.getInput<XmlRpc::XmlRpcValue>("vfparam");
+  aikido::robot::util::VectorFieldPlannerParameters newParams;
+
+  if (paramInput) {
+    auto param = paramInput.value();
+    if (param.getType() == XmlRpc::XmlRpcValue::Type::TypeStruct) {
+      // Distance Tolerance (Offset-Only)
+      if (param.hasMember("dist_tol") &&
+          param["dist_tol"].getType() ==
+              XmlRpc::XmlRpcValue::Type::TypeDouble) {
+        newParams.distanceTolerance = param["dist_tol"];
+      }
+
+      // Position Tolerance
+      if (param.hasMember("pos_tol") &&
+          param["pos_tol"].getType() == XmlRpc::XmlRpcValue::Type::TypeDouble) {
+        newParams.positionTolerance = param["pos_tol"];
+      }
+
+      // Angular Tolerance
+      if (param.hasMember("ang_tol") &&
+          param["ang_tol"].getType() == XmlRpc::XmlRpcValue::Type::TypeDouble) {
+        newParams.angularTolerance = param["ang_tol"];
+      }
+
+      // Initial VF Step Size
+      if (param.hasMember("step") &&
+          param["step"].getType() == XmlRpc::XmlRpcValue::Type::TypeDouble) {
+        newParams.initialStepSize = param["step"];
+      }
+
+      // Joint Limit Tolerance
+      if (param.hasMember("joint_tol") &&
+          param["joint_tol"].getType() ==
+              XmlRpc::XmlRpcValue::Type::TypeDouble) {
+        newParams.jointLimitTolerance = param["joint_tol"];
+      }
+
+      // Constraint Check Resolution
+      if (param.hasMember("const_res") &&
+          param["const_res"].getType() ==
+              XmlRpc::XmlRpcValue::Type::TypeDouble) {
+        newParams.constraintCheckResolution = param["const_res"];
+      }
+
+      // Timeout (s, when to give up)
+      if (param.hasMember("timeout") &&
+          param["timeout"].getType() == XmlRpc::XmlRpcValue::Type::TypeDouble) {
+        newParams.timeout = std::chrono::duration<double>(param["timeout"]);
+      }
+
+      // Goal Tolerance (Twist Only)
+      if (param.hasMember("goal_tol") &&
+          param["goal_tol"].getType() ==
+              XmlRpc::XmlRpcValue::Type::TypeDouble) {
+        newParams.goalTolerance = param["goal_tol"];
+      }
+
+      // Angle-To-Distance Ratio (Twist Only)
+      if (param.hasMember("a2d_rat") &&
+          param["a2d_rat"].getType() == XmlRpc::XmlRpcValue::Type::TypeDouble) {
+        newParams.angleDistanceRatio = param["a2d_rat"];
+      }
+    }
+  }
+
+  robot.getArm()->setVFParams(newParams);
+  return BT::NodeStatus::SUCCESS;
+}
+
 /// Node registration
 static void registerNodes(BT::BehaviorTreeFactory &factory,
                           ros::NodeHandle & /*&nh */, ada::Ada &robot) {
@@ -373,6 +445,12 @@ static void registerNodes(BT::BehaviorTreeFactory &factory,
       std::bind(getConfig, std::placeholders::_1, std::ref(robot)),
       {BT::InputPort<bool>("armOnly"),
        BT::OutputPort<std::vector<double>>("target")});
+
+  // Set VF Planner Params
+  factory.registerSimpleAction(
+      "AdaSetVFParams",
+      std::bind(setVFParams, std::placeholders::_1, std::ref(robot)),
+      {BT::InputPort<XmlRpc::XmlRpcValue>("vfparam")});
 }
 static_block { feeding::registerNodeFn(&registerNodes); }
 

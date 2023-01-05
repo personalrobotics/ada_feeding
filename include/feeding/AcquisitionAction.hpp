@@ -20,6 +20,10 @@ typedef struct AcquisitionAction {
 
   // Default: Vertical Skewer (VS0)
 
+  // Food Frame Rotation Preference
+  // Used to manually break the PI symmetry
+  double rotate_pref = 0.0;
+
   // Utensil Initial Transform in Food Frame
   // Default: Straight above vertical skewer
   Eigen::Isometry3d pre_transform =
@@ -63,6 +67,12 @@ typedef struct AcquisitionAction {
     if (param.getType() == XmlRpc::XmlRpcValue::Type::TypeStruct) {
       AcquisitionAction defaultAction;
       AcquisitionAction action;
+
+      // Food Frame Rotation Preference
+      if (param.hasMember("rotate_pref") &&
+          param["rotate_pref"].getType() ==
+              XmlRpc::XmlRpcValue::Type::TypeDouble)
+        action.rotate_pref = param["rotate_pref"];
 
       // Utensil Initial Transform
       if (param.hasMember("pre_pos") &&
