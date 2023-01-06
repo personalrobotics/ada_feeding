@@ -75,12 +75,12 @@ move_into:
   overshoot: 0.0 # how far to plan past food
 move_within:
   vf_params: # Give it longer to plan
-    timeout: 5.0
+    timeout: 10.0
   z_min: 0.0
 move_out:
   vf_params: # Looser, we need this to succeed
-    ang_tol: 0.02 
-    pos_tol: 0.01
+    ang_tol: 0.03 
+    pos_tol: 0.02
     timeout: 5.0
   z_max: 0.05
 
@@ -176,7 +176,7 @@ action_selection:
       ext_duration: 0.3100457191467285
       ext_force: 50.0
       ext_torque: 4.0
-    - ## 2 (VS0 Scoop, "rolling" grasp, no Flatten Ext); NOTE: Needs PI Flip MoveOut
+    - ## 2 (VS45 Scoop, "rolling" grasp, no Flatten Ext); NOTE: Needs PI Flip MoveOut
       rotate_pref: 3.1415926535
       pre_pos: [-0.024143515376594146,0.06277334405761265,0.09034501917000697]
       pre_quat: [0.0891759, 0.9500375, 0.2924965, -0.0626277]
@@ -194,7 +194,7 @@ action_selection:
       ext_duration: 0.16992926597595215
       ext_force: 50.0
       ext_torque: 4.0
-    - ## 3 (Looks like #2); NOTE: Needs PI Flip MoveOut
+    - ## 3 VS0 Scoop, "rolling" grasp, flat extraction; NOTE: Needs PI Flip MoveOut
       rotate_pref: 3.1415926535
       pre_pos: [0.01215432550886536,0.04876658792389915,0.06980903419187809]
       pre_quat: [0.1193524, 0.9860264, -0.0486593, -0.1055426]
@@ -212,7 +212,7 @@ action_selection:
       ext_duration: 0.2899940013885498
       ext_force: 50.0
       ext_torque: 4.0
-    - ## 4 (#3 but flatter); NOTE: Needs PI Flip MoveOut
+    - ## 4 (#3 but flatter grasp); NOTE: Needs PI Flip MoveOut
       rotate_pref: 3.1415926535
       pre_pos: [0.004001633017756162,0.06312380680746105,0.09670041120942788]
       pre_quat: [0.2211192, 0.9639341, -0.0797129, -0.1248329]
@@ -282,7 +282,7 @@ action_selection:
       ext_duration: 0.5200517177581787
       ext_force: 50.0
       ext_torque: 4.0
-    - ## 8
+    - ## 8 (pronounced grasp forward rotation)
       pre_pos: [-0.002959228034460005,0.04584299368442489,0.0700856193569379]
       pre_quat: [0.2794592, 0.9489021, 0.1060026, -0.101246]
       pre_offset: [0.0, 0.0, 0.0]
@@ -299,7 +299,7 @@ action_selection:
       ext_duration: 0.3600335121154785
       ext_force: 50.0
       ext_torque: 4.0
-    - ## 9; NOTE: Needed to slow down twists, getting negative velocities.
+    - ## 9 (jello action?)
       rotate_pref: 3.1415926535
       pre_pos: [0.023029256981700056,0.030483687264061088,0.0975389042712036]
       pre_quat: [0.3521873, 0.8314084, -0.4284979, 0.0333734]
@@ -308,26 +308,24 @@ action_selection:
       pre_torque: 4.0
       grasp_offset: [0.005734422763141943,0.006267786758452435,-0.0037827411146525766]
       grasp_rot: [-0.030297154020881414,0.1039099102960663,0.24050936866729616]
-      #grasp_duration: 4.81995701789856
-      grasp_duration: 2.41995701789856
+      grasp_duration: 4.81995701789856
       grasp_force: 3.96766275014598
       grasp_torque: 1.0
       #grasp_torque: 0.002631211166174245
       ext_offset: [0.005343244618375504,-0.028310391265318605,0.08794807723179696]
       ext_rot: [0.005954186079548229,0.531200759367285,-0.01743297025928725]
-      #ext_duration: 0.6699807643890381
-      ext_duation: 0.33
+      ext_duration: 0.6699807643890381
       ext_force: 50.0
       ext_torque: 4.0
     - ## 10 (Just TV90 w/ Angled Approach)
+      rotate_pref: 3.1415926535
       pre_pos: [0.04713189267837953,0.019057697310043087,0.09420154915957893]
       pre_quat: [-0.0713461, 0.5522494, 0.7536649, -0.3491697]
       pre_offset: [0.0, 0.0, 0.0]
       pre_force: 1.9269744625535483
       pre_torque: 4.0
       grasp_offset: [-0.00014181063490461415,0.00037821465050548583,-0.02568649794393181]
-      grasp_rot: [0.0,0.0,0.0] # Rotation <5deg and takes forever to plan
-      #grasp_rot: [-0.02701743891957062,-0.024712846172365743,0.018588157299282593]
+      grasp_rot: [-0.02701743891957062,-0.024712846172365743,0.018588157299282593]
       grasp_duration: 1.5199480056762695
       grasp_force: 32.62159643755134
       grasp_torque: 1.0

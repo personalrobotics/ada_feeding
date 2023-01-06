@@ -116,6 +116,9 @@ class AprilTagPerception(PoseEstimator):
       self.pub_compressed.publish(msg)
       
       item_center = np.mean(corner, axis=1).reshape((3, 1))
+      # Center Fudging
+      item_center[0, 0] += 0.005 #+X
+      item_center[1, 0] += 0.005 #+Y
       item_center = rot @ item_center + trans
       pose = np.zeros((4, 4))
       pose[3, 3] = 1.0

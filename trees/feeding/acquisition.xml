@@ -6,6 +6,10 @@
   <BehaviorTree ID="AcquisitionRoot">
     <Sequence name="AcquisitionRootSeq">
 
+      <!-- Give Velocity Headroom -->
+      <RosGetVecD param="velocityLimits/standard" target="{vel_standard}" />
+      <AdaSetLimits velocity="{vel_standard}" />
+
       <!-- Move Above Plate -->
       <RosGetVecD param="configs/wheelchair/above_plate" target="{config}" />
       <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
@@ -83,12 +87,14 @@
         <!-- TODO (low-pri): add above logic to entire action by simulating action -->
 
         <!-- Try Redetect Foods -->
+        <!--
         <ForceSuccess>
           <Sequence>
             <PerceiveFood name_filter="{food_name}" timeout="1" objects="{foods}" />
             <RankDistance objects="{foods}" nearestTo="{food}" output="{food}" />
           </Sequence>
         </ForceSuccess>
+        -->
 
         <!-- Move Into -->
         <RosGetD param="move_into/overshoot" target="{overshoot}" default="0.0" />

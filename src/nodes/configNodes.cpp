@@ -266,6 +266,8 @@ public:
     std::vector<double> offset{eOff.x(), eOff.y(), eOff.z()};
     std::vector<double> rotation{eRot.x(), eRot.y(), eRot.z()};
 
+    dtwarn << "Offset: " << eOff << std::endl;
+    dtwarn << "Rotation: " << eRot << std::endl;
     setOutput("offset", offset);
     setOutput("rotation", rotation);
     return BT::NodeStatus::SUCCESS;
