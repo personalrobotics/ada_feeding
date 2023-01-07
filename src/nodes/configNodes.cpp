@@ -182,7 +182,8 @@ public:
             BT::InputPort<double>("z_min"),
             BT::InputPort<Eigen::Isometry3d>("obj_transform"),
             BT::OutputPort<std::vector<double>>("offset"),
-            BT::OutputPort<std::vector<double>>("rotation")};
+            BT::OutputPort<std::vector<double>>("rotation"),
+            BT::OutputPort<bool>("null_motion")};
   }
 
   BT::NodeStatus tick() override {
@@ -266,10 +267,9 @@ public:
     std::vector<double> offset{eOff.x(), eOff.y(), eOff.z()};
     std::vector<double> rotation{eRot.x(), eRot.y(), eRot.z()};
 
-    dtwarn << "Offset: " << eOff << std::endl;
-    dtwarn << "Rotation: " << eRot << std::endl;
     setOutput("offset", offset);
     setOutput("rotation", rotation);
+    setOutput("null_motion", FuzzyZero(eOff.norm()) && FuzzyZero(eRot.norm()));
     return BT::NodeStatus::SUCCESS;
   }
 

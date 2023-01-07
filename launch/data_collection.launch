@@ -1,0 +1,54 @@
+<launch>
+
+  <!-- Start Image Savers -->
+  <param name="/feeding/data_folder" value="$(find ada_feeding)/data" />
+  <node name="image_saver"
+          pkg="image_view"
+          type="image_saver"
+          output="log"
+          required="true">
+    <remap from="image" to="/camera/color/image_raw" />
+    <param name="save_all_image" value="false" />
+    <param name="filename_format" value="$(find ada_feeding)/data/image.png" />
+  </node>
+  <node name="crop_saver"
+          pkg="image_view"
+          type="image_saver"
+          output="log"
+          required="true">
+    <remap from="image" to="/food_detector/food_crop" />
+    <param name="encoding" value="8UC3" />
+    <param name="save_all_image" value="false" />
+    <param name="filename_format" value="$(find ada_feeding)/data/crop.png" />
+  </node>
+
+  <!-- Start Rosbag Savers -->
+  <node name="rosbag_robot"
+          ns="rosbag_robot"
+          pkg="remote_rosbag_record"
+          type="record"
+          output="screen"
+          respawn="true">
+    <param name="record_all" value="false" />
+    <param name="verbose" value="false" />
+    <param name="compression" value="bz2" />
+    <param name="append_date" value="false" />
+    <param name="prefix" value="$(find ada_feeding)/data/robot" />
+    <rosparam param="topics">["/tf", "/joint_states", "/dart_markers/feeding/update", "/food_detector/marker_array"]</rosparam>
+  </node>
+
+  <node name="rosbag_image_ft"
+          ns="rosbag_image_ft"
+          pkg="remote_rosbag_record"
+          type="record"
+          output="screen"
+          respawn="true">
+    <param name="record_all" value="false" />
+    <param name="verbose" value="false" />
+    <param name="compression" value="bz2" />
+    <param name="append_date" value="false" />
+    <param name="prefix" value="$(find ada_feeding)/data/image_ft" />
+    <rosparam param="topics">["/forque/forqueSensor", "/camera/color/camera_info", "/camera/color/image_raw/compressed", "/camera/aligned_depth_to_color/image_raw/compressed", "/camera/aligned_depth_to_color/camera_info"]</rosparam>
+  </node>
+
+</launch>

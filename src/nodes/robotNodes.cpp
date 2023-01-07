@@ -145,6 +145,14 @@ private:
     }
     Eigen::Vector3d eOffset(offset.value().data());
 
+    // Don't plan empty trajectory
+    if (FuzzyZero(eOffset.norm())) {
+      mFuture =
+          aikido::common::make_ready_future<aikido::trajectory::TrajectoryPtr>(
+              nullptr);
+      return true;
+    }
+
     mFuture = std::async(
         std::launch::async,
         [this](Eigen::Vector3d off, aikido::constraint::TestablePtr testable) {
