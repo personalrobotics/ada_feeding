@@ -76,7 +76,7 @@ move_into:
 move_within:
   vf_params: # Give it longer to plan
     timeout: 10.0
-  z_min: 0.0
+  z_min: -0.02
 move_out:
   vf_params: # Looser, we need this to succeed
     ang_tol: 0.03 
@@ -126,6 +126,7 @@ action_selection:
       ext_force: 50.0
       ext_torque: 4.0
     - # Tilted Angled (TA90)
+      rotate_pref: 3.1415926535
       pre_pos: [-0.4949747468305832, 0.0, 0.6363961030678928]
       pre_quat: [0.1379497, 0.6935199, 0.6935199, 0.1379497]
       pre_offset: [0.0, 0.0, 0.0]
@@ -160,6 +161,7 @@ action_selection:
       ext_force: 50.0
       ext_torque: 4.0
     - ## 1 (VS45 Angled Approach, "Slight Side Scoop"); NOTE: Pi Flip auto for MoveAbove
+      rotate_pref: 3.1415926535
       pre_pos: [-0.027011224490184612,0.01873781782056394,0.08790662994963809]
       pre_quat: [0.1921239, 0.8087403, 0.5542046, 0.0434144]
       pre_offset: [0.0, 0.0, 0.0]
