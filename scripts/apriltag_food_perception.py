@@ -44,6 +44,8 @@ class AprilTagPerception(PoseEstimator):
         self.intrinsic = None
         # Load the tf listener
         self.listener = tf.TransformListener()
+        self.drawing = False
+        self.cropBox = None
 
     def callback(self, rgb_msg, camera_info):
       # Record Camera Info
@@ -54,7 +56,25 @@ class AprilTagPerception(PoseEstimator):
       np_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
       self.image = cv2.undistort(np_image, self.intrinsic, cameraD)
 
+    def on_mouse(self,event, x, y, flag, param):
+      if(event == cv2.EVENT_LBUTTONDOWN):
+        self.drawing = True
+        self.cropBox = [x, y, 0, 0]
+      elif(event == cv2.EVENT_MOUSEMOVE):
+        if(self.drawing):
+          oldx, oldy = self.cropBox[:2]
+          self.cropBox = [oldx, oldy, x-oldx, y-oldy]
+      elif(event == cv2.EVENT_LBUTTONUP):
+        self.drawing = False
+      elif(event == cv2.EVENT_RBUTTONUP):
+        self.cropBox = None
+
     def start(self):
+      # Window Thread
+      cv2.startWindowThread()
+      cv2.namedWindow("Image")
+      cv2.setMouseCallback("Image", self.on_mouse)
+
       # Image Subscribers
       image_sub = message_filters.Subscriber('image_compressed', CompressedImage)
       info_sub = message_filters.Subscriber('camera_info', CameraInfo)
@@ -65,8 +85,6 @@ class AprilTagPerception(PoseEstimator):
       self.pub_compressed = rospy.Publisher('~food_crop/compressed', CompressedImage, queue_size=1)
 
       # Debugging Only
-      #cv2.startWindowThread()
-      #cv2.namedWindow("Image")
       #cv2.namedWindow("Crop")
 
     def detect_objects(self):
@@ -93,18 +111,27 @@ class AprilTagPerception(PoseEstimator):
         return []
 
       draw = np.copy(self.image)
-      homogen = lambda x: x[:-1]/x[-1]
-      uv = homogen((self.intrinsic @ corner_camera)).astype(np.int32).T
-      uv = uv.reshape((-1, 1, 2))
-      rect = cv2.minAreaRect(uv)
-      box = cv2.boxPoints(rect)
-      box = np.int0(box)
-      crop = crop_minAreaRect(draw, rect)
+      crop = []
+      # Create Crop
+      if self.cropBox is not None:
+        [X, Y, W, H] = self.cropBox
+        crop = np.copy(draw[min(Y, Y+H):max(Y, Y+H), min(X, X+W):max(X, X+W)])
+        cv2.rectangle(draw,(X,Y),(X+W,Y+H),(0,0,255),2)  
+      else:
+        homogen = lambda x: x[:-1]/x[-1]
+        uv = homogen((self.intrinsic @ corner_camera)).astype(np.int32).T
+        uv = uv.reshape((-1, 1, 2))
+        rect = cv2.minAreaRect(uv)
+        box = cv2.boxPoints(rect)
+        box = np.int0(box)
+        crop = crop_minAreaRect(draw, rect)
+
+      # Draw Image
+      cv2.imshow('Image', draw)
       if crop.size < 1:
         return []
       # Debugging Only
       # cv2.drawContours(draw,[box],0,(255,0,0),2)
-      # cv2.imshow('Image', draw)
       # cv2.imshow('Crop', crop)
 
       #### Create CompressedImage ####

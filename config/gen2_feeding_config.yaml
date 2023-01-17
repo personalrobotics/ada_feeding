@@ -233,6 +233,7 @@ action_selection:
       ext_force: 50.0
       ext_torque: 4.0
     - ## 5 (TA90, Very Flat, "Side Cut"); NOTE: Pi Flip auto for MoveAbove
+      rotate_pref: 3.1415926535
       pre_pos: [-0.09330950413838413,0.04739454310912268,0.07465685505482798]
       pre_quat: [0.3649811, 0.7727205, 0.4891018, 0.1745601]
       pre_offset: [0.0, 0.0, 0.0]
@@ -250,6 +251,7 @@ action_selection:
       ext_force: 50.0
       ext_torque: 4.0
     - ## 6 (TA0, Clearest Scoop, Backup Extraction); NOTE: Pi Flip auto for MoveAbove
+      rotate_pref: 3.1415926535
       pre_pos: [0.0019798685197719434,0.09581885642742766,0.09250146485317612]
       pre_quat: [0.418782, 0.907849, -0.0135701, -0.0157391]
       pre_offset: [0.0, 0.0, 0.0]
@@ -285,6 +287,7 @@ action_selection:
       ext_force: 50.0
       ext_torque: 4.0
     - ## 8 (pronounced grasp forward rotation)
+      rotate_pref: 3.1415926535
       pre_pos: [-0.002959228034460005,0.04584299368442489,0.0700856193569379]
       pre_quat: [0.2794592, 0.9489021, 0.1060026, -0.101246]
       pre_offset: [0.0, 0.0, 0.0]

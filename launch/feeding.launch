@@ -3,7 +3,7 @@
   <arg name="sim" default="false" doc="Whether to run in Aikido-sim only" />
   <arg name="version" default="2" doc="Kinova Arm Version (JACO = 2, Kortex = 3)" />
   <arg name="use_forque" default="true" />
-  <arg name="use_apriltag_calib" value="$(eval not arg('sim'))" />
+  <arg name="use_apriltag_calib" default="$(eval not arg('sim'))" />
 
   <!-- Feeding Args -->
   <arg name="autoRestart" default="false" doc="Whether to restart behavior tree at end without command line input." />
