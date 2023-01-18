@@ -86,6 +86,26 @@ private:
   std::future<bool> mFuture;
 };
 
+BT::NodeStatus FTStartDataCollect(BT::TreeNode &self) {
+  auto numInput = self.getInput<int>("num_points");
+  size_t num = numInput ? (size_t)numInput.value() : 0;
+  auto ret = sFTThreshHelper->startDataCollection(num);
+  return ret ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+BT::NodeStatus FTStopDataCollect(BT::TreeNode & /*self*/) {
+  sFTThreshHelper->stopDataCollection();
+  return BT::NodeStatus::SUCCESS;
+}
+
+BT::NodeStatus FTGetData(BT::TreeNode &self) {
+  if (!sFTThreshHelper->isDataCollectionFinished())
+    return BT::NodeStatus::FAILURE;
+
+  self.setOutput<std::vector<double>>("data", sFTThreshHelper->getData());
+  return BT::NodeStatus::SUCCESS;
+}
+
 /// Node registration
 static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
                           ada::Ada & /*robot*/) {
@@ -98,6 +118,16 @@ static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
   sFTThreshHelper->init();
 
   factory.registerNodeType<SetFTThresh>("SetFTThreshold");
+
+  // F/T Data Collection
+  factory.registerSimpleAction(
+      "FTStartDataCollect",
+      std::bind(FTStartDataCollect, std::placeholders::_1),
+      {BT::InputPort<int>("num_points")});
+  factory.registerSimpleAction("FTStopDataCollect", FTStopDataCollect);
+  factory.registerSimpleAction("FTGetData",
+                               std::bind(FTGetData, std::placeholders::_1),
+                               {BT::OutputPort<std::vector<double>>("data")});
 }
 static_block { feeding::registerNodeFn(&registerNodes); }
 

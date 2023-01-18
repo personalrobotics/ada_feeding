@@ -20,6 +20,38 @@ BT::NodeStatus Success() { return BT::NodeStatus::SUCCESS; }
 
 BT::NodeStatus Failure() { return BT::NodeStatus::FAILURE; }
 
+BT::NodeStatus StringToInt(BT::TreeNode &self) {
+  auto strInput = self.getInput<std::string>("str");
+  if (!strInput) {
+    return BT::NodeStatus::FAILURE;
+  }
+
+  try {
+    self.setOutput<int>("int", std::stoi(strInput.value()));
+  } catch (std::exception const &ex) {
+    ROS_WARN_STREAM("Error: " << ex.what());
+    return BT::NodeStatus::FAILURE;
+  }
+
+  return BT::NodeStatus::SUCCESS;
+}
+
+BT::NodeStatus IntToString(BT::TreeNode &self) {
+  auto intInput = self.getInput<int>("int");
+  if (!intInput) {
+    return BT::NodeStatus::FAILURE;
+  }
+
+  try {
+    self.setOutput<std::string>("str", std::to_string(intInput.value()));
+  } catch (std::exception const &ex) {
+    ROS_WARN_STREAM("Error: " << ex.what());
+    return BT::NodeStatus::FAILURE;
+  }
+
+  return BT::NodeStatus::SUCCESS;
+}
+
 // Basic Pause/Debugging Console
 BT::NodeStatus DebugNode() {
   std::cout << "=== Debugging Console" << std::endl;
@@ -157,6 +189,14 @@ static void registerNodes(BT::BehaviorTreeFactory &factory,
   factory.registerSimpleAction(
       "DebugKillProcess", std::bind(RunProcess, std::placeholders::_1),
       {BT::InputPort<int>("pid"), BT::InputPort<int>("code")});
+
+  // Type conversions
+  factory.registerSimpleAction(
+      "StringToInt", std::bind(StringToInt, std::placeholders::_1),
+      {BT::InputPort<std::string>("str"), BT::OutputPort<int>("int")});
+  factory.registerSimpleAction(
+      "IntToString", std::bind(IntToString, std::placeholders::_1),
+      {BT::InputPort<int>("int"), BT::OutputPort<std::string>("str")});
 }
 static_block { feeding::registerNodeFn(&registerNodes); }
 

@@ -15,6 +15,9 @@
 #include <std_msgs/Int32MultiArray.h>
 #include <std_msgs/String.h>
 
+// Other ROS Message Types
+#include <sensor_msgs/Image.h>
+
 /// Put Custom Message Types Here:
 
 namespace feeding {
@@ -143,7 +146,15 @@ public:
   }
 
 private:
-  ros::Subscriber getSub(std::string);
+  // Default just copy message
+  ros::Subscriber getSub(std::string topic) {
+    return mNode->subscribe<T>(topic, 1,
+                               [&](const boost::shared_ptr<const T> &msg) {
+                                 returnData = *msg;
+                                 returnDataReady = true;
+                               });
+  }
+
   ros::NodeHandle *mNode;
   ros::Subscriber mSub;
   bool returnDataReady;
@@ -202,7 +213,7 @@ ros::Subscriber RosSubTopic<std::vector<int>>::getSub(std::string topic) {
       });
 }
 
-/// Put Custom Specializations Below:
+/// Put Custom Specializations Here
 
 /// Node registration
 static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
@@ -234,8 +245,9 @@ static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
   factory.registerNodeType<RosSubTopic<int>>("RosSubI", &nh);
   factory.registerNodeType<RosSubTopic<std::vector<int>>>("RosSubVecI", &nh);
   factory.registerNodeType<RosSubTopic<std::vector<double>>>("RosSubVecD", &nh);
+  factory.registerNodeType<RosSubTopic<sensor_msgs::Image>>("RosSubImage", &nh);
 
-  /// Put Custom Subscribers Below:
+  /// Put Custom Subscribers Here
 }
 static_block { feeding::registerNodeFn(&registerNodes); }
 

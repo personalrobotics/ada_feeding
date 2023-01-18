@@ -9,6 +9,14 @@
 #     All positiosn are [x, y, z], and quaternions are [w, x, y, z]
 #
 
+# Online Learning Params
+posthoc:
+  active: false
+  index_offset: 3 #i.e. offset between posthoc action index and action library index
+  image_topic: /food_detector/food_crop #For context
+  publish_loss: /PublishLoss
+  get_action: /GetAction
+
 # Main.cpp Params
 watchdogTimeout: 0.05 #50ms until watchdog dies
 visualization:

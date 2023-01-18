@@ -69,6 +69,15 @@ ELSE()
 message("rewd controllers not found!")
 ENDIF()
 
+find_package(posthoc_learn)
+IF (posthoc_learn_FOUND)
+  include_directories(${posthoc_learn_INCLUDE_DIRS})
+  message(STATUS "posthoc_learn found! Can use online learning.")
+  add_definitions(-DPOSTHOC_FOUND)
+ELSE()
+message("posthoc_learn not found!")
+ENDIF()
+
 find_package(pr_assets REQUIRED)
 include_directories(${pr_assets_INCLUDE_DIRS})
 

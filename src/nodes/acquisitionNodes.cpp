@@ -9,6 +9,12 @@
 #include <behaviortree_cpp/behavior_tree.h>
 using aikido::perception::DetectedObject;
 
+#ifdef POSTHOC_FOUND
+// Online Learning Headers
+#include <posthoc_learn/GetAction.h>
+#include <posthoc_learn/PublishLoss.h>
+#endif
+
 namespace feeding {
 namespace nodes {
 
@@ -60,9 +66,121 @@ BT::NodeStatus GetAction(BT::TreeNode &self) {
   return BT::NodeStatus::SUCCESS;
 }
 
+#ifdef POSTHOC_FOUND
+
+/// Get action from online learning server
+class GetActionOnline : public BT::SyncActionNode {
+public:
+  GetActionOnline(const std::string &name, const BT::NodeConfig &config,
+                  ros::NodeHandle *nh)
+      : BT::SyncActionNode(name, config), mNode(nh) {}
+
+  static BT::PortsList providedPorts() {
+    return {BT::InputPort<sensor_msgs::Image>("context"),
+            BT::OutputPort<int>("action_index"),
+            BT::OutputPort<std::vector<double>>("probabilities")};
+  }
+
+  BT::NodeStatus tick() override {
+    // Get Input args
+    auto imageInput = getInput<sensor_msgs::Image>("context");
+    if (!imageInput)
+      return BT::NodeStatus::FAILURE;
+
+    // Read Ros Params
+    std::string server;
+    if (!mNode->getParam("posthoc/get_action", server)) {
+      ROS_WARN_STREAM("GetActionOnline: Need action service");
+      return BT::NodeStatus::FAILURE;
+    }
+    ros::ServiceClient client =
+        mNode->serviceClient<posthoc_learn::GetAction>(server);
+
+    // Call service
+    posthoc_learn::GetAction srv;
+    srv.request.image = imageInput.value();
+    if (!client.call(srv)) {
+      ROS_ERROR("Failed to call service get_action");
+      return BT::NodeStatus::FAILURE;
+    }
+    setOutput<std::vector<double>>("probabilities", srv.response.p_t);
+    setOutput<int>("action_index", srv.response.a_t);
+    return BT::NodeStatus::SUCCESS;
+  }
+
+private:
+  ros::NodeHandle *mNode;
+};
+
+/// Report Loss to Online Learning Server
+class PublishLossOnline : public BT::SyncActionNode {
+public:
+  PublishLossOnline(const std::string &name, const BT::NodeConfig &config,
+                    ros::NodeHandle *nh)
+      : BT::SyncActionNode(name, config), mNode(nh) {}
+
+  static BT::PortsList providedPorts() {
+    return {BT::InputPort<sensor_msgs::Image>("context"),
+            BT::InputPort<std::vector<double>>("posthoc"),
+            BT::InputPort<int>("action_index"),
+            BT::InputPort<std::vector<double>>("probabilities"),
+            BT::InputPort<double>("loss")};
+  }
+
+  BT::NodeStatus tick() override {
+    // Get Input args
+    auto imageInput = getInput<sensor_msgs::Image>("context");
+    if (!imageInput)
+      return BT::NodeStatus::FAILURE;
+
+    auto posthocInput = getInput<std::vector<double>>("posthoc");
+    if (!posthocInput)
+      return BT::NodeStatus::FAILURE;
+
+    auto actionInput = getInput<int>("action_index");
+    if (!actionInput)
+      return BT::NodeStatus::FAILURE;
+
+    auto probInput = getInput<std::vector<double>>("probabilities");
+    if (!probInput)
+      return BT::NodeStatus::FAILURE;
+
+    auto lossInput = getInput<double>("loss");
+    if (!lossInput)
+      return BT::NodeStatus::FAILURE;
+
+    // Read Ros Params
+    std::string server;
+    if (!mNode->getParam("posthoc/publish_loss", server)) {
+      ROS_WARN_STREAM("PublishLossOnline: Need loss service");
+      return BT::NodeStatus::FAILURE;
+    }
+    ros::ServiceClient client =
+        mNode->serviceClient<posthoc_learn::PublishLoss>(server);
+
+    // Call service
+    posthoc_learn::PublishLoss srv;
+    srv.request.image = imageInput.value();
+    srv.request.haptic = posthocInput.value();
+    srv.request.p_t = probInput.value();
+    srv.request.a_t = actionInput.value();
+    srv.request.loss = lossInput.value();
+    if (!client.call(srv) || !srv.response.success) {
+      ROS_ERROR("Failed to call service publish_loss");
+      return BT::NodeStatus::FAILURE;
+    }
+
+    return BT::NodeStatus::SUCCESS;
+  }
+
+private:
+  ros::NodeHandle *mNode;
+};
+#endif
+
 /// Node registration
-static void registerNodes(BT::BehaviorTreeFactory &factory,
-                          ros::NodeHandle & /*nh*/, ada::Ada & /*robot*/) {
+static void registerNodes(BT::BehaviorTreeFactory &factory, ros::NodeHandle &nh,
+                          ada::Ada & /*robot*/) {
   factory.registerSimpleAction(
       "AcquisitionUnpackAction", std::bind(UnpackAction, std::placeholders::_1),
       {BT::InputPort<AcquisitionAction>("action"),
@@ -91,6 +209,12 @@ static void registerNodes(BT::BehaviorTreeFactory &factory,
                                {BT::InputPort<XmlRpc::XmlRpcValue>("library"),
                                 BT::InputPort<int>("index"),
                                 BT::OutputPort<AcquisitionAction>("target")});
+
+#ifdef POSTHOC_FOUND
+  factory.registerNodeType<GetActionOnline>("AcquisitionGetActionOnline", &nh);
+  factory.registerNodeType<PublishLossOnline>("AcquisitionPublishLossOnline",
+                                              &nh);
+#endif
 }
 static_block { feeding::registerNodeFn(&registerNodes); }
 
