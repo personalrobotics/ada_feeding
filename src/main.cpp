@@ -32,13 +32,13 @@ int main(int argc, char **argv) {
 
   ada::Ada robot(isSim);
 
-  // Start Trajectory Controllers (real only)
-  if (!isSim) {
-    ROS_INFO("Starting Trajectory Controllers...");
-    while (!robot.startTrajectoryControllers()) {
-      ros::Duration(1.0).sleep();
-    }
-  }
+  // // Start Trajectory Controllers (real only)
+  // if (!isSim) {
+  //   ROS_INFO("Starting Trajectory Controllers...");
+  //   while (!robot.startTrajectoryControllers()) {
+  //     ros::Duration(1.0).sleep();
+  //   }
+  // }
 
   // Start Visualization
   ROS_INFO("Starting RViz Visualization...");

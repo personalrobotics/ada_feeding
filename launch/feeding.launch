@@ -14,17 +14,6 @@
   <!-- Libada Overrides -->
   <rosparam file="$(find ada_feeding)/config/gen$(arg version)_ada_config.yaml" command="load" ns="adaConf" />
 
-  <!-- Additional feeding-specific controllers -->
-  <group unless="$(arg sim)" >
-    <rosparam file="$(find ada_feeding)/config/gen$(arg version)_feeding_controllers.yaml" command="load" />
-    <node name="forque_controller_spawner_stopped" pkg="controller_manager" type="spawner" respawn="false"
-            output="screen"
-            args="
-               --stopped
-               move_until_touch_topic_controller
-               " />
-  </group>
-
   <!-- Launch Feeding Binary -->
   <node name="feeding"
           pkg="ada_feeding"
@@ -41,8 +30,10 @@
     <rosparam file="$(find ada_feeding)/config/gen$(arg version)_feeding_config.yaml" command="load" />
   </node>
 
-  <node name="relay_camera_info" pkg="topic_tools" type="relay" args="/camera/depth_registered/sw_registered/camera_info /camera/aligned_depth_to_color/camera_info" /> 
+  <node pkg="tf2_ros" type="static_transform_publisher" name="camera_link_broadcaster"
+      args="0.014 0.065 0.034 0.50080661  0.49902445  0.50068027 -0.49948635 end_effector_link camera_link" />
 
-  <node name="relay_depth_info" pkg="topic_tools" type="relay" args="/camera/depth_registered/sw_registered/image_rect_raw /camera/aligned_depth_to_color/image_raw" /> 
+  <node pkg="tf2_ros" type="static_transform_publisher" name="bottom_camera_link_broadcaster"
+    args="0.0122 -0.059  0.034 0.50080661  0.49902445  0.50068027 -0.49948635 end_effector_link bottom_camera_link" />
 
 </launch>

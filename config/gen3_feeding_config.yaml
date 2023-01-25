@@ -10,7 +10,7 @@
 #
 
 # Main.cpp Params
-watchdogTimeout: 0.05 #50ms until watchdog dies
+watchdogTimeout: 0.1 #100ms until watchdog dies
 visualization:
   topicName: dart_markers/feeding
   baseFrameName: map
@@ -22,7 +22,7 @@ velocityLimits:
 
 # FT Sensor Params
 ftSensor:
-  controllerFTThresholdTopic: /move_until_touch_topic_controller/set_forcetorque_threshold/
+  controllerFTThresholdTopic: /move_until_touch_topic_joint_trajectory_controller/set_forcetorque_threshold/
   ftTopic: /forque/forqueSensor
   thresholds:
     standard:       # used when no other thresholds are specified
@@ -76,7 +76,10 @@ workspace:
 configs:
   wheelchair:
     # Ready for Transfer
-    in_front_person: [-0.38631117663642467, 1.4616608886676912, 1.0877240964279062, 0.4555658413555599, 1.906789661096325, -1.3934010616221935]
+    # in_front_person: [-0.38631117663642467, 1.4616608886676912, 1.0877240964279062, 0.4555658413555599, 1.906789661096325, -1.3934010616221935]
+    # Side infront
+    in_front_person: [-0.22652628318, 1.48935926, 1.42031404, 0.662596797, 1.6299979, -1.50724888918]
+
     # Ready for Acquisition
     above_plate: [-0.3351977053383868, 0.22778351363059665, -0.8636556846616443, 3.102966697771502, 1.9007481374180457, -1.7883164004137342]
 

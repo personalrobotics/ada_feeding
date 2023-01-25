@@ -1,0 +1,59 @@
+<launch>
+
+  <arg name="use_forque" default="true" doc="Add forque to URDF and spawned controllers."/>
+  <arg name="version" default="3" doc="Kinova Arm Version (JACO = 2, Kortex = 3)" />
+  <arg name="dof" default="6" doc="Number of degrees of freedom in arm" />
+
+  <!-- Gen3 specific arguments required by Kortex API for instantiating a private communication session -->
+  <arg name="ip_address" default="emprise-kortex.coecis.cornell.edu" doc="IP address for TCP/UDP comms"/>
+  <arg name="username" default="admin" doc="Username for kortex session"/>
+  <arg name="password" default="admin" doc="Password for kortex session"/>
+  <arg name="api_session_inactivity_timeout_ms" default="35000"/> <!--milliseconds-->
+  <arg name="api_connection_inactivity_timeout_ms" default="20000"/> <!--milliseconds-->
+  <arg name="use_admittance" default="true" doc="Set to true when using Kinova-provided admittance mode"/>
+  <arg name="current_control" default="false" doc="Set to true when using current as input for effort control"/>
+  <arg name="use_gripper" default="false" doc="Set to true when controlling the gripper through ROS"/>
+
+  <!-- Gen3 Hardware Node -->
+  <node name="kortex_hardware" pkg="kortex_hardware" type="kortex_hardware"
+          output="screen">
+      <param name="ip_address" value="$(arg ip_address)"/>
+      <param name="username" value="$(arg username)"/>
+      <param name="password" value="$(arg password)"/>
+      <param name="api_session_inactivity_timeout_ms" value="$(arg api_session_inactivity_timeout_ms)"/>
+      <param name="api_connection_inactivity_timeout_ms" value="$(arg api_connection_inactivity_timeout_ms)"/>
+      <param name="dof" value="$(arg dof)"/>
+      <param name="use_admittance" value="$(arg use_admittance)"/>
+      <param name="current_control" value="$(arg current_control)"/>
+      <param name="use_gripper" value="$(arg use_gripper)"/>
+  </node>
+
+  <node pkg="tf2_ros" type="static_transform_publisher" name="camera_link_broadcaster"
+      args="0.014 0.065 0.034 0.50080661  0.49902445  0.50068027 -0.49948635 end_effector_link camera_link" />
+
+  <node pkg="tf2_ros" type="static_transform_publisher" name="bottom_camera_link_broadcaster"
+    args="0.0122 -0.059  0.034 0.50080661  0.49902445  0.50068027 -0.49948635 end_effector_link bottom_camera_link" />
+
+  <!-- load controller configuration -->
+  <rosparam file="$(find libada)/config/gen$(arg version)_$(arg dof)dof_controllers.yaml" command="load" />
+
+  <!-- start joint state and mode controllers -->
+  <node name="controller_spawner_started" pkg="controller_manager" type="spawner" respawn="false"
+      output="screen"
+      args="
+        joint_state_controller
+      " />
+
+  <!-- Load Base URDF Files -->
+  <group>
+    <param name="robot_description"
+          command="$(find xacro)/xacro --inorder $(find kortex_description)/robots/gen3_robotiq_2f_85.xacro sim:=false dof:=$(arg dof)"/>
+  </group>
+
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="rob_st_pub" />
+
+  <node name="st_map2world" pkg="tf" type="static_transform_publisher" respawn="false" output="screen"
+    args="0 0 0 0 0 0 1 map world 10"/>
+
+</launch>
+

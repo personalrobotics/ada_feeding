@@ -299,6 +299,18 @@ BT::NodeStatus getEEPose(BT::TreeNode &self, ada::Ada &robot) {
   return BT::NodeStatus::SUCCESS;
 }
 
+/// Controller Switching
+BT::NodeStatus switchControllerBiteTransfer(BT::TreeNode &self, ada::Ada &robot) {
+  robot.getArm()->activateExecutor("bite_transfer_executor");
+  return BT::NodeStatus::SUCCESS;
+}
+
+/// Controller Switching
+BT::NodeStatus switchControllerBiteAcquisition(BT::TreeNode &self, ada::Ada &robot) {
+  robot.getArm()->activateExecutor("effort_trajectory_executor");
+  return BT::NodeStatus::SUCCESS;
+}
+
 /// Node registration
 static void registerNodes(BT::BehaviorTreeFactory &factory,
                           ros::NodeHandle & /*&nh */, ada::Ada &robot) {
@@ -316,6 +328,14 @@ static void registerNodes(BT::BehaviorTreeFactory &factory,
       std::bind(getEEPose, std::placeholders::_1, std::ref(robot)),
       {BT::OutputPort<std::vector<double>>("pos"),
        BT::OutputPort<std::vector<double>>("quat")});
+
+  factory.registerSimpleAction(
+      "SwitchControllerBiteTransfer",
+      std::bind(switchControllerBiteTransfer, std::placeholders::_1, std::ref(robot)));
+
+  factory.registerSimpleAction(
+      "SwitchControllerBiteAcquisition",
+      std::bind(switchControllerBiteAcquisition, std::placeholders::_1, std::ref(robot)));
 }
 static_block { feeding::registerNodeFn(&registerNodes); }
 
