@@ -143,12 +143,12 @@ if __name__ == '__main__':
 
                     servo_point_base = forque_target_base @ servo_point_forque_target
 
-                    mode_command = String()
-                    # mode_command.data = "use_pose_integral"
-                    # mode_command.data = "zero_contact"
-                    mode_command.data = "none"
-                    mode_cmd_pub.publish(mode_command)
-                    time.sleep(0.5)
+                    # mode_command = String()
+                    # # mode_command.data = "use_pose_integral"
+                    # # mode_command.data = "zero_contact"
+                    # mode_command.data = "none"
+                    # mode_cmd_pub.publish(mode_command)
+                    # time.sleep(0.5)
 
                 # t = TransformStamped()
 
@@ -327,26 +327,28 @@ if __name__ == '__main__':
                 intermediate_forque_target[0, 0] = 1
                 intermediate_forque_target[1, 1] = 1
                 intermediate_forque_target[2, 2] = 1
-                intermediate_forque_target[:3,3] = np.array([0, 0, -distance]).reshape(1,3)
+                intermediate_forque_target[:3,3] = np.array([0, 0, -0.08]).reshape(1,3)
                 intermediate_forque_target[3,3] = 1
 
                 intermediate_forque_target = forque_target_base @ intermediate_forque_target
 
-                intermediate_position_error = np.linalg.norm(forque_source[:3,3] - intermediate_forque_target[:3,3])
-                intermediate_angular_error = get_angular_distance(forque_source[:3,:3], intermediate_forque_target[:3,:3])
+                # intermediate_position_error = np.linalg.norm(forque_source[:3,3] - intermediate_forque_target[:3,3])
+                # intermediate_angular_error = get_angular_distance(forque_source[:3,:3], intermediate_forque_target[:3,:3])
 
-                print("intermediate_position_error: ", intermediate_position_error)
-                print("intermediate_angular_error: ", intermediate_angular_error)
+                # print("intermediate_position_error: ", intermediate_position_error)
+                # print("intermediate_angular_error: ", intermediate_angular_error)
  
-                if visual_servoing and intermediate_position_error > 0.005: # The thresholds here should be ideally larger than the thresholds for tracking trajectories
-                    print("Tracking intermediate position... ")
-                    target = get_next_waypoint(forque_source, intermediate_forque_target)
-                else:
-                    if visual_servoing:
-                        time.sleep(0.5)
-                        visual_servoing = False
-                    print("Tracking target position... ")
-                    target = get_next_waypoint(forque_source, forque_target_base)
+                # if visual_servoing and intermediate_position_error > 0.005: # The thresholds here should be ideally larger than the thresholds for tracking trajectories
+                #     print("Tracking intermediate position... ")
+                #     target = get_next_waypoint(forque_source, intermediate_forque_target)
+                # else:
+                #     if visual_servoing:
+                #         time.sleep(0.5)
+                #         visual_servoing = False
+                #     print("Tracking target position... ")
+                #     target = get_next_waypoint(forque_source, forque_target_base)
+
+                target = intermediate_forque_target
 
                 cartesian_point = CartesianTrajectoryPoint()
                 
@@ -413,7 +415,8 @@ if __name__ == '__main__':
                     transfer_forque_target[:3,3] = np.array([0, 0, 0.03]).reshape(1,3)
                     transfer_forque_target[3,3] = 1
 
-                    transfer_forque_target = forque_target_base @ transfer_forque_target
+                    # transfer_forque_target = forque_target_base @ transfer_forque_target
+                    transfer_forque_target = forque_target_base
 
                     t = TransformStamped()
 
@@ -440,11 +443,11 @@ if __name__ == '__main__':
                     print("Updating forque target pose")
                     first_frame_captured = True
 
-                    mode_command = String()
-                    mode_command.data = "zero_contact"
-                    # mode_command.data = "none"
-                    mode_cmd_pub.publish(mode_command)
-                    time.sleep(0.5)
+                    # mode_command = String()
+                    # mode_command.data = "zero_contact"
+                    # # mode_command.data = "none"
+                    # mode_cmd_pub.publish(mode_command)
+                    # time.sleep(0.5)
 
                 while not rospy.is_shutdown():
                     try:
@@ -675,10 +678,10 @@ if __name__ == '__main__':
 
                     forque_target_base = forque_base @ forque_target_base
 
-                    mode_command = String()
-                    mode_command.data = "zero_contact"
-                    mode_cmd_pub.publish(mode_command)
-                    time.sleep(0.5)
+                    # mode_command = String()
+                    # mode_command.data = "zero_contact"
+                    # mode_cmd_pub.publish(mode_command)
+                    # time.sleep(0.5)
 
                 while not rospy.is_shutdown():
                     try:
@@ -768,10 +771,10 @@ if __name__ == '__main__':
                     forque_target_base = forque_target_base @ back_translation
                     forque_target_base = forque_target_base @ np.linalg.inv(planar_transform)
 
-                    mode_command = String()
-                    mode_command.data = "maintain_contact"
-                    mode_cmd_pub.publish(mode_command)
-                    time.sleep(1)
+                    # mode_command = String()
+                    # mode_command.data = "maintain_contact"
+                    # mode_cmd_pub.publish(mode_command)
+                    # time.sleep(1)
 
                 while not rospy.is_shutdown():
                     try:
