@@ -11,6 +11,7 @@ from scipy.spatial.transform import Slerp
 from geometry_msgs.msg import TransformStamped, WrenchStamped
 from moveit_msgs.msg import CartesianTrajectoryPoint
 from std_msgs.msg import Int64
+from std_msgs.msg import String
 import threading
 import time
 
@@ -76,8 +77,16 @@ if __name__ == '__main__':
         ft_sensor_sub = rospy.Subscriber('/forque/forqueSensor', WrenchStamped, ft_callback)
 
         cmd_pub = rospy.Publisher('/task_space_compliant_controller/command', CartesianTrajectoryPoint, queue_size=10)
+        mode_cmd_pub = rospy.Publisher('/task_space_compliant_controller/mode', String, queue_size=10)
 
         rate = rospy.Rate(1000.0)
+
+        # print("Press anything to start maintain contact:")
+        # lol = input()
+
+        # mode_command = String()
+        # mode_command.data = "zero_contact"
+        # mode_cmd_pub.publish(mode_command)
 
         print("Press anything to start movement infront of mouth: ")
         lol = input()   
@@ -101,84 +110,6 @@ if __name__ == '__main__':
                 previous_state = current_state
 
             print("Current state: ",current_state)
-
-            if current_state == 4: # tilt inside mouth
-
-                # trajectory positions
-                if not first_frame_captured:
-
-                    while not rospy.is_shutdown():
-                        try:
-                            # print("Looking for transform")
-                            transform_target = tfBuffer.lookup_transform('base_link', "forque_end_effector", rospy.Time())
-                            break
-                        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-                            rate.sleep()
-                            continue
-
-                    forque_base = np.zeros((4,4))
-                    forque_base[:3,:3] = Rotation.from_quat([transform_target.transform.rotation.x, transform_target.transform.rotation.y, transform_target.transform.rotation.z, transform_target.transform.rotation.w]).as_matrix()
-                    forque_base[:3,3] = np.array([transform_target.transform.translation.x, transform_target.transform.translation.y, transform_target.transform.translation.z]).reshape(1,3)
-                    forque_base[3,3] = 1
-
-                    first_frame_captured = True
-
-                    forque_target_base = np.zeros((4,4))
-                    forque_target_base[:3,:3] = Rotation.from_euler('X', 15*np.pi/180).as_matrix()
-                    forque_target_base[3,3] = 1
-
-                    forque_target_base = forque_base @ forque_target_base
-
-                while not rospy.is_shutdown():
-                    try:
-                        # print("Looking for transform")
-                        transform_target = tfBuffer.lookup_transform('base_link', "forque_end_effector", rospy.Time())
-                        break
-                    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-                        rate.sleep()
-                        continue
-
-                forque_base = np.zeros((4,4))
-                forque_base[:3,:3] = Rotation.from_quat([transform_target.transform.rotation.x, transform_target.transform.rotation.y, transform_target.transform.rotation.z, transform_target.transform.rotation.w]).as_matrix()
-                forque_base[:3,3] = np.array([transform_target.transform.translation.x, transform_target.transform.translation.y, transform_target.transform.translation.z]).reshape(1,3)
-                forque_base[3,3] = 1
-
-                target = get_next_waypoint(forque_base, forque_target_base)
-
-                cartesian_point = CartesianTrajectoryPoint()
-                
-                goal = Pose()
-                goal.position.x = target[0][3]
-                goal.position.y = target[1][3]
-                goal.position.z = target[2][3]
-
-                R = Rotation.from_matrix(target[:3,:3]).as_quat()
-                goal.orientation.x = R[0]
-                goal.orientation.y = R[1]
-                goal.orientation.z = R[2]
-                goal.orientation.w = R[3]
-
-                print("Publishing goal: ",goal)
-                cartesian_point.point.pose = goal
-                cmd_pub.publish(cartesian_point)
-
-                t = TransformStamped()
-
-                t.header.stamp = rospy.Time.now()
-                t.header.frame_id = "base_link"
-                t.child_frame_id = "next_target"
-
-                t.transform.translation.x = target[0][3]
-                t.transform.translation.y = target[1][3]
-                t.transform.translation.z = target[2][3]
-
-                R = Rotation.from_matrix(target[:3,:3]).as_quat()
-                t.transform.rotation.x = R[0]
-                t.transform.rotation.y = R[1]
-                t.transform.rotation.z = R[2]
-                t.transform.rotation.w = R[3]
-
-                broadcaster.sendTransform(t)
 
             if current_state == 0: # move to infront of mouth
                 
@@ -211,6 +142,13 @@ if __name__ == '__main__':
                     servo_point_forque_target[3,3] = 1
 
                     servo_point_base = forque_target_base @ servo_point_forque_target
+
+                    mode_command = String()
+                    # mode_command.data = "use_pose_integral"
+                    # mode_command.data = "zero_contact"
+                    mode_command.data = "none"
+                    mode_cmd_pub.publish(mode_command)
+                    time.sleep(0.5)
 
                 # t = TransformStamped()
 
@@ -303,7 +241,7 @@ if __name__ == '__main__':
                 diff = targets_positon - current_position
                 dist = np.linalg.norm(diff, axis=1)
                 
-                distance_lookahead = 0.03
+                distance_lookahead = 0.04
 
                 tracking_index = dist.argmin()
                 
@@ -339,7 +277,7 @@ if __name__ == '__main__':
 
                 t.header.stamp = rospy.Time.now()
                 t.header.frame_id = "base_link"
-                t.child_frame_id = "tcp_target"
+                t.child_frame_id = "next_target"
 
                 t.transform.translation.x = targets[tracking_index][0][3]
                 t.transform.translation.y = targets[tracking_index][1][3]
@@ -394,21 +332,13 @@ if __name__ == '__main__':
 
                 intermediate_forque_target = forque_target_base @ intermediate_forque_target
 
-                intermediate_position_error = intermediate_forque_target[:3,3] - forque_source[:3,3]
-
-                intermediate_position_error_forque_frame = (np.linalg.inv(forque_source[:3,:3]) @ intermediate_position_error).reshape(3,1)[:2,0]
-                print("intermediate_position_error_forque_frame: ",intermediate_position_error_forque_frame)
-                intermediate_position_error_forque_frame_mag = np.linalg.norm(intermediate_position_error_forque_frame)
-
+                intermediate_position_error = np.linalg.norm(forque_source[:3,3] - intermediate_forque_target[:3,3])
                 intermediate_angular_error = get_angular_distance(forque_source[:3,:3], intermediate_forque_target[:3,:3])
 
-                print("intermediate_position_error: ")
-                print("x: ",intermediate_position_error_forque_frame[0])
-                print("y: ",intermediate_position_error_forque_frame[1])
-                print("magnitude: ",intermediate_position_error_forque_frame_mag)
+                print("intermediate_position_error: ", intermediate_position_error)
                 print("intermediate_angular_error: ", intermediate_angular_error)
  
-                if visual_servoing and intermediate_position_error_forque_frame_mag > 0.005: # The thresholds here should be ideally larger than the thresholds for tracking trajectories
+                if visual_servoing and intermediate_position_error > 0.005: # The thresholds here should be ideally larger than the thresholds for tracking trajectories
                     print("Tracking intermediate position... ")
                     target = get_next_waypoint(forque_source, intermediate_forque_target)
                 else:
@@ -480,7 +410,7 @@ if __name__ == '__main__':
                     transfer_forque_target[0, 0] = 1
                     transfer_forque_target[1, 1] = 1
                     transfer_forque_target[2, 2] = 1
-                    transfer_forque_target[:3,3] = np.array([0, 0, 0.04]).reshape(1,3)
+                    transfer_forque_target[:3,3] = np.array([0, 0, 0.03]).reshape(1,3)
                     transfer_forque_target[3,3] = 1
 
                     transfer_forque_target = forque_target_base @ transfer_forque_target
@@ -509,6 +439,12 @@ if __name__ == '__main__':
                     #     first_frame_captured = True
                     print("Updating forque target pose")
                     first_frame_captured = True
+
+                    mode_command = String()
+                    mode_command.data = "zero_contact"
+                    # mode_command.data = "none"
+                    mode_cmd_pub.publish(mode_command)
+                    time.sleep(0.5)
 
                 while not rospy.is_shutdown():
                     try:
@@ -705,6 +641,182 @@ if __name__ == '__main__':
                 t.transform.translation.z = targets[tracking_index][2][3]
 
                 R = Rotation.from_matrix(targets[tracking_index][:3,:3]).as_quat()
+                t.transform.rotation.x = R[0]
+                t.transform.rotation.y = R[1]
+                t.transform.rotation.z = R[2]
+                t.transform.rotation.w = R[3]
+
+                broadcaster.sendTransform(t)
+
+            elif current_state == 4: # tilt inside mouth
+
+                # trajectory positions
+                if not first_frame_captured:
+
+                    while not rospy.is_shutdown():
+                        try:
+                            # print("Looking for transform")
+                            transform_target = tfBuffer.lookup_transform('base_link', "forque_end_effector", rospy.Time())
+                            break
+                        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                            rate.sleep()
+                            continue
+
+                    forque_base = np.zeros((4,4))
+                    forque_base[:3,:3] = Rotation.from_quat([transform_target.transform.rotation.x, transform_target.transform.rotation.y, transform_target.transform.rotation.z, transform_target.transform.rotation.w]).as_matrix()
+                    forque_base[:3,3] = np.array([transform_target.transform.translation.x, transform_target.transform.translation.y, transform_target.transform.translation.z]).reshape(1,3)
+                    forque_base[3,3] = 1
+
+                    first_frame_captured = True
+
+                    forque_target_base = np.zeros((4,4))
+                    forque_target_base[:3,:3] = Rotation.from_euler('X', 15*np.pi/180).as_matrix()
+                    forque_target_base[3,3] = 1
+
+                    forque_target_base = forque_base @ forque_target_base
+
+                    mode_command = String()
+                    mode_command.data = "zero_contact"
+                    mode_cmd_pub.publish(mode_command)
+                    time.sleep(0.5)
+
+                while not rospy.is_shutdown():
+                    try:
+                        # print("Looking for transform")
+                        transform_target = tfBuffer.lookup_transform('base_link', "forque_end_effector", rospy.Time())
+                        break
+                    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                        rate.sleep()
+                        continue
+
+                forque_base = np.zeros((4,4))
+                forque_base[:3,:3] = Rotation.from_quat([transform_target.transform.rotation.x, transform_target.transform.rotation.y, transform_target.transform.rotation.z, transform_target.transform.rotation.w]).as_matrix()
+                forque_base[:3,3] = np.array([transform_target.transform.translation.x, transform_target.transform.translation.y, transform_target.transform.translation.z]).reshape(1,3)
+                forque_base[3,3] = 1
+
+                target = get_next_waypoint(forque_base, forque_target_base)
+
+                cartesian_point = CartesianTrajectoryPoint()
+                
+                goal = Pose()
+                goal.position.x = target[0][3]
+                goal.position.y = target[1][3]
+                goal.position.z = target[2][3]
+
+                R = Rotation.from_matrix(target[:3,:3]).as_quat()
+                goal.orientation.x = R[0]
+                goal.orientation.y = R[1]
+                goal.orientation.z = R[2]
+                goal.orientation.w = R[3]
+
+                print("Publishing goal: ",goal)
+                cartesian_point.point.pose = goal
+                cmd_pub.publish(cartesian_point)
+
+                t = TransformStamped()
+
+                t.header.stamp = rospy.Time.now()
+                t.header.frame_id = "base_link"
+                t.child_frame_id = "next_target"
+
+                t.transform.translation.x = target[0][3]
+                t.transform.translation.y = target[1][3]
+                t.transform.translation.z = target[2][3]
+
+                R = Rotation.from_matrix(target[:3,:3]).as_quat()
+                t.transform.rotation.x = R[0]
+                t.transform.rotation.y = R[1]
+                t.transform.rotation.z = R[2]
+                t.transform.rotation.w = R[3]
+
+                broadcaster.sendTransform(t)
+
+            elif current_state == 5: # tilt inside mouth and move outside
+
+                # trajectory positions
+                if not first_frame_captured:
+
+                    while not rospy.is_shutdown():
+                        try:
+                            # print("Looking for transform")
+                            transform_target = tfBuffer.lookup_transform('base_link', "forque_end_effector", rospy.Time())
+                            break
+                        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                            rate.sleep()
+                            continue
+
+                    forque_base = np.zeros((4,4))
+                    forque_base[:3,:3] = Rotation.from_quat([transform_target.transform.rotation.x, transform_target.transform.rotation.y, transform_target.transform.rotation.z, transform_target.transform.rotation.w]).as_matrix()
+                    forque_base[:3,3] = np.array([transform_target.transform.translation.x, transform_target.transform.translation.y, transform_target.transform.translation.z]).reshape(1,3)
+                    forque_base[3,3] = 1
+
+                    first_frame_captured = True
+
+                    planar_transform = np.zeros((4,4))
+                    planar_transform[:3,:3] = Rotation.from_euler('X', -15*np.pi/180).as_matrix()
+                    planar_transform[3,3] = 1
+
+                    forque_target_base = forque_base @ planar_transform
+
+                    back_translation = np.zeros((4,4))
+                    back_translation[0, 0] = 1
+                    back_translation[1, 1] = 1
+                    back_translation[2, 2] = 1
+                    back_translation[:3,3] = np.array([0, 0, -0.1]).reshape(1,3)
+                    back_translation[3,3] = 1
+
+                    forque_target_base = forque_target_base @ back_translation
+                    forque_target_base = forque_target_base @ np.linalg.inv(planar_transform)
+
+                    mode_command = String()
+                    mode_command.data = "maintain_contact"
+                    mode_cmd_pub.publish(mode_command)
+                    time.sleep(1)
+
+                while not rospy.is_shutdown():
+                    try:
+                        # print("Looking for transform")
+                        transform_target = tfBuffer.lookup_transform('base_link', "forque_end_effector", rospy.Time())
+                        break
+                    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                        rate.sleep()
+                        continue
+
+                forque_base = np.zeros((4,4))
+                forque_base[:3,:3] = Rotation.from_quat([transform_target.transform.rotation.x, transform_target.transform.rotation.y, transform_target.transform.rotation.z, transform_target.transform.rotation.w]).as_matrix()
+                forque_base[:3,3] = np.array([transform_target.transform.translation.x, transform_target.transform.translation.y, transform_target.transform.translation.z]).reshape(1,3)
+                forque_base[3,3] = 1
+
+                target = get_next_waypoint(forque_base, forque_target_base)
+
+                cartesian_point = CartesianTrajectoryPoint()
+                
+                goal = Pose()
+                goal.position.x = target[0][3]
+                goal.position.y = target[1][3]
+                goal.position.z = target[2][3]
+
+                R = Rotation.from_matrix(target[:3,:3]).as_quat()
+                goal.orientation.x = R[0]
+                goal.orientation.y = R[1]
+                goal.orientation.z = R[2]
+                goal.orientation.w = R[3]
+
+                print("Publishing goal: ",goal)
+                cartesian_point.point.pose = goal
+                cmd_pub.publish(cartesian_point)
+
+                t = TransformStamped()
+
+                t.header.stamp = rospy.Time.now()
+                t.header.frame_id = "base_link"
+                t.child_frame_id = "next_target"
+
+                t.transform.translation.x = target[0][3]
+                t.transform.translation.y = target[1][3]
+                t.transform.translation.z = target[2][3]
+
+                R = Rotation.from_matrix(target[:3,:3]).as_quat()
                 t.transform.rotation.x = R[0]
                 t.transform.rotation.y = R[1]
                 t.transform.rotation.z = R[2]
