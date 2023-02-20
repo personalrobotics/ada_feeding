@@ -118,3 +118,21 @@ Note that the current demo has only been tested on the JACO 2.
 
 ## Misc Notes
 - 3D models and details for the Jetson Nano, which mounts the RealSense onto the gen2 arm, can be found [here](https://github.com/ramonidea/wireless-data-transmission/tree/master/wiki).
+
+## Shared Autonomy for Plate Locator
+1. Turn on ADA and open up `feedingwebapp` in your smartphone (follow instructions [here](https://github.com/personalrobotics/feeding_web_interface/tree/2022_revamp/feedingwebapp)).
+2. Start moving the robot clicking on directional buttons in the app until you get an alert that a partial plate has been located.
+3. Open up a terminal window and run `find_image_center.py` in `catkin_ws` directory. It will print out translational (x, y, z) and rotational (pitch, yaw, roll) position values for desired full plate center.
+4. Go to the `full_plate_locator.xml` tree file and plug in those position values in the robot node or port of `AdaPlanToPoseOffset`. Be sure to save the file with new changes.
+5. Run `roslaunch ada_feeding full_plate_locator.launch` in `catkin_ws` to launch the `full_plate_locator.xml` tree file for moving the robot and locating the full plate.
+6. If you want to start feeding now, just run `roslaunch ada_feeding feeding.launch sim:=false` in `catkin_ws` to run the demo code.
+
+## Full Autonomy for Plate Locator
+1. Add your desired position values of translation (x, y, z) and rotation (pitch, yaw, roll) for the robot node or port of `AdaPlanToPoseOffset` in the `partial_plate_locator.xml` tree file. Be sure to save the file with new changes.
+2. Run `roslaunch ada_feeding partial_plate_locator.launch` in `catkin_ws` to launch the `partial_plate_locator.xml` tree file for systematically moving the robot with measured spaces. The file will stop running after locating the partial plate. 
+3. Open up a terminal window and run `find_image_center.py` in `catkin_ws` directory. It will print out translational (x, y, z) and rotational (pitch, yaw, roll) position values for desired full plate center.
+4. Go to the `full_plate_locator.xml` tree file and plug in those position values in the robot node or port of `AdaPlanToPoseOffset`. Be sure to save the file with new changes.
+5. Run `roslaunch ada_feeding full_plate_locator.launch` in `catkin_ws` to launch the `full_plate_locator.xml` tree file for moving the robot and locating the full plate.
+6. If you want to start feeding now, just run `roslaunch ada_feeding feeding.launch sim:=false` in `catkin_ws` to run the demo code.
+
+
