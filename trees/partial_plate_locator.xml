@@ -5,25 +5,29 @@
   <!-- Simple Trajectories for Moving Once for Locating Partial Plate from Original Plate Position; used in only Full Autonomy -->
   <BehaviorTree ID="PartialPlateLocator">
     <Sequence name="root_sequence">
-      <!-- Go to forward right -->
-      <AdaPlanToPoseOffset offset="0.05;0.35;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
-      <AdaExecuteTrajectory traj="{traj}" />
-
-      <!-- Go to backward right -->
-      <AdaPlanToPoseOffset offset="0.05;-0.35;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
-      <AdaExecuteTrajectory traj="{traj}" />
-
-      <!-- Go to backward left -->
-      <AdaPlanToPoseOffset offset="-0.05;-0.35;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
-      <AdaExecuteTrajectory traj="{traj}" />
-
-      <!-- Go to forward left -->
-      <AdaPlanToPoseOffset offset="-0.05;0.35;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
-      <AdaExecuteTrajectory traj="{traj}" />
-
-      <!-- Go to forward right -->>
-      <AdaPlanToPoseOffset offset="0.05;0.35;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
-      <AdaExecuteTrajectory traj="{traj}" />
+      <loop if alertTopic does not say to stop> 
+        <!--listen for app's locateTopic messages-->>
+        <IF locateTopic msg is move forward>
+          <!-- Go to forward: -10 cm-->
+          <AdaPlanToOffset offset="0.00;-0.10;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
+          <AdaExecuteTrajectory traj="{traj}" />
+        <ELSEIF locateTopic msg is move backward>
+          <!-- Go to backward: 10 cm -->
+          <AdaPlanToOffset offset="0.00;0.10;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
+          <AdaExecuteTrajectory traj="{traj}" />
+        </ELSEIF>
+        <ELSEIF locateTopic msg is move left>
+          <!-- Go to left: 10 cm -->
+          <AdaPlanToOffset offset="0.10;0.00;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
+          <AdaExecuteTrajectory traj="{traj}" />
+        </ELSEIF>
+        <ELSE locateTopic msg is move right>
+          <!-- Go to right: 10 cm -->
+          <AdaPlanToOffset offset="-0.10;0.00;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
+          <AdaExecuteTrajectory traj="{traj}" />
+        </ELSE>
+        </IF>
+      </loop>
     </Sequence>
   </BehaviorTree>
 </root>
