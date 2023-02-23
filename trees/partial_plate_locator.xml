@@ -1,9 +1,6 @@
 <root BTCPP_format="4" main_tree_to_execute="PartialPlateLocator" >
   <!-- Subtree Includes -->
   <include path="./helpers.xml" />
-  <!DOCTYPE doc [
-  <!ENTITY full_plate_locator SYSTEM "full_plate_locator.xml">
-  ]>
 
   <!-- Moving robot with user inputs for locating partial plate -->
   <BehaviorTree ID="PartialPlateLocator">
@@ -12,27 +9,27 @@
         <!--listen for app's locateTopic messages-->>
         <IF locateTopic msg is move forward>
           <!-- Go to forward: -10 cm-->
-          <AdaPlanToOffset offset="0.00;-0.10;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
+          <AdaPlanToOffset offset="0.00;-0.10;0.0" worldCollision="true" traj="{traj}" />
           <AdaExecuteTrajectory traj="{traj}" />
         <ELSEIF locateTopic msg is move backward>
           <!-- Go to backward: 10 cm -->
-          <AdaPlanToOffset offset="0.00;0.10;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
+          <AdaPlanToOffset offset="0.00;0.10;0.0" worldCollision="true" traj="{traj}" />
           <AdaExecuteTrajectory traj="{traj}" />
         </ELSEIF>
         <ELSEIF locateTopic msg is move left>
           <!-- Go to left: 10 cm -->
-          <AdaPlanToOffset offset="0.10;0.00;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
+          <AdaPlanToOffset offset="0.10;0.00;0.0" worldCollision="true" traj="{traj}" />
           <AdaExecuteTrajectory traj="{traj}" />
         </ELSEIF>
         <ELSE locateTopic msg is move right>
           <!-- Go to right: 10 cm -->
-          <AdaPlanToOffset offset="-0.10;0.00;0.0" rotation="0.0;0.0;0.0" worldCollision="true" traj="{traj}" />
+          <AdaPlanToOffset offset="-0.10;0.00;0.0" worldCollision="true" traj="{traj}" />
           <AdaExecuteTrajectory traj="{traj}" />
         </ELSE>
         </IF>
       </loop>
-      <!-- call the full plate locator for robot take over -->
-      &full_plate_locator;
+      <!-- call the compute_offset_vector for robot take over -->
+      <!--???????-->>
     </Sequence>
   </BehaviorTree>
 </root>

@@ -119,7 +119,8 @@ Note that the current demo has only been tested on the JACO 2.
 ## Misc Notes
 - 3D models and details for the Jetson Nano, which mounts the RealSense onto the gen2 arm, can be found [here](https://github.com/ramonidea/wireless-data-transmission/tree/master/wiki).
 
-## Shared Autonomy for Plate Locator
+## Shared Autonomy for Plate Locator 
+Make sure nothing blue is in the environment except the blue plate
 1. Turn on ADA and open up `feedingwebapp` in your smartphone (follow instructions [here](https://github.com/personalrobotics/feeding_web_interface/tree/2022_revamp/feedingwebapp)).
 2. Start moving the robot clicking on directional buttons in the app until you get an alert that a partial plate has been located.
 3. Open up a terminal window and run `find_image_center.py` in `catkin_ws` directory. It will print out translational (x, y, z) and rotational (pitch, yaw, roll) position values for desired full plate center.

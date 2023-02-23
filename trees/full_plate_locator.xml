@@ -7,8 +7,9 @@
     <Sequence name="root_sequence">
       <!-- Move towards full plate -->
       <RosSubVecD topic={vector_topic} target={vector}>
-      <AdaPlanToPoseOffset offset={vector} rotation="0.0;0.0;0.5" worldCollision="true" traj="{traj}" />
+      <AdaPlanToOffset offset={vector} worldCollision="true" traj="{traj}" />
       <AdaExecuteTrajectory traj="{traj}" />
+      
     </Sequence>
   </BehaviorTree>
 </root>
