@@ -1,8 +1,11 @@
 <root BTCPP_format="4" main_tree_to_execute="PartialPlateLocator" >
   <!-- Subtree Includes -->
   <include path="./helpers.xml" />
+  <!DOCTYPE doc [
+  <!ENTITY full_plate_locator SYSTEM "full_plate_locator.xml">
+  ]>
 
-  <!-- Simple Trajectories for Moving Once for Locating Partial Plate from Original Plate Position; used in only Full Autonomy -->
+  <!-- Moving robot with user inputs for locating partial plate -->
   <BehaviorTree ID="PartialPlateLocator">
     <Sequence name="root_sequence">
       <loop if alertTopic does not say to stop> 
@@ -28,6 +31,8 @@
         </ELSE>
         </IF>
       </loop>
+      <!-- call the full plate locator for robot take over -->
+      &full_plate_locator;
     </Sequence>
   </BehaviorTree>
 </root>

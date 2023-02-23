@@ -1,11 +1,14 @@
 # Python program for Detection of blue color using OpenCV with Python
+#!/usr/bin/python
+import get_ros_image
 import cv2
 import numpy as np
 
 def color_detection():
 
-    # get current image from robot camera (listener)
-    original_image = cv2.imread("/Users/raidakarim/Downloads/blue_color_plate.png")
+    # get current image from robot camera
+    #original_image = cv2.imread("/Users/raidakarim/Downloads/blue_color_plate.png")
+    original_image = get_ros_image
 
     # Converts images from BGR to HSV
     hsv = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
