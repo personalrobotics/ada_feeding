@@ -5,8 +5,9 @@
   <!-- Simple Trajectories for Moving Once for Locating Full Plate from Original Plate Position; used in both Full and Shared Autonomy -->
   <BehaviorTree ID="FullPlateLocator">
     <Sequence name="root_sequence">
-      <!-- Go to forward right -->
-      <AdaPlanToPoseOffset offset="0.05;0.35;0.0" rotation="0.0;0.0;0.5" worldCollision="true" traj="{traj}" />
+      <!-- Move towards full plate -->
+      <RosSubVecD topic={vector_topic} target={vector}>
+      <AdaPlanToPoseOffset offset={vector} rotation="0.0;0.0;0.5" worldCollision="true" traj="{traj}" />
       <AdaExecuteTrajectory traj="{traj}" />
     </Sequence>
   </BehaviorTree>
