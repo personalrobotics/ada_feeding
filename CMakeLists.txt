@@ -6,11 +6,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-find_package(catkin REQUIRED COMPONENTS
-  roscpp
-)
-
-
 ###################################
 ## catkin specific configuration ##
 ###################################
@@ -25,11 +20,23 @@ catkin_package(
   CATKIN_DEPENDS roscpp 
 )
 
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  rospy
+  std_msgs
+  message_generation
+)
+
 
 # ===============================================================================
 # Dependencies
 #
 include_directories(${catkin_INCLUDE_DIRS})
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 find_package(DART 6.6.2 REQUIRED
   COMPONENTS utils utils-urdf optimizer-nlopt
@@ -77,6 +84,12 @@ include_directories(${pr_tsr_INCLUDE_DIRS})
 
 find_package(behaviortree_cpp REQUIRED)
 include_directories(${behaviortree_cpp_INCLUDE_DIRS})
+
+# Declare the service files to be built
+add_service_files(
+  FILES
+  PlateService.srv
+)
 
 #================================================================================
 # Compiler settings
