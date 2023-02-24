@@ -29,7 +29,10 @@
         </IF>
       </loop>
       <!-- call the compute_offset_vector for robot take over -->
-      <!--???????-->>
+      <!-- Move towards full plate -->
+      <RosSubVecD topic={vector_topic} target={vector}>
+      <AdaPlanToOffset offset={vector} worldCollision="true" traj="{traj}" />
+      <AdaExecuteTrajectory traj="{traj}" />
     </Sequence>
   </BehaviorTree>
 </root>
