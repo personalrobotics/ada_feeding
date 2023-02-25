@@ -2,37 +2,59 @@
   <!-- Subtree Includes -->
   <include path="./helpers.xml" />
 
-  <!-- Moving robot with user inputs for locating partial plate -->
+  <!-- Moving robot to locate plate -->
   <BehaviorTree ID="PartialPlateLocator">
     <Sequence name="root_sequence">
-      <loop if alertTopic does not say to stop> 
-        <!--listen for app's locateTopic messages-->>
-        <IF locateTopic msg is move forward>
-          <!-- Go to forward: -10 cm-->
-          <AdaPlanToOffset offset="0.00;-0.10;0.0" worldCollision="true" traj="{traj}" />
+      <RetryNode N=30>
+      <RosSubBool topic="/alert" target="{alert}" />
+
+      <Precondition if="alert==False" else="FAILURE">
+        <Sequence>
+          <RosSubString topic="/locate" target="{locate}" />
+
+          <Precondition if="locate==FORWARD" else="FAILURE">
+            <Sequence>
+              <!-- Go to forward: -10 cm-->
+              <AdaPlanToOffset offset="0.00;-0.10;0.0" worldCollision="true" traj="{traj}" />
+              <AdaExecuteTrajectory traj="{traj}" />
+             </Sequence>
+          </Precondition> 
+
+          <Precondition elseif="locate==BACKWARD" else="FAILURE">
+            <Sequence>
+              <!-- Go to backward: 10 cm -->
+              <AdaPlanToOffset offset="0.00;0.10;0.0" worldCollision="true" traj="{traj}" />
+              <AdaExecuteTrajectory traj="{traj}" />
+            </Sequence>
+          </Precondition>
+
+          <Precondition elseif="locate==LEFT" else="FAILURE">
+            <Sequence>        
+              <!-- Go to left: 10 cm -->
+              <AdaPlanToOffset offset="0.10;0.00;0.0" worldCollision="true" traj="{traj}" />
+              <AdaExecuteTrajectory traj="{traj}" />
+            </Sequence>
+          </Precondition> 
+
+          <Precondition elseif="locate==RIGHT" else="FAILURE">
+            <Sequence> 
+              <!-- Go to right: 10 cm -->
+              <AdaPlanToOffset offset="-0.10;0.00;0.0" worldCollision="true" traj="{traj}" />
+              <AdaExecuteTrajectory traj="{traj}" />
+            </Sequence>
+          </Precondition>
+
+        <Sequence>
+      </Precondition>
+
+      <RosSubVecD topic="/offset" target="{offset}" />
+      <Precondition if="offset!=None" else="FAILURE">
+        <Sequence>
+          <AdaPlanToOffset offset="{offset}" worldCollision="true" traj="{traj}" />
           <AdaExecuteTrajectory traj="{traj}" />
-        <ELSEIF locateTopic msg is move backward>
-          <!-- Go to backward: 10 cm -->
-          <AdaPlanToOffset offset="0.00;0.10;0.0" worldCollision="true" traj="{traj}" />
-          <AdaExecuteTrajectory traj="{traj}" />
-        </ELSEIF>
-        <ELSEIF locateTopic msg is move left>
-          <!-- Go to left: 10 cm -->
-          <AdaPlanToOffset offset="0.10;0.00;0.0" worldCollision="true" traj="{traj}" />
-          <AdaExecuteTrajectory traj="{traj}" />
-        </ELSEIF>
-        <ELSE locateTopic msg is move right>
-          <!-- Go to right: 10 cm -->
-          <AdaPlanToOffset offset="-0.10;0.00;0.0" worldCollision="true" traj="{traj}" />
-          <AdaExecuteTrajectory traj="{traj}" />
-        </ELSE>
-        </IF>
-      </loop>
-      <!-- call the compute_offset_vector for robot take over -->
-      <!-- Move towards full plate -->
-      <RosSubVecD topic={vector_topic} target={vector}>
-      <AdaPlanToOffset offset={vector} worldCollision="true" traj="{traj}" />
-      <AdaExecuteTrajectory traj="{traj}" />
+        </Sequence>
+      </Precondition>
+
     </Sequence>
   </BehaviorTree>
 </root>

@@ -102,15 +102,15 @@ def main():
     # We declare our node using init_node()
     rospy.init_node('starter', anonymous=True)
 
-    # start ros service and subscriber
-    # This declares a new service named 'detection_and_offset' with the PlateService service type. 
-    # All requests are passed to service_callback function.
-    s = rospy.Service('detection_and_offset', PlateService, service_callback)
-
     # communicates with camera topic
     # This declares that our node subscribes to the "/camera/rgb/image_raw" topic which is of type Image. 
     # When new image messages are received, subscriber_callback is invoked with the message as the first argument.
     rospy.Subscriber("/camera/rgb/image_raw", Image, subscriber_callback)
+
+    # start ros service and subscriber
+    # This declares a new service named 'detection_and_offset' with the PlateService service type. 
+    # All requests are passed to service_callback function.
+    s = rospy.Service('detection_and_offset', PlateService, service_callback)
 
     # spin() simply keeps python from exiting until this node is stopped
     rospy.spin()
