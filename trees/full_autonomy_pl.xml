@@ -1,0 +1,29 @@
+<root BTCPP_format="4" main_tree_to_execute="FullAutonomyPlateLocator" >
+  <!-- Subtree Includes -->
+  <include path="./helpers.xml" />
+
+  <!-- Moving robot to locate plate -->
+  <BehaviorTree ID="FullAutonomyPlateLocator">
+    <Sequence name="root_sequence">
+       <!-- Just to check partial plate is not already detected -->
+      <RosSubBool topic="/alert" target="{alert}" />
+      <Precondition if="{alert}==False" else="FAILURE">
+        <Sequence>
+            <!-- Go to hardcoded direction -->
+            <AdaPlanToOffset offset="0.00;-0.10;0.0" worldCollision="true" traj="{traj}" />
+            <AdaExecuteTrajectory traj="{traj}" />
+        </Sequence>
+      </Precondition> 
+
+      <RepeatNode N=30 />
+      <RosSubVecD topic="/offset" target="{offset}" />
+      <Precondition if="{offset}!=None" else="FAILURE">
+        <Sequence>
+          <AdaPlanToOffset offset="{offset}" worldCollision="true" traj="{traj}" />
+          <AdaExecuteTrajectory traj="{traj}" />
+        </Sequence>
+      </Precondition>
+
+    </Sequence>
+  </BehaviorTree>
+</root>

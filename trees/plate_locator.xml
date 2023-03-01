@@ -1,59 +1,57 @@
-<root BTCPP_format="4" main_tree_to_execute="PartialPlateLocator" >
+<root BTCPP_format="4" main_tree_to_execute="PlateLocator" >
   <!-- Subtree Includes -->
   <include path="./helpers.xml" />
 
   <!-- Moving robot to locate plate -->
-  <BehaviorTree ID="PartialPlateLocator">
+  <BehaviorTree ID="PlateLocator">
     <Sequence name="root_sequence">
-      <RetryNode N=30>
-      <RosSubBool topic="/alert" target="{alert}" />
-
-      <Precondition if="alert==False" else="FAILURE">
-        <Sequence>
+      
+      <RetryUntilSuccessful name="WaitForAlert" num_attempts="-1">
+        <Sequence name="alert_sequence">
+          <RosSubBool topic="/alert" target="{alert}" />
           <RosSubString topic="/locate" target="{locate}" />
+          <Fallback>
+            <Precondition if="{locate}==Forward" else="FAILURE">
+              <Sequence>
+                <!-- Go to forward: -10 cm-->
+                <AdaPlanToOffset offset="0.00;-0.10;0.0" worldCollision="true" traj="{traj}" />
+                <AdaExecuteTrajectory traj="{traj}" />
+              </Sequence>
+            </Precondition>
+            <Precondition if="{locate}==Backward" else="FAILURE">
+              <Sequence>
+                <!-- Go to forward: -10 cm-->
+                <AdaPlanToOffset offset="0.00;0.10;0.0" worldCollision="true" traj="{traj}" />
+                <AdaExecuteTrajectory traj="{traj}" />
+              </Sequence>
+            </Precondition>
+            <Precondition elseif="{locate}==Left" else="FAILURE">
+              <Sequence>        
+                <!-- Go to left: 10 cm -->
+                <AdaPlanToOffset offset="0.10;0.00;0.0" worldCollision="true" traj="{traj}" />
+                <AdaExecuteTrajectory traj="{traj}" />
+              </Sequence>
+            </Precondition>
+            <Precondition elseif="{locate}==Right" else="FAILURE">
+              <Sequence> 
+                <!-- Go to right: 10 cm -->
+                <AdaPlanToOffset offset="-0.10;0.00;0.0" worldCollision="true" traj="{traj}" />
+                <AdaExecuteTrajectory traj="{traj}" />
+              </Sequence>
+            </Precondition> 
+          </Fallback>
+          <FAILURE _skipIf="alert==True"/>
+        </Sequence>
+      </RetryUntilSuccessful>
 
-          <Precondition if="locate==FORWARD" else="FAILURE">
-            <Sequence>
-              <!-- Go to forward: -10 cm-->
-              <AdaPlanToOffset offset="0.00;-0.10;0.0" worldCollision="true" traj="{traj}" />
-              <AdaExecuteTrajectory traj="{traj}" />
-             </Sequence>
-          </Precondition> 
-
-          <Precondition elseif="locate==BACKWARD" else="FAILURE">
-            <Sequence>
-              <!-- Go to backward: 10 cm -->
-              <AdaPlanToOffset offset="0.00;0.10;0.0" worldCollision="true" traj="{traj}" />
-              <AdaExecuteTrajectory traj="{traj}" />
-            </Sequence>
-          </Precondition>
-
-          <Precondition elseif="locate==LEFT" else="FAILURE">
-            <Sequence>        
-              <!-- Go to left: 10 cm -->
-              <AdaPlanToOffset offset="0.10;0.00;0.0" worldCollision="true" traj="{traj}" />
-              <AdaExecuteTrajectory traj="{traj}" />
-            </Sequence>
-          </Precondition> 
-
-          <Precondition elseif="locate==RIGHT" else="FAILURE">
-            <Sequence> 
-              <!-- Go to right: 10 cm -->
-              <AdaPlanToOffset offset="-0.10;0.00;0.0" worldCollision="true" traj="{traj}" />
-              <AdaExecuteTrajectory traj="{traj}" />
-            </Sequence>
-          </Precondition>
-
-        <Sequence>
-      </Precondition>
-
-      <RosSubVecD topic="/offset" target="{offset}" />
-      <Precondition if="offset!=None" else="FAILURE">
-        <Sequence>
+      <RetryUntilSuccessful name="WaitForOffset" num_attempts="-1">
+        <Sequence name="offset_sequence">
+          <RosSubVecD topic="/offset" target="{offset}" />
           <AdaPlanToOffset offset="{offset}" worldCollision="true" traj="{traj}" />
           <AdaExecuteTrajectory traj="{traj}" />
+          <FAILURE _skipIf="offset==None" />
         </Sequence>
-      </Precondition>
+      </RetryUntilSuccessful>
 
     </Sequence>
   </BehaviorTree>

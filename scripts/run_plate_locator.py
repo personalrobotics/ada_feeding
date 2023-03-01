@@ -23,7 +23,7 @@ bridge = CvBridge()
 
 # communicates with xml and js files
 def service_callback():
-    # implement
+    # implement color detector
     # Converts images from BGR to HSV
     hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
     lower_blue = np.array([94, 80, 2])
@@ -98,19 +98,19 @@ def subscriber_callback(img_msg):
     # show_image(cv_image)
 
 # main function
+# start ros service and subscriber
 def main():
     # We declare our node using init_node()
     rospy.init_node('starter', anonymous=True)
 
     # communicates with camera topic
     # This declares that our node subscribes to the "/camera/rgb/image_raw" topic which is of type Image. 
-    # When new image messages are received, subscriber_callback is invoked with the message as the first argument.
+    # When new ros image messages are received, subscriber_callback is invoked with the message as the first argument.
     rospy.Subscriber("/camera/rgb/image_raw", Image, subscriber_callback)
 
-    # start ros service and subscriber
-    # This declares a new service named 'detection_and_offset' with the PlateService service type. 
+    # This declares a new service named 'alert_and_offset' with the PlateService service type. 
     # All requests are passed to service_callback function.
-    s = rospy.Service('detection_and_offset', PlateService, service_callback)
+    s = rospy.Service('alert_and_offset', PlateService, service_callback)
 
     # spin() simply keeps python from exiting until this node is stopped
     rospy.spin()
