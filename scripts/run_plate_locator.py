@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 # Import ROS libraries and messages
 import rospy
-import roslib
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Bool
-import geometry_msgs.msg
-import tf
 # Import OpenCV libraries and tools
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
@@ -18,7 +15,7 @@ from ada_feeding.srv import PlateService, PlateServiceResponse
 # declare variables
 cv_image = None
 vector_array = None
-detected = None
+detected = False
 bridge = CvBridge()
 
 # communicates with xml and js files
@@ -77,7 +74,7 @@ def service_callback(req):
 
             if deltaX > 5 or deltaY > 5:
                 # get angle in randians
-                rad_angle =  = math.atan2(deltaX, deltaY)
+                rad_angle = math.atan2(deltaX, deltaY)
                 vector_x = math.cos(rad_angle)
                 vector_y = math.sin(rad_angle)
 
@@ -89,18 +86,15 @@ def service_callback(req):
         # return plate detect boolean and distance offset
         return PlateServiceResponse(req.alert, req.vector)
     else: 
-        print("cv image could not be found.")
+        print("CV image could not be found.")
 
 #  processes image
 def subscriber_callback(img_msg):
     # implement:
     # log some info about the image topic
     rospy.loginfo(img_msg.header)
-    # Try to convert the ROS Image message to a CV2 Image
-    try:
-        cv_image = bridge.imgmsg_to_cv2(img_msg, "passthrough")
-    except CvBridgeError, e:
-        rospy.logerr("CvBridge Error: {0}".format(e))
+    # Convert the ROS Image message to a CV2 Image
+    cv_image = bridge.imgmsg_to_cv2(img_msg, "passthrough")
     # Show the converted image
     # show_image(cv_image)
 
@@ -113,7 +107,7 @@ def main():
     # communicates with camera topic
     # This declares that our node subscribes to the "/camera/rgb/image_raw" topic which is of type Image. 
     # When new ros image messages are received, subscriber_callback is invoked with the message as the first argument.
-    rospy.Subscriber("/camera/rgb/image_raw", Image, subscriber_callback)
+    rospy.Subscriber("/camera/color/image_raw/image", Image, subscriber_callback)
 
     # This declares a new service named 'alert_and_offset' with the PlateService service type. 
     # All requests are passed to service_callback function.
