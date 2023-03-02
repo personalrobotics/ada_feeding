@@ -1,0 +1,1 @@
+This is for plate locator algorithm details (ros services, subscribers, arguments and run commands).
