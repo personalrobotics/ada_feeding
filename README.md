@@ -15,7 +15,7 @@ See [nodes] for a list of all created CPP nodes.
 ### APT Dependencies
 ```
 DISTRO=noetic
-sudo apt install libopencv-dev libblas-dev liblapack-dev libmicrohttpd-dev libeigen3-dev ros-$DISTRO-control-toolbox ros-$DISTRO-ompl ros-$DISTRO-force-torque-sensor-controller ros-$DISTRO-srdfdom python3-wstool ros-$DISTRO-octomap-ros ros-$DISTRO-joint-trajectory-controller ros-$DISTRO-transmission-interface ros-$DISTRO-cv-bridge ros-$DISTRO-image-transport ros-$DISTRO-image-geometry ros-$DISTRO-diagnostic-updater ros-$DISTRO-controller-manager ros-$DISTRO-rviz python-catkin-tools
+sudo apt install libopencv-dev libblas-dev liblapack-dev libmicrohttpd-dev libeigen3-dev ros-$DISTRO-control-toolbox ros-$DISTRO-ompl ros-$DISTRO-force-torque-sensor-controller ros-$DISTRO-srdfdom python3-wstool ros-$DISTRO-octomap-ros ros-$DISTRO-joint-trajectory-controller ros-$DISTRO-transmission-interface ros-$DISTRO-cv-bridge ros-$DISTRO-image-transport ros-$DISTRO-image-geometry ros-$DISTRO-diagnostic-updater ros-$DISTRO-controller-manager ros-$DISTRO-rviz python3-catkin-tools
 ```
 
 You might also need to install pybind: `pip install pybind11[global]`
