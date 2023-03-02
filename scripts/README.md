@@ -1,5 +1,5 @@
 ### How to Run Plate Locator Algorithm
-Open up 4 terminals in your computer (we assuming you are using weebo that is connected to ADA robot in lab) and in each terminal run the following commands (1-4) after successfully building your workspace respectively doing: `cd <catkin_ws>; catkin build; . devel/setup.bash`
+Open up 4 terminals in your computer (we assume you are using weebo that is connected to ADA robot in lab) and in each terminal run the following commands (1-4) after successfully building your workspace by respectively doing: `cd <catkin_ws>; catkin build; . devel/setup.bash`
 
 1. `roscore`
 2. `roslaunch ada_feeding rviz.launch`
