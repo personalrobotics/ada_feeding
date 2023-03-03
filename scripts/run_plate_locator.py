@@ -2,7 +2,6 @@
 # Import ROS libraries and messages
 import rospy
 from sensor_msgs.msg import Image
-from std_msgs.msg import Float64MultiArray, Bool
 # Import OpenCV libraries and tools
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
@@ -11,6 +10,7 @@ import numpy as np
 import math
 # service
 from ada_feeding.srv import PlateService, PlateServiceResponse
+import tf
 
 # declare variables
 cv_image = None
@@ -56,9 +56,6 @@ def service_callback(req):
             # calculate x,y coordinates of center
             cX = int(m["m10"] / m["m00"])
             cY = int(m["m01"] / m["m00"])
-
-            center = [centerX, centerY]
-            currPoint = [cX, cY]
             
             #display the image
             #cv2.circle(cv_image, (cX, cY), 5, (255, 255, 255), -1)
@@ -81,7 +78,14 @@ def service_callback(req):
                 # convert angle to vector
                 full_vector = [vector_x, vector_y, 0.0]
                 vector_array = np.asarray(full_vector)
-                req.vector = vector_array
+                listener = tf.TransformListener()
+                while not rospy.is_shutdown():
+                    try:
+                        (trans,rot) = listener.lookupTransform('camera_color_optical_frame', 'world', rospy.Time(0))
+                    except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+                        continue
+                direction = np.dot(rot, vector_array)
+                req.vector = direction
             
         # return plate detect boolean and distance offset
         return PlateServiceResponse(req.alert, req.vector)

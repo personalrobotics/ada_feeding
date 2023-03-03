@@ -8,8 +8,8 @@
       
       <RetryUntilSuccessful name="WaitForAlert" num_attempts="-1">
         <Sequence name="alert_sequence">
-          <RosSubBool topic="/alert" target="{alert}" />
-          <RosSubString topic="/locate" target="{locate}" />
+          <RosSubBool topic="/from_web_alert" target="{alert}" />
+          <RosSubString topic="/from_web_movement" target="{locate}" />
           <Fallback>
             <Precondition if="{locate}==Forward" else="FAILURE">
               <Sequence>
@@ -46,7 +46,7 @@
 
       <RetryUntilSuccessful name="WaitForOffset" num_attempts="-1">
         <Sequence name="offset_sequence">
-          <RosSubVecD topic="/offset" target="{offset}" />
+          <RosSubVecD topic="/from_web_offset" target="{offset}" />
           <AdaPlanToOffset offset="{offset}" worldCollision="true" traj="{traj}" />
           <AdaExecuteTrajectory traj="{traj}" />
           <FAILURE _skipIf="offset==None" />
