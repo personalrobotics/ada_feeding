@@ -39,7 +39,6 @@ def service_callback(req):
 
         # boolean true (if blue color detected) / false (if blue color not detected)
         detected = bool(ones > 0)
-        req.alert = detected
         print("plate detected", detected)
 
         if detected == True:
@@ -85,12 +84,12 @@ def service_callback(req):
                     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                         continue
                 direction = np.dot(rot, vector_array)
-                req.vector = direction
             
         # return plate detect boolean and distance offset
-        return PlateServiceResponse(req.alert, req.vector)
+        return PlateServiceResponse(detected, direction)
     else: 
         print("CV image could not be found.")
+        # return: success/fal boolean; string erroe msg; return exception
 
 #  processes image
 def subscriber_callback(img_msg):

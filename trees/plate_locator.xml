@@ -46,7 +46,7 @@
 
       <RetryUntilSuccessful name="WaitForOffset" num_attempts="-1">
         <Sequence name="offset_sequence">
-          <RosSubVecD topic="/from_web_offset" target="{offset}" />
+          <RosSubVecD topic="/from_web_offset" timeout="20" target="{offset}" />
           <AdaPlanToOffset offset="{offset}" worldCollision="true" traj="{traj}" />
           <AdaExecuteTrajectory traj="{traj}" />
           <FAILURE _skipIf="offset==None" />
