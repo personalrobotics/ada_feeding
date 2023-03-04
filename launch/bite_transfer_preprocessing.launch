@@ -5,7 +5,7 @@
   <arg name="dof" default="6" doc="Number of degrees of freedom in arm" />
 
   <!-- Gen3 specific arguments required by Kortex API for instantiating a private communication session -->
-  <arg name="ip_address" default="emprise-kortex.coecis.cornell.edu" doc="IP address for TCP/UDP comms"/>
+  <arg name="ip_address" default="192.168.1.42" doc="IP address for TCP/UDP comms"/>
   <arg name="username" default="admin" doc="Username for kortex session"/>
   <arg name="password" default="admin" doc="Password for kortex session"/>
   <arg name="api_session_inactivity_timeout_ms" default="35000"/> <!--milliseconds-->
@@ -30,13 +30,18 @@
 
   <!-- green blue red-->
   <node pkg="tf2_ros" type="static_transform_publisher" name="camera_link_broadcaster"
-      args="0.0185 0.065 0.034 0.50080661  0.49902445  0.50068027 -0.49948635 end_effector_link camera_link" />
+      args="0.026 0.063 0.031 0.5  0.5  0.5 -0.5 end_effector_link camera_link" />   <!-- BEST VALUES WITH 0.5 ROTATIONS -->
 
+  <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="camera_link_broadcaster" -->
+  <!--    args="0.009 0.063 0.032 0.50080661  0.49902445  0.50068027 -0.49948635 end_effector_link camera_link" /> BEST CAMERA 1 VALUES SO FAR -->     
   <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="camera_link_broadcaster" -->
   <!--    args="0.014 0.065 0.034 0.50080661  0.49902445  0.50068027 -0.49948635 end_effector_link camera_link" />     SAVED RAJAT VALUES -->
 
   <node pkg="tf2_ros" type="static_transform_publisher" name="bottom_camera_link_broadcaster"
-    args="0.0122 -0.059  0.034 0.50080661  0.49902445  0.50068027 -0.49948635 end_effector_link bottom_camera_link" />
+    args="0.002447433418472879, 0.0012187169967312079, -0.12225996728855008, 0.0026609765062173187, -0.006296790437381367, -0.008035470841219895, 0.9999443488727665 camera_link bottom_camera_link" />
+
+  <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="bottom_camera_link_broadcaster" -->
+  <!--  args="0.0122 -0.059  0.034 0.50080661  0.49902445  0.50068027 -0.49948635 end_effector_link bottom_camera_link" /> SAVED BOTTOM CAMERA VALUES -->
 
   <!-- load controller configuration -->
   <rosparam file="$(find libada)/config/gen$(arg version)_$(arg dof)dof_controllers.yaml" command="load" />

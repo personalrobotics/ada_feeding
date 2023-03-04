@@ -32,7 +32,6 @@
       <Sequence name="BiteSeq">
 
         <!-- Failure Just Restarts -->
-        <ForceSuccess>
         <Sequence name="FeedBite"> 
 
           <!-- Move in Front of Person -->
@@ -43,7 +42,6 @@
           <RosSubBool topic="transfer_over" target="{transfer_over}" />
 
         </Sequence>
-        </ForceSuccess>
       </Sequence>
       </Repeat>
     </Sequence>
