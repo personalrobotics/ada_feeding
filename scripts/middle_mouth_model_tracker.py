@@ -22,9 +22,10 @@ DISTANCE_LOOKAHEAD = 0.02
 ANGULAR_LOOKAHEAD = 5*np.pi/180
 DISTANCE_INFRONT_MOUTH = 0.10
 MOVE_OUTSIDE_DISTANCE = 0.14
+MOVE_INSIDE_DISTANCE = 0.03
 
 lock = threading.Lock()
-state = 1
+state = 0
 force_threshold_execeeded = False 
 
 def callback(msg):
@@ -122,7 +123,7 @@ if __name__ == '__main__':
 
             print("Current state: ",current_state)
 
-            if current_state == 1: # move to infront of mouth
+            if current_state == 0: # move to infront of mouth
                 
                 # trajectory positions
                 if closed_loop:
@@ -237,7 +238,7 @@ if __name__ == '__main__':
 
                 broadcaster.sendTransform(t)
 
-            elif current_state == 2: # move inside mouth
+            elif current_state == 1: # move inside mouth
 
                 if closed_loop:
 
@@ -274,38 +275,7 @@ if __name__ == '__main__':
                 forque_source[:3,3] = np.array([transform.transform.translation.x, transform.transform.translation.y, transform.transform.translation.z]).reshape(1,3)
                 forque_source[3,3] = 1
 
-                distance = np.linalg.norm(forque_source[:3,3] - forque_target_base[:3,3])
-
-                if distance < OPEN_LOOP_RADIUS:
-                    closed_loop = False
-
-                intermediate_forque_target = np.zeros((4,4))
-                intermediate_forque_target[0, 0] = 1
-                intermediate_forque_target[1, 1] = 1
-                intermediate_forque_target[2, 2] = 1
-                intermediate_forque_target[:3,3] = np.array([0, 0, -distance]).reshape(1,3)
-                intermediate_forque_target[3,3] = 1
-
-                intermediate_forque_target = forque_target_base @ intermediate_forque_target
-
-                intermediate_position_error = np.linalg.norm(forque_source[:3,3] - intermediate_forque_target[:3,3])
-                intermediate_angular_error = get_angular_distance(forque_source[:3,:3], intermediate_forque_target[:3,:3])
-
-                print("intermediate_position_error: ", forque_source[:3,3] - intermediate_forque_target[:3,3])
-                print("intermediate_position_error mag: ", intermediate_position_error)
-                print("intermediate_angular_error: ", intermediate_angular_error)
-
-                ipe_forque_frame = np.linalg.inv(forque_source[:3,:3]) @ (forque_source[:3,3] - intermediate_forque_target[:3,3]).reshape(3,1)
-                print("Error in forque frame: ",ipe_forque_frame)
-                error_mag = np.linalg.norm(np.array([ipe_forque_frame[0], ipe_forque_frame[1]]))
-                print("Error mag:",error_mag)
- 
-                if intermediate_position_error > INTERMEDIATE_THRESHOLD: # The thresholds here should be ideally larger than the thresholds for tracking trajectories
-                    print("Tracking intermediate position... ")
-                    target = get_next_waypoint(forque_source, intermediate_forque_target)
-                else:
-                    print("Tracking target position... ")
-                    target = get_next_waypoint(intermediate_forque_target, forque_target_base)
+                target = get_next_waypoint(forque_source, forque_target_base)
                 
                 goal = Pose()
                 goal.position.x = target[0][3]
@@ -352,6 +322,102 @@ if __name__ == '__main__':
                 t.transform.translation.z = forque_target_base[2][3]
 
                 R = Rotation.from_matrix(forque_target_base[:3,:3]).as_quat()
+                t.transform.rotation.x = R[0]
+                t.transform.rotation.y = R[1]
+                t.transform.rotation.z = R[2]
+                t.transform.rotation.w = R[3]
+
+                broadcaster.sendTransform(t)
+
+            elif current_state == 2: # move inside mouth
+
+                if closed_loop:
+
+                    while not rospy.is_shutdown():
+                        try:
+                            print("Looking for transform")
+                            transform_target = tfBuffer.lookup_transform('base_link', "forque_end_effector_target", rospy.Time())
+                            break
+                        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                            rate.sleep()
+                            continue
+
+                    forque_target_base = np.zeros((4,4))
+                    forque_target_base[:3,:3] = Rotation.from_quat([transform_target.transform.rotation.x, transform_target.transform.rotation.y, transform_target.transform.rotation.z, transform_target.transform.rotation.w]).as_matrix()
+                    forque_target_base[:3,3] = np.array([transform_target.transform.translation.x, transform_target.transform.translation.y, transform_target.transform.translation.z]).reshape(1,3)
+                    forque_target_base[3,3] = 1
+
+                    transfer_forque_target = np.zeros((4,4))
+                    transfer_forque_target[0, 0] = 1
+                    transfer_forque_target[1, 1] = 1
+                    transfer_forque_target[2, 2] = 1
+                    transfer_forque_target[:3,3] = np.array([0, 0, MOVE_INSIDE_DISTANCE]).reshape(1,3)
+                    transfer_forque_target[3,3] = 1
+
+                    transfer_forque_target = forque_target_base @ transfer_forque_target
+                    closed_loop = False
+
+                while not rospy.is_shutdown():
+                    try:
+                        print("Looking for transform")
+                        transform = tfBuffer.lookup_transform('base_link', "forque_end_effector", rospy.Time())
+                        break
+                    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                        rate.sleep()
+                        continue
+
+                forque_source = np.zeros((4,4))
+                forque_source[:3,:3] = Rotation.from_quat([transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w]).as_matrix()
+                forque_source[:3,3] = np.array([transform.transform.translation.x, transform.transform.translation.y, transform.transform.translation.z]).reshape(1,3)
+                forque_source[3,3] = 1
+
+                target = get_next_waypoint(forque_source, transfer_forque_target)
+                
+                goal = Pose()
+                goal.position.x = target[0][3]
+                goal.position.y = target[1][3]
+                goal.position.z = target[2][3]
+
+                R = Rotation.from_matrix(target[:3,:3]).as_quat()
+                goal.orientation.x = R[0]
+                goal.orientation.y = R[1]
+                goal.orientation.z = R[2]
+                goal.orientation.w = R[3]
+
+                # print("Publishing goal: ",goal)
+                cartesian_point = CartesianTrajectoryPoint()
+                cartesian_point.point.pose = goal
+                cmd_pub.publish(cartesian_point)
+
+                t = TransformStamped()
+
+                t.header.stamp = rospy.Time.now()
+                t.header.frame_id = "base_link"
+                t.child_frame_id = "next_target"
+
+                t.transform.translation.x = target[0][3]
+                t.transform.translation.y = target[1][3]
+                t.transform.translation.z = target[2][3]
+
+                R = Rotation.from_matrix(target[:3,:3]).as_quat()
+                t.transform.rotation.x = R[0]
+                t.transform.rotation.y = R[1]
+                t.transform.rotation.z = R[2]
+                t.transform.rotation.w = R[3]
+
+                broadcaster.sendTransform(t)
+
+                t = TransformStamped()
+
+                t.header.stamp = rospy.Time.now()
+                t.header.frame_id = "base_link"
+                t.child_frame_id = "final_target"
+
+                t.transform.translation.x = transfer_forque_target[0][3]
+                t.transform.translation.y = transfer_forque_target[1][3]
+                t.transform.translation.z = transfer_forque_target[2][3]
+
+                R = Rotation.from_matrix(transfer_forque_target[:3,:3]).as_quat()
                 t.transform.rotation.x = R[0]
                 t.transform.rotation.y = R[1]
                 t.transform.rotation.z = R[2]
