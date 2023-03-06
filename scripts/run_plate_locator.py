@@ -4,7 +4,7 @@ import rospy
 from sensor_msgs.msg import Image
 # Import OpenCV libraries and tools
 import cv2
-from cv_bridge import CvBridge, CvBridgeError
+from cv_bridge import CvBridge
 # math tools
 import numpy as np
 import math
@@ -83,13 +83,15 @@ def service_callback(req):
                         (trans,rot) = listener.lookupTransform('camera_color_optical_frame', 'world', rospy.Time(0))
                     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                         continue
-                direction = np.dot(rot, vector_array)
+                camera_vector = np.reshape(vector_array, (3, 1))
+                direction = np.dot(rot, camera_vector)
             
         # return plate detect boolean and distance offset
         return PlateServiceResponse(detected, direction)
-    else: 
-        print("CV image could not be found.")
-        # return: success/fal boolean; string erroe msg; return exception
+    else:
+        # return: success/fal boolean; string erroe msg; return exception 
+        # Error Should Be Returned
+        raise ValueError("Image could not be found.")
 
 #  processes image
 def subscriber_callback(img_msg):

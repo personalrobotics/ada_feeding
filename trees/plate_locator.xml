@@ -49,6 +49,7 @@
           <RosSubVecD topic="/from_web_offset" timeout="20" target="{offset}" />
           <AdaPlanToOffset offset="{offset}" worldCollision="true" traj="{traj}" />
           <AdaExecuteTrajectory traj="{traj}" />
+          <!--fix it?-->>
           <FAILURE _skipIf="offset==None" />
         </Sequence>
       </RetryUntilSuccessful>
