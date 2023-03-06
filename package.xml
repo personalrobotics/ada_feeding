@@ -19,6 +19,11 @@
   <depend>roscpp</depend>
   <depend>std_msgs</depend>
 
+  <!--For plate locator service-->>
+  <build_depend>message_generation</build_depend>
+  <exec_depend>message_runtime</exec_depend>
+
+
   <!-- For simulated food/face -->
   <exec_depend>pose_estimators</exec_depend>
 
