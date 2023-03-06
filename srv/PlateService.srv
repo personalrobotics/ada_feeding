@@ -1,3 +1,3 @@
 ---
-std_msgs.msg/Bool alert
-std_msgs.msg/Float64MultiArray vector
+std_msgs/Bool alert
+std_msgs/Float64MultiArray vector
