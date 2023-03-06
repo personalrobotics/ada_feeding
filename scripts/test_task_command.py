@@ -60,24 +60,5 @@ if __name__ == '__main__':
             cartesian_point.point.pose = goal
             cmd_pub.publish(cartesian_point)
 
-            while True:
-
-                t = TransformStamped()
-
-                t.header.stamp = rospy.Time.now()
-                t.header.frame_id = "base_link"
-                t.child_frame_id = "final_target"
-
-                t.transform.translation.x = ee_pose[0]
-                t.transform.translation.y = ee_pose[1]
-                t.transform.translation.z = ee_pose[2]
-
-                t.transform.rotation.x = ee_pose[3]
-                t.transform.rotation.y = ee_pose[4]
-                t.transform.rotation.z = ee_pose[5]
-                t.transform.rotation.w = ee_pose[6]
-
-                broadcaster.sendTransform(t)
-
     except rospy.ROSInterruptException:
         print("program interrupted before completion", file=sys.stderr)

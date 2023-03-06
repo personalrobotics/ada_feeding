@@ -256,6 +256,15 @@ if __name__ == '__main__':
                     forque_target_base[:3,3] = np.array([transform_target.transform.translation.x, transform_target.transform.translation.y, transform_target.transform.translation.z]).reshape(1,3)
                     forque_target_base[3,3] = 1
 
+                    transfer_forque_target = np.zeros((4,4))
+                    transfer_forque_target[0, 0] = 1
+                    transfer_forque_target[1, 1] = 1
+                    transfer_forque_target[2, 2] = 1
+                    transfer_forque_target[:3,3] = np.array([0, 0, -0.03]).reshape(1,3)
+                    transfer_forque_target[3,3] = 1
+
+                    transfer_forque_target = forque_target_base @ transfer_forque_target
+
                     # forque_target_base = np.array([[-0.90093711, -0.1803962, 0.39467648, 0.42479337], 
                     #     [ 0.41205567, -0.07038973,  0.90843569,  0.16312421],
                     #     [-0.13609718, 0.98107212, 0.13775, 0.69508812],
@@ -275,7 +284,7 @@ if __name__ == '__main__':
                 forque_source[:3,3] = np.array([transform.transform.translation.x, transform.transform.translation.y, transform.transform.translation.z]).reshape(1,3)
                 forque_source[3,3] = 1
 
-                target = get_next_waypoint(forque_source, forque_target_base)
+                target = get_next_waypoint(forque_source, transfer_forque_target)
                 
                 goal = Pose()
                 goal.position.x = target[0][3]
