@@ -1,4 +1,4 @@
-root BTCPP_format="4" main_tree_to_execute="PlateLocator" >
+<root BTCPP_format="4" main_tree_to_execute="PlateLocator" >
   <!-- Subtree Includes -->
   <include path="./helpers.xml" />
 
@@ -11,28 +11,28 @@ root BTCPP_format="4" main_tree_to_execute="PlateLocator" >
           <RosSubBool topic="/from_web_alert" target="{alert}" />
           <RosSubString topic="/from_web_movement" target="{locate}" />
           <Fallback>
-            <Precondition if="{locate}==Forward" else="FAILURE">
+            <Precondition if="locate==Forward" else="FAILURE">
               <Sequence>
                 <!-- Go to forward: -10 cm-->
                 <AdaPlanToOffset offset="0.00;-0.10;0.0" worldCollision="true" traj="{traj}" />
                 <AdaExecuteTrajectory traj="{traj}" />
               </Sequence>
             </Precondition>
-            <Precondition if="{locate}==Backward" else="FAILURE">
+            <Precondition if="locate==Backward" else="FAILURE">
               <Sequence>
                 <!-- Go to forward: -10 cm-->
                 <AdaPlanToOffset offset="0.00;0.10;0.0" worldCollision="true" traj="{traj}" />
                 <AdaExecuteTrajectory traj="{traj}" />
               </Sequence>
             </Precondition>
-            <Precondition elseif="{locate}==Left" else="FAILURE">
+            <Precondition if="locate==Left" else="FAILURE">
               <Sequence>        
                 <!-- Go to left: 10 cm -->
                 <AdaPlanToOffset offset="0.10;0.00;0.0" worldCollision="true" traj="{traj}" />
                 <AdaExecuteTrajectory traj="{traj}" />
               </Sequence>
             </Precondition>
-            <Precondition elseif="{locate}==Right" else="FAILURE">
+            <Precondition if="locate==Right" else="FAILURE">
               <Sequence> 
                 <!-- Go to right: 10 cm -->
                 <AdaPlanToOffset offset="-0.10;0.00;0.0" worldCollision="true" traj="{traj}" />
@@ -40,17 +40,17 @@ root BTCPP_format="4" main_tree_to_execute="PlateLocator" >
               </Sequence>
             </Precondition> 
           </Fallback>
-          <FAILURE _skipIf="alert==True"/>
+          <Failure _skipIf="alert==True"/>
         </Sequence>
       </RetryUntilSuccessful>
 
       <RetryUntilSuccessful name="WaitForOffset" num_attempts="-1">
         <Sequence name="offset_sequence">
-          <RosSubVecD topic="/from_web_offset" timeout="20" target="{offset}" />
+          <Timeout msec="4">
+            <RosSubVecD topic="/from_web_offset" target="{offset}" />
+          </Timeout>
           <AdaPlanToOffset offset="{offset}" worldCollision="true" traj="{traj}" />
           <AdaExecuteTrajectory traj="{traj}" />
-          <!--fix it?-->>
-          <FAILURE _skipIf="offset==None" />
         </Sequence>
       </RetryUntilSuccessful>
 
