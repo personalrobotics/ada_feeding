@@ -163,19 +163,19 @@ if __name__ == '__main__':
 
                     servo_point_base = forque_target_base @ servo_point_forque_target
 
-                    mode_command = String()
-                    mode_command.data = "use_pose_integral"
-                    # mode_command.data = "zero_contact"
-                    # mode_command.data = "none"
-                    mode_cmd_pub.publish(mode_command)
-                    time.sleep(0.5)
-
-                    mode_command = String()
+                    # mode_command = String()
                     # mode_command.data = "use_pose_integral"
-                    # mode_command.data = "zero_contact"
-                    mode_command.data = "low_stiffness"
-                    mode_cmd_pub.publish(mode_command)
-                    time.sleep(0.1)
+                    # # mode_command.data = "zero_contact"
+                    # # mode_command.data = "none"
+                    # mode_cmd_pub.publish(mode_command)
+                    # time.sleep(0.5)
+
+                    # mode_command = String()
+                    # # mode_command.data = "use_pose_integral"
+                    # # mode_command.data = "zero_contact"
+                    # mode_command.data = "low_stiffness"
+                    # mode_cmd_pub.publish(mode_command)
+                    # time.sleep(0.1)
 
                 # current position
                 while not rospy.is_shutdown():
