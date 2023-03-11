@@ -16,7 +16,8 @@ import threading
 import time
 
 # Parameters
-OPEN_LOOP_RADIUS = 0.015
+OPEN_LOOP_RADIUS = 0.01
+# OPEN_LOOP_RADIUS = 0.0
 INTERMEDIATE_THRESHOLD = 0.014
 INFRONT_DISTANCE_LOOKAHEAD = 0.04
 INSIDE_DISTANCE_LOOKAHEAD_Z = 0.045
@@ -149,6 +150,7 @@ class BiteTransferTrajectoryTracker:
         inp = input()
         self.state = int(inp)
         closed_loop = True
+        run_once = True
 
         # Assumption: No one will be updating state when this runs
         previous_state = self.state
@@ -168,6 +170,7 @@ class BiteTransferTrajectoryTracker:
             if current_state != previous_state:
                 print("Switching to self.state: ",current_state)
                 closed_loop = True
+                run_once = True
                 previous_state = current_state
 
             print("Current self.state: ",current_state)
@@ -176,6 +179,13 @@ class BiteTransferTrajectoryTracker:
                 
                 # trajectory positions
                 if closed_loop:
+
+                    for i in range(0,10):
+
+                        forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
+                        self.publishTaskCommand(forque_base)
+
+                    time.sleep(0.1)
 
                     self.publishTaskMode("none")
                     self.publishTaskMode("default_stiffness")
@@ -208,8 +218,18 @@ class BiteTransferTrajectoryTracker:
 
                 if closed_loop:
 
-                    self.publishTaskMode("use_pose_integral")
-                    self.publishTaskMode("move_inside_mouth_stiffness")
+                    if run_once:
+
+                        for i in range(0,10):
+
+                            forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
+                            self.publishTaskCommand(forque_base)
+
+                        time.sleep(0.1)
+
+                        self.publishTaskMode("use_pose_integral")
+                        self.publishTaskMode("move_inside_mouth_stiffness")
+                        run_once = False
 
                     forque_target_base = self.getTransformationFromTF("base_link", "forque_end_effector_target")
 
@@ -253,7 +273,9 @@ class BiteTransferTrajectoryTracker:
                     target = self.getNextWaypoint(forque_source, intermediate_forque_target, distance_lookahead = INSIDE_DISTANCE_LOOKAHEAD_XY)
                 else:
                     print("Tracking target position... ")
-                    target = self.getNextWaypoint(intermediate_forque_target, forque_target_base, distance_lookahead = INSIDE_DISTANCE_LOOKAHEAD_Z)
+                    distance_lookahead_update = INSIDE_DISTANCE_LOOKAHEAD_Z - intermediate_position_error
+                    orientation_lookahead_update = ANGULAR_LOOKAHEAD - intermediate_angular_error
+                    target = self.getNextWaypoint(intermediate_forque_target, forque_target_base, distance_lookahead = distance_lookahead_update)
                 
                 self.publishTaskCommand(target)
                 self.publishTransformationToTF("base_link", "next_target", target)
@@ -335,7 +357,9 @@ class BiteTransferTrajectoryTracker:
                 # trajectory positions
                 if closed_loop:
 
-                    self.publishTaskMode("move_outside_mouth_stiffness")
+                    if run_once:
+                        self.publishTaskMode("move_outside_mouth_stiffness")
+                        run_once = False
 
                     forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
 
