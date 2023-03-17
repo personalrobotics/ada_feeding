@@ -16,8 +16,8 @@ import tf
 # declare variables
 cv_image = None
 vector_array = None
-rot = np.empty((0, 5))
-trans = np.empty((0, 5))
+rot = np.empty((3, 3))
+trans = np.empty((5, 5))
 direction = np.empty((0, 5))
 detected = False
 bridge = CvBridge()
