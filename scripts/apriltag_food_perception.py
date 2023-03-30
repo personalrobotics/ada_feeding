@@ -46,6 +46,7 @@ class AprilTagPerception(PoseEstimator):
         self.listener = tf.TransformListener()
         self.drawing = False
         self.cropBox = None
+        self.man_center = None
 
     def callback(self, rgb_msg, camera_info):
       # Record Camera Info
@@ -67,7 +68,7 @@ class AprilTagPerception(PoseEstimator):
       elif(event == cv2.EVENT_LBUTTONUP):
         self.drawing = False
       elif(event == cv2.EVENT_RBUTTONUP):
-        self.cropBox = None
+        self.man_center = (x, y)
 
     def start(self):
       # Window Thread
@@ -126,6 +127,9 @@ class AprilTagPerception(PoseEstimator):
         box = np.int0(box)
         crop = crop_minAreaRect(draw, rect)
 
+      if self.man_center is not None:
+        cv2.circle(draw, self.man_center, 3, (0,0,255), -1)
+
       # Draw Image
       cv2.imshow('Image', draw)
       if crop.size < 1:
@@ -141,12 +145,24 @@ class AprilTagPerception(PoseEstimator):
       msg.data = np.array(cv2.imencode('.jpg', crop)[1]).tostring()
       self.pub.publish(CvBridge().cv2_to_imgmsg(crop))
       self.pub_compressed.publish(msg)
-      
+
       item_center = np.mean(corner, axis=1).reshape((3, 1))
       # Center Fudging
       item_center[0, 0] += 0.005 #+X
       item_center[1, 0] += 0.005 #+Y
       item_center = rot @ item_center + trans
+
+      if self.man_center is not None:
+        # Get center from bounding box
+        new_center = np.ones((3, 1))
+        new_center[0, 0] = self.man_center[0]
+        new_center[1, 0] = self.man_center[1]
+        new_center = np.linalg.inv(self.intrinsic) @ new_center
+        item_center = new_center * item_center[2, 0]
+        homogen = lambda x: x[:-1]/x[-1]
+        # Debug
+        #print(homogen((self.intrinsic @ item_center)).astype(np.int32).T)
+      
       pose = np.zeros((4, 4))
       pose[3, 3] = 1.0
       pose[:3, 3] = item_center.flatten()
@@ -173,9 +189,6 @@ if __name__ == '__main__':
     perception_module = PerceptionModule(
         pose_estimator=my_node,
         marker_manager=marker_manager,
-        detection_frame_marker_topic=None,
-        detection_frame=rospy.get_param("~camera_frame"),
-        destination_frame=rospy.get_param("~camera_frame"),
         purge_all_markers_per_update=True)
 
     destination_frame_marker_topic = rospy.get_name()

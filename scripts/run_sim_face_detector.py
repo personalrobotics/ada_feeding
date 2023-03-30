@@ -61,9 +61,6 @@ if __name__ == "__main__":
     perception_module = PerceptionModule(
         pose_estimator=pose_estimator,
         marker_manager=marker_manager,
-        detection_frame_marker_topic=None,  # Not used since pose estimator is provided.
-        detection_frame=detection_frame,
-        destination_frame=destination_frame,
         purge_all_markers_per_update=True)
 
     destination_frame_marker_topic = rospy.get_name()

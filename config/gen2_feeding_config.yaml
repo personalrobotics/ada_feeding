@@ -56,7 +56,7 @@ workspace:
     quat: [1.0, 0.0, 0.0, 0.0]
   plate:
     urdf: package://pr_assets/data/objects/plate.urdf
-    pos: [0.255, -0.29, 0.205]
+    pos: [0.255, -0.29, 0.22]
     quat: [1.0, 0.0, 0.0, 0.0]
   table:
     urdf: package://pr_assets/data/furniture/table_feeding.urdf
@@ -73,7 +73,10 @@ configs:
     #in_front_person: [2.74709, 2.01400, 1.85257, -2.83523, -1.61925, -2.67325]
 
     # Ready for Acquisition
-    above_plate: [-2.11666, 3.34967, 2.04129, -2.30031, -2.34026, 2.9545]
+    # above_plate: [-2.11666, 3.34967, 2.04129, -2.30031, -2.34026, 2.9545]
+
+    # Ready for Acquisition [experiment]
+    above_plate: [-2.116598675349513, 3.34972828015941, 2.0411148363606344, -2.300311783142558, -2.3377100216983226, -2.898863097092265]
 
 # Acquisition Parameters
 move_above:
@@ -84,11 +87,13 @@ move_into:
 move_within:
   vf_params: # Give it longer to plan
     timeout: 10.0
+    pos_tol: 0.04
+    ang_tol: 0.04
   z_min: -0.02
 move_out:
   vf_params: # Looser, we need this to succeed
-    ang_tol: 0.03 
-    pos_tol: 0.02
+    ang_tol: 0.04 
+    pos_tol: 0.03
     timeout: 5.0
   z_max: 0.05
 

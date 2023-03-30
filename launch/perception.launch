@@ -7,9 +7,16 @@
 
   <!-- Simulated pose estimators -->
   <group if="$(arg sim)">
+    <node name="st_sim_cantaloupe" pkg="tf" type="static_transform_publisher"
+      respawn="false" output="screen" args="0.3 -0.25 0.232 0.0 0.0 1.0 0.0 map cantaloupe 10"/>
+    <node name="st_sim_grape" pkg="tf" type="static_transform_publisher"
+      respawn="false" output="screen" args="0.25 -0.29 0.232 0.0 0.0 1.0 0.0 map grape 10"/>
+
     <node pkg="ada_feeding"
           name="food_detector"
-          type="run_sim_food_detector.py" />
+          type="run_sim_food_detector.py">
+      <rosparam param="frame_list">["grape"]</rosparam>
+    </node>
 
     <node pkg="ada_feeding"
           name="face_detector"
