@@ -1,0 +1,62 @@
+.App {
+  text-align: center;
+}
+
+.navbar {
+  display: flex;
+  list-style-type: none;
+  justify-content: flex-end;
+  background-color: black;
+  width: 100%;
+  padding: 10px;
+  margin: 0;
+}
+
+.link {
+  text-decoration: none;
+  color: white;
+  float: right;
+  margin: 0 2vh;
+  font-size: 1.5em;
+  opacity: 1;
+  display: flex;
+  align-items: center;
+}
+
+/* @media screen and (max-height: 804px) {
+  body {
+    display: none;
+  }
+
+  html {
+    margin: 10px;
+  }
+
+  html::after {
+    content: "Your screen size seems to be too small and is unfortunately not supported by our website. Our minimum supported screen height is 805 pixels tall and our minimum supported screen width is 360 pixels wide. We apologize for any inconvenience this may have caused.";
+    color: red;
+  }
+} */
+
+@media screen and (max-width: 359px) {
+  body {
+    display: none;
+  }
+
+  html {
+    margin: 10px;
+  }
+
+  html::after {
+    content: 'Your screen size seems to be too small and is unfortunately not supported by our website. Our minimum supported screen height is 805 pixels tall and our minimum supported screen width is 360 pixels wide. We apologize for any inconvenience this may have caused.';
+    color: red;
+  }
+}
+
+@media screen and (min-width: 769px) {
+  .outer {
+    width: 768px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
