@@ -14,7 +14,7 @@ The overall user flow for this robot can be seen below.
 - [`npm`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
 <!-- - [ROS](http://wiki.ros.org/noetic/Installation) -->
 
-## Getting Started
+## Getting Started in Computer
 
 ### Installation
 1. Clone the repo: `git clone git@github.com:personalrobotics/feeding_web_interface.git` using SSH, or `git clone https://github.com/personalrobotics/feeding_web_interface.git` using HTTPS
@@ -26,6 +26,21 @@ The overall user flow for this robot can be seen below.
 2. Start the app: `npm start`
   - Note that if you're not running the robot code alongside the app, set [`debug = true` in `App.jsx`](https://github.com/personalrobotics/feeding_web_interface/blob/b8f5d970628bbaac43b8b9c7dbc4349ada2f32d7/feedingwebapp/src/App.jsx#L17) to be able to move past screens where the app is waiting on the robot. Since the robot is not yet connected, the default is `debug = true`
 3. Use a web browser to navigate to `localhost:3000` to see the application.
+
+## Getting Started in Smartphone
+
+### When your phone and a computer both are connected to the same network of PRL 
+1. Connect your phone to the same wifi network in the PRL lab that the computer is connected to (e.g., ADA_5G which is used by lab computers like weebo, tobi, ed209). 
+2. Run the app in the computer following the above "Getting Started in Computer" instructions. When the app is running in the computer, copy the port number from the app tab's browser and include it after the computer’s IP address followed by a colon (something like `192.xxx.x.x:3000`). The IP addresses of the computers in the PRL lab can be found [here](https://github.com/personalrobotics/pr_docs/wiki/Networking-and-SSH-Information). Depending on which computer is launching the app, use that computer’s IP address in the URL.
+3. Then go to that address from the browser in your phone. Then, the app should be running on your phone too. 
+
+### When your phone and a computer are connected to two different networks (only one or neither connected to PRL network)
+1. Run the app in the computer following the above "Getting Started in Computer" instructions. 
+2. When the app is running in the computer, open another terminal in the computer and install the ngrok agent following [this tutorial](https://ngrok.com/docs/getting-started/#step-2-install-the-ngrok-agent).
+3. Then, follow [this tutorial](https://ngrok.com/docs/getting-started/#step-3-connect-your-agent-to-your-ngrok-account) to connect your agent to your ngrok account. Basically, run this command `ngrok config add-authtoken TOKEN` in the terminal with `TOKEN` replaced by the authtoken from your ngrok account.
+4. Now, start ngrok by running this command `ngrok http 3000` in the terminal where `3000` is the port number for the app running on the computer with the localhost. 
+5. Get part of the Forwarding URL from the console UI shown in your terminal that is before the arrow sign as marked in the image below. Then, run it from your phone browser. You should now see the app ruuning on the phone. For more details on this, follow [this tutorial](https://ngrok.com/docs/getting-started/#step-4-start-ngrok). ![image below](./img/image.png)
+6. That URL can be accessed by anyone in the world. You can stop the ngrok agent with `ctrl+c`.
 
 ## Contributing
 
