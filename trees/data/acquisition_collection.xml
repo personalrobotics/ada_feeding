@@ -1,0 +1,223 @@
+<root BTCPP_format="4" main_tree_to_execute="AcquisitionCollectionRoot">
+  <!-- Subtree Includes -->
+  <include path="../feeding/helpers.xml"/>
+  <include path="../feeding/acquisition.xml" />
+
+  <!-- Acquisition Data Collection -->
+  <BehaviorTree ID="AcquisitionCollectionRoot">
+    <Sequence name="AcquisitionRootSeq">
+
+      <!-- Give Velocity Headroom -->
+      <RosGetVecD param="velocityLimits/standard" target="{vel_standard}" />
+      <AdaSetLimits velocity="{vel_standard}" />
+
+      <!-- Path to Data Folder -->
+      <RosGetString param="data_folder" target="{data_folder}" />
+
+      <!-- Move Above Plate -->
+      <RosGetVecD param="configs/wheelchair/above_plate" target="{config}" />
+      <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
+
+      <!-- Ask for Food -->
+      <RosSubString name="AskForFood" topic="food_request" target="{food_name}" />
+
+      <!-- Get Action Action -->
+      <RosGetBool param="posthoc/active" target="{is_online}" default="false" />
+      <Fallback>
+        <Sequence name="GetActionOnline" _failureIf="is_online==false">
+           <RosGetI param="posthoc/index_offset" target="{action_idx_offset}" default="0" />
+           <RosGetString param="posthoc/image_topic" target="{context_topic}" />
+           <RosSubImage topic="{context_topic}" target="{context}" />
+           <AcquisitionGetActionOnline context="{context}" probabilities="{action_probs}" action_index="{action_idx}" />
+           <Script code=" action_idx=action_idx+action_idx_offset" />
+        </Sequence>
+        <Sequence name="GetActionManual">
+          <Script code=" is_online=false; action_idx_offset=0 " />
+          <RosSubI name="AskForAction" topic="action_select" target="{action_idx}" />
+        </Sequence>
+      </Fallback>
+      <IntToString int="{action_idx}" str="{action_str}" />
+
+      <!-- Ask for Trial -->
+      <RosSubString name="AskForTrial" topic="trial_number" target="{trial}" />
+
+      <!-- Make Trial Folder -->
+      <Script code=" folder:=data_folder+'/'+food_name+'_action'+action_str+'_trial'+trial" />
+      <Script _skipIf="is_online==false" code=" folder = folder+'_online'" />
+      <Script code=" cmd:='mkdir -p '+folder" />
+      <DebugRunProcessBlocked cmd="{cmd}" />
+
+      <!-- Load Action Library -->
+      <RosGetParam param="action_selection/actions" target="{library}" />
+      <AcquisitionGetAction library="{library}" index="{action_idx}" target="{action}" />
+
+      <!-- Perceive Food -->
+      <RetryUntilSuccessful num_attempts="-1">
+        <PerceiveFood timeout="3" objects="{foods}" />
+      </RetryUntilSuccessful>
+
+      <!-- Rank Foods Based on Distance to Fork -->
+      <RankDistance objects="{foods}" output="{food}" />
+
+      <!-- Save Images -->
+      <DebugRunProcessBlocked cmd="rosservice call /image_saver/save" />
+      <Script code=" cmd:='mv '+data_folder+'/image.png '+folder+'/pre.png' " />
+      <RetryUntilSuccessful num_attempts="-1"><DebugRunProcessBlocked cmd="{cmd}" /></RetryUntilSuccessful>
+
+      <DebugRunProcessBlocked cmd="rosservice call /crop_saver/save" />
+      <Script code=" cmd:='mv '+data_folder+'/crop.png '+folder+'/precrop.png' " />
+      <RetryUntilSuccessful num_attempts="-1"><DebugRunProcessBlocked cmd="{cmd}" /></RetryUntilSuccessful>
+
+      <!-- Start RosBag -->
+      <DebugRunProcessBlocked cmd="rosservice call /rosbag_robot/start" />
+
+      <!-- Begin Acquisition -->
+      <ForceSuccess>
+        <SubTree ID="AcquisitionDataCollection" food="{food}" action="{action}" folder="{folder}" data_folder="{data_folder}" context="{context}" action_probs="{action_probs}" is_online="{is_online}" action_idx="{action_idx}" action_idx_offset="{action_idx_offset}" />
+      </ForceSuccess>
+
+      <!-- Stop Rosbag -->
+      <DebugRunProcessBlocked cmd="rosservice call /rosbag_robot/stop" />
+      <Script code=" cmd:='mv '+data_folder+'/robot.bag '+folder+'/robot.bag' " />
+      <RetryUntilSuccessful num_attempts="-1"><DebugRunProcessBlocked cmd="{cmd}" /></RetryUntilSuccessful>
+
+      <Delay delay_msec="500">
+        <Success />
+      </Delay>
+    </Sequence>
+  </BehaviorTree>
+
+  <BehaviorTree ID="AcquisitionDataCollection">
+      <Sequence name="AcquisitionSeq">
+        <AdaSetVFParams />
+        <!-- Scripting constants -->
+        <Script code=" TRUE:=true; FALSE:=false " />
+        <Script code=" X:=0; Y:=1; Z:=2; PI:=3.1415926535 " />
+
+        <!-- Move Above -->
+        <SetFTThreshold preset="standard" />
+        <AcquisitionUnpackAction action="{action}" rotate_pref="{rotate}" />
+        <Fallback>
+          <!-- Normal -->
+          <Sequence>
+            <FrameFromObject object="{food}" align_idx="{Z}" rotate_aligned="{rotate}" frame="{food_frame}" fixed_z="0.232" />
+            <ConfigMoveAbove obj_transform="{food_frame}" action="{action}" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" />
+            <AdaPlanToPose orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" traj="{traj}" />
+          </Sequence>
+          <!-- Flipped -->
+          <Sequence>
+            <Script code=" rotate += PI " />
+            <FrameFromObject object="{food}" align_idx="{Z}" rotate_aligned="{rotate}" frame="{food_frame}" fixed_z="0.232" />
+            <ConfigMoveAbove obj_transform="{food_frame}" action="{action}" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" />
+            <AdaPlanToPose orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" traj="{traj}" />
+          </Sequence>
+          <!-- Yaw Agnostic -->
+          <Sequence>
+            <FrameFromObject object="{food}" align_idx="{Z}" rotate_aligned="{rotate}" frame="{food_frame}" fixed_z="0.232" />
+            <ConfigMoveAbove obj_transform="{food_frame}" action="{action}" yaw_agnostic="{TRUE}" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" />
+            <AdaPlanToPose orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" traj="{traj}" />
+          </Sequence>
+        </Fallback>
+        <AdaExecuteTrajectory name="MoveAbove" traj="{traj}" />
+        <!-- TODO (low-pri): add above logic to entire action by simulating action -->
+
+        <!-- Try Redetect Foods -->
+        <!--
+        <ForceSuccess>
+          <Sequence>
+            <PerceiveFood name_filter="{food_name}" timeout="1" objects="{foods}" />
+            <RankDistance objects="{foods}" nearestTo="{food}" output="{food}" />
+          </Sequence>
+        </ForceSuccess>
+      -->
+
+        <!-- Move Into -->
+        <RosGetD param="move_into/overshoot" target="{overshoot}" default="0.0" />
+        <RosGetVecD param="move_into/world_off" target="{world_off}" default="0.0;0.0;0.0" />
+        <ConfigMoveInto obj_transform="{food_frame}" action="{action}" overshoot="{overshoot}" world_off="{world_off}" offset="{approach}" />
+        <AcquisitionUnpackAction action="{action}" pre_force="{force}" pre_torque="{torque}" />
+        <SetFTThreshold force="{force}" torque="{torque}" retare="true" />
+        <!-- FT Sensor Trip is Okay -->
+        <AdaPlanToPoseOffset name="PlanOffsetInto" offset="{approach}" rotation="0.0;0.0;0.0" worldCollision="{FALSE}" traj="{traj}" />
+        <!-- TODO: PlanToOffset isn't as accurate -->
+
+        <!-- Record MoveInto Rosbag -->
+        <DebugRunProcessBlocked cmd="rosservice call /rosbag_image_ft/start" />
+        <FTStartDataCollect _skipIf="is_online==false" />
+        <ForceSuccess>
+            <AdaExecuteTrajectory name="MoveInto" traj="{traj}" />
+        </ForceSuccess>
+        <DebugRunProcessBlocked cmd="rosservice call /rosbag_image_ft/stop" />
+        <Script code=" cmd:='mv '+data_folder+'/image_ft.bag '+folder+'/move_into_image_ft.bag' " />
+        <RetryUntilSuccessful num_attempts="-1"><DebugRunProcessBlocked cmd="{cmd}" /></RetryUntilSuccessful>
+
+        <!-- Move Within -->
+        <RosGetParam param="move_within/vf_params" target="{vf_params}" />
+        <AdaSetVFParams vfparam="{vf_params}" />
+        <RosGetD param="move_within/z_min" target="{z_min}" default="0.0" />
+        <ConfigTwist action="{action}" is_extraction="{FALSE}" approach="{approach}" z_min="{z_min}" obj_transform="{food_frame}" offset="{offset}" rotation="{rotation}" null_motion="{nulltwist}" />
+
+        <!-- Skip below if null motion -->
+        <Sequence _skipIf="nulltwist==true">
+          <AcquisitionUnpackAction action="{action}" grasp_force="{force}" grasp_torque="{torque}" />
+          <SetFTThreshold force="{force}" torque="{torque}" />
+          <!-- FT Sensor Trip is Okay -->
+          <AdaPlanToPoseOffset name="PlanTwistWithin" offset="{offset}" rotation="{rotation}" worldCollision="{FALSE}" traj="{traj}" />
+
+          <!-- Record MoveWithin Rosbag -->
+          <DebugRunProcessBlocked cmd="rosservice call /rosbag_image_ft/start" />
+          <ForceSuccess><AdaExecuteTrajectory name="MoveWithin" traj="{traj}" /></ForceSuccess>
+          <DebugRunProcessBlocked cmd="rosservice call /rosbag_image_ft/stop" />
+          <Script code=" cmd:='mv '+data_folder+'/image_ft.bag '+folder+'/move_within_image_ft.bag' " />
+          <RetryUntilSuccessful num_attempts="-1"><DebugRunProcessBlocked cmd="{cmd}" /></RetryUntilSuccessful>
+        </Sequence>
+
+        <!-- Stop haptic collection here if we didn't hit the food -->
+        <FTStopDataCollect _skipIf="is_online==false" />
+
+        <!-- Move Out -->
+        <RosGetParam param="move_out/vf_params" target="{vf_params}" />
+        <AdaSetVFParams vfparam="{vf_params}" />
+        <RosGetD param="move_out/z_max" target="{z_max}" />
+        <ConfigTwist action="{action}" is_extraction="{TRUE}" approach="{approach}" z_max="{z_max}" obj_transform="{food_frame}" offset="{offset}" rotation="{rotation}" />
+        <AcquisitionUnpackAction action="{action}" ext_force="{force}" ext_torque="{torque}" />
+        <SetFTThreshold force="{force}" torque="{torque}" />
+        <AdaPlanToPoseOffset name="PlanTwistOut" offset="{offset}" rotation="{rotation}" worldCollision="{FALSE}" traj="{traj}" />
+
+        <!-- Record MoveOut Rosbag -->
+        <DebugRunProcessBlocked cmd="rosservice call /rosbag_image_ft/start" />
+        <AdaExecuteTrajectory name="MoveOut" traj="{traj}" />
+        <DebugRunProcessBlocked cmd="rosservice call /rosbag_image_ft/stop" />
+        <Script code=" cmd:='mv '+data_folder+'/image_ft.bag '+folder+'/move_out_image_ft.bag' " />
+        <RetryUntilSuccessful num_attempts="-1"><DebugRunProcessBlocked cmd="{cmd}" /></RetryUntilSuccessful>
+
+        <!-- Delay 3s before check acquisition -->
+        <Delay delay_msec="500"><Success /></Delay>
+
+        <!-- Record Final Image -->
+        <RetryUntilSuccessful num_attempts="-1"><Sequence>
+          <DebugRunProcessBlocked cmd="rosservice call /image_saver/save" />
+          <Script code=" cmd:='mv '+data_folder+'/image.png '+folder+'/post.png' " />
+          <RetryUntilSuccessful num_attempts="20"><DebugRunProcessBlocked cmd="{cmd}" /></RetryUntilSuccessful>
+        </Sequence></RetryUntilSuccessful>
+
+        <!-- Check Acquisition -->
+        <RosSubBool name="CheckAcquire" topic="check_acquire" target="{acquired}" />
+        <SetFTThreshold preset="standard" retare="true" />
+
+        <Script code=" cmd:='echo success:\ true >> '+folder+'/result.yaml' " />
+        <Script _skipIf="acquired==true" code=" cmd:='echo success:\ false >> '+folder+'/result.yaml' " />
+        <DebugRunProcessBlocked cmd="{cmd}"  />
+
+        <!-- Online Update -->
+        <Sequence name="PublishLosSeq" _skipIf="is_online==false">
+          <FTGetData data="{posthoc}" />
+          <Script code=" action_idx=action_idx - action_idx_offset " />
+          <RosSubD name="GetLoss" topic="get_loss" target="{loss}" />
+          <!--<Script code=" loss:=0.0 " />
+          <Script _skipIf="acquired==true" code=" loss=1.0 " /> -->
+          <AcquisitionPublishLossOnline context="{context}" posthoc="{posthoc}" action_index="{action_idx}" probabilities="{action_probs}" loss="{loss}" />
+        </Sequence>
+      </Sequence>
+  </BehaviorTree>
+</root>
