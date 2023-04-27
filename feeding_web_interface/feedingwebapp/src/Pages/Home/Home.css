@@ -58,7 +58,7 @@
   padding: 8px;
   padding-top: 7px;
   margin: 10px;
-  color: green;
+  color: black;
 }
 
 .notConnectedDiv {
@@ -71,7 +71,7 @@
   padding: 10px;
   padding-top: 7px;
   margin: 10px;
-  color: #f0ad4e;
+  color: black;
 }
 
 .transitionMessage {

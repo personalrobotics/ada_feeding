@@ -1,7 +1,8 @@
 // React imports
 import './App.css'
-import React from 'react'
 import 'bootstrap/dist/css/bootstrap.min.css'
+import React from 'react'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { ROS } from 'react-ros'
 
 // Local imports
@@ -9,6 +10,7 @@ import { useGlobalState, APP_PAGE } from './Pages/GlobalState'
 import Header from './Pages/Header/Header'
 import Home from './Pages/Home/Home'
 import Settings from './Pages/Settings/Settings'
+import TestROS from './ros/TestROS'
 
 // Flag for whether to run the app in debug mode or not. When running in debug
 // mode, the app does not connect to ROS. Anytime where it would wait for the
@@ -30,11 +32,17 @@ function getComponentByAppPage(appPage, debug) {
       // Must wrap a component in ROS tags for it to be able to connect to ROS
       return (
         <ROS>
+          <Header />
           <Home debug={debug} />
         </ROS>
       )
     case APP_PAGE.Settings:
-      return <Settings />
+      return (
+        <ROS>
+          <Header />
+          <Settings />
+        </ROS>
+      )
   }
 }
 
@@ -49,8 +57,20 @@ function App() {
   // Render the component
   return (
     <>
-      <Header />
-      {getComponentByAppPage(appPage, debug)}
+      <Router>
+        <Routes>
+          <Route exact path='/' element={getComponentByAppPage(appPage, debug)} />
+          <Route
+            exact
+            path='/test_ros'
+            element={
+              <ROS>
+                <TestROS />
+              </ROS>
+            }
+          />
+        </Routes>
+      </Router>
     </>
   )
 }

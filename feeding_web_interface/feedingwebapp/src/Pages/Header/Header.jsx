@@ -7,7 +7,7 @@ import Nav from 'react-bootstrap/Nav'
 import { ToastContainer, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 // ROS imports
-import { useROS } from 'react-ros'
+import { connectToROS } from '../../ros/ros_helpers'
 
 // Local imports
 import { useGlobalState, APP_PAGE, MEAL_STATE } from '../GlobalState'
@@ -49,7 +49,7 @@ const Header = () => {
 
   // useROS  gives us access to functions to configure and interact with ROS.
   // TODO (amaln): Actually connect this web app to ROS!
-  let { /* ros,*/ isConnected /*, topics, services, toggleConnection, createListener */ } = useROS()
+  let { isConnected } = connectToROS()
 
   // Render the component. The NavBar will stay fixed even as we vertically scroll.
   return (
