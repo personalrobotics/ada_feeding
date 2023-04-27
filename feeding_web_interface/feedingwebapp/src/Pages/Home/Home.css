@@ -50,10 +50,10 @@
 
 .connectedDiv {
   display: inline-block;
-  border: 3px;
+  border: 1px;
   border-color: green;
   border-style: solid;
-  /* background-color: green; */
+  background-color: green;
   border-radius: 10px;
   padding: 8px;
   padding-top: 7px;
@@ -63,9 +63,9 @@
 
 .notConnectedDiv {
   display: inline-block;
-  border: 3px;
+  border: 1px;
   border-color: #f0ad4e;
-  /* background-color: #f0ad4e; */
+  background-color: #f0ad4e;
   border-style: solid;
   border-radius: 10px;
   padding: 10px;

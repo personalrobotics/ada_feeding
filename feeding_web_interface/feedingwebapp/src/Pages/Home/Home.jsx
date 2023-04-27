@@ -3,7 +3,6 @@ import React from 'react'
 // PropTypes is used to validate that the used props are in fact passed to this
 // Component
 import PropTypes from 'prop-types'
-import { useROS } from 'react-ros'
 
 // Local imports
 import './Home.css'
@@ -66,31 +65,9 @@ function Home(props) {
   // Get the meal state
   const mealState = useGlobalState((state) => state.mealState)
 
-  // useROS  gives us access to functions to configure and interact with ROS.
-  // TODO (amaln): Actually connect this web app to ROS!
-  let { /* ros,*/ isConnected /*, topics, services, toggleConnection, createListener */ } = useROS()
-
   // Render the component
   return (
     <div>
-      {/**
-       * Regardless of the mealState, always display whether the web app is
-       * connected to the robot.
-       */}
-      {isConnected ? (
-        <div>
-          <p className='connectedDiv' style={{ fontSize: '24px' }}>
-            🔌 connected
-          </p>
-        </div>
-      ) : (
-        <div>
-          <p className='notConnectedDiv' style={{ fontSize: '24px' }}>
-            ⛔ not connected
-          </p>
-        </div>
-      )}
-
       {/**
        * The main contents of the screen depends on the mealState.
        */}
