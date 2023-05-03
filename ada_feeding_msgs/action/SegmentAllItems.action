@@ -1,0 +1,11 @@
+# The interface for an action that takes in an image and returns the masks of 
+# all segmented items within that image.
+
+# The image to segment
+sensor_msgs/Image img
+---
+# Masks of all the detected items in the image
+ada_feeding_msgs/Mask[] detected_items
+---
+# How much time the action has spent segmenting the food item
+builtin_interfaces/Duration elapsed_time

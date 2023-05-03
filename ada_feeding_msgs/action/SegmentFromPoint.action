@@ -1,0 +1,14 @@
+# The interface for an action that takes in an image and a seed point 
+# and returns multiple contender masks for segmented objects that contain
+# the seed point.
+
+# The image to segment
+sensor_msgs/Image img
+# The point to seed the segmentation algorithm with
+geometry_msgs/PointStamped seed_point
+---
+# Contender masks that contain seed_point
+ada_feeding_msgs/Mask[] detected_items
+---
+# How much time the action has spent segmenting the food item
+builtin_interfaces/Duration elapsed_time

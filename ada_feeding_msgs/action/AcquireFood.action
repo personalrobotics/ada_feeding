@@ -1,0 +1,21 @@
+# The interface for a bite acquisition action that takes in a detected image and
+# food mask as input, returns whether or not it succeeded, and gives progress
+# in terms of how long it has been planning for and/or how much farther it has
+# to move.
+
+# The image that the segmented mask corresponds to
+sensor_msgs/Image img
+# The mask for the food item the robot should acquire
+ada_feeding_msgs/Mask detected_food
+---
+# Whether the planning and motion succeeded
+bool success
+---
+# Whether the robot is currently planning or moving (required)
+bool is_planning
+# The amount of time the robot has spent in planning (required)
+builtin_interfaces/Duration planning_time
+# How far the robot initially was from the goal (required if `is_planning == false`)
+float64 motion_initial_distance
+# How far the robot currently is from the goal (required if `is_planning == false`)
+float64 motion_curr_distance
