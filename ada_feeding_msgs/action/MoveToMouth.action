@@ -6,8 +6,15 @@
 # The 3D position of the detected mouth center (stomion)
 geometry_msgs/PointStamped detected_mouth_center
 ---
-# Whether the planning and motion succeeded
-bool success
+# Possible return statuses
+uint8 STATUS_SUCCESS=0
+uint8 STATUS_PLANNING_FAILED=1
+uint8 STATUS_MOTION_FAILED=2
+uint8 STATUS_CANCELED=3
+uint8 STATUS_UNKNOWN=99
+
+# Whether the planning and motion succeeded and if not, why
+uint8 status
 ---
 # Whether the robot is currently planning or moving (required)
 bool is_planning

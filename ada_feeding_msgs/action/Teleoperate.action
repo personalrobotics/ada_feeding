@@ -6,8 +6,15 @@ geometry_msgs/TwistStamped vel
 # How long to move at that velocity
 builtin_interfaces/Duration duration
 ---
-# Whether the robot successfully completed the motion
-bool success
+# Possible return statuses
+uint8 STATUS_SUCCESS=0
+uint8 STATUS_PLANNING_FAILED=1
+uint8 STATUS_MOTION_FAILED=2
+uint8 STATUS_CANCELED=3
+uint8 STATUS_UNKNOWN=99
+
+# Whether the planning and motion succeeded and if not, why
+uint8 status
 ---
 # How much time the action has spent moving
 builtin_interfaces/Duration elapsed_time
