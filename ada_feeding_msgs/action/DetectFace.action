@@ -1,9 +1,8 @@
-# The interface for an action that takes in an image and returns whether or not
-# a face was detected in that image, an annotated image with the detected face
-# markers, the detected mouth center, and whether the mouth was open.
+# The interface for an action that gets an image from the camera and returns
+# whether or not a face was detected in that image, an annotated image with
+# the detected face markers, the detected mouth center, and whether the mouth
+# was open.
 
-# The image to detect a face in
-sensor_msgs/Image img
 ---
 # Whether or not a face was detected in the image
 bool face_detected

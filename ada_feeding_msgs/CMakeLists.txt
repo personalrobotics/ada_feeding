@@ -20,7 +20,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Mask.msg"
 
   "action/AcquireFood.action"
-  "action/DetectFood.action"
+  "action/DetectFace.action"
   "action/MoveTo.action"
   "action/MoveToMouth.action"
   "action/SegmentAllItems.action"

@@ -1,9 +1,7 @@
-# The interface for an action that takes in an image and a seed point 
-# and returns multiple contender masks for segmented objects that contain
-# the seed point.
+# The interface for an action that takes in a seed point, geta an image from
+# the camera, and returns multiple contender masks for segmented objects that
+# contain the seed point.
 
-# The image to segment
-sensor_msgs/Image img
 # The point to seed the segmentation algorithm with
 geometry_msgs/PointStamped seed_point
 ---
