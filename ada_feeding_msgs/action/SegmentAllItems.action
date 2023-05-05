@@ -2,6 +2,8 @@
 # the masks of all segmented items within that image.
 
 ---
+# The header for the image that the masks corresponds to
+std_msgs/Header
 # Masks of all the detected items in the image
 ada_feeding_msgs/Mask[] detected_items
 ---

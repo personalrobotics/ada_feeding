@@ -5,6 +5,8 @@
 # The point to seed the segmentation algorithm with
 geometry_msgs/PointStamped seed_point
 ---
+# The header for the image that the masks corresponds to
+std_msgs/Header
 # Contender masks that contain seed_point
 ada_feeding_msgs/Mask[] detected_items
 ---

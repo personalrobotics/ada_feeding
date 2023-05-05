@@ -1,10 +1,10 @@
-# The interface for a bite acquisition action that takes in a detected image and
+# The interface for a bite acquisition action that takes in a
 # food mask as input, returns whether or not it succeeded, and gives progress
 # in terms of how long it has been planning for and/or how much farther it has
 # to move.
 
-# The image that the segmented mask corresponds to
-sensor_msgs/Image img
+# The header for the image that the mask corresponds to
+std_msgs/Header
 # The mask for the food item the robot should acquire
 ada_feeding_msgs/Mask detected_food
 ---
