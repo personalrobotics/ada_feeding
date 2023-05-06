@@ -3,7 +3,7 @@
 
 ---
 # The header for the image that the masks corresponds to
-std_msgs/Header
+std_msgs/Header header
 # Masks of all the detected items in the image
 ada_feeding_msgs/Mask[] detected_items
 ---
