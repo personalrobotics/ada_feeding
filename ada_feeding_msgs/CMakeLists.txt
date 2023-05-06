@@ -17,10 +17,10 @@ find_package(std_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/FaceDetection.msg"
   "msg/Mask.msg"
 
   "action/AcquireFood.action"
-  "action/DetectFace.action"
   "action/MoveTo.action"
   "action/MoveToMouth.action"
   "action/SegmentAllItems.action"
@@ -29,6 +29,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
   "srv/GetSettings.srv"
   "srv/SetSettings.srv"
+  "srv/ToggleFaceDetection.srv"
 
   DEPENDENCIES geometry_msgs sensor_msgs std_msgs
 )

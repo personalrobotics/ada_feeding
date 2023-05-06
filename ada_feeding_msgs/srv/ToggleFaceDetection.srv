@@ -1,0 +1,8 @@
+# The interface for a service that toggles face detection on/off.
+
+# If true, the service turns face detection on. If false, it turns face
+# detection off.
+bool turn_on
+---
+# Whether or not face detection is on.
+bool face_detection_is_on
