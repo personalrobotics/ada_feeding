@@ -5,6 +5,15 @@
 # The point to seed the segmentation algorithm with
 geometry_msgs/PointStamped seed_point
 ---
+# Possible return statuses
+uint8 STATUS_SUCCEEDED=0
+uint8 STATUS_FAILED=1
+uint8 STATUS_CANCELED=3
+uint8 STATUS_UNKNOWN=99
+
+# Whether the segmentation succeeded and if not, why
+uint8 status
+
 # The header for the image that the masks corresponds to
 std_msgs/Header header
 # Contender masks that contain seed_point
