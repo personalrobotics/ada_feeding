@@ -24,14 +24,6 @@ const BiteAcquisition = (props) => {
   const desiredFoodItem = useGlobalState((state) => state.desiredFoodItem)
 
   /**
-   * Callback function for if the user decides to cancel the bite.
-   */
-  function cancelBite() {
-    console.log('cancelBite')
-    setMealState(MEAL_STATE.R_MovingAbovePlate)
-  }
-
-  /**
    * Callback function for when the bite acquisition is done.
    */
   function biteAcquisitionDone() {
@@ -42,12 +34,6 @@ const BiteAcquisition = (props) => {
   // Render the component
   return (
     <>
-      {/* Give the user the option to cancel this bite */}
-      <div style={{ display: 'inline-block' }}>
-        <Button className='cancelButton' style={{ fontSize: '24px', marginTop: '0px' }} onClick={cancelBite}>
-          🗑 Cancel Bite
-        </Button>
-      </div>
       {/* TODO: Consider vertically centering this element */}
       <Row className='justify-content-center mx-auto my-2 w-75'>
         <div>

@@ -19,6 +19,7 @@
     "react-bootstrap": "^2.3.1",
     "react-bootstrap-modal": "^4.2.0",
     "react-dom": "^18.1.0",
+    "react-native-web": "^0.19.4",
     "react-popup": "^0.11.0",
     "react-ros": "^0.10.0",
     "react-router-dom": "^6.3.0",

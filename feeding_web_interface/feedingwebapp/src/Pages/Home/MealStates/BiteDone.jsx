@@ -17,47 +17,55 @@ const BiteDone = () => {
   const setMealState = useGlobalState((state) => state.setMealState)
 
   /**
-   * Callback function for when the user is done with their bite.
+   * Callback function for when the user wants to move above plate.
    */
-  function doneWithBite() {
-    console.log('readyForBite')
+  function moveAbovePlate() {
     setMealState(MEAL_STATE.R_MovingAbovePlate)
   }
 
   /**
-   * Callback function for if the user decides to cancel the bite.
+   * Callback function for if the user decides to move to staging position.
    *
-   * TODO: Think more carefully about what cancelBite at this stage should do!
-   * Maybe replace with a more descriptive button (e.g., "return to staging.")
    */
-  function cancelBite() {
-    console.log('cancelBite')
+  function moveToStagingPosition() {
     setMealState(MEAL_STATE.R_MovingToStagingLocation)
   }
 
   // Render the component
   return (
     <div style={{ display: 'block', width: '100%', height: '115vh', overflowX: 'hidden', overflowY: 'auto' }} className='outer'>
-      {/* Give the user the option to cancel this bite */}
-      <div style={{ display: 'inline' }}>
-        <Button className='cancelButton' style={{ fontSize: '24px' }} onClick={cancelBite}>
-          🗑 Cancel Bite
-        </Button>
-      </div>
-
-      {/* Ask the user whether they're ready for the bite */}
-      <p className='transitionMessage' style={{ marginBottom: '0px' }}>
-        Click the below button to indicate the completion of your bite.
+      {/* Ask the user whether they want to move to above plate position */}
+      <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: '140%' }}>
+        Bite finished? Move above plate.
       </p>
-      <Row className='justify-content-center mx-auto my-2 w-75'>
+      {/* Icon to move above plate */}
+      <Row className='justify-content-center mx-auto mb-2 w-75'>
         <Button
-          variant='primary'
+          variant='success'
           className='mx-2 mb-2 btn-huge'
           size='lg'
-          onClick={doneWithBite}
-          style={{ width: '75%', fontSize: '35px' }}
+          onClick={moveAbovePlate}
+          style={{ width: '300px', height: '200px' }}
         >
-          Done with Bite
+          <img src='/robot_state_imgs/move_above_plate_position.svg' alt='move_above_plate_image' className='center' />
+        </Button>
+      </Row>
+      {/* Add empty space */}
+      <div className='justify-content-center mx-auto my-3 row'>&nbsp;</div>
+      <Row className='justify-content-center mx-auto mt-2'>
+        {/* Ask the user whether they want to move to staging position */}
+        <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: '140%' }}>
+          Take another bite? Move to &quot;ready&quot; position.
+        </p>
+        {/* Icon to move to staging position */}
+        <Button
+          variant='warning'
+          className='mx-2 mb-2 btn-huge'
+          size='lg'
+          onClick={moveToStagingPosition}
+          style={{ width: '300px', height: '200px' }}
+        >
+          <img src='/robot_state_imgs/move_to_staging_position.svg' alt='move_to_staging_image' className='center' />
         </Button>
       </Row>
     </div>
