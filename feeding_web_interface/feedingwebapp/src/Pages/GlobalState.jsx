@@ -89,6 +89,7 @@ export const useGlobalState = create(
     (set) => ({
       // Values stored in global state
       mealState: MEAL_STATE.U_PreMeal,
+      mealStateTransitionTime: Date.now(),
       appPage: APP_PAGE.Home,
       desiredFoodItem: null,
       // Settings values
@@ -99,7 +100,8 @@ export const useGlobalState = create(
       // Setters for global state
       setMealState: (mealState) =>
         set(() => ({
-          mealState: mealState
+          mealState: mealState,
+          mealStateTransitionTime: Date.now()
         })),
       setAppPage: (appPage) =>
         set(() => ({
