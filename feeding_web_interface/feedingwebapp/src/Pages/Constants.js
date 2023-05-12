@@ -23,6 +23,9 @@ FOOTER_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth] = '/robot_state_imgs/move_to_
 FOOTER_STATE_ICON_DICT[MEAL_STATE.R_StowingArm] = '/robot_state_imgs/stowing_arm_position.svg'
 export { FOOTER_STATE_ICON_DICT }
 
+// The names of the camera feed ROS topic(s)
+export const CAMERA_FEED_TOPIC = '/camera/color/image_raw'
+
 // For states that call ROS actions, this dictionary contains
 // the action name and the message type
 let ROS_ACTIONS_NAMES = {}

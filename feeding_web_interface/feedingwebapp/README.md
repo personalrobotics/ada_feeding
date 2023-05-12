@@ -14,7 +14,10 @@ The overall user flow for this robot can be seen below.
 - [Node.js](https://nodejs.org/en/download/package-manager)
 - [ROS2 Humble](https://docs.ros.org/en/humble/Installation.html)
 - [PRL fork of rosbridge_suite](https://github.com/personalrobotics/rosbridge_suite). This fork enables rosbridge_suite to communicate with ROS2 actions.
-- [ada_feeding (branch: ros2-devel)](https://github.com/personalrobotics/ada_feeding/tree/ros2-devel).
+- [ada_feeding (branch: `ros2-devel`)](https://github.com/personalrobotics/ada_feeding/tree/ros2-devel).
+- [web_video_server (branch: `ros2`)](https://github.com/RobotWebTools/web_video_server/tree/ros2)
+    - Dependency: [async_web_server_cpp (branch: `ros2-develop`)](https://github.com/fkie/async_web_server_cpp)
+    - Dependency: [vision_opencv (branch: `humble` or your ROS2 version)](https://github.com/ros-perception/vision_opencv/tree/humble)
 
 ## Getting Started in Computer
 
@@ -35,14 +38,12 @@ The overall user flow for this robot can be seen below.
 #### Launching Dummy Nodes
 This repository includes several dummy nodes that match the interface that the robot nodes will use. By running the dummy nodes alongside the app, we can test the app's communication with the robot even without actual robot code running.
 
-The below instructions are for `MoveAbovePlate`; we will add to the instructions as more dummy nodes get implemented.
 1. Navigate to your ROS2 workspace: `cd {path/to/your/ros2/workspace}`
 2. Build your workspace: `colcon build`
-3. Launch rosbridge: `source install/setup.bash; ros2 launch rosbridge_server rosbridge_websocket_launch.xml`
-4. In another terminal, run the MoveAbovePlate action: `source install/setup.bash; ros2 run feeding_web_app_ros2_test MoveAbovePlate`
-5. In another terminal, navigate to the web app folder: `cd {path/to/feeding_web_interface}/feedingwebapp`
-6. Start the app: `npm start`
-7. Use a web browser to navigate to `localhost:3000`.
+3. Launch the dummy nodes, rosbridge, and web_video_server: `source install/setup.bash; ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml`
+4. In another terminal, navigate to the web app folder: `cd {path/to/feeding_web_interface}/feedingwebapp`
+5. Start the app: `npm start`
+6. Use a web browser to navigate to `localhost:3000`.
 
 You should now see that the web browser is connected to ROS. Further, you should see that when the `MoveAbovePlate` page starts, it should call the action (exactly once), and render feedback. "Pause" should cancel the action, and "Resume" should re-call it. Refreshing the page should cancel the action. When the action returns success, the app should automatically transition to the next page.
 

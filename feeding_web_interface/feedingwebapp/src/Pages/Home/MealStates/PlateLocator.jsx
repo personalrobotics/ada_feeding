@@ -5,7 +5,7 @@ import Button from 'react-bootstrap/Button'
 // Local Imports
 import '../Home.css'
 import { useGlobalState, MEAL_STATE } from '../../GlobalState'
-import { REALSENSE_WIDTH, REALSENSE_HEIGHT } from '../../Constants'
+import { REALSENSE_WIDTH, REALSENSE_HEIGHT, CAMERA_FEED_TOPIC } from '../../Constants'
 import { convertRemToPixels, scaleWidthHeightToWindow } from '../../../helpers'
 
 /**
@@ -51,14 +51,13 @@ const PlateLocator = () => {
        * Display the live stream from the robot's camera.
        */}
       <center>
-        <iframe
-          src={`http://localhost:8080/stream?topic=/camera/color/image_raw&default_transport=compressed&width=${Math.round(
-            width
-          )}&height=${Math.round(height)}&quality=20`}
-          allow='autoplay; encrypted-media'
-          allowFullScreen
-          title='video'
-          style={{ width: width, height: height, display: 'block', margin: '1rem' }}
+        <img
+          src={'http://localhost:8080/stream?topic='.concat(
+            CAMERA_FEED_TOPIC,
+            `&width=${Math.round(width)}&height=${Math.round(height)}&quality=20`
+          )}
+          alt='Live video feed from the robot'
+          style={{ width: width, height: height, display: 'block' }}
         />
       </center>
 

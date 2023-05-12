@@ -21,6 +21,9 @@ import LiveVideoModal from './LiveVideoModal'
  */
 const Header = () => {
   // Create a local state variable to toggle on/off the video
+  // TODO: Since this local state variable is in the header, the LiveVideoModal
+  // continues showing even if the state changes. Is this desirable? Perhaps
+  // it should close if the state changes?
   const [videoShow, setVideoShow] = useState(false)
 
   // Get the relevant global state variables

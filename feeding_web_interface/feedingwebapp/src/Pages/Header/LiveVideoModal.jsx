@@ -5,7 +5,7 @@ import React, { useRef } from 'react'
 import Modal from 'react-bootstrap/Modal'
 
 // Local imports
-import { REALSENSE_WIDTH, REALSENSE_HEIGHT } from '../Constants'
+import { REALSENSE_WIDTH, REALSENSE_HEIGHT, CAMERA_FEED_TOPIC } from '../Constants'
 import { convertRemToPixels, scaleWidthHeightToWindow } from '../../helpers'
 
 /**
@@ -23,7 +23,6 @@ function LiveVideoModal(props) {
   // marginTop: bs-modal-header-padding, h4 font size & line height, bs-modal-header-padding, bs-modal-padding
   const marginTop = convertRemToPixels(1 + 1.5 * 1.5 + 1 + 1)
   const marginBottom = convertRemToPixels(1)
-  console.log('marginBottom', marginBottom)
   const marginLeft = convertRemToPixels(1)
   const marginRight = convertRemToPixels(1)
 
@@ -53,13 +52,12 @@ function LiveVideoModal(props) {
       </Modal.Header>
       <Modal.Body style={{ overflow: 'hidden' }}>
         <center>
-          <iframe
-            src={`http://localhost:8080/stream?topic=/camera/color/image_raw&default_transport=compressed&width=${Math.round(
-              width
-            )}&height=${Math.round(height)}&quality=20`}
-            allow='autoplay; encrypted-media'
-            allowfullscreen
-            title='video'
+          <img
+            src={'http://localhost:8080/stream?topic='.concat(
+              CAMERA_FEED_TOPIC,
+              `&width=${Math.round(width)}&height=${Math.round(height)}&quality=20`
+            )}
+            alt='Live video feed from the robot'
             style={{ width: width, height: height, display: 'block' }}
           />
         </center>
