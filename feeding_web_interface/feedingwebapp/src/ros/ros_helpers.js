@@ -76,6 +76,16 @@ export function subscribeToROSTopic(ros, topicName, topicType, callback) {
 }
 
 /**
+ * Unsubscribe from a ROS topic.
+ *
+ * @param {object} topic The ROSLIB.Topic.
+ * @param {function} callback The callback function to unsubscribe.
+ */
+export function unsubscribeFromROSTopic(topic, callback) {
+  topic.unsubscribe(callback)
+}
+
+/**
  * Create a ROS Service.
  *
  * @param {object} ros The ROSLIB.Ros object.

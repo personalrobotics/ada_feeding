@@ -33,6 +33,7 @@ setup(
         "console_scripts": [
             # Scripts for the main app
             "DummyRealSense = feeding_web_app_ros2_test.DummyRealSense:main",
+            "FaceDetection = feeding_web_app_ros2_test.FaceDetection:main",
             "MoveAbovePlate = feeding_web_app_ros2_test.MoveAbovePlate:main",
             # Scripts for the "TestROS" component
             "listener = feeding_web_app_ros2_test.subscriber:main",

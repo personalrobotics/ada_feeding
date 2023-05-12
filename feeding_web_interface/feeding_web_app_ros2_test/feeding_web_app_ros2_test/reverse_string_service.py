@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from feeding_web_app_ros2_msgs.srv import ReverseString  # CHANGE
+from feeding_web_app_ros2_msgs.srv import ReverseString
 
 import rclpy
 from rclpy.node import Node

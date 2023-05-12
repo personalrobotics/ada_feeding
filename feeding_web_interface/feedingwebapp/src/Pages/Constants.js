@@ -23,8 +23,11 @@ FOOTER_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth] = '/robot_state_imgs/move_to_
 FOOTER_STATE_ICON_DICT[MEAL_STATE.R_StowingArm] = '/robot_state_imgs/stowing_arm_position.svg'
 export { FOOTER_STATE_ICON_DICT }
 
-// The names of the camera feed ROS topic(s)
+// The names of the ROS topic(s)
 export const CAMERA_FEED_TOPIC = '/camera/color/image_raw'
+export const FACE_DETECTION_TOPIC = '/face_detection'
+export const FACE_DETECTION_TOPIC_MSG = 'ada_feeding_msgs/FaceDetection'
+export const FACE_DETECTION_IMG_TOPIC = '/face_detection_img'
 
 // For states that call ROS actions, this dictionary contains
 // the action name and the message type
@@ -34,6 +37,15 @@ ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingAbovePlate] = {
   messageType: 'ada_feeding_msgs/action/MoveTo'
 }
 export { ROS_ACTIONS_NAMES }
+
+// For states that call ROS services, this dictionary contains
+// the service name and the message type
+let ROS_SERVICE_NAMES = {}
+ROS_SERVICE_NAMES[MEAL_STATE.U_BiteInitiation] = {
+  serviceName: 'ToggleFaceDetection',
+  messageType: 'ada_feeding_msgs/srv/ToggleFaceDetection'
+}
+export { ROS_SERVICE_NAMES }
 
 // The meaning of the status that motion actions return in their results.
 // These should match the action definition(s)
