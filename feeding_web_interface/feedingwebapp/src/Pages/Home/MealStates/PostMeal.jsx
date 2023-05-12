@@ -10,8 +10,6 @@ import { useGlobalState, MEAL_STATE } from '../../GlobalState'
 /**
  * The PostMeal component appearsto the end of a meal, and lets the robot return
  * to the main menu.
- *
- * @params {object} props - contains any properties passed to this Component
  */
 const PostMeal = () => {
   // Get the relevant global variables

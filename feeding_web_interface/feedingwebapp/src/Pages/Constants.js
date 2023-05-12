@@ -40,6 +40,22 @@ ROS_ACTIONS_NAMES[MEAL_STATE.U_BiteSelection] = {
   actionName: 'SegmentFromPoint',
   messageType: 'ada_feeding_msgs/action/SegmentFromPoint'
 }
+ROS_ACTIONS_NAMES[MEAL_STATE.R_BiteAcquisition] = {
+  actionName: 'AcquireFood',
+  messageType: 'ada_feeding_msgs/action/AcquireFood'
+}
+ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingToStagingLocation] = {
+  actionName: 'MoveToStagingLocation',
+  messageType: 'ada_feeding_msgs/action/MoveTo'
+}
+ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingToMouth] = {
+  actionName: 'MoveToMouth',
+  messageType: 'ada_feeding_msgs/action/MoveToMouth'
+}
+ROS_ACTIONS_NAMES[MEAL_STATE.R_StowingArm] = {
+  actionName: 'MoveToStowLocation',
+  messageType: 'ada_feeding_msgs/action/MoveTo'
+}
 export { ROS_ACTIONS_NAMES }
 
 // For states that call ROS services, this dictionary contains

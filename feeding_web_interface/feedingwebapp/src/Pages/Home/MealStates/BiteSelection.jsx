@@ -41,25 +41,33 @@ const BiteSelection = (props) => {
   // Get icon image for move to staging
   let moveToStagingImage = FOOTER_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingLocation]
 
-  // Create a local state variable to store the detected masks, the
-  // status of the action, and how many times the user has clicked the
-  // image.
+  /**
+   * Create a local state variable to store the detected masks, the
+   * status of the action, and how many times the user has clicked the
+   * image.
+   */
   const [actionResult, setActionResult] = useState(null)
   const [numImageClicks, setNumImageClicks] = useState(0)
-  // NOTE: We slightly abuse the ROS_ACTION_STATUS values in this local state
-  // variable, by using it as a proxy for whether the robot is executing, has
-  // succeeded, has been canceled, or has had an error. This is to avoid
-  // creating an extra enum.
+  /**
+   * NOTE: We slightly abuse the ROS_ACTION_STATUS values in this local state
+   * variable, by using it as a proxy for whether the robot is executing, has
+   * succeeded, has been canceled, or has had an error. This is to avoid
+   * creating an extra enum.
+   */
   const [actionStatus, setActionStatus] = useState({
     actionStatus: null
   })
 
-  // Connect to ROS, if not already connected. Put this in local state to avoid
-  // re-connecting upon every re-render.
+  /**
+   * Connect to ROS, if not already connected. Put this in useRef to avoid
+   * re-connecting upon re-renders.
+   */
   const ros = useRef(connectToROS().ros)
 
-  // Create the ROS Action Client. This is created in local state to avoid
-  // re-creating it upon every re-render.
+  /**
+   * Create the ROS Action Client. This is created in useRef to avoid
+   * re-creating it upon re-renders.
+   */
   let { actionName, messageType } = ROS_ACTIONS_NAMES[MEAL_STATE.U_BiteSelection]
   let segmentFromPointAction = useRef(createROSActionClient(ros.current, actionName, messageType))
 
@@ -185,8 +193,10 @@ const BiteSelection = (props) => {
       callROSAction(
         segmentFromPointAction.current,
         { seed_point: { header: { stamp: { sec: 0, nanosec: 0 }, frame_id: 'image_frame' }, point: { x: x_raw, y: y_raw, z: 0.0 } } },
-        // Only register callbacks the first time to avoid multiple callbacks for
-        // the same action call.
+        /**
+         * Only register callbacks the first time to avoid multiple callbacks for
+         * the same action call.
+         */
         numImageClicks == 0 ? feedbackCallback : null,
         numImageClicks == 0 ? responseCallback : null
       )
@@ -352,8 +362,10 @@ const BiteSelection = (props) => {
   )
 }
 BiteSelection.propTypes = {
-  // Whether to run it in debug mode (e.g., if you aren't simulatenously running
-  // the robot) or not
+  /**
+   * Whether to run it in debug mode (e.g., if you aren't simulatenously running
+   * the robot) or not
+   */
   debug: PropTypes.bool.isRequired
 }
 

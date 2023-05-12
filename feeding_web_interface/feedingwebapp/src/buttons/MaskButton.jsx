@@ -1,8 +1,7 @@
 // React imports
 import React from 'react'
 import Button from 'react-bootstrap/Button'
-// PropTypes is used to validate that the used props are in fact passed to this
-// Component
+// PropTypes is used to validate that the used props are in fact passed to this Component
 import PropTypes from 'prop-types'
 
 /**

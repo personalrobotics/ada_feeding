@@ -11,8 +11,6 @@ import { useGlobalState, MEAL_STATE } from '../../GlobalState'
  * The PreMeal component appears before the meal starts, and gives the user a
  * Start Feeding button to initiate feeding. Further, PreMeal is the only meal
  * state as of now where users can modify the settings.
- *
- * @params {object} props - contains any properties passed to this Component
  */
 const PreMeal = () => {
   // Get the relevant global variables

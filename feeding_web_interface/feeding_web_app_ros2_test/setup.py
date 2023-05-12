@@ -32,9 +32,13 @@ setup(
     entry_points={
         "console_scripts": [
             # Scripts for the main app
+            "AcquireFood = feeding_web_app_ros2_test.AcquireFood:main",
             "DummyRealSense = feeding_web_app_ros2_test.DummyRealSense:main",
             "FaceDetection = feeding_web_app_ros2_test.FaceDetection:main",
             "MoveAbovePlate = feeding_web_app_ros2_test.MoveAbovePlate:main",
+            "MoveToMouth = feeding_web_app_ros2_test.MoveToMouth:main",
+            "MoveToStagingLocation = feeding_web_app_ros2_test.MoveToStagingLocation:main",
+            "MoveToStowLocation = feeding_web_app_ros2_test.MoveToStowLocation:main",
             "SegmentFromPoint = feeding_web_app_ros2_test.SegmentFromPoint:main",
             # Scripts for the "TestROS" component
             "listener = feeding_web_app_ros2_test.subscriber:main",

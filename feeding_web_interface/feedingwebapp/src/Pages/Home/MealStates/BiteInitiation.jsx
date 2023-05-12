@@ -1,8 +1,7 @@
 // React Imports
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Button from 'react-bootstrap/Button'
-// PropTypes is used to validate that the used props are in fact passed to this
-// Component
+// PropTypes is used to validate that the used props are in fact passed to this Component
 import PropTypes from 'prop-types'
 import Row from 'react-bootstrap/Row'
 
@@ -55,12 +54,16 @@ const BiteInitiation = (props) => {
     setMealState(MEAL_STATE.R_MovingToMouth)
   }, [setMealState])
 
-  // Connect to ROS, if not already connected. Put this in local state to avoid
-  // re-connecting upon every re-render.
+  /**
+   * Connect to ROS, if not already connected. Put this in useRef to avoid
+   * re-connecting upon re-renders.
+   */
   const ros = useRef(connectToROS().ros)
 
-  // Subscribe to the ROS Topic with the face detection result. This is created
-  // in local state to avoid re-creating it upon every re-render.
+  /**
+   * Subscribe to the ROS Topic with the face detection result. This is created
+   * in local state to avoid re-creating it upon every re-render.
+   */
   const faceDetectionCallback = useCallback(
     (message) => {
       if (message.is_face_detected) {
@@ -76,16 +79,20 @@ const BiteInitiation = (props) => {
   )
   useEffect(() => {
     let topic = subscribeToROSTopic(ros.current, FACE_DETECTION_TOPIC, FACE_DETECTION_TOPIC_MSG, faceDetectionCallback)
-    // In practice, because the values passed in in the second argument of
-    // useEffect will not change on re-renders, this return statement will
-    // only be called when the component unmounts.
+    /**
+     * In practice, because the values passed in in the second argument of
+     * useEffect will not change on re-renders, this return statement will
+     * only be called when the component unmounts.
+     */
     return () => {
       unsubscribeFromROSTopic(topic, faceDetectionCallback)
     }
   }, [faceDetectionCallback])
 
-  // Create the ROS Service. This is created in local state to avoid
-  // re-creating it upon every re-render.
+  /**
+   * Create the ROS Service. This is created in local state to avoid re-creating
+   * it upon every re-render.
+   */
   let { serviceName, messageType } = ROS_SERVICE_NAMES[MEAL_STATE.U_BiteInitiation]
   let toggleFaceDetectionService = useRef(createROSService(ros.current, serviceName, messageType))
 
@@ -100,9 +107,11 @@ const BiteInitiation = (props) => {
     // Call the service
     toggleFaceDetectionService.current.callService(request, (response) => console.log('Got service response', response))
 
-    // In practice, because the values passed in in the second argument of
-    // useEffect will not change on re-renders, this return statement will
-    // only be called when the component unmounts.
+    /**
+     * In practice, because the values passed in in the second argument of
+     * useEffect will not change on re-renders, this return statement will
+     * only be called when the component unmounts.
+     */
     return () => {
       // Create a service request
       let request = createROSServiceRequest({ turn_on: false })
@@ -206,8 +215,10 @@ const BiteInitiation = (props) => {
   )
 }
 BiteInitiation.propTypes = {
-  // Whether to run it in debug mode (e.g., if you aren't simulatenously running
-  // the robot) or not
+  /**
+   * Whether to run it in debug mode (e.g., if you aren't simulatenously running
+   * the robot) or not
+   */
   debug: PropTypes.bool.isRequired
 }
 

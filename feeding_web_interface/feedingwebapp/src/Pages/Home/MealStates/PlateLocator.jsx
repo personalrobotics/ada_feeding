@@ -13,8 +13,6 @@ import { convertRemToPixels, scaleWidthHeightToWindow } from '../../../helpers'
  * of the fork above the plate before selecting a bite. This component enables
  * the user to teleoperate the robot with Cartesian Control until the plate
  * is satisfactorily in view.
- *
- * @params {object} props - contains any properties passed to this Component
  */
 const PlateLocator = () => {
   // Get the relevant global variables

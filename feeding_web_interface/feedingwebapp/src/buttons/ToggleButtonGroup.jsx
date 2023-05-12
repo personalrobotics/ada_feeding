@@ -1,17 +1,17 @@
 // React imports
 import React from 'react'
-// PropTypes is used to validate that the used props are in fact passed to this
-// Component
+// PropTypes is used to validate that the used props are in fact passed to this Component
 import PropTypes from 'prop-types'
 import styled from 'styled-components'
 
-// Configure the styles for a group of buttons where only one is active at a
-// time.
-//
-// NOTE: Over here we use `styled-components` whereas elsewhere in the app, e.g.,
-// Home.css and App.css, we use separate CSS files. Eventually we should pick one
-// and stick with it. The below blog post has some tradeoffs:
-// https://getstream.io/blog/styled-components-vs-css-stylesheets/
+/**
+ * Configure the styles for a group of buttons where only one is active at a time.
+ *
+ * NOTE: Over here we use `styled-components` whereas elsewhere in the app, e.g.,
+ * Home.css and App.css, we use separate CSS files. Eventually we should pick one
+ * and stick with it. The below blog post has some tradeoffs:
+ * https://getstream.io/blog/styled-components-vs-css-stylesheets/
+ */
 const Button = styled.button`
   background-color: purple;
   color: white;

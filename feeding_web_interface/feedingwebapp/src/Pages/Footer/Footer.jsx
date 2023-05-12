@@ -4,8 +4,7 @@ import { MDBFooter } from 'mdb-react-ui-kit'
 import Button from 'react-bootstrap/Button'
 import { View } from 'react-native'
 import Row from 'react-bootstrap/Row'
-// PropTypes is used to validate that the used props are in fact passed to this
-// Component
+// PropTypes is used to validate that the used props are in fact passed to this Component
 import PropTypes from 'prop-types'
 
 // Local imports
@@ -16,6 +15,16 @@ import { useGlobalState } from '../GlobalState'
  * The Footer shows a pause button. When users click it, the app tells the robot
  * to immediately pause and displays a back button that allows them to return to
  * previous state and a resume button that allows them to resume current state.
+ *
+ * @param {bool} paused - whether the robot is currently paused
+ * @param {function} pauseCallback - callback function for when the pause button
+ *     is clicked
+ * @param {function} backCallback - callback function for when the back button
+ *     is clicked. If null, don't render the back button.
+ * @param {string} backMealState - the meal state to return to when the back
+ *     button is clicked. If null, don't render the back button.
+ * @param {function} resumeCallback - callback function for when the resume
+ *     button is clicked. If null, don't render the resume button.
  */
 const Footer = (props) => {
   // Get the current meal state
@@ -30,43 +39,13 @@ const Footer = (props) => {
   let backResumeButtonWidth = '150px'
   // Height of all Footer buttons
   let footerButtonHight = '100px'
-  /**
-   * When the pause button is clicked, execute the callback and display the
-   * back and resume buttons.
-   */
-  const pauseClicked = useCallback(() => {
-    props.pauseCallback()
-    props.setPaused(true)
-  }, [])
-
-  /**
-   * When the resume button is clicked, execute the callback and display the
-   * pause button.
-   */
-  const resumeClicked = useCallback(() => {
-    if (props.resumeCallback) {
-      props.resumeCallback()
-    }
-    props.setPaused(false)
-  }, [])
-
-  /**
-   * When the back button is clicked, execute the callback and display the pause
-   * button.
-   */
-  const backClicked = useCallback(() => {
-    if (props.backCallback) {
-      props.backCallback()
-    }
-    props.setPaused(false)
-  }, [])
 
   /**
    * Get the pause text and button to render in footer.
    *
    * @returns {JSX.Element} the pause text and button
    */
-  const renderPauseButton = useCallback(() => {
+  const renderPauseButton = useCallback((callback) => {
     return (
       <>
         <Row className='justify-content-center mx-auto'>
@@ -76,7 +55,7 @@ const Footer = (props) => {
           {/* Icon to pause */}
           <Button
             variant='danger'
-            onClick={pauseClicked}
+            onClick={callback}
             style={{ marginLeft: '10', marginRight: '10', marginTop: '0', width: '350px', height: { footerButtonHight } }}
           >
             <img style={{ width: '135px', height: '90px' }} src={pauseIcon} alt='pause_icon' className='center' />
@@ -84,56 +63,62 @@ const Footer = (props) => {
         </Row>
       </>
     )
-  }, [pauseClicked])
+  }, [])
 
   /**
    * Get the back text and button to render in footer.
    *
    * @returns {JSX.Element} the back text and button
    */
-  const renderBackButton = useCallback(() => {
-    return (
-      <>
-        <p className='transitionMessage' style={{ marginBottom: '0', fontSize: '170%', color: 'white', fontWeight: 'bold' }}>
-          ◀️ Back
-        </p>
-        {/* Icon to move to previous state */}
-        <Button
-          variant='warning'
-          onClick={backClicked}
-          style={{ marginLeft: 10, marginRight: 10, width: { backResumeButtonWidth }, height: { footerButtonHight } }}
-        >
-          <img style={{ width: '120px', height: '72px' }} src={backIcon} alt='back_icon' className='center' />
-        </Button>
-      </>
-    )
-  }, [backClicked])
+  const renderBackButton = useCallback(
+    (callback) => {
+      return (
+        <>
+          <p className='transitionMessage' style={{ marginBottom: '0', fontSize: '170%', color: 'white', fontWeight: 'bold' }}>
+            ◀️ Back
+          </p>
+          {/* Icon to move to previous state */}
+          <Button
+            variant='warning'
+            onClick={callback}
+            style={{ marginLeft: 10, marginRight: 10, width: { backResumeButtonWidth }, height: { footerButtonHight } }}
+          >
+            <img style={{ width: '120px', height: '72px' }} src={backIcon} alt='back_icon' className='center' />
+          </Button>
+        </>
+      )
+    },
+    [backIcon]
+  )
 
   /**
    * Get the resume text and button to render in footer.
    *
    * @returns {JSX.Element} the resume text and button
    */
-  const renderResumeButton = useCallback(() => {
-    return (
-      <>
-        <p
-          className='transitionMessage'
-          style={{ marginBottom: '0', fontSize: '170%', color: 'white', fontWeight: 'bold', textAlign: 'right' }}
-        >
-          ▶️ Resume
-        </p>
-        {/* Icon to resume current state */}
-        <Button
-          variant='success'
-          onClick={resumeClicked}
-          style={{ marginLeft: 10, marginRight: 10, width: { backResumeButtonWidth }, height: { footerButtonHight } }}
-        >
-          <img style={{ width: '120px', height: '72px' }} src={resumeIcon} alt='resume_icon' className='center' />
-        </Button>
-      </>
-    )
-  }, [resumeClicked])
+  const renderResumeButton = useCallback(
+    (callback) => {
+      return (
+        <>
+          <p
+            className='transitionMessage'
+            style={{ marginBottom: '0', fontSize: '170%', color: 'white', fontWeight: 'bold', textAlign: 'right' }}
+          >
+            ▶️ Resume
+          </p>
+          {/* Icon to resume current state */}
+          <Button
+            variant='success'
+            onClick={callback}
+            style={{ marginLeft: 10, marginRight: 10, width: { backResumeButtonWidth }, height: { footerButtonHight } }}
+          >
+            <img style={{ width: '120px', height: '72px' }} src={resumeIcon} alt='resume_icon' className='center' />
+          </Button>
+        </>
+      )
+    },
+    [resumeIcon]
+  )
 
   /**
    * Get the phantom view to render in footer. This is used as a placeholder
@@ -169,11 +154,11 @@ const Footer = (props) => {
         <div className='text-center p-3' style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}>
           {props.paused ? (
             <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
-              <View>{props.backCallback && props.backMealState ? renderBackButton() : renderPhantomButton()}</View>
-              <View>{props.resumeCallback ? renderResumeButton() : renderPhantomButton()}</View>
+              <View>{props.backCallback ? renderBackButton(props.backCallback) : renderPhantomButton()}</View>
+              <View>{props.resumeCallback ? renderResumeButton(props.resumeCallback) : renderPhantomButton()}</View>
             </View>
           ) : (
-            renderPauseButton()
+            renderPauseButton(props.pauseCallback)
           )}
         </div>
       </MDBFooter>
@@ -182,7 +167,6 @@ const Footer = (props) => {
 }
 Footer.propTypes = {
   paused: PropTypes.bool.isRequired,
-  setPaused: PropTypes.func.isRequired,
   pauseCallback: PropTypes.func.isRequired,
   // If any of the below three are null, the Footer won't render that button
   resumeCallback: PropTypes.func,

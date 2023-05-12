@@ -116,7 +116,7 @@ class MoveToDummy(Node):
         Using separate threads is an artiface of using time.sleep() in this
         dummy implementation.
         """
-        self.get_logger().info("Executing goal...%s" % (goal_handle,))
+        self.get_logger().info("Executing goal...%s" % (goal_handle.request,))
 
         # Load the feedback parameters
         feedback_rate = self.create_rate(self.send_feedback_hz)
