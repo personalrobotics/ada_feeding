@@ -1,3 +1,3 @@
 # Feeding Web Interface
 
-This repository contains code for the feeding web app. The app itself is in `feedingwebapp` and contains its own README. The other folder in this repository (will) contain a ROS package that can be used to test the web app's integration with ROS.
+This repository contains code for the feeding web app. The app itself is in `feedingwebapp`. ROS nodes used to test the app are in `feeding_web_app_ros2_test`, and messages for those ROS nodes are in `feeding_web_app_ros2_msgs`. Each directory contains its own README.

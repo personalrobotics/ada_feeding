@@ -36,6 +36,10 @@ ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingAbovePlate] = {
   actionName: 'MoveAbovePlate',
   messageType: 'ada_feeding_msgs/action/MoveTo'
 }
+ROS_ACTIONS_NAMES[MEAL_STATE.U_BiteSelection] = {
+  actionName: 'SegmentFromPoint',
+  messageType: 'ada_feeding_msgs/action/SegmentFromPoint'
+}
 export { ROS_ACTIONS_NAMES }
 
 // For states that call ROS services, this dictionary contains
@@ -54,6 +58,13 @@ export const MOTION_STATUS_PLANNING_FAILED = 1
 export const MOTION_STATUS_MOTION_FAILED = 2
 export const MOTION_STATUS_CANCELED = 3
 export const MOTION_STATUS_UNKNOWN = 99
+
+// The meaning of the status that segmentation actions return in their results.
+// These should match the action definition(s)
+export const SEGMENTATION_STATUS_SUCCESS = 0
+export const SEGMENTATION_STATUS_FAILED = 1
+export const SEGMENTATION_STATUS_CANCELED = 3
+export const SEGMENTATION_STATUS_UNKNOWN = 99
 
 // The meaning of ROS Action statuses.
 // https://docs.ros2.org/latest/api/rclpy/api/actions.html#rclpy.action.server.GoalEvent

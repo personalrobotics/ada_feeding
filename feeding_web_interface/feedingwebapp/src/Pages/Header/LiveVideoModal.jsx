@@ -27,14 +27,7 @@ function LiveVideoModal(props) {
   const marginRight = convertRemToPixels(1)
 
   // 640 x 480 is the standard dimension of images outputed by the RealSense
-  let { width: width, height: height } = scaleWidthHeightToWindow(
-    REALSENSE_WIDTH,
-    REALSENSE_HEIGHT,
-    marginTop,
-    marginBottom,
-    marginLeft,
-    marginRight
-  )
+  let { width, height } = scaleWidthHeightToWindow(REALSENSE_WIDTH, REALSENSE_HEIGHT, marginTop, marginBottom, marginLeft, marginRight)
   return (
     <Modal
       {...props}

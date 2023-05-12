@@ -10,6 +10,8 @@
   <node pkg="feeding_web_app_ros2_test" exec="DummyRealSense" name="DummyRealSense"/>
   <!-- The FaceDetection node -->
   <node pkg="feeding_web_app_ros2_test" exec="FaceDetection" name="FaceDetection"/>
+  <!-- The SegmentFromPoint node -->
+  <node pkg="feeding_web_app_ros2_test" exec="SegmentFromPoint" name="SegmentFromPoint"/>
   <!-- The MoveAbovePlate action -->
   <node pkg="feeding_web_app_ros2_test" exec="MoveAbovePlate" name="MoveAbovePlate"/>
 </launch>

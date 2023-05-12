@@ -25,6 +25,7 @@ const BiteAcquisition = (props) => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
   const desiredFoodItem = useGlobalState((state) => state.desiredFoodItem)
+  console.log(desiredFoodItem)
 
   /**
    * Callback function for when the bite acquisition is done.
@@ -50,7 +51,7 @@ const BiteAcquisition = (props) => {
       <Row className='justify-content-center mx-auto my-2 w-75'>
         <div>
           <h1 id={MEAL_STATE.R_MovingAbovePlate} className='waitingMsg'>
-            Waiting for the robot to acquire the {desiredFoodItem.toLowerCase()}...
+            Waiting for the robot to acquire the food...
           </h1>
           {props.debug ? (
             <Button variant='secondary' className='justify-content-center mx-2 mb-2' size='lg' onClick={biteAcquisitionDone}>

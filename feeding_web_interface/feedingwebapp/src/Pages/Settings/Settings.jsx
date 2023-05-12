@@ -5,7 +5,7 @@ import Form from 'react-bootstrap/Form'
 
 // Local imports
 import { useGlobalState, SETTINGS } from '../GlobalState'
-import ToggleButtonGroup from './ToggleButtonGroup'
+import ToggleButtonGroup from '../../buttons/ToggleButtonGroup'
 
 /**
  * The Settings components displays all the settings users are able to configure.

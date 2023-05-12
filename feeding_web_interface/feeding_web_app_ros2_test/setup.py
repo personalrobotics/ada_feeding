@@ -35,6 +35,7 @@ setup(
             "DummyRealSense = feeding_web_app_ros2_test.DummyRealSense:main",
             "FaceDetection = feeding_web_app_ros2_test.FaceDetection:main",
             "MoveAbovePlate = feeding_web_app_ros2_test.MoveAbovePlate:main",
+            "SegmentFromPoint = feeding_web_app_ros2_test.SegmentFromPoint:main",
             # Scripts for the "TestROS" component
             "listener = feeding_web_app_ros2_test.subscriber:main",
             "reverse_string = feeding_web_app_ros2_test.reverse_string_service:main",

@@ -60,9 +60,9 @@ function ToggleButtonGroup(props) {
   )
 }
 ToggleButtonGroup.propTypes = {
-  valueOptions: PropTypes.array,
-  currentValue: PropTypes.string,
-  valueSetter: PropTypes.func
+  valueOptions: PropTypes.array.isRequired,
+  currentValue: PropTypes.string.isRequired,
+  valueSetter: PropTypes.func.isRequired
 }
 
 export default ToggleButtonGroup

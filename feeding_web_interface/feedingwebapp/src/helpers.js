@@ -30,9 +30,15 @@ export function scaleWidthHeightToWindow(imageWidth, imageHeight, marginTop = 0,
     returnHeight = returnWidth / imageAspectRatio
   }
 
+  // Calculate the scale factor
+  let scaleFactorWidth = returnWidth / imageWidth
+  let scaleFactorHeight = returnHeight / imageHeight
+  let scaleFactor = (scaleFactorWidth + scaleFactorHeight) / 2
+
   return {
     width: returnWidth,
-    height: returnHeight
+    height: returnHeight,
+    scaleFactor: scaleFactor
   }
 }
 

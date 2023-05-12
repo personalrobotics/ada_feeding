@@ -121,7 +121,7 @@ const BiteInitiation = (props) => {
 
   // Get the size of the robot's live video stream.
   const margin = convertRemToPixels(1)
-  let { width: width, height: height } = scaleWidthHeightToWindow(REALSENSE_WIDTH, REALSENSE_HEIGHT, margin, margin, margin, margin)
+  let { width, height } = scaleWidthHeightToWindow(REALSENSE_WIDTH, REALSENSE_HEIGHT, margin, margin, margin, margin)
 
   // Render the component
   return (
