@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>A minimal ROS publisher, subscriber, service, and action to use to test the web app.</description>
   <maintainer email="amaln@cs.washington.edu">Amal Nanavati</maintainer>
-  <license>TODO: License declaration</license>
+  <license>BSD-3-Clause</license>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

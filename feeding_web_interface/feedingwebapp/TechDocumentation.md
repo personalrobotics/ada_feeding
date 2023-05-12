@@ -19,6 +19,14 @@ All functions to interact with ROS are defined in [`ros_helpers.jsx`](https://gi
 
 Although the web app's settings menu seem parameter-esque it is not a good idea to update settings by getting/setting ROS parameters. That is because ROS2 parameters are owned by individual nodes, and do not persist beyond the lifetime of a node. Further, we likely want to run downstream code after updating any setting (e.g., writing it to a file as backup), which cannot easily be done when setting ROS parameters. Therefore, **updating settings should be done by ROS service calls, not by getting/setting ROS parameters**. Hence, `ros_helpers.jsx` does not even implement parameter getting/setting.
 
+### Using ROS Services, Actions, etc. Within React
+
+React, by default, will re-render a component any time local state changes. In other words, it will re-run all code in the function that defines that component. However, this doesn't work well for ROS Services, Actions, etc. because: (a) we don't want to keep re-calling the service/action each time the UI re-renders; and (b) we don't want to keep re-creating a service/action client each time the UI re-renders. Therefore, it is crucial to use React Hooks intentionally and to double and triple check that the service/action is only getting once, to avoid bugs.
+
+These resources that can help you understand React Hooks in general:
+- https://medium.com/@guptagaruda/react-hooks-understanding-component-re-renders-9708ddee9928
+- https://stackoverflow.com/a/69264685
+
 ## Frequently Asked Questions (FAQ)
 
 Q: Why are we using global state as opposed to a [`Router`](https://www.w3schools.com/react/react_router.asp) to decide which app components to render?

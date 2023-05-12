@@ -23,6 +23,9 @@ function TestROSService() {
   let { ros } = connectToROS()
 
   // Create the Service
+  // TODO (amaln): This way of creating a ROS Service is inefficient since it
+  // will keep getting re-defined any time the UI changes. Use local state
+  // instead.
   let reverseStringService = createROSService(ros, serviceName, 'feeding_web_app_ros2_msgs/ReverseString')
 
   // Callback function for when the user clicks the "Call" button

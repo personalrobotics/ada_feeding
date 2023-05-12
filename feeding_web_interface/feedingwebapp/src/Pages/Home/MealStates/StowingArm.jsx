@@ -1,5 +1,5 @@
 // React Imports
-import React from 'react'
+import React, { useState } from 'react'
 import Button from 'react-bootstrap/Button'
 // PropTypes is used to validate that the used props are in fact passed to this
 // Component
@@ -19,6 +19,9 @@ import { useGlobalState, MEAL_STATE } from '../../GlobalState'
  * @params {object} props - contains any properties passed to this Component
  */
 const StowingArm = (props) => {
+  // Create a local state variable for whether the robot is paused.
+  const [paused, setPaused] = useState(false)
+
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
 
@@ -28,6 +31,15 @@ const StowingArm = (props) => {
   function stowingArmDone() {
     console.log('stowingArmDone')
     setMealState(MEAL_STATE.U_PostMeal)
+  }
+
+  /**
+   * Callback function for when the back button is clicked.
+   */
+  const backMealState = MEAL_STATE.R_MovingAbovePlate
+  function backCallback() {
+    console.log('Back Clicked')
+    setMealState(backMealState)
   }
 
   // Render the component
@@ -51,12 +63,19 @@ const StowingArm = (props) => {
       {/**
        * Display the footer with the Pause button.
        */}
-      <Footer />
+      <Footer
+        pauseCallback={() => console.log('Pause Clicked')}
+        backCallback={backCallback}
+        backMealState={backMealState}
+        resumeCallback={() => console.log('Resume Clicked')}
+        paused={paused}
+        setPaused={setPaused}
+      />
     </>
   )
 }
 StowingArm.propTypes = {
-  debug: PropTypes.bool
+  debug: PropTypes.bool.isRequired
 }
 
 export default StowingArm

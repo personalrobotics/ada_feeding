@@ -14,6 +14,7 @@ The overall user flow for this robot can be seen below.
 - [Node.js](https://nodejs.org/en/download/package-manager)
 - [ROS2 Humble](https://docs.ros.org/en/humble/Installation.html)
 - [PRL fork of rosbridge_suite](https://github.com/personalrobotics/rosbridge_suite). This fork enables rosbridge_suite to communicate with ROS2 actions.
+- [ada_feeding (branch: ros2-devel)](https://github.com/personalrobotics/ada_feeding/tree/ros2-devel).
 
 ## Getting Started in Computer
 
@@ -31,14 +32,29 @@ The overall user flow for this robot can be seen below.
   - Note that if you're not running the robot code alongside the app, set [`debug = true` in `App.jsx`](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp/src/App.jsx#L17) to be able to move past screens where the app is waiting on the robot. Since the robot is not yet connected, the default is `debug = true`
 3. Use a web browser to navigate to `localhost:3000` to see the application.
 
+#### Launching Dummy Nodes
+This repository includes several dummy nodes that match the interface that the robot nodes will use. By running the dummy nodes alongside the app, we can test the app's communication with the robot even without actual robot code running.
+
+The below instructions are for `MoveAbovePlate`; we will add to the instructions as more dummy nodes get implemented.
+1. Navigate to your ROS2 workspace: `cd {path/to/your/ros2/workspace}`
+2. Build your workspace: `colcon build`
+3. Launch rosbridge: `source install/setup.bash; ros2 launch rosbridge_server rosbridge_websocket_launch.xml`
+4. In another terminal, run the MoveAbovePlate action: `source install/setup.bash; ros2 run feeding_web_app_ros2_test MoveAbovePlate`
+5. In another terminal, navigate to the web app folder: `cd {path/to/feeding_web_interface}/feedingwebapp`
+6. Start the app: `npm start`
+7. Use a web browser to navigate to `localhost:3000`.
+
+You should now see that the web browser is connected to ROS. Further, you should see that when the `MoveAbovePlate` page starts, it should call the action (exactly once), and render feedback. "Pause" should cancel the action, and "Resume" should re-call it. Refreshing the page should cancel the action. When the action returns success, the app should automatically transition to the next page.
+
 ### Usage (Test ROS)
 There is a special page in the app intended for developers to: (a) test that their setup of the app and ROS2 enables the two to communicate as expected; and (b) gain familiarity with the library of ROS helper functions we use in the web app (see [TechDocumentation.md](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp/TechDocumentation.md)). Below are instructions to use this page:
 1. Navigate to your ROS2 workspace: `cd {path/to/your/ros2/workspace}`
 2. Build your workspace: `colcon build`
-3. Launch rosbridge: `ros2 launch rosbridge_server rosbridge_websocket_launch.xml`
-4. In another terminal, navigate to the web app folder: `cd {path/to/feeding_web_interface}/feedingwebapp`
-5. Start the app: `npm start`
-6. Use a web browser to navigate to `localhost:3000/test_ros`.
+3. Source your workspace: `source install/setup.bash`
+4. Launch rosbridge: `ros2 launch rosbridge_server rosbridge_websocket_launch.xml`
+5. In another terminal, navigate to the web app folder: `cd {path/to/feeding_web_interface}/feedingwebapp`
+6. Start the app: `npm start`
+7. Use a web browser to navigate to `localhost:3000/test_ros`.
 
 The following are checks to ensure the app is interacting with ROS as expected. If any of them fails, you'll have to do additional troubleshooting to get the web app and ROS2 smoothly communicating with each other.
 1. First, check if the page says `Connected` at the top of the screen. If not, the web app is not communicating with ROS2.

@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>Defines the message types used by `feeding_web_app_ros2_test`.</description>
   <maintainer email="amaln@cs.washington.edu">Amal Nanavati</maintainer>
-  <license>TODO: License declaration</license>
+  <license>BSD-3-Clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <test_depend>ament_lint_auto</test_depend>

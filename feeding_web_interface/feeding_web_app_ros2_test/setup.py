@@ -15,10 +15,13 @@ setup(
     maintainer="Amal Nanavati",
     maintainer_email="amaln@cs.washington.edu",
     description="A minimal ROS publisher, subscriber, service, and action to use to test the web app.",
-    license="TODO: License declaration",
+    license="BSD-3-Clause",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
+            # Scripts for the main app
+            "MoveAbovePlate = feeding_web_app_ros2_test.MoveAbovePlate:main",
+            # Scripts for the "TestROS" component
             "listener = feeding_web_app_ros2_test.subscriber:main",
             "reverse_string = feeding_web_app_ros2_test.reverse_string_service:main",
             "sort_by_character_frequency = feeding_web_app_ros2_test.sort_by_character_frequency_action:main",
