@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
    version="1.1"
-   viewBox="0 0 960 540"
+   viewBox="0 0 123.55932 160.16949"
    fill="none"
    stroke="none"
    stroke-linecap="square"
    stroke-miterlimit="10"
    id="svg243"
-   sodipodi:docname="iconB.svg"
-   width="960"
-   height="540"
+   sodipodi:docname="move_above_plate_position.svg"
+   width="123.55932"
+   height="160.16949"
+   inkscape:version="1.2.1 (9c6d41e, 2022-07-14)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -38,7 +39,16 @@
      inkscape:pageopacity="0.0"
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
-     showgrid="false" />
+     showgrid="false"
+     inkscape:zoom="0.43703704"
+     inkscape:cx="393.55932"
+     inkscape:cy="265.42373"
+     inkscape:window-width="1309"
+     inkscape:window-height="456"
+     inkscape:window-x="107"
+     inkscape:window-y="56"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg243" />
   <clipPath
      id="g23e84aa848c_0_43.0">
     <path
@@ -49,7 +59,7 @@
   <g
      clip-path="url(#g23e84aa848c_0_43.0)"
      id="g241"
-     transform="matrix(0.29189189,0,0,0.30042918,8.1383399,2.5140029)">
+     transform="matrix(0.29189189,0,0,0.30042918,-78.81081,-2.062268)">
     <path
        fill="#ffffff"
        d="M 0,0 H 960 V 540 H 0 Z"

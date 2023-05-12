@@ -6,6 +6,7 @@ import Row from 'react-bootstrap/Row'
 // Local Imports
 import '../Home.css'
 import { useGlobalState, MEAL_STATE } from '../../GlobalState'
+import { FOOTER_STATE_ICON_DICT } from '../../Constants'
 
 /**
  * The BiteInitiation component appears after the robot has moved to the staging
@@ -14,6 +15,10 @@ import { useGlobalState, MEAL_STATE } from '../../GlobalState'
 const BiteInitiation = () => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
+  // Get icon image for move above plate
+  let moveAbovePlateImage = FOOTER_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
+  // Get icon image for move to mouth position
+  let moveToMouthImage = FOOTER_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth]
 
   /**
    * Callback function for when the user is ready for their bite.
@@ -45,7 +50,7 @@ const BiteInitiation = () => {
           onClick={readyForBite}
           style={{ width: '300px', height: '200px' }}
         >
-          <img src='/robot_state_imgs/move_to_mouth_position.svg' alt='move_to_mouth_image' className='center' />
+          <img src={moveToMouthImage} alt='move_to_mouth_image' className='center' />
         </Button>
       </Row>
       {/* Add empty space */}
@@ -63,7 +68,7 @@ const BiteInitiation = () => {
           onClick={moveAbovePlate}
           style={{ width: '300px', height: '200px' }}
         >
-          <img src='/robot_state_imgs/move_above_plate_position.svg' alt='move_above_plate_image' className='center' />
+          <img src={moveAbovePlateImage} alt='move_above_plate_image' className='center' />
         </Button>
       </Row>
     </div>

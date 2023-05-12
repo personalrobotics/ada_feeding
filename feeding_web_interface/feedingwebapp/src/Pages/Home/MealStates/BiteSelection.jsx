@@ -6,6 +6,7 @@ import Row from 'react-bootstrap/Row'
 // Local Imports
 import '../Home.css'
 import { useGlobalState, MEAL_STATE } from '../../GlobalState'
+import { FOOTER_STATE_ICON_DICT } from '../../Constants'
 
 // TODO: Replace the list of items with a view of the camera feed that the user
 // can click on.
@@ -19,6 +20,8 @@ const BiteSelection = () => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
   const setDesiredFoodItem = useGlobalState((state) => state.setDesiredFoodItem)
+  // Get icon image for move to staging
+  let moveToStagingImage = FOOTER_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingLocation]
 
   /**
    * Callback function for when the user indicates that they want to move the
@@ -27,6 +30,13 @@ const BiteSelection = () => {
   function locatePlateClicked() {
     console.log('locatePlateClicked')
     setMealState(MEAL_STATE.U_PlateLocator)
+  }
+
+  /**
+   * Callback function for when the user wants to move to staging position.
+   */
+  function moveToStagingPosition() {
+    setMealState(MEAL_STATE.R_MovingToStagingLocation)
   }
 
   /**
@@ -59,19 +69,11 @@ const BiteSelection = () => {
        *   - Instead of selecting their next bite, the user can indicate that
        *     they are done eating.
        */}
-      <div style={{ display: 'block' }}>
-        <Button
-          className='doneButton'
-          style={{ fontSize: '24px', marginTop: '0px', marginRight: '10px', marginLeft: 'auto', display: 'block' }}
-          onClick={locatePlateClicked}
-        >
+      <div style={{ display: 'block', textAlign: 'center' }}>
+        <Button className='doneButton' style={{ fontSize: '21px', marginTop: '10px' }} onClick={locatePlateClicked}>
           🍽️ Locate Plate
         </Button>
-        <Button
-          className='doneButton'
-          style={{ fontSize: '24px', marginTop: '0px', marginRight: '10px', marginLeft: 'auto', display: 'block' }}
-          onClick={doneEatingClicked}
-        >
+        <Button className='doneButton' style={{ fontSize: '21px', marginTop: '10px' }} onClick={doneEatingClicked}>
           ✅ Done Eating
         </Button>
       </div>
@@ -81,16 +83,16 @@ const BiteSelection = () => {
        * TODO: Replace this with an image of the plate where users can click on
        * their desired food item.
        */}
-      <p className='transitionMessage' style={{ marginBottom: '0px' }}>
+      <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: '20px' }}>
         Choose from one of the following food items.
       </p>
-      <Row xs={3} s={2} md={3} lg={4} className='justify-content-center mx-auto my-2' style={{ paddingBottom: '35vh' }}>
+      <Row xs={3} s={2} md={3} lg={4} className='justify-content-center mx-auto' style={{ paddingBottom: '0vh' }}>
         {food.map((value, i) => (
           <Button
             key={i}
             variant='primary'
             className='mx-1 mb-1'
-            style={{ paddingLeft: '0px', paddingRight: '0px', marginLeft: '0px', marginRight: '0px', fontSize: '25px' }}
+            style={{ paddingLeft: '0px', paddingRight: '0px', marginLeft: '0px', marginRight: '0px', fontSize: '20px' }}
             value={value}
             size='lg'
             onClick={foodItemClicked}
@@ -99,6 +101,24 @@ const BiteSelection = () => {
           </Button>
         ))}
       </Row>
+      <div style={{ display: 'block', width: '100%' }} className='outer'>
+        {/* Ask the user whether they want to continue without acquisition by moving to above plate position */}
+        <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: '20px' }}>
+          Continue without acquiring bite? Move to &quot;ready&quot; position.
+        </p>
+        {/* Icon to move above plate */}
+        <Row className='justify-content-center mx-auto mb-2 w-75'>
+          <Button
+            variant='warning'
+            className='mx-2 mb-2 btn-huge'
+            size='lg'
+            onClick={moveToStagingPosition}
+            style={{ width: '300px', height: '200px' }}
+          >
+            <img src={moveToStagingImage} alt='move_above_plate_image' className='center' />
+          </Button>
+        </Row>
+      </div>
     </>
   )
 }

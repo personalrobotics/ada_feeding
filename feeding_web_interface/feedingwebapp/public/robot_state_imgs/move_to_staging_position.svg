@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
    version="1.1"
-   viewBox="0 0 890.08502 535.42401"
+   viewBox="0 0 257.422 146.746"
    fill="none"
    stroke="none"
    stroke-linecap="square"
@@ -11,8 +11,8 @@
    inkscape:export-filename="../Desktop/move_to_staging_position.svg"
    inkscape:export-xdpi="29.51111"
    inkscape:export-ydpi="29.51111"
-   width="890.08502"
-   height="535.42401"
+   width="257.422"
+   height="146.746"
    inkscape:version="1.2.1 (9c6d41e, 2022-07-14)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -33,11 +33,11 @@
      showgrid="false"
      inkscape:zoom="0.46021093"
      inkscape:cx="636.66458"
-     inkscape:cy="310.72708"
+     inkscape:cy="308.55417"
      inkscape:window-width="1375"
      inkscape:window-height="734"
      inkscape:window-x="65"
-     inkscape:window-y="174"
+     inkscape:window-y="89"
      inkscape:window-maximized="0"
      inkscape:current-layer="svg182" />
   <clipPath
@@ -51,7 +51,7 @@
      clip-path="url(#g23e84aa848c_0_67.0)"
      id="g180"
      style="fill:none"
-     transform="matrix(0.26814792,0,0,0.27175185,-0.846,2.288)">
+     transform="scale(0.26814792,0.27175185)">
     <path
        fill="#ffffff"
        d="M 0,0 H 960 V 540 H 0 Z"
