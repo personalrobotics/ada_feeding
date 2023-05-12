@@ -1,0 +1,20 @@
+# The interface for a generic action that tells the robot to move with a
+# particular velocity for a particular duration.
+
+# The target velocity
+geometry_msgs/TwistStamped vel
+# How long to move at that velocity
+builtin_interfaces/Duration duration
+---
+# Possible return statuses
+uint8 STATUS_SUCCESS=0
+uint8 STATUS_PLANNING_FAILED=1
+uint8 STATUS_MOTION_FAILED=2
+uint8 STATUS_CANCELED=3
+uint8 STATUS_UNKNOWN=99
+
+# Whether the planning and motion succeeded and if not, why
+uint8 status
+---
+# How much time the action has spent moving
+builtin_interfaces/Duration elapsed_time

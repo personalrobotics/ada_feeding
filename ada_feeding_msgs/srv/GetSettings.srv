@@ -1,0 +1,12 @@
+# The interface for a generic service that takes in keys and returns their
+# corresponding json-encoded values.
+
+# Keys of the settings to get
+std_msgs/String[] keys
+---
+# Which keys were succesfully gotten
+std_msgs/String[] success_keys
+# JSON-endoded values for `success_keys`. success_json_values[0] is the value
+# of success_keys[0]. Therefore, `success_keys` and `success_json_values` must
+# have the same length
+std_msgs/String[] success_json_values

@@ -1,0 +1,26 @@
+# The interface for a generic MoveTo action that takes in no input, returns
+# whether or not it succeeded, and gives progress in terms of how long it has
+# been planning for and/or how much farther it has to move. In practice, this
+# interface will be used for the "MoveAbovePlate" and "MoveToStagingLocation"
+# actions.
+
+
+---
+# Possible return statuses
+uint8 STATUS_SUCCESS=0
+uint8 STATUS_PLANNING_FAILED=1
+uint8 STATUS_MOTION_FAILED=2
+uint8 STATUS_CANCELED=3
+uint8 STATUS_UNKNOWN=99
+
+# Whether the planning and motion succeeded and if not, why
+uint8 status
+---
+# Whether the robot is currently planning or moving (required)
+bool is_planning
+# The amount of time the robot has spent in planning (required)
+builtin_interfaces/Duration planning_time
+# How far the robot initially was from the goal (required if `is_planning == false`)
+float64 motion_initial_distance
+# How far the robot currently is from the goal (required if `is_planning == false`)
+float64 motion_curr_distance

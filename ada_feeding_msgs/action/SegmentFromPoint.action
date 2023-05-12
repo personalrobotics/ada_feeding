@@ -1,0 +1,23 @@
+# The interface for an action that takes in a seed point, geta an image from
+# the camera, and returns multiple contender masks for segmented objects that
+# contain the seed point.
+
+# The point to seed the segmentation algorithm with
+geometry_msgs/PointStamped seed_point
+---
+# Possible return statuses
+uint8 STATUS_SUCCEEDED=0
+uint8 STATUS_FAILED=1
+uint8 STATUS_CANCELED=3
+uint8 STATUS_UNKNOWN=99
+
+# Whether the segmentation succeeded and if not, why
+uint8 status
+
+# The header for the image that the masks corresponds to
+std_msgs/Header header
+# Contender masks that contain seed_point
+ada_feeding_msgs/Mask[] detected_items
+---
+# How much time the action has spent segmenting the food item
+builtin_interfaces/Duration elapsed_time

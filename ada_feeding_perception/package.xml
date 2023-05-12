@@ -3,7 +3,7 @@
 <package format="3">
   <name>ada_feeding_perception</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>This package contains all the perception code (face and food perception) for the robot feeding system.</description>
   <maintainer email="haozhu@cs.washington.edu">Bernie Zhu</maintainer>
   <license>BSD-3-Clause</license>
 
