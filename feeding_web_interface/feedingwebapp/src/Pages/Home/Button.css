@@ -1,0 +1,9 @@
+.RectButtonsOnImg:hover {
+  border-radius: 12px;
+  fill: red;
+  cursor: pointer;
+}
+
+.RectButtonsOnImg {
+  pointer-events: all;
+}

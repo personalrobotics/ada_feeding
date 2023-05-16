@@ -11,6 +11,9 @@ import Header from './Pages/Header/Header'
 import Home from './Pages/Home/Home'
 import Settings from './Pages/Settings/Settings'
 import TestROS from './ros/TestROS'
+import BiteSelectionButtonOverlay from './Pages/Home/BiteSelectionUIStates/BiteSelectionButtonOverlay'
+import BiteSelectionName from './Pages/Home/BiteSelectionUIStates/BiteSelectionName'
+import BiteSelectionPointMask from './Pages/Home/BiteSelectionUIStates/BiteSelectionPointMask'
 
 // Flag for whether to run the app in debug mode or not. When running in debug
 // mode, the app does not connect to ROS. Anytime where it would wait for the
@@ -66,6 +69,36 @@ function App() {
             element={
               <ROS>
                 <TestROS />
+              </ROS>
+            }
+          />
+          <Route
+            exact
+            path='/test_bite_selection_ui/button_overlay_selection'
+            element={
+              <ROS>
+                <Header />
+                <BiteSelectionButtonOverlay debug={debug} />
+              </ROS>
+            }
+          />
+          <Route
+            exact
+            path='/test_bite_selection_ui/point_mask_selection'
+            element={
+              <ROS>
+                <Header />
+                <BiteSelectionPointMask debug={debug} />
+              </ROS>
+            }
+          />
+          <Route
+            exact
+            path='/test_bite_selection_ui/food_name_selection'
+            element={
+              <ROS>
+                <Header />
+                <BiteSelectionName debug={debug} />
               </ROS>
             }
           />

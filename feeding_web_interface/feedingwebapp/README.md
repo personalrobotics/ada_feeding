@@ -28,6 +28,7 @@ The overall user flow for this robot can be seen below.
 4. Source the directory: `source install/setup.bash`
 5. Navigate to the web app folder: `cd feeding_web_interface/feedingwebapp`
 6. Install web app dependencies: `npm install --legacy-peer-deps`
+* Consider checking out the [Troubleshooting](## Troubleshooting) section if there are errors in this process. 
 
 ### Usage (Web App)
 1. Navigate to the web app folder: `cd {path/to/feeding_web_interface}/feedingwebapp`
@@ -103,6 +104,9 @@ Note that we use `npm`, not `yarn`, to manage dependencies for this project.
   - Thoroughly test your feature, including all edge cases, to ensure it works as expected. This includes trying every combination of buttons/actions, even ones we don't expect users to use, to ensure there are no unaccounted for edge cases.
   - Ensure the [console](https://developer.chrome.com/docs/devtools/console/) has no errors.
   - Thoroughly test responsivity by changing browser/device size to ensure it renders as expected.
-- Before creating a Pull Request, run `npm format` and address any warnings or errors.
+- Before creating a Pull Request, run `npm run format` and address any warnings or errors.
 - Create a Pull Request to merge your branch into `main`. You need at least one approving review to merge.
 - Squash all commits on your branch before merging into `main` to ensure a straightforward commit history.
+
+## Troubleshooting
+* While installing, if you run into an error about `PUPPETEER`, the fix is to just follow the instructions provided in console and to actually disable it. 
