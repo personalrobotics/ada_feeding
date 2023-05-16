@@ -133,6 +133,11 @@ public:
                             cos(M_PI * 0.25) * height * 0.9};
     }
 
+    std::cout<<"eeTransform.translation: "<<eeTransform.translation()<<std::endl;
+    eeTransform.translation()[0] -= 0.005;
+    eeTransform.translation()[1] -= 0.005;
+    std::cout<<"eeTransform.translation: "<<eeTransform.translation()<<std::endl;
+    
     // Output EE target pose
     Eigen::Vector3d ePos = eeTransform.translation();
     std::vector<double> pos{ePos[0], ePos[1], ePos[2]};
@@ -211,6 +216,12 @@ public:
 
     auto overshootInput = getInput<double>("overshoot");
     double overshoot = overshootInput ? overshootInput.value() : 0.0;
+
+    std::cout<<"Overshoot: "<<overshoot<<std::endl;
+    std::cout<<"Food item: "<<obj.getName()<<std::endl;
+
+    if(obj.getName() == std::string("banana"))
+      overshoot = -0.005;
 
     Eigen::Isometry3d objTransform =
         obj.getMetaSkeleton()->getBodyNode(0)->getWorldTransform();

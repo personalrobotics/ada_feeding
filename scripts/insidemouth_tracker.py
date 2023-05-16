@@ -11,13 +11,14 @@ from scipy.spatial.transform import Slerp
 from geometry_msgs.msg import TransformStamped, WrenchStamped
 from moveit_msgs.msg import CartesianTrajectoryPoint
 from std_msgs.msg import Int64
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 import threading
 import time
 
 # Parameters
-OPEN_LOOP_RADIUS = 0.01
+OPEN_LOOP_RADIUS = 0.015
 # OPEN_LOOP_RADIUS = 0.0
+INTERMEDIATE_THRESHOLD_RELAXED = 0.02
 INTERMEDIATE_THRESHOLD = 0.014
 INFRONT_DISTANCE_LOOKAHEAD = 0.04
 INSIDE_DISTANCE_LOOKAHEAD_Z = 0.045
@@ -28,6 +29,7 @@ ANGULAR_LOOKAHEAD = 5*np.pi/180
 DISTANCE_INFRONT_MOUTH = 0.10
 MOVE_OUTSIDE_DISTANCE = 0.14
 TILT_MOVE_OUTSIDE_DISTANCE = 0.14
+MIN_DURATION_MOUTH_OPEN = 1.0
 
 
 class BiteTransferTrajectoryTracker:
@@ -38,30 +40,52 @@ class BiteTransferTrajectoryTracker:
         self.listener = tf2_ros.TransformListener(self.tfBuffer)
         self.broadcaster = tf2_ros.TransformBroadcaster()
 
+        self.bite_detected = False
         self.contact_classification_sub = rospy.Subscriber('/contact_classification', String, self.contactClassificationCallback)
-
-        self.move_inside_sub = rospy.Subscriber('/move_inside', Int64, self.moveInsideCallback)
 
         self.task_cmd_publisher = rospy.Publisher('/task_space_compliant_controller/command', CartesianTrajectoryPoint, queue_size=10)
         self.task_mode_publisher = rospy.Publisher('/task_space_compliant_controller/mode', String, queue_size=10)
 
+        self.beep_publisher = rospy.Publisher('/beep', Bool, queue_size=10)
+
         self.control_rate = rospy.Rate(100.0)
 
-        self.state = 1
+        self.state = 0
         self.state_lock = threading.Lock()
 
-        self.contact_type = -1
-        self.contact_lock = threading.Lock()
+        self.last_mouth_closed_time = time.time()
+        self.mouth_state_sub = rospy.Subscriber('/head_perception/mouth_state', Bool, self.mouth_state_callback)
+
+
+        self.beeped_once = False
+
+    def mouth_state_callback(self, msg):
+
+        current_state = None
+        with self.state_lock:
+            current_state = self.state
+
+        if current_state == 0 and msg.data:
+            with self.state_lock:
+                self.state = 1
+
+        # if current_state == 2:
+        #     if not msg.data:
+        #         self.last_mouth_closed_time = time.time()
+        #         with self.state_lock:
+        #             self.state = -1
+        
+        # if current_state == -1:
+        #     if msg.data and (time.time() - self.last_mouth_closed_time) > MIN_DURATION_MOUTH_OPEN:
+        #         with self.state_lock:
+        #             self.state = 2
 
     def contactClassificationCallback(self, msg):
 
-        with self.contact_lock:
-            self.contact_type = msg.data
-
-    def moveInsideCallback(self, msg):
-
-        with self.state_lock:
-            self.state = msg.data
+        if not self.bite_detected and msg.data == "bite":
+            self.bite_detected = True
+            with self.state_lock:
+                self.state = 3
 
     def getAngularDistance(self, rotation_a, rotation_b):
         return np.linalg.norm(Rotation.from_matrix(np.dot(rotation_a, rotation_b.T)).as_rotvec())
@@ -156,9 +180,9 @@ class BiteTransferTrajectoryTracker:
 
     def runControlLoop(self):
 
-        print("Input starting state: ")
-        inp = input()
-        self.state = int(inp)
+        # print("Input starting state: ")
+        # inp = input()
+        # self.state = int(inp)
         closed_loop = True
         run_once = True
 
@@ -185,20 +209,31 @@ class BiteTransferTrajectoryTracker:
 
             print("Current self.state: ",current_state)
 
+            if current_state == -1: # maintain position
+
+                if run_once:
+                    for i in range(0,10):
+
+                        forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
+                        self.publishTaskCommand(forque_base)
+                    run_once = False
+
             if current_state == 1: # move to infront of mouth
                 
                 # trajectory positions
                 if closed_loop:
 
-                    for i in range(0,10):
+                    if run_once:
+                        for i in range(0,10):
 
-                        forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
-                        self.publishTaskCommand(forque_base)
+                            forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
+                            self.publishTaskCommand(forque_base)
 
-                    time.sleep(0.1)
+                        time.sleep(0.1)
 
-                    self.publishTaskMode("none")
-                    self.publishTaskMode("default_stiffness")
+                        self.publishTaskMode("none")
+                        self.publishTaskMode("default_stiffness")
+                        run_once = False
 
                     forque_target_base = self.getTransformationFromTF("base_link", "forque_end_effector_target")
 
@@ -217,6 +252,12 @@ class BiteTransferTrajectoryTracker:
                 # current position
                 forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
 
+                distance = np.linalg.norm(forque_base[:3,3] - servo_point_base[:3,3])
+
+                if distance < INTERMEDIATE_THRESHOLD_RELAXED:
+                    with self.state_lock:
+                        self.state = 2
+
                 target = self.getNextWaypoint(forque_base, servo_point_base, distance_lookahead=INFRONT_DISTANCE_LOOKAHEAD)
                 # target = servo_point_base
 
@@ -225,6 +266,12 @@ class BiteTransferTrajectoryTracker:
                 self.publishTransformationToTF("base_link", "final_target", servo_point_base)
 
             elif current_state == 2: # move inside mouth
+
+                if not self.beeped_once: 
+                    self.beeped_once = True   
+                    beep_msg = Bool()
+                    beep_msg.data = True
+                    self.beep_publisher.publish(beep_msg)
 
                 if closed_loop:
 
@@ -269,14 +316,16 @@ class BiteTransferTrajectoryTracker:
                 intermediate_position_error = np.linalg.norm(forque_source[:3,3] - intermediate_forque_target[:3,3])
                 intermediate_angular_error = self.getAngularDistance(forque_source[:3,:3], intermediate_forque_target[:3,:3])
 
-                print("intermediate_position_error: ", forque_source[:3,3] - intermediate_forque_target[:3,3])
+                print("closed_loop: ",closed_loop)
+                # print("intermediate_position_error: ", forque_source[:3,3] - intermediate_forque_target[:3,3])
                 print("intermediate_position_error mag: ", intermediate_position_error)
-                print("intermediate_angular_error: ", intermediate_angular_error)
+                print("INTERMEDIATE_THRESHOLD mag: ", INTERMEDIATE_THRESHOLD)
+                # print("intermediate_angular_error: ", intermediate_angular_error)
 
                 ipe_forque_frame = np.linalg.inv(forque_source[:3,:3]) @ (forque_source[:3,3] - intermediate_forque_target[:3,3]).reshape(3,1)
-                print("Error in forque frame: ",ipe_forque_frame)
+                # print("Error in forque frame: ",ipe_forque_frame)
                 error_mag = np.linalg.norm(np.array([ipe_forque_frame[0], ipe_forque_frame[1]]))
-                print("Error mag:",error_mag)
+                # print("Error mag:",error_mag)
  
                 if intermediate_position_error > INTERMEDIATE_THRESHOLD: # The thresholds here should be ideally larger than the thresholds for tracking trajectories
                     print("Tracking intermediate position... ")
@@ -292,16 +341,7 @@ class BiteTransferTrajectoryTracker:
                 self.publishTransformationToTF("base_link", "final_target", forque_target_base)
                 self.publishTransformationToTF("base_link", "intermediate_target", intermediate_forque_target)
 
-            elif current_state == 3: # in-mouth manipulation
-
-                if closed_loop:
-                    
-                    self.publishTaskMode("in_mouth_stiffness")
-                    self.publishTaskMode("zero_contact")
-
-                    closed_loop = False
-
-            elif current_state == 4: # move outside mouth
+            elif current_state == 3: # move outside mouth
 
                 if closed_loop:
 
@@ -331,78 +371,6 @@ class BiteTransferTrajectoryTracker:
                 self.publishTaskCommand(target)
                 self.publishTransformationToTF("base_link", "next_target", target)
                 self.publishTransformationToTF("base_link", "final_target", forque_target_base)
-
-            elif current_state == 5: # tilt inside mouth
-
-                if closed_loop:
-
-                    for i in range(0,10):
-
-                        forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
-                        self.publishTaskCommand(forque_base)
-
-                    time.sleep(0.1)
-
-                    self.publishTaskMode("none")
-                    self.publishTaskMode("tilt_inside_mouth_stiffness")
-
-                    forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
-
-                    forque_target_base = np.identity(4)
-                    forque_target_base[:3,:3] = Rotation.from_euler('X', 15*np.pi/180).as_matrix()
-
-                    forque_target_base = forque_base @ forque_target_base
-
-                    closed_loop = False
-
-                forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
-                target = self.getNextWaypoint(forque_base, forque_target_base, distance_lookahead = TILT_DISTANCE_LOOKAHEAD, angular_lookahead=TILT_ANGULAR_LOOKAHEAD)
-
-                self.publishTaskCommand(target)
-                self.publishTransformationToTF("base_link", "next_target", target)
-                self.publishTransformationToTF("base_link", "final_target", forque_target_base)
-
-            elif current_state == 6: # move back with constant tilt
-
-                # trajectory positions
-                if closed_loop:
-
-                    if run_once:
-                        self.publishTaskMode("move_outside_mouth_stiffness")
-                        run_once = False
-
-                    forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
-
-                    closed_loop = False
-
-                    planar_transform = np.zeros((4,4))
-                    planar_transform[:3,:3] = Rotation.from_euler('X', -15*np.pi/180).as_matrix()
-                    planar_transform[3,3] = 1
-
-                    forque_target_base = forque_base @ planar_transform
-
-                    back_translation = np.identity(4)
-                    back_translation[:3,3] = np.array([0, 0, -TILT_MOVE_OUTSIDE_DISTANCE]).reshape(1,3)
-
-                    forque_target_base = forque_target_base @ back_translation
-                    forque_target_base = forque_target_base @ np.linalg.inv(planar_transform)
-
-                forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
-                target = self.getNextWaypoint(forque_base, forque_target_base, distance_lookahead = INSIDE_DISTANCE_LOOKAHEAD_Z)
-
-                self.publishTaskCommand(target)
-                self.publishTransformationToTF("base_link", "next_target", target)
-                self.publishTransformationToTF("base_link", "final_target", forque_target_base)
-
-            elif current_state == 7:
-
-                fixed_target = np.array([[-0.90093711, -0.1803962, 0.39467648, 0.42479337], 
-                        [ 0.41205567, -0.07038973,  0.90843569,  0.16312421],
-                        [-0.13609718, 0.98107212, 0.13775, 0.69508812],
-                        [ 0., 0., 0., 1.]])
-                self.publishTaskCommand(fixed_target)
-                self.publishTransformationToTF("base_link", "next_target", fixed_target)
-
 
 if __name__ == '__main__':
 

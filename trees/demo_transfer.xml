@@ -17,29 +17,44 @@
       <Script code=" FALSE:=false " />
 
       <!-- Setup Workspace -->
-      <SubTree ID="ParamToWorld" obj_name="wheelchair" /> 
+<!--       <SubTree ID="ParamToWorld" obj_name="wheelchair" /> 
       <SubTree ID="ParamToWorld" obj_name="table" /> 
-      <SubTree ID="ParamToWorld" obj_name="plate" />
+      <SubTree ID="ParamToWorld" obj_name="plate" /> -->
 
       <!-- Setup ADA -->
       <RosGetVecD param="velocityLimits/standard" target="{vel_standard}" />
       <AdaSetLimits velocity="{vel_standard}" />
 
+      <!-- <Talk say="Hello! My name is Ayduh, it's a pleasure to serve you today!" /> -->
+
       <!-- Bite Sequence -->
       <Repeat num_cycles="-1">
       <Sequence name="BiteSeq">
+        <!-- Init FT Sensor -->
+        <SetFTThreshold preset="standard" />
+
+        <!-- Move Above Plate -->
+        <RosGetVecD param="configs/wheelchair/above_plate" target="{config}" />
+        <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
 
         <!-- Failure Just Restarts -->
-        <Sequence name="FeedBite"> 
+        <ForceSuccess>
+        <Sequence name="FeedBite">
+          <!-- Transfer -->
 
           <!-- Move in Front of Person -->
+          <SetFTThreshold preset="standard" />
           <RosGetVecD param="configs/wheelchair/in_front_person" target="{config}" />
           <SubTree ID="MoveToConfig" config="{config}" worldCollision="{TRUE}" />
 
           <SwitchControllerBiteTransfer/>
           <RosSubBool topic="transfer_over" target="{transfer_over}" />
 
+          <SwitchControllerBiteAcquisition/>
+          <RosSubBool topic="feeding_over" target="{transfer_over}" />
+
         </Sequence>
+        </ForceSuccess>
       </Sequence>
       </Repeat>
     </Sequence>
@@ -81,4 +96,41 @@
     </Sequence>
   </BehaviorTree>
 
+
+  <!-- Bite Acquisition -->
+  <BehaviorTree ID="AcquisitionAction">
+  <Sequence name="AcquisitionSeq">
+    <!-- Scripting constants -->
+    <Script code=" TRUE:=true " />
+    <Script code=" FALSE:=false " />
+
+    <!-- Move Above -->
+    <SetFTThreshold preset="standard" />
+    <ConfigMoveAbove objects="{foods}" action="{action}" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" />
+    <SubTree ID="MoveToPose" orig_pos="{food_pos}" orig_quat="{food_quat}" pos="{pos}" quat="{quat}" bounds="{bounds}" worldCollision="{TRUE}" />
+
+    <!-- Try Redetect Foods -->
+    <ForceSuccess>
+      <PerceiveFood name_filter="{food_name}" timeout="1" objects="{foods}" />
+    </ForceSuccess>
+
+    <!-- Move Into -->
+    <RosGetD param="move_into/overshoot" target="{overshoot}" />
+    <ConfigMoveInto objects="{foods}" overshoot="{overshoot}" offset="{offset}" />
+    <SetFTThreshold preset="grabFood" />
+    <!-- FT Sensor Trip is Okay -->
+    <AdaPlanToOffset name="PlanOffsetInto" offset="{offset}" worldCollision="{FALSE}" traj="{traj}" />
+    <ForceSuccess><AdaExecuteTrajectory name="MoveInto" traj="{traj}" /></ForceSuccess>
+
+    <!-- Move Out -->
+    <RosGetVecD param="move_out/offset" target="{offset}" />
+    <SetFTThreshold preset="afterGrabFood" />
+    <SubTree ID="MoveToOffset" offset="{offset}" worldCollision="{FALSE}" />
+
+    <!-- Check Acquisition -->
+    <RosSubBool topic="check_acquire" target="{acquired}" />
+    <SetFTThreshold preset="standard" retare="true" />
+    <Failure _successIf="acquired==true" />
+  </Sequence>
+  </BehaviorTree>
 </root>

@@ -307,7 +307,7 @@ BT::NodeStatus switchControllerBiteTransfer(BT::TreeNode &self, ada::Ada &robot)
 
 /// Controller Switching
 BT::NodeStatus switchControllerBiteAcquisition(BT::TreeNode &self, ada::Ada &robot) {
-  robot.getArm()->activateExecutor("effort_trajectory_executor");
+  robot.getArm()->activateExecutor("velocity_trajectory_executor");
   return BT::NodeStatus::SUCCESS;
 }
 

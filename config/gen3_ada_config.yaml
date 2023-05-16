@@ -3,4 +3,4 @@ default_urdf: package://kortex_description/robots/gen3_6dof_vision_forque.urdf
 default_srdf: package://kortex_description/robots/gen3_6dof.srdf
 # TODO: read EE, arm, and hand from SRDF
 end_effector: forque_end_effector
-arm_controller: move_until_touch_topic_joint_trajectory_controller
+arm_controller: rewd_trajectory_controller

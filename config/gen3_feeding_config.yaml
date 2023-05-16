@@ -79,23 +79,28 @@ configs:
     # in_front_person: [-0.38631117663642467, 1.4616608886676912, 1.0877240964279062, 0.4555658413555599, 1.906789661096325, -1.3934010616221935]
     # Side infront
     # in_front_person: [-0.22652628318, 1.48935926, 1.42031404, 0.662596797, 1.6299979, -1.50724888918]
-    in_front_person: [0.10831513, 1.66342095, 1.31843917, 0.561769126, 1.826521969, 4.900448207]
+    # in_front_person: [0.10831513, 1.66342095, 1.31843917, 0.561769126, 1.826521969, 4.900448207]
+    in_front_person: [0.10841376761105984, 1.6635651465228258, 1.3184483645463838, 0.6375328683525511, 1.826397073998832, -1.356704274131208]
+    
+    # extreme side infront
+    # in_front_person: [ 0.6416010466547288, 1.6370350020595654, 1.4444146856846414, 0.37150211705542924, 1.740520781488137, -1.4660121231768564]
 
     # Ready for Acquisition
-    above_plate: [-0.3351977053383868, 0.22778351363059665, -0.8636556846616443, 3.102966697771502, 1.9007481374180457, -1.7883164004137342]
+    above_plate: [-0.4078215756326298, 0.12003262345961435, -1.1022802446549242, 3.1280163909847873, 1.7564084016032226, -1.4520342558794672]
 
 # Hard-coded Action Selection
 action_selection:
-  food_names: ["banana", "cantaloupe", "carrot", "grape", "strawberry"]
-  actions: [5.0, 1.0, 1.0, 3.0, 1.0]
+  food_names: ["banana", "cantaloupe", "carrot", "grape", "strawberry", "celery", "cherry_tomato", "bell_pepper"]
+  actions: [5.0, 1.0, 1.0, 3.0, 1.0, 1.0, 1.0, 1.0]
 
 # Acquisition Parameters
 move_above:
-  rotation_agnostic: ["banana", "cantaloupe", "grape", "strawberry"]
-  tsr_bounds: [0.005, 0.005, 0.005, 0.01, 0.01, 0.01]
-  height: 0.07
+  rotation_agnostic: ["banana", "cantaloupe", "grape", "strawberry", "celery", "cherry_tomato", "bell_pepper"]
+  tsr_bounds: [0.005, 0.005, 0.005, 0.01, 0.005, 0.005]
+  height: 0.05
 move_into:
-  overshoot: -0.025 # how far to plan past food surface
+  overshoot: -0.015 # how far to plan past food surface
+  # overshoot: -0.01 # how far to plan past food surface
 move_out:
   offset: [0.0, 0.0, 0.05]
 
