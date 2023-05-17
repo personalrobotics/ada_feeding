@@ -3,6 +3,9 @@ import React, { useRef } from 'react'
 // The Modal is a screen that appears on top of the main app, and can be toggled
 // on and off.
 import Modal from 'react-bootstrap/Modal'
+// PropTypes is used to validate that the used props are in fact passed to this
+// Component
+import PropTypes from 'prop-types'
 
 // Local imports
 import { REALSENSE_WIDTH, REALSENSE_HEIGHT, CAMERA_FEED_TOPIC } from '../Constants'
@@ -30,7 +33,8 @@ function LiveVideoModal(props) {
   let { width, height } = scaleWidthHeightToWindow(REALSENSE_WIDTH, REALSENSE_HEIGHT, marginTop, marginBottom, marginLeft, marginRight)
   return (
     <Modal
-      {...props}
+      show={props.show}
+      onHide={props.onHide}
       size='lg'
       aria-labelledby='contained-modal-title-vcenter'
       backdrop='static'
@@ -46,10 +50,9 @@ function LiveVideoModal(props) {
       <Modal.Body style={{ overflow: 'hidden' }}>
         <center>
           <img
-            src={'http://localhost:8080/stream?topic='.concat(
-              CAMERA_FEED_TOPIC,
-              `&width=${Math.round(width)}&height=${Math.round(height)}&quality=20`
-            )}
+            src={`${props.webVideoServerURL}/stream?topic=${CAMERA_FEED_TOPIC}&width=${Math.round(width)}&height=${Math.round(
+              height
+            )}&quality=20`}
             alt='Live video feed from the robot'
             style={{ width: width, height: height, display: 'block' }}
           />
@@ -57,6 +60,14 @@ function LiveVideoModal(props) {
       </Modal.Body>
     </Modal>
   )
+}
+LiveVideoModal.propTypes = {
+  // Whether or not the modal is visible
+  show: PropTypes.bool.isRequired,
+  // Callback function for when the modal is hidden
+  onHide: PropTypes.func.isRequired,
+  // The URL of the ROS web video server
+  webVideoServerURL: PropTypes.string.isRequired
 }
 
 export default LiveVideoModal

@@ -7,7 +7,7 @@ import PropTypes from 'prop-types'
 import Row from 'react-bootstrap/Row'
 
 // Local Imports
-import { connectToROS, createROSActionClient, callROSAction, cancelROSAction, destroyActionClient } from '../../../ros/ros_helpers'
+import { useROS, createROSActionClient, callROSAction, cancelROSAction, destroyActionClient } from '../../../ros/ros_helpers'
 import Footer from '../../Footer/Footer'
 import '../Home.css'
 import { useGlobalState, MEAL_STATE } from '../../GlobalState'
@@ -58,7 +58,7 @@ const RobotMotion = (props) => {
    * Connect to ROS, if not already connected. Put this in useRef to avoid
    * re-connecting upon re-renders.
    */
-  const ros = useRef(connectToROS().ros)
+  const ros = useRef(useROS().ros)
 
   /**
    * Create the ROS Action Client. This is re-created every time props.mealState
@@ -110,16 +110,16 @@ const RobotMotion = (props) => {
    */
   const responseCallback = useCallback(
     (response) => {
-      if (response.response_type == 'result' && response.values.status == MOTION_STATUS_SUCCESS) {
+      if (response.response_type === 'result' && response.values.status === MOTION_STATUS_SUCCESS) {
         setActionStatus({
           actionStatus: ROS_ACTION_STATUS_SUCCEED
         })
         robotMotionDone()
       } else {
         if (
-          response.response_type == 'cancel' ||
-          response.values == ROS_ACTION_STATUS_CANCEL_GOAL ||
-          response.values == ROS_ACTION_STATUS_CANCELED
+          response.response_type === 'cancel' ||
+          response.values === ROS_ACTION_STATUS_CANCEL_GOAL ||
+          response.values === ROS_ACTION_STATUS_CANCELED
         ) {
           setActionStatus({
             actionStatus: ROS_ACTION_STATUS_CANCELED
@@ -162,7 +162,7 @@ const RobotMotion = (props) => {
         callROSAction(robotMotionAction, props.actionInput, feedbackCb, responseCb)
       }
     },
-    [robotMotionAction, props.actionInput, setActionStatus]
+    [robotMotionAction, paused, props.actionInput, setActionStatus]
   )
   /**
    * Calls the action the first time this component is rendered, but not upon
@@ -248,7 +248,8 @@ const RobotMotion = (props) => {
             )
           }
         } else {
-          return <h3></h3>
+          // If you haven't gotten feedback yet, assume the robot is planning
+          return <h3>Robot is thinking...</h3>
         }
       case ROS_ACTION_STATUS_SUCCEED:
         return <h3>Robot has finished</h3>
@@ -263,7 +264,7 @@ const RobotMotion = (props) => {
       case ROS_ACTION_STATUS_CANCELED:
         return <h3>Robot is paused</h3>
       default:
-        return <h3></h3>
+        return <h3>&nbsp;</h3>
     }
   }, [])
 
@@ -273,7 +274,7 @@ const RobotMotion = (props) => {
       {/* TODO: Consider vertically centering this element */}
       <Row className='justify-content-center mx-auto my-2 w-75'>
         <div>
-          <h1 id="Waiting for robot motion" className='waitingMsg'>
+          <h1 id='Waiting for robot motion' className='waitingMsg'>
             {props.waitingText}
           </h1>
           {props.debug ? (
@@ -299,9 +300,9 @@ const RobotMotion = (props) => {
        */}
       <Footer
         pauseCallback={pauseCallback}
-        backCallback={mealState == MEAL_STATE.R_MovingAbovePlate ? null : backCallback}
+        backCallback={mealState === MEAL_STATE.R_MovingAbovePlate ? null : backCallback}
         backMealState={backMealState.current}
-        resumeCallback={mealState == MEAL_STATE.R_BiteAcquisition ? null : resumeCallback}
+        resumeCallback={mealState === MEAL_STATE.R_BiteAcquisition ? null : resumeCallback}
         paused={paused}
       />
     </>

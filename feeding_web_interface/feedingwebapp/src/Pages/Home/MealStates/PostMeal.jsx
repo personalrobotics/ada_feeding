@@ -1,5 +1,5 @@
 // React Imports
-import React from 'react'
+import React, { useCallback } from 'react'
 import Button from 'react-bootstrap/Button'
 import Row from 'react-bootstrap/Row'
 
@@ -18,10 +18,10 @@ const PostMeal = () => {
   /**
    * Callback function for when the user decides to return to the start of the app.
    */
-  function returnToStartClicked() {
+  const returnToStartClicked = useCallback(() => {
     console.log('startFeedingClicked')
     setMealState(MEAL_STATE.U_PreMeal)
-  }
+  }, [setMealState])
 
   // Render the component
   return (

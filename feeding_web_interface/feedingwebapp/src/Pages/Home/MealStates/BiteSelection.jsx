@@ -9,7 +9,7 @@ import Col from 'react-bootstrap/Col'
 
 // Local Imports
 import '../Home.css'
-import { connectToROS, createROSActionClient, callROSAction, destroyActionClient } from '../../../ros/ros_helpers'
+import { useROS, createROSActionClient, callROSAction, destroyActionClient } from '../../../ros/ros_helpers'
 import { convertRemToPixels, scaleWidthHeightToWindow } from '../../../helpers'
 import MaskButton from '../../../buttons/MaskButton'
 import {
@@ -62,7 +62,7 @@ const BiteSelection = (props) => {
    * Connect to ROS, if not already connected. Put this in useRef to avoid
    * re-connecting upon re-renders.
    */
-  const ros = useRef(connectToROS().ros)
+  const ros = useRef(useROS().ros)
 
   /**
    * Create the ROS Action Client. This is created in useRef to avoid
@@ -83,9 +83,9 @@ const BiteSelection = (props) => {
   /**
    * Callback function for when the user wants to move to staging position.
    */
-  function moveToStagingPosition() {
+  const moveToStagingPosition = useCallback(() => {
     setMealState(MEAL_STATE.R_MovingToStagingLocation)
-  }
+  }, [setMealState])
 
   /**
    * Callback function for when the user indicates that they are done with their
@@ -137,16 +137,16 @@ const BiteSelection = (props) => {
    */
   const responseCallback = useCallback(
     (response) => {
-      if (response.response_type == 'result' && response.values.status == SEGMENTATION_STATUS_SUCCESS) {
+      if (response.response_type === 'result' && response.values.status === SEGMENTATION_STATUS_SUCCESS) {
         setActionStatus({
           actionStatus: ROS_ACTION_STATUS_SUCCEED
         })
         setActionResult(response.values)
       } else {
         if (
-          response.response_type == 'cancel' ||
-          response.values == ROS_ACTION_STATUS_CANCEL_GOAL ||
-          response.values == ROS_ACTION_STATUS_CANCELED
+          response.response_type === 'cancel' ||
+          response.values === ROS_ACTION_STATUS_CANCEL_GOAL ||
+          response.values === ROS_ACTION_STATUS_CANCELED
         ) {
           setActionStatus({
             actionStatus: ROS_ACTION_STATUS_CANCELED
@@ -164,6 +164,9 @@ const BiteSelection = (props) => {
   // Get the size of the robot's live video stream.
   const margin = convertRemToPixels(1)
   const { width, height, scaleFactor } = scaleWidthHeightToWindow(REALSENSE_WIDTH, REALSENSE_HEIGHT, margin, margin, margin, margin)
+  const imgSrc = `${props.webVideoServerURL}/stream?topic=${CAMERA_FEED_TOPIC}&width=${Math.round(width)}&height=${Math.round(
+    height
+  )}&quality=20`
 
   /**
    * Callback function for when the user clicks the image of the plate.
@@ -197,8 +200,8 @@ const BiteSelection = (props) => {
          * Only register callbacks the first time to avoid multiple callbacks for
          * the same action call.
          */
-        numImageClicks == 0 ? feedbackCallback : null,
-        numImageClicks == 0 ? responseCallback : null
+        numImageClicks === 0 ? feedbackCallback : null,
+        numImageClicks === 0 ? responseCallback : null
       )
       setNumImageClicks(numImageClicks + 1)
     },
@@ -209,8 +212,9 @@ const BiteSelection = (props) => {
    * Cancel any running actions when the component unmounts
    */
   useEffect(() => {
+    let action = segmentFromPointAction.current
     return () => {
-      destroyActionClient(segmentFromPointAction.current)
+      destroyActionClient(action)
     }
   }, [segmentFromPointAction])
 
@@ -231,10 +235,6 @@ const BiteSelection = (props) => {
       case ROS_ACTION_STATUS_SUCCEED:
         if (actionResult && actionResult.detected_items && actionResult.detected_items.length > 0) {
           // Get the parameters to display the mask as buttons
-          let imgSrc = 'http://localhost:8080/stream?topic='.concat(
-            CAMERA_FEED_TOPIC,
-            `&width=${Math.round(width)}&height=${Math.round(height)}&quality=20`
-          )
           let imgSize = { width: width, height: height }
           let maskScaleFactor = scaleFactor
 
@@ -285,9 +285,9 @@ const BiteSelection = (props) => {
       case ROS_ACTION_STATUS_CANCELED:
         return <h3 style={{ textAlign: 'center' }}>Food detection canceled</h3>
       default:
-        return <h3 style={{ textAlign: 'center' }}></h3>
+        return <h3 style={{ textAlign: 'center' }}>&nbsp;</h3>
     }
-  }, [actionStatus, actionResult, width, height, scaleFactor, foodItemClicked])
+  }, [actionStatus, actionResult, width, height, scaleFactor, foodItemClicked, imgSrc])
 
   // Render the component
   return (
@@ -315,10 +315,7 @@ const BiteSelection = (props) => {
       <center>
         <h3 style={{ textAlign: 'center' }}>Click the below image to indicate your desired food item.</h3>
         <img
-          src={'http://localhost:8080/stream?topic='.concat(
-            CAMERA_FEED_TOPIC,
-            `&width=${Math.round(width)}&height=${Math.round(height)}&quality=20`
-          )}
+          src={imgSrc}
           alt='Live video feed from the robot'
           style={{ width: width, height: height, display: 'block' }}
           onClick={imageClicked}
@@ -366,7 +363,9 @@ BiteSelection.propTypes = {
    * Whether to run it in debug mode (e.g., if you aren't simulatenously running
    * the robot) or not
    */
-  debug: PropTypes.bool.isRequired
+  debug: PropTypes.bool.isRequired,
+  // The URL of the web video server
+  webVideoServerURL: PropTypes.string.isRequired
 }
 
 export default BiteSelection

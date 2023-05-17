@@ -7,13 +7,7 @@ import Row from 'react-bootstrap/Row'
 
 // Local Imports
 import '../Home.css'
-import {
-  connectToROS,
-  createROSService,
-  createROSServiceRequest,
-  subscribeToROSTopic,
-  unsubscribeFromROSTopic
-} from '../../../ros/ros_helpers'
+import { useROS, createROSService, createROSServiceRequest, subscribeToROSTopic, unsubscribeFromROSTopic } from '../../../ros/ros_helpers'
 import { convertRemToPixels, scaleWidthHeightToWindow } from '../../../helpers'
 import {
   FACE_DETECTION_IMG_TOPIC,
@@ -58,7 +52,7 @@ const BiteInitiation = (props) => {
    * Connect to ROS, if not already connected. Put this in useRef to avoid
    * re-connecting upon re-renders.
    */
-  const ros = useRef(connectToROS().ros)
+  const ros = useRef(useROS().ros)
 
   /**
    * Subscribe to the ROS Topic with the face detection result. This is created
@@ -105,7 +99,8 @@ const BiteInitiation = (props) => {
     // Create a service request
     let request = createROSServiceRequest({ turn_on: true })
     // Call the service
-    toggleFaceDetectionService.current.callService(request, (response) => console.log('Got service response', response))
+    let service = toggleFaceDetectionService.current
+    service.callService(request, (response) => console.log('Got service response', response))
 
     /**
      * In practice, because the values passed in in the second argument of
@@ -116,7 +111,7 @@ const BiteInitiation = (props) => {
       // Create a service request
       let request = createROSServiceRequest({ turn_on: false })
       // Call the service
-      toggleFaceDetectionService.current.callService(request, (response) => console.log('Got service response', response))
+      service.callService(request, (response) => console.log('Got service response', response))
     }
   }, [toggleFaceDetectionService])
 
@@ -154,10 +149,9 @@ const BiteInitiation = (props) => {
       {/* Show the user the face detection result */}
       <center>
         <img
-          src={'http://localhost:8080/stream?topic='.concat(
-            FACE_DETECTION_IMG_TOPIC,
-            `&width=${Math.round(width)}&height=${Math.round(height)}&quality=20`
-          )}
+          src={`${props.webVideoServerURL}/stream?topic=${FACE_DETECTION_IMG_TOPIC}&width=${Math.round(width)}&height=${Math.round(
+            height
+          )}&quality=20`}
           alt='Live video feed from the robot'
           style={{ width: width, height: height, display: 'block' }}
         />
@@ -219,7 +213,9 @@ BiteInitiation.propTypes = {
    * Whether to run it in debug mode (e.g., if you aren't simulatenously running
    * the robot) or not
    */
-  debug: PropTypes.bool.isRequired
+  debug: PropTypes.bool.isRequired,
+  // The URL of the web video server
+  webVideoServerURL: PropTypes.string.isRequired
 }
 
 export default BiteInitiation

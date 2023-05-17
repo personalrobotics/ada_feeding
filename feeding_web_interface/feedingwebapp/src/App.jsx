@@ -3,7 +3,7 @@ import './App.css'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import { ROS } from 'react-ros'
+import { RosConnection } from 'rosreact'
 
 // Local imports
 import { useGlobalState, APP_PAGE } from './Pages/GlobalState'
@@ -15,37 +15,35 @@ import BiteSelectionButtonOverlay from './Pages/Home/BiteSelectionUIStates/BiteS
 import BiteSelectionName from './Pages/Home/BiteSelectionUIStates/BiteSelectionName'
 import BiteSelectionPointMask from './Pages/Home/BiteSelectionUIStates/BiteSelectionPointMask'
 
-// Flag for whether to run the app in debug mode or not. When running in debug
-// mode, the app does not connect to ROS. Anytime where it would wait for the
-// robot to finish an action before continuing, the app instead displays a
-// button to continue.
-const debug = false
-
 /**
  * Determines what screen to render based on the app page specified in global
  * state.
  *
  * @param {APP_PAGE} appPage - The current app page. Must be one of the
  *        states specified in APP_PAGE.
+ * @param {string} rosbridgeURL - The URL of the rosbridge server.
+ * @param {string} webVideoServerURL - The URL of the web_video_server.
  * @param {bool} debug - Whether to run it in debug mode or not.
  */
-function getComponentByAppPage(appPage, debug) {
+function getComponentByAppPage(appPage, rosbridgeURL, webVideoServerURL, debug) {
   switch (appPage) {
     case APP_PAGE.Home:
       // Must wrap a component in ROS tags for it to be able to connect to ROS
       return (
-        <ROS>
-          <Header />
-          <Home debug={debug} />
-        </ROS>
+        <RosConnection url={rosbridgeURL} autoConnect>
+          <Header webVideoServerURL={webVideoServerURL} />
+          <Home debug={debug} webVideoServerURL={webVideoServerURL} />
+        </RosConnection>
       )
     case APP_PAGE.Settings:
       return (
-        <ROS>
-          <Header />
+        <RosConnection url={rosbridgeURL} autoConnect>
+          <Header webVideoServerURL={webVideoServerURL} />
           <Settings />
-        </ROS>
+        </RosConnection>
       )
+    default:
+      return <div>Invalid app page</div>
   }
 }
 
@@ -57,49 +55,57 @@ function App() {
   // Get the app page
   const appPage = useGlobalState((state) => state.appPage)
 
+  // Get the rosbridge URL
+  const rosbridgeURL = 'ws://'.concat(process.env.REACT_APP_ROS_SERVER_HOSTNAME, ':', process.env.REACT_APP_ROSBRIDGE_PORT)
+  // Get the web_video_server URL
+  const webVideoServerURL = 'http://'.concat(process.env.REACT_APP_ROS_SERVER_HOSTNAME, ':', process.env.REACT_APP_WEB_VIDEO_SERVER_PORT)
+
+  // Get the debug flag
+  const debug = process.env.REACT_APP_DEBUG === 'true'
+
   // Render the component
   return (
     <>
       <Router>
         <Routes>
-          <Route exact path='/' element={getComponentByAppPage(appPage, debug)} />
+          <Route exact path='/' element={getComponentByAppPage(appPage, rosbridgeURL, webVideoServerURL, debug)} />
           <Route
             exact
             path='/test_ros'
             element={
-              <ROS>
+              <RosConnection url={rosbridgeURL} autoConnect>
                 <TestROS />
-              </ROS>
+              </RosConnection>
             }
           />
           <Route
             exact
             path='/test_bite_selection_ui/button_overlay_selection'
             element={
-              <ROS>
-                <Header />
+              <RosConnection url={rosbridgeURL} autoConnect>
+                <Header webVideoServerURL={webVideoServerURL} />
                 <BiteSelectionButtonOverlay debug={debug} />
-              </ROS>
+              </RosConnection>
             }
           />
           <Route
             exact
             path='/test_bite_selection_ui/point_mask_selection'
             element={
-              <ROS>
-                <Header />
+              <RosConnection url={rosbridgeURL} autoConnect>
+                <Header webVideoServerURL={webVideoServerURL} />
                 <BiteSelectionPointMask debug={debug} />
-              </ROS>
+              </RosConnection>
             }
           />
           <Route
             exact
             path='/test_bite_selection_ui/food_name_selection'
             element={
-              <ROS>
-                <Header />
+              <RosConnection url={rosbridgeURL} autoConnect>
+                <Header webVideoServerURL={webVideoServerURL} />
                 <BiteSelectionName debug={debug} />
-              </ROS>
+              </RosConnection>
             }
           />
         </Routes>

@@ -29,7 +29,11 @@ const ImageWithButtonName = (props) => {
         <div style={{ position: 'fixed', top: '120px', left: '25px' }}>
           <h1 style={{ background: '#FFC107' }}>Option C</h1>
         </div>
-        <img src={props.imgSrc} style={{ width: width, height: height }} />
+        <img
+          src={props.imgSrc}
+          style={{ width: width, height: height }}
+          alt="The view from the robot's camera, showing the plate of food in front of the robot"
+        />
         <Row xs={3} s={2} md={3} lg={4} className='justify-content-center mx-auto my-2'>
           {props.foodItems.map((foodName, i) => {
             return (

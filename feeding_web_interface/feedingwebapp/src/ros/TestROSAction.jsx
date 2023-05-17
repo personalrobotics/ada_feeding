@@ -2,7 +2,7 @@
 import React, { useState } from 'react'
 
 // Local imports
-import { connectToROS, createROSActionClient, callROSAction, cancelROSAction } from './ros_helpers'
+import { useROS, createROSActionClient, callROSAction, cancelROSAction } from './ros_helpers'
 
 /**
  * The TestROSAction component demonstrates the functionality of calling a ROS
@@ -15,7 +15,7 @@ function TestROSAction() {
   let defaultInput = 'Hello World!'
 
   // Connect to ROS, if not already connected
-  let { ros } = connectToROS()
+  let { ros } = useROS()
 
   // Configure local state, which should contain any data that we want to
   // persist across re-renderings (and/or any data that, when changed, should

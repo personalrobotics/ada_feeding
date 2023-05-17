@@ -2,7 +2,7 @@
 import React from 'react'
 
 // Local imports
-import { connectToROS } from './ros_helpers'
+import { useROS } from './ros_helpers'
 import TestROSAction from './TestROSAction'
 import TestROSPublish from './TestROSPublish'
 import TestROSService from './TestROSService'
@@ -15,7 +15,7 @@ import TestROSSubscribe from './TestROSSubscribe'
  */
 function TestROS() {
   // Connect to ROS, if not already connected
-  let { isConnected } = connectToROS()
+  let { isConnected } = useROS()
 
   // Render the component
   return (

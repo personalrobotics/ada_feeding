@@ -13,7 +13,7 @@ class MoveToDummy(Node):
         action_class,
         send_feedback_hz=10,
         dummy_plan_time=2.5,
-        dummy_motion_time=10.0,
+        dummy_motion_time=7.5,
     ):
         """
         Initialize the MoveToDummy action node.

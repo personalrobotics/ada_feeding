@@ -38,32 +38,35 @@ const Footer = (props) => {
   // Width of Back and Resume buttons
   let backResumeButtonWidth = '150px'
   // Height of all Footer buttons
-  let footerButtonHight = '100px'
+  let footerButtonHeight = '100px'
 
   /**
    * Get the pause text and button to render in footer.
    *
    * @returns {JSX.Element} the pause text and button
    */
-  const renderPauseButton = useCallback((callback) => {
-    return (
-      <>
-        <Row className='justify-content-center mx-auto'>
-          <p className='transitionMessage' style={{ marginBottom: '0', fontSize: '170%', color: 'white', fontWeight: 'bold' }}>
-            ⏸️ Pause
-          </p>
-          {/* Icon to pause */}
-          <Button
-            variant='danger'
-            onClick={callback}
-            style={{ marginLeft: '10', marginRight: '10', marginTop: '0', width: '350px', height: { footerButtonHight } }}
-          >
-            <img style={{ width: '135px', height: '90px' }} src={pauseIcon} alt='pause_icon' className='center' />
-          </Button>
-        </Row>
-      </>
-    )
-  }, [])
+  const renderPauseButton = useCallback(
+    (callback) => {
+      return (
+        <>
+          <Row className='justify-content-center mx-auto'>
+            <p className='transitionMessage' style={{ marginBottom: '0', fontSize: '170%', color: 'white', fontWeight: 'bold' }}>
+              ⏸️ Pause
+            </p>
+            {/* Icon to pause */}
+            <Button
+              variant='danger'
+              onClick={callback}
+              style={{ marginLeft: '10', marginRight: '10', marginTop: '0', width: '350px', height: { footerButtonHeight } }}
+            >
+              <img style={{ width: '135px', height: '90px' }} src={pauseIcon} alt='pause_icon' className='center' />
+            </Button>
+          </Row>
+        </>
+      )
+    },
+    [pauseIcon, footerButtonHeight]
+  )
 
   /**
    * Get the back text and button to render in footer.
@@ -81,14 +84,14 @@ const Footer = (props) => {
           <Button
             variant='warning'
             onClick={callback}
-            style={{ marginLeft: 10, marginRight: 10, width: { backResumeButtonWidth }, height: { footerButtonHight } }}
+            style={{ marginLeft: 10, marginRight: 10, width: { backResumeButtonWidth }, height: { footerButtonHeight } }}
           >
             <img style={{ width: '120px', height: '72px' }} src={backIcon} alt='back_icon' className='center' />
           </Button>
         </>
       )
     },
-    [backIcon]
+    [backIcon, backResumeButtonWidth, footerButtonHeight]
   )
 
   /**
@@ -110,14 +113,14 @@ const Footer = (props) => {
           <Button
             variant='success'
             onClick={callback}
-            style={{ marginLeft: 10, marginRight: 10, width: { backResumeButtonWidth }, height: { footerButtonHight } }}
+            style={{ marginLeft: 10, marginRight: 10, width: { backResumeButtonWidth }, height: { footerButtonHeight } }}
           >
             <img style={{ width: '120px', height: '72px' }} src={resumeIcon} alt='resume_icon' className='center' />
           </Button>
         </>
       )
     },
-    [resumeIcon]
+    [resumeIcon, backResumeButtonWidth, footerButtonHeight]
   )
 
   /**
@@ -138,7 +141,7 @@ const Footer = (props) => {
             marginLeft: 10,
             marginRight: 10,
             width: { backResumeButtonWidth },
-            height: { footerButtonHight }
+            height: { footerButtonHeight }
           }}
         >
           <img style={{ width: '120px', height: '72px' }} src={phantomButtonIcon} alt='phantom_button_img' className='center' />

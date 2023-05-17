@@ -12,12 +12,6 @@ The overall user flow for this robot can be seen below.
 
 ## Dependencies
 - [Node.js](https://nodejs.org/en/download/package-manager)
-- [ROS2 Humble](https://docs.ros.org/en/humble/Installation.html)
-- [PRL fork of rosbridge_suite](https://github.com/personalrobotics/rosbridge_suite). This fork enables rosbridge_suite to communicate with ROS2 actions.
-- [ada_feeding (branch: `ros2-devel`)](https://github.com/personalrobotics/ada_feeding/tree/ros2-devel).
-- [web_video_server (branch: `ros2`)](https://github.com/RobotWebTools/web_video_server/tree/ros2)
-    - Dependency: [async_web_server_cpp (branch: `ros2-develop`)](https://github.com/fkie/async_web_server_cpp)
-    - Dependency: [vision_opencv (branch: `humble` or your ROS2 version)](https://github.com/ros-perception/vision_opencv/tree/humble)
 
 ## Getting Started in Computer
 
@@ -32,9 +26,11 @@ The overall user flow for this robot can be seen below.
 
 ### Usage (Web App)
 1. Navigate to the web app folder: `cd {path/to/feeding_web_interface}/feedingwebapp`
-2. Start the app: `npm start`
-  - Note that if you're not running the robot code alongside the app, set [`debug = true` in `App.jsx`](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp/src/App.jsx#L17) to be able to move past screens where the app is waiting on the robot. The default is `debug = false`.
-3. Use a web browser to navigate to `localhost:3000` to see the application.
+2. Make any desired changes to environment variables in `.env`
+    - If you're not running the robot code alongside the app, set `REACT_APP_DEBUG=true` in `.env` to be able to move past screens where the app is waiting on the robot. The default is `REACT_APP_DEBUG=false`.
+    - If users will be accessing the app on a device other than the device running ROS, change `REACT_APP_ROS_SERVER_HOSTNAME` in `.env` to be the hostname of the device running ROS. Ensure that device is configured so that ports 8080 (web_video_server default) and 9090 (rosbridge default) can be accessed.
+3. Start the app: `npm start`
+4. Use a web browser to navigate to `localhost:3000` to see the application.
 
 #### Launching Dummy Nodes
 This repository includes several dummy nodes that match the interface that the robot nodes will use. By running the dummy nodes alongside the app, we can test the app's communication with the robot even without actual robot code running.
@@ -44,7 +40,7 @@ This repository includes several dummy nodes that match the interface that the r
 3. Launch the dummy nodes, rosbridge, and web_video_server: `source install/setup.bash; ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml`
 4. In another terminal, navigate to the web app folder: `cd {path/to/feeding_web_interface}/feedingwebapp`
 5. Start the app: `npm start`
-6. Use a web browser to navigate to `localhost:3000`.
+6. Use a web browser to navigate to `localhost:3000`. If serving the app on a different device (e.g., an EC2 instance, using ngork, etc.) navigate to `{url_of_device_serving_the_app}:3000`. See "Getting Started in Smartphone" below for more details.
 
 You should now see that the web browser is connected to ROS. Further, you should see that when the `MoveAbovePlate` page starts, it should call the action (exactly once), and render feedback. "Pause" should cancel the action, and "Resume" should re-call it. Refreshing the page should cancel the action. When the action returns success, the app should automatically transition to the next page.
 

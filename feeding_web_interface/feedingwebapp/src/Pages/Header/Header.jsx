@@ -1,15 +1,19 @@
 // React imports
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 // The NavBar is the navigation toolbar at the top
 import Navbar from 'react-bootstrap/Navbar'
 import Nav from 'react-bootstrap/Nav'
+// PropTypes is used to validate that the used props are in fact passed to this
+// Component
+import PropTypes from 'prop-types'
 // Toast generates a temporary pop-up with a timeout.
 import { ToastContainer, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 // ROS imports
-import { connectToROS } from '../../ros/ros_helpers'
+import { useROS } from '../../ros/ros_helpers'
 
 // Local imports
+import { ROS_CHECK_INTERVAL_MS } from '../Constants'
 import { useGlobalState, APP_PAGE, MEAL_STATE } from '../GlobalState'
 import LiveVideoModal from './LiveVideoModal'
 
@@ -19,12 +23,23 @@ import LiveVideoModal from './LiveVideoModal'
  * clicking "Video", and the ToastContainer popup that specifies when the user
  * cannot click Settings.
  */
-const Header = () => {
+const Header = (props) => {
   // Create a local state variable to toggle on/off the video
   // TODO: Since this local state variable is in the header, the LiveVideoModal
   // continues showing even if the state changes. Is this desirable? Perhaps
   // it should close if the state changes?
   const [videoShow, setVideoShow] = useState(false)
+  // useROS gives us access to functions to configure and interact with ROS.
+  let { ros } = useROS()
+  const [isConnected, setIsConncected] = useState(ros.isConnected)
+
+  // Check ROS connection every ROS_CHECK_INTERVAL_MS milliseconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsConncected(ros.isConnected)
+    }, ROS_CHECK_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [ros, setIsConncected])
 
   // Get the relevant global state variables
   const mealState = useGlobalState((state) => state.mealState)
@@ -33,26 +48,22 @@ const Header = () => {
   /**
    * When the Home button in the header is clicked, return to the Home page.
    */
-  function homeClicked() {
+  const homeClicked = useCallback(() => {
     setAppPage(APP_PAGE.Home)
-  }
+  }, [setAppPage])
 
   /**
    * When the Settings button in the header is clicked, if the meal has not yet
    * started, take the user to the settings menu. Else, ask them to complete
    * or terminate the meal because modifying settings.
    */
-  function settingsClicked() {
-    if (mealState == MEAL_STATE.U_PreMeal || mealState == MEAL_STATE.U_PostMeal) {
+  const settingsClicked = useCallback(() => {
+    if (mealState === MEAL_STATE.U_PreMeal || mealState === MEAL_STATE.U_PostMeal) {
       setAppPage(APP_PAGE.Settings)
     } else {
       toast('Please complete or terminate the feeding process to access Settings.')
     }
-  }
-
-  // useROS  gives us access to functions to configure and interact with ROS.
-  // TODO (amaln): Actually connect this web app to ROS!
-  let { isConnected } = connectToROS()
+  }, [mealState, setAppPage])
 
   // Render the component. The NavBar will stay fixed even as we vertically scroll.
   return (
@@ -98,7 +109,6 @@ const Header = () => {
               </p>
             </div>
           )}
-          s
           <Nav>
             <Nav.Link
               onClick={() => setVideoShow(true)}
@@ -114,9 +124,13 @@ const Header = () => {
        * The LiveVideoModal toggles on and off with the Video button and shows the
        * robot's live camera feed.
        */}
-      <LiveVideoModal show={videoShow} onHide={() => setVideoShow(false)} />
+      <LiveVideoModal webVideoServerURL={props.webVideoServerURL} show={videoShow} onHide={() => setVideoShow(false)} />
     </>
   )
+}
+Header.propTypes = {
+  // The URL of the ROS web video server
+  webVideoServerURL: PropTypes.string.isRequired
 }
 
 export default Header

@@ -1,5 +1,8 @@
 import { MEAL_STATE } from './GlobalState'
 
+// How often to check if ROS is connected
+export const ROS_CHECK_INTERVAL_MS = 1000
+
 // The RealSense's default video stream is 640x480
 export const REALSENSE_WIDTH = 640
 export const REALSENSE_HEIGHT = 480
@@ -29,8 +32,10 @@ export const FACE_DETECTION_TOPIC = '/face_detection'
 export const FACE_DETECTION_TOPIC_MSG = 'ada_feeding_msgs/FaceDetection'
 export const FACE_DETECTION_IMG_TOPIC = '/face_detection_img'
 
-// For states that call ROS actions, this dictionary contains
-// the action name and the message type
+/**
+ * For states that call ROS actions, this dictionary contains
+ * the action name and the message type
+ */
 let ROS_ACTIONS_NAMES = {}
 ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingAbovePlate] = {
   actionName: 'MoveAbovePlate',
@@ -58,8 +63,10 @@ ROS_ACTIONS_NAMES[MEAL_STATE.R_StowingArm] = {
 }
 export { ROS_ACTIONS_NAMES }
 
-// For states that call ROS services, this dictionary contains
-// the service name and the message type
+/**
+ * For states that call ROS services, this dictionary contains
+ * the service name and the message type
+ */
 let ROS_SERVICE_NAMES = {}
 ROS_SERVICE_NAMES[MEAL_STATE.U_BiteInitiation] = {
   serviceName: 'ToggleFaceDetection',
@@ -67,23 +74,29 @@ ROS_SERVICE_NAMES[MEAL_STATE.U_BiteInitiation] = {
 }
 export { ROS_SERVICE_NAMES }
 
-// The meaning of the status that motion actions return in their results.
-// These should match the action definition(s)
+/**
+ * The meaning of the status that motion actions return in their results.
+ * These should match the action definition(s).
+ */
 export const MOTION_STATUS_SUCCESS = 0
 export const MOTION_STATUS_PLANNING_FAILED = 1
 export const MOTION_STATUS_MOTION_FAILED = 2
 export const MOTION_STATUS_CANCELED = 3
 export const MOTION_STATUS_UNKNOWN = 99
 
-// The meaning of the status that segmentation actions return in their results.
-// These should match the action definition(s)
+/**
+ * The meaning of the status that segmentation actions return in their results.
+ * These should match the action definition(s).
+ */
 export const SEGMENTATION_STATUS_SUCCESS = 0
 export const SEGMENTATION_STATUS_FAILED = 1
 export const SEGMENTATION_STATUS_CANCELED = 3
 export const SEGMENTATION_STATUS_UNKNOWN = 99
 
-// The meaning of ROS Action statuses.
-// https://docs.ros2.org/latest/api/rclpy/api/actions.html#rclpy.action.server.GoalEvent
+/**
+ * The meaning of ROS Action statuses.
+ * https://docs.ros2.org/latest/api/rclpy/api/actions.html#rclpy.action.server.GoalEvent
+ */
 export const ROS_ACTION_STATUS_EXECUTE = '1'
 export const ROS_ACTION_STATUS_CANCEL_GOAL = '2'
 export const ROS_ACTION_STATUS_SUCCEED = '3'

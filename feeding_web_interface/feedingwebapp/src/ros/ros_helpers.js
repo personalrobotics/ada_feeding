@@ -1,19 +1,15 @@
 // React imports
-import { useROS } from 'react-ros'
+import { useRos as useRosReact } from 'rosreact'
 import ROSLIB from 'roslib'
 
 /**
- * Connects to ROS, if not already connected. Note that because this function
- * uses a hook (`useROS`), it must be called from within a React component.
+ * Connects to ROS, if not already connected.
  *
  * @returns {boolean} isConnected True if ROS is connected, false otherwise.
  * @returns {object} ros The ROSLIB.Ros object.
  */
-export function connectToROS() {
-  let { ros, toggleConnection } = useROS()
-  if (!ros.isConnected) {
-    toggleConnection()
-  }
+export function useROS() {
+  let ros = useRosReact()
   return { isConnected: ros.isConnected, ros }
 }
 
@@ -38,7 +34,7 @@ export function createROSMessage(data) {
  * @returns {object} The ROSLIB.Topic, or null if ROS is not connected.
  */
 export function createROSTopic(ros, topicName, topicType) {
-  if (ros == null) {
+  if (ros === null) {
     console.log('ROS is not connected')
     return null
   }
@@ -62,7 +58,7 @@ export function createROSTopic(ros, topicName, topicType) {
  * @returns {object} The ROSLIB.Topic, or null if ROS is not connected.
  */
 export function subscribeToROSTopic(ros, topicName, topicType, callback) {
-  if (ros == null) {
+  if (ros === null) {
     console.log('ROS is not connected')
     return null
   }
@@ -95,7 +91,7 @@ export function unsubscribeFromROSTopic(topic, callback) {
  * @returns {object} The ROSLIB.Service, or null if ROS is not connected.
  */
 export function createROSService(ros, serviceName, serviceType) {
-  if (ros == null) {
+  if (ros === null) {
     console.log('ROS is not connected')
     return null
   }
@@ -129,7 +125,7 @@ export function createROSServiceRequest(data) {
  * @returns {object} The ROSLIB.ActionHandle, or null if ROS is not connected.
  */
 export function createROSActionClient(ros, serverName, actionType) {
-  if (ros == null) {
+  if (ros === null) {
     console.log('ROS is not connected')
     return null
   }

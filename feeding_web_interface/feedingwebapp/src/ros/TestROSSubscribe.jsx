@@ -2,7 +2,7 @@
 import React, { useState } from 'react'
 
 // Local imports
-import { connectToROS, subscribeToROSTopic } from './ros_helpers'
+import { useROS, subscribeToROSTopic } from './ros_helpers'
 
 /**
  * The TestROSSubscribe component demonstrates the functionality of subscribing
@@ -13,7 +13,7 @@ function TestROSSubscribe() {
   let defaultTopicName = 'test_topic'
 
   // Connect to ROS, if not already connected
-  let { ros } = connectToROS()
+  let { ros } = useROS()
 
   // Configure local state, which should contain any data that we want to
   // persist across re-renderings (and/or any data that, when changed, should

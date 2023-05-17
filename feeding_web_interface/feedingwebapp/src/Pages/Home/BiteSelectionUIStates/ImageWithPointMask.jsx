@@ -35,6 +35,7 @@ const ImageWithPointMask = (props) => {
           style={{ width: width / 3 - 2, border: 'solid', margin: '1px' }}
           className='RectButtonsOnImg'
           src={require('./images/salad_mask1.jpg')}
+          alt='The first contender mask found by the food detection algorithm'
         />
       )
       masks.push(
@@ -43,6 +44,7 @@ const ImageWithPointMask = (props) => {
           style={{ width: width / 3 - 2, border: 'solid', margin: '1px' }}
           className='RectButtonsOnImg'
           src={require('./images/salad_mask2.jpg')}
+          alt='The second contender mask found by the food detection algorithm'
         />
       )
       masks.push(
@@ -51,6 +53,7 @@ const ImageWithPointMask = (props) => {
           style={{ width: width / 3 - 2, border: 'solid', margin: '1px' }}
           className='RectButtonsOnImg'
           src={require('./images/salad_mask3.png')}
+          alt='The third contender mask found by the food detection algorithm'
         />
       )
     } else {
@@ -62,6 +65,7 @@ const ImageWithPointMask = (props) => {
             style={{ width: width / 3 - 2, border: 'solid', margin: '1px' }}
             className='RectButtonsOnImg'
             src={require('./images/chicken_mask1.jpg')}
+            alt='The first contender mask found by the food detection algorithm'
           />
         )
         masks.push(
@@ -70,6 +74,7 @@ const ImageWithPointMask = (props) => {
             style={{ width: width / 3 - 2, border: 'solid', margin: '1px' }}
             className='RectButtonsOnImg'
             src={require('./images/chicken_mask2.jpg')}
+            alt='The second contender mask found by the food detection algorithm'
           />
         )
         masks.push(
@@ -78,6 +83,7 @@ const ImageWithPointMask = (props) => {
             style={{ width: width / 3 - 2, border: 'solid', margin: '1px' }}
             className='RectButtonsOnImg'
             src={require('./images/chicken_mask3.jpg')}
+            alt='The third contender mask found by the food detection algorithm'
           />
         )
       } else {
@@ -88,6 +94,7 @@ const ImageWithPointMask = (props) => {
             style={{ width: width / 3 - 2, border: 'solid', margin: '1px' }}
             className='RectButtonsOnImg'
             src={require('./images/fries_mask1.jpg')}
+            alt='The first contender mask found by the food detection algorithm'
           />
         )
         masks.push(
@@ -96,6 +103,7 @@ const ImageWithPointMask = (props) => {
             style={{ width: width / 3 - 2, border: 'solid', margin: '1px' }}
             className='RectButtonsOnImg'
             src={require('./images/fries_mask2.jpg')}
+            alt='The second contender mask found by the food detection algorithm'
           />
         )
         masks.push(
@@ -104,6 +112,7 @@ const ImageWithPointMask = (props) => {
             style={{ width: width / 3 - 2, border: 'solid', margin: '1px' }}
             className='RectButtonsOnImg'
             src={require('./images/fries_mask3.jpg')}
+            alt='The third contender mask found by the food detection algorithm'
           />
         )
       }
@@ -121,15 +130,11 @@ const ImageWithPointMask = (props) => {
           onClick={imageClicked}
           src={props.imgSrc}
           style={{ position: 'absolute', top: '0', left: '0', width: width, height: height }}
+          alt="The view from the robot's camera, showing the plate of food in front of the robot"
         />
       </div>
       <div style={{ position: 'relative', top: height, left: 0 }}>
-        <Row>
-          {foodMasksToDisplay.map((img) => {
-            img
-          })}
-        </Row>
-        {foodMasksToDisplay}
+        <Row>{foodMasksToDisplay.map((img) => img)}</Row>
         <Button
           variant='secondary'
           className='mx-1 mb-1'

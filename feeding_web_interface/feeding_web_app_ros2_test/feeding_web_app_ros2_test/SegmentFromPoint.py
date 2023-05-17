@@ -16,7 +16,7 @@ import time
 
 
 class SegmentFromPointNode(Node):
-    def __init__(self, sleep_time=7.5, send_feedback_hz=10):
+    def __init__(self, sleep_time=2.0, send_feedback_hz=10):
         """
         Create a SegmentFromPoint action server. This dummy action will sleep
         for sleep_time seconds before returning a result.

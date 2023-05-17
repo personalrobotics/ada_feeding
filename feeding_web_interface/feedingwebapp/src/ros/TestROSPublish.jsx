@@ -2,7 +2,7 @@
 import React, { useState } from 'react'
 
 // Local imports
-import { connectToROS, createROSTopic, createROSMessage } from './ros_helpers'
+import { useROS, createROSTopic, createROSMessage } from './ros_helpers'
 
 /**
  * The TestROSPublish component demonstrates the functionality of creating and
@@ -14,7 +14,7 @@ function TestROSPublish() {
   let defaultMessage = 'Hello World!'
 
   // Connect to ROS, if not already connected
-  let { ros } = connectToROS()
+  let { ros } = useROS()
 
   // Configure local state, which should contain any data that we want to
   // persist across re-renderings (and/or any data that, when changed, should

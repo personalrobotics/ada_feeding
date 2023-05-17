@@ -1,6 +1,9 @@
 // React Imports
 import React from 'react'
 import Button from 'react-bootstrap/Button'
+// PropTypes is used to validate that the used props are in fact passed to this
+// Component
+import PropTypes from 'prop-types'
 
 // Local Imports
 import '../Home.css'
@@ -14,7 +17,7 @@ import { convertRemToPixels, scaleWidthHeightToWindow } from '../../../helpers'
  * the user to teleoperate the robot with Cartesian Control until the plate
  * is satisfactorily in view.
  */
-const PlateLocator = () => {
+const PlateLocator = (props) => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
 
@@ -50,10 +53,9 @@ const PlateLocator = () => {
        */}
       <center>
         <img
-          src={'http://localhost:8080/stream?topic='.concat(
-            CAMERA_FEED_TOPIC,
-            `&width=${Math.round(width)}&height=${Math.round(height)}&quality=20`
-          )}
+          src={`${props.webVideoServerURL}/stream?topic=${CAMERA_FEED_TOPIC}&width=${Math.round(width)}&height=${Math.round(
+            height
+          )}&quality=20`}
           alt='Live video feed from the robot'
           style={{ width: width, height: height, display: 'block' }}
         />
@@ -123,6 +125,10 @@ const PlateLocator = () => {
       </div>
     </div>
   )
+}
+PlateLocator.propTypes = {
+  // The URL of the web video server
+  webVideoServerURL: PropTypes.string.isRequired
 }
 
 export default PlateLocator

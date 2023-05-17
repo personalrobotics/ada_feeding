@@ -1,5 +1,5 @@
 // React Imports
-import React from 'react'
+import React, { useCallback } from 'react'
 import Button from 'react-bootstrap/Button'
 import Row from 'react-bootstrap/Row'
 
@@ -24,17 +24,17 @@ const BiteDone = () => {
   /**
    * Callback function for when the user wants to move above plate.
    */
-  function moveAbovePlate() {
+  const moveAbovePlate = useCallback(() => {
     setMealState(MEAL_STATE.R_MovingAbovePlate)
-  }
+  }, [setMealState])
 
   /**
    * Callback function for if the user decides to move to staging position.
    *
    */
-  function moveToStagingPosition() {
+  const moveToStagingPosition = useCallback(() => {
     setMealState(MEAL_STATE.R_MovingToStagingLocation)
-  }
+  }, [setMealState])
 
   // Render the component
   return (

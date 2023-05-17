@@ -1,5 +1,5 @@
 // React Imports
-import React from 'react'
+import React, { useCallback } from 'react'
 import Button from 'react-bootstrap/Button'
 import Row from 'react-bootstrap/Row'
 
@@ -24,19 +24,19 @@ const BiteAcquisitionCheck = () => {
    * Callback function for when the user indicates that the bite acquisition
    * succeeded.
    */
-  function acquisitionSuccess() {
+  const acquisitionSuccess = useCallback(() => {
     console.log('acquisitionSuccess')
     setMealState(MEAL_STATE.R_MovingToStagingLocation)
-  }
+  }, [setMealState])
 
   /**
    * Callback function for when the user indicates that the bite acquisition
    * failed.
    */
-  function acquisitionFailure() {
+  const acquisitionFailure = useCallback(() => {
     console.log('acquisitionFailure')
     setMealState(MEAL_STATE.R_MovingAbovePlate)
-  }
+  }, [setMealState])
 
   // Render the component
   return (

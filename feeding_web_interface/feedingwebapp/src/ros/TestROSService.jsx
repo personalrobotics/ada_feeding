@@ -2,7 +2,7 @@
 import React, { useState } from 'react'
 
 // Local imports
-import { connectToROS, createROSService, createROSServiceRequest } from './ros_helpers'
+import { useROS, createROSService, createROSServiceRequest } from './ros_helpers'
 
 /**
  * The TestROSService component demonstrates the functionality of calling a ROS
@@ -20,7 +20,7 @@ function TestROSService() {
   let [recvData, setRecvData] = useState('No response received yet.')
 
   // Connect to ROS, if not already connected
-  let { ros } = connectToROS()
+  let { ros } = useROS()
 
   // Create the Service
   // TODO (amaln): This way of creating a ROS Service is inefficient since it

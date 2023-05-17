@@ -1,5 +1,5 @@
 // React Imports
-import React from 'react'
+import React, { useCallback } from 'react'
 import Button from 'react-bootstrap/Button'
 import Row from 'react-bootstrap/Row'
 
@@ -19,10 +19,10 @@ const PreMeal = () => {
   /**
    * Callback function for when the user decides to start feeding using the app.
    */
-  function startFeedingClicked() {
+  const startFeedingClicked = useCallback(() => {
     console.log('startFeedingClicked')
     setMealState(MEAL_STATE.R_MovingAbovePlate)
-  }
+  }, [setMealState])
 
   // Render the component
   return (

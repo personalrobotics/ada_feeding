@@ -33,7 +33,11 @@ const ImageWithButtonOverlay = (props) => {
         <div style={{ position: 'fixed', top: '120px', left: '25px' }}>
           <h1 style={{ background: '#FFC107' }}>Option A</h1>
         </div>
-        <img src={props.imgSrc} style={{ position: 'absolute', top: '0', left: '0', width: width, height: height }} />
+        <img
+          src={props.imgSrc}
+          style={{ position: 'absolute', top: '0', left: '0', width: width, height: height }}
+          alt="The view from the robot's camera, showing the plate of food in front of the robot"
+        />
         {props.buttonCenters.map((location, i) => {
           let xVal = location.x * scaleFactor
           let yVal = location.y * scaleFactor
