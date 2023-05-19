@@ -1,0 +1,9 @@
+# A list of all the action servers to create. Each entry in the list 
+# should have a server_name, action_type, and tree_file.
+action_servers:
+  - server_name: "MoveAbovePlate"
+    action_type: "ada_feeding_msgs/action/MoveTo"
+    tree_file: "foo"
+  - server_name: "AcquireFood"
+    action_type: "ada_feeding_msgs/action/AcquireFood"
+    tree_file: "bar"

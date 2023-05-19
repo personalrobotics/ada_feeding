@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="ada_feeding" exec="create_action_servers.py" name="ada_feeding_action_servers">
+    <param name="config_file" value="$(find-pkg-share ada_feeding)/config/ada_feeding_action_servers.yaml"/>
+  </node>
+</launch>
