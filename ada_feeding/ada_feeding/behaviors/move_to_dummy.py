@@ -10,12 +10,14 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
     def __init__(self, name):
         """
         """
-        super(Foo, self).__init__(name=name)
-        self.blackboard = self.attach_blackboard_client(name="Move Above Plate Blackboard")
+        super(MoveToDummy, self).__init__(name=name)
+        # self.blackboard = self.attach_blackboard_client(name=name)
 
     def setup(self):
         """
         """
+        self.logger.debug("  %s [MoveToDummy::setup()]" % self.name)
+
         # TODO (amaln): Make these parameters of the class or setup function, not hardcoded.
         self.dummy_plan_time = 2.5 # secs
         self.dummy_motion_time = 7.5 # secs
@@ -53,6 +55,8 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
     def initialise(self):
         """
         """
+        self.logger.debug("  %s [MoveToDummy::initialise()]" % self.name)
+
         # Start the planning thread
         self.plan = []
         self.plan_success = [False]
@@ -76,6 +80,7 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         feedback to the blackboard, as well as the response. Feedback and 
         response must have the same structure as the expected ROS action messages.
         """
+        self.logger.debug("  %s [MoveToDummy::update()]" % self.name)
 
         # Check if the planning thread has finished
         if self.is_planning:
@@ -88,62 +93,16 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
                     self.is_moving = True
                     return py_trees.common.Status.RUNNING
                 else: # Plan failed
-                    # Abort the goal
-                    result = MoveTo.Result()
-                    result.status = result.STATUS_PLANNING_FAILED
-                    return result
+                    return py_trees.common.Status.FAILURE
 
         # Check if the motion thread has finished
-        if is_moving:
-            if not motion_thread.is_alive():
-                is_moving = False
-                if motion_success[0]:
-                    self.get_logger().info("Motion succeeded, returning")
-                    # Succeed the goal
-                    goal_handle.succeed()
-                    result = self.action_class.Result()
-                    result.status = result.STATUS_SUCCESS
-                    self.active_goal_request = None  # Clear the active goal
-                    return result
-                else:
-                    self.get_logger().info("Motion failed, aborting")
-                    # Abort the goal
-                    goal_handle.abort()
-                    result = self.action_class.Result()
-                    result.status = result.STATUS_MOTION_FAILED
-                    self.active_goal_request = None  # Clear the active goal
-                    return result
-
-        # Send feedback
-        feedback_msg.is_planning = is_planning
-        if is_planning:
-            feedback_msg.planning_time = (
-                self.get_clock().now() - planning_start_time
-            ).to_msg()
-        elif is_moving:
-            # TODO: In the actual (not dummy) implementation, this should
-            # return the distance (not time) the robot has yet to move.
-            feedback_msg.motion_initial_distance = self.dummy_motion_time
-            elapsed_time = self.get_clock().now() - motion_start_time
-            elapsed_time_float = elapsed_time.nanoseconds / 1.0e9
-            feedback_msg.motion_curr_distance = (
-                self.dummy_motion_time - elapsed_time_float
-            )
-        self.get_logger().info("Feedback: %s" % feedback_msg)
-        goal_handle.publish_feedback(feedback_msg)
-
-
-        self.logger.debug("  %s [Foo::update()]" % self.name)
-        ready_to_make_a_decision = random.choice([True, False])
-        decision = random.choice([True, False])
-        if not ready_to_make_a_decision:
-            return py_trees.common.Status.RUNNING
-        elif decision:
-            self.feedback_message = "We are not bar!"
-            return py_trees.common.Status.SUCCESS
-        else:
-            self.feedback_message = "Uh oh"
-            return py_trees.common.Status.FAILURE
+        if self.is_moving:
+            if not self.motion_thread.is_alive():
+                self.is_moving = False
+                if self.motion_success[0]: # Motion succeeded
+                    return py_trees.common.Status.SUCCESS
+                else: # Motion failed
+                    return py_trees.common.Status.FAILURE
 
     def terminate(self, new_status):
         """
@@ -152,4 +111,4 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
             - SUCCESS || FAILURE : your behaviour's work cycle has finished
             - INVALID : a higher priority branch has interrupted, or shutting down
         """
-        self.logger.debug("  %s [Foo::terminate().terminate()][%s->%s]" % (self.name, self.status, new_status))
+        self.logger.debug("  %s [MoveToDummy::terminate().terminate()][%s->%s]" % (self.name, self.status, new_status))
