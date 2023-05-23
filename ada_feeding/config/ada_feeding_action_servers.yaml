@@ -1,9 +1,10 @@
 # A list of all the action servers to create. Each entry in the list 
-# should have a server_name, action_type, and tree_file.
+# should have a server_name, action_type, and tree_class.
 action_servers:
   - server_name: "MoveAbovePlate"
-    action_type: "ada_feeding_msgs/action/MoveTo"
-    tree_file: "foo"
-  - server_name: "AcquireFood"
-    action_type: "ada_feeding_msgs/action/AcquireFood"
-    tree_file: "bar"
+    action_type: "ada_feeding_msgs.action.MoveTo"
+    tree_class: "ada_feeding.trees.MoveAbovePlate"
+    tree_kwargs:
+      dummy_plan_time: 1.0 # secs
+      dummy_motion_time: 10.0 # secs
+    tick_rate: 10 # Hz
