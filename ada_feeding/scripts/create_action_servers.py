@@ -87,8 +87,14 @@ class CreateActionServers(Node):
             server_name = action_config["server_name"]
             action_type = action_config["action_type"]
             tree_class = action_config["tree_class"]
-            tree_kwargs = action_config["tree_kwargs"]
-            tick_rate = action_config["tick_rate"]
+            if "tree_kwargs" in action_config:
+                tree_kwargs = action_config["tree_kwargs"]
+            else:
+                tree_kwargs = {}
+            if "tick_rate" in action_config:
+                tick_rate = action_config["tick_rate"]
+            else:
+                tick_rate = 30 # Hz, default tick rate
             self.get_logger().info(
                 "Creating action server %s with type %s" % (server_name, action_type)
             )
