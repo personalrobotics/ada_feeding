@@ -1,13 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+This module defines the MoveAbovePlate behavior tree and provides functions to
+wrap that behavior tree in a ROS2 action server.
+"""
+
+# Standard imports
+import logging
+
+# Third-party imports
+import py_trees
+
+# Local imports
 from ada_feeding.behaviors import MoveToDummy
 from ada_feeding import ActionServerBT
 from ada_feeding_msgs.action import MoveTo
-import logging
-import py_trees
 
 
 class MoveAbovePlate(ActionServerBT):
+    """
+    A dummy behavior tree that mimics the interface of the MoveAbovePlate
+    behavior tree.
+    """
+
     def __init__(
         self, dummy_plan_time: float = 2.5, dummy_motion_time: float = 7.5
     ) -> None:

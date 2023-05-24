@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+This module defines a dummy behavior for moving to a location. It spins up a
+dummy process that very loosely mimics MoveIt2's MoveGroup action, and then
+sends and receives commands from that. That dummy process sleeps for a
+configurable number of secs for "planning" and another configurable number of
+secs for "motion" before returning success.
+"""
+# Standard imports
 import atexit
 import multiprocessing
 import multiprocessing.connection
-import py_trees
 import time
+
+# Third-party imports
+import py_trees
 
 # Constants used to communicate between the main behavior process and the process
 # that loosely mimic's MoveIt2's MoveGroup action.
@@ -18,7 +28,7 @@ ROSACTION_GOAL_ABORTED = "goal_aborted"
 ROSACTION_GOAL_PREEMPTED = "goal_preempted"
 
 
-def move_group_dummy(
+def _move_group_dummy(
     dummy_plan_time_s: float,
     dummy_motion_time_s: float,
     pipe_connection: multiprocessing.connection.Connection,
@@ -56,7 +66,7 @@ def move_group_dummy(
                 elif command == ROSACTION_PREEMPT_GOAL:
                     idle = True
                     planning_start_time_s = None
-                    motion_start_time = None
+                    motion_start_time_s = None
                     pipe_connection.send([ROSACTION_GOAL_PREEMPTED])
             # If we're not idle, continue with the action
             if not idle:
@@ -108,7 +118,7 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         dummy_motion_time_s: How many seconds this dummy node should spend in motion.
         """
         # Initiatilize the behavior
-        super(MoveToDummy, self).__init__(name=name)
+        super().__init__(name=name)
 
         # Store parameters
         self.dummy_plan_time_s = dummy_plan_time_s
@@ -150,7 +160,7 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         self.parent_connection, self.child_connection = multiprocessing.Pipe()
         # Start the move group process
         self.move_group = multiprocessing.Process(
-            target=move_group_dummy,
+            target=_move_group_dummy,
             args=(
                 self.dummy_plan_time_s,
                 self.dummy_motion_time_s,
@@ -208,12 +218,12 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
             # Process the response
             if response == ROSACTION_GOAL_SUCCEEDED:
                 return py_trees.common.Status.SUCCESS
-            elif response == ROSACTION_GOAL_ABORTED:
+            if response == ROSACTION_GOAL_ABORTED:
                 return py_trees.common.Status.FAILURE
-            elif response == ROSACTION_GOAL_PREEMPTED:
+            if response == ROSACTION_GOAL_PREEMPTED:
                 return py_trees.common.Status.INVALID
             # Write to blackboard the information for feedback messages
-            elif response == MOVEGROUP_STATE_PLANNING:
+            if response == MOVEGROUP_STATE_PLANNING:
                 if prev_response != response:  # If the robot just started planning
                     self.blackboard.is_planning = True
                     self.planning_start_time = time.time()

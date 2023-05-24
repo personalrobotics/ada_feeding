@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-from ada_feeding import ActionServerBT
+
+# Standard imports
 import os
 import pprint
+import threading
+import traceback
+from typing import Awaitable, Callable, Dict, List
+
+# Third-party imports
 import py_trees
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.action.server import ServerGoalHandle
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-import threading
-import traceback
-from typing import Awaitable, Callable, Dict, List
 import yaml
+
+# Local imports
+from ada_feeding import ActionServerBT
 
 
 class CreateActionServers(Node):
@@ -45,15 +51,15 @@ class CreateActionServers(Node):
         # Get the path to the configuration file.
         config_file = self.get_parameter("config_file").value
         if not os.path.isfile(config_file):
-            traceback.print_exc()
-            raise Exception(
+            raise FileNotFoundError(
                 "Path specified in config_file parameter does not exist: %s"
                 % config_file
             )
 
         # Read the configuration file.
         self.get_logger().info("Loading configuration file: %s" % config_file)
-        configs = yaml.load(open(config_file, "r"), Loader=yaml.FullLoader)
+        with open(config_file, "r", encoding="utf-8") as config_file_handle:
+            configs = yaml.load(config_file_handle, Loader=yaml.FullLoader)
         self.get_logger().debug("\n" + pprint.pformat(configs, indent=4))
 
         # Track the active goal request.
@@ -90,12 +96,11 @@ class CreateActionServers(Node):
             # Import the action type
             try:
                 action_package, action_module, action_class = action_type.split(".", 3)
-            except Exception as e:
-                traceback.print_exc()
-                raise Exception(
+            except Exception as exc:
+                raise NameError(
                     'Invalid action type %s. Except "package.module.class" e.g., "ada_feeding_msgs.action.MoveTo"'
                     % action_type
-                )
+                ) from exc
             try:
                 self._action_types[action_type] = getattr(
                     getattr(
@@ -104,19 +109,17 @@ class CreateActionServers(Node):
                     ),
                     action_class,
                 )
-            except Exception as e:
-                traceback.print_exc()
-                raise Exception("Error importing %s: %s" % (action_type, e))
+            except Exception as exc:
+                raise ImportError("Error importing %s" % (action_type)) from exc
 
             # Import the behavior tree class
             try:
                 tree_package, tree_module, tree_class = tree_class.split(".", 3)
-            except Exception as e:
-                traceback.print_exc()
-                raise Exception(
+            except Exception as exc:
+                raise NameError(
                     'Invalid tree class %s. Except "package.module.class" e.g., "ada_feeding.trees.MoveAbovePlate"'
                     % tree_class
-                )
+                ) from exc
             try:
                 self._tree_classes[tree_class] = getattr(
                     getattr(
@@ -128,9 +131,8 @@ class CreateActionServers(Node):
                 assert issubclass(self._tree_classes[tree_class], ActionServerBT), (
                     "Tree %s must subclass ActionServerBT" % tree_class
                 )
-            except Exception as e:
-                traceback.print_exc()
-                raise Exception("Error importing %s: %s" % (tree_class, e))
+            except Exception as exc:
+                raise ImportError("Error importing %s" % (tree_class)) from exc
 
             # Create the action server.
             action_server = ActionServer(
@@ -157,19 +159,17 @@ class CreateActionServers(Node):
         self.get_logger().info("Received goal request")
 
         # If we don't already have an active goal_request, accept this one
-        self.active_goal_request_lock.acquire()
-        if self.active_goal_request is None:
-            self.get_logger().info("Accepting goal request")
-            self.active_goal_request = goal_request
-            self.active_goal_request_lock.release()
-            return GoalResponse.ACCEPT
+        with self.active_goal_request_lock:
+            if self.active_goal_request is None:
+                self.get_logger().info("Accepting goal request")
+                self.active_goal_request = goal_request
+                return GoalResponse.ACCEPT
 
-        # Otherwise, reject this goal request
-        self.get_logger().info("Rejecting goal request")
-        self.active_goal_request_lock.release()
-        return GoalResponse.REJECT
+            # Otherwise, reject this goal request
+            self.get_logger().info("Rejecting goal request")
+            return GoalResponse.REJECT
 
-    def cancel_callback(self, goal_handle: ServerGoalHandle) -> CancelResponse:
+    def cancel_callback(self, _: ServerGoalHandle) -> CancelResponse:
         """
         Always accept client requests to cancel the active goal.
 
@@ -251,9 +251,8 @@ class CreateActionServers(Node):
                         with self.active_goal_request_lock:
                             self.active_goal_request = None
                         return tree_action_server.get_result(tree)
-                    elif (
-                        tree.root.status == py_trees.common.Status.FAILURE
-                        or tree.root.status == py_trees.common.Status.INVALID
+                    if tree.root.status in set(
+                        (py_trees.common.Status.FAILURE, py_trees.common.Status.INVALID)
                     ):
                         self.get_logger().info("Goal failed")
                         # Checks if a preempt request was successful
@@ -276,9 +275,9 @@ class CreateActionServers(Node):
                 goal_handle.abort()
             try:
                 tree.shutdown()
-            except Exception as e:
+            except Exception as exc:
                 traceback.print_exc()
-                self.get_logger().error("Error shutting down tree: %s" % e)
+                self.get_logger().error("Error shutting down tree: %s" % exc)
             with self.active_goal_request_lock:
                 self.active_goal_request = None
             return self._action_types[action_type].Result()
@@ -287,6 +286,9 @@ class CreateActionServers(Node):
 
 
 def main(args: List = None) -> None:
+    """
+    Create the ROS2 node and run the action servers.
+    """
     rclpy.init(args=args)
 
     create_action_servers = CreateActionServers()
@@ -296,7 +298,7 @@ def main(args: List = None) -> None:
 
     try:
         rclpy.spin(create_action_servers, executor=executor)
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
 
     # Destroy the node explicitly
