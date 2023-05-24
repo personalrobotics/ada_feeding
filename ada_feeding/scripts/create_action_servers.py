@@ -94,7 +94,7 @@ class CreateActionServers(Node):
             if "tick_rate" in action_config:
                 tick_rate = action_config["tick_rate"]
             else:
-                tick_rate = 30 # Hz, default tick rate
+                tick_rate = 30  # Hz, default tick rate
             self.get_logger().info(
                 "Creating action server %s with type %s" % (server_name, action_type)
             )
@@ -200,9 +200,8 @@ class CreateActionServers(Node):
         This is necessary because the callback function must return a Result and
         Feedback consisitent with the action type.
         """
-        # Cache the tree so we don't recreate it on every goal
-        tree_action_server = None
-        tree = None
+        # Initialize the ActionServerBT object once
+        tree_action_server = self._tree_classes[tree_class](**tree_kwargs)
 
         async def execute_callback(goal_handle: ServerGoalHandle) -> Awaitable:
             """
@@ -211,8 +210,6 @@ class CreateActionServers(Node):
             (if not already loaded) and executes the behavior tree, publishing
             periodic feedback.
             """
-            nonlocal tree_action_server
-            nonlocal tree
 
             self.get_logger().info(
                 "%s: Executing goal %s with request %s"
@@ -224,11 +221,8 @@ class CreateActionServers(Node):
             )
 
             # Load the behavior tree class
-            if tree_action_server is None:
-                tree_action_server = self._tree_classes[tree_class](**tree_kwargs)
-            if tree is None:
-                tree = tree_action_server.create_tree(server_name, self.get_logger())
-                tree.setup()  # TODO: consider adding a timeout here
+            tree = tree_action_server.create_tree(server_name, self.get_logger())
+            tree.setup()  # TODO: consider adding a timeout here
 
             # Send the goal to the behavior tree
             tree_action_server.send_goal(tree, goal_handle.request)

@@ -37,6 +37,9 @@ class MoveAbovePlate(ActionServerBT):
         self.dummy_plan_time = dummy_plan_time
         self.dummy_motion_time = dummy_motion_time
 
+        # Cache the tree so that it can be reused
+        self.tree = None
+
     def create_tree(
         self, name: str, logger: logging.Logger
     ) -> py_trees.trees.BehaviourTree:
@@ -57,12 +60,13 @@ class MoveAbovePlate(ActionServerBT):
         tree: The behavior tree that moves the robot above the plate.
         """
         # Create the behaviors in the tree
-        root = MoveToDummy(name, self.dummy_plan_time, self.dummy_motion_time)
-        root.logger = logger
+        if self.tree is None:
+            root = MoveToDummy(name, self.dummy_plan_time, self.dummy_motion_time)
+            root.logger = logger
+            # Create the tree
+            self.tree = py_trees.trees.BehaviourTree(root)
 
-        # Create the tree
-        behaviour_tree = py_trees.trees.BehaviourTree(root)
-        return behaviour_tree
+        return self.tree
 
     def send_goal(self, tree: py_trees.trees.BehaviourTree, goal: MoveTo.Goal) -> bool:
         """

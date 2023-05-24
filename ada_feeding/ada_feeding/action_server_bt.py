@@ -24,6 +24,8 @@ class ActionServerBT(ABC):
     ) -> py_trees.trees.BehaviourTree:
         """
         Create the behavior tree that will be executed by this action server.
+        Note that subclasses of ActionServerBT can decide whether they want
+        to cache the tree or create a new one each time.
 
         Parameters
         ----------
