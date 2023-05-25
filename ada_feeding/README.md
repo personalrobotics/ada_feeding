@@ -41,12 +41,13 @@ Note the following design paradigms when writing this subclass of `ActionServerB
 
 ### Updating the Config File
 
-Then, to execute the behavior tree in `create_action_servers.py`, you have to modify the config file (e.g., `ada_feeding_action_servers.yaml`). The config file has the following structure:
+Then, to execute the behavior tree in `create_action_servers.py`, you have to modify the ROS param config file (e.g., `ada_feeding_action_servers.yaml`). The config file has the following structure:
 
-- `action_servers`: A top-level key that contains a list of parameters specifying each action server. Specifically, each element in this list can have the following keys:
-    - `server_name` (string, required): the name of the action server.
+- `server_names` (string array, required): A list of the names of the action servers to create.
+- For each server name:
     - `action_type` (string, required): the ROS action type associated with this action, e.g., `ada_feeding_msgs.action.MoveTo`
     - `tree_class` (string, required): the subclass of `ActionServerBT` that creates the tree and provides functions to interface with the action server, e.g., `ada_feeding.trees.MoveAbovePlate`
+    - `tree_kws` (string array, optional, default `[]`): a list with the keywords for custom arguments to pass to the initialization function of the `tree_class`.
     - `tree_kwargs` (dict, optional, default `{}`): a dictionary of keyword arguments to pass to the initialization function of the `tree_class`.
     - `tick_rate` (int, optional, default `30`): the frequency (Hz) at which the action server should tick the tree.
 

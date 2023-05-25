@@ -9,15 +9,39 @@ from typing import Awaitable, Callable, Dict, List
 
 # Third-party imports
 import py_trees
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.action.server import ServerGoalHandle
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-import yaml
 
 # Local imports
 from ada_feeding import ActionServerBT
+from typing import Any, Dict, List
+
+
+class ActionServerParams(object):
+    """
+    A class to hold the parameters of an action server that wraps a behavior tree.
+    """
+
+    def __init__(
+        self,
+        server_name: List[str],
+        action_type: str,
+        tree_class: str,
+        tree_kwargs: Dict[str, Any] = {},
+        tick_rate: int = 30,
+    ) -> None:
+        """
+        Initialize the ActionServerParams class.
+        """
+        self.server_name = server_name
+        self.action_type = action_type
+        self.tree_class = tree_class
+        self.tree_kwargs = tree_kwargs
+        self.tick_rate = tick_rate
 
 
 class CreateActionServers(Node):
@@ -45,70 +69,144 @@ class CreateActionServers(Node):
         """
         super().__init__("create_action_servers")
 
-        # Declare the ROS2 parameters this node will be looking up.
-        self.declare_parameter("config_file", rclpy.Parameter.Type.STRING)
-
-        # Get the path to the configuration file.
-        config_file = self.get_parameter("config_file").value
-        if not os.path.isfile(config_file):
-            raise FileNotFoundError(
-                "Path specified in config_file parameter does not exist: %s"
-                % config_file
-            )
-
-        # Read the configuration file.
-        self.get_logger().info("Loading configuration file: %s" % config_file)
-        with open(config_file, "r", encoding="utf-8") as config_file_handle:
-            configs = yaml.load(config_file_handle, Loader=yaml.FullLoader)
-        self.get_logger().debug("\n" + pprint.pformat(configs, indent=4))
+        # Read the parameters that specify what action servers to create.
+        action_server_params = self.read_params()
 
         # Track the active goal request.
         self.active_goal_request_lock = threading.Lock()
         self.active_goal_request = None
 
         # Create the action servers.
-        self.create_action_servers(configs)
+        self.create_action_servers(action_server_params)
 
-    def create_action_servers(self, configs: Dict) -> None:
+    def read_params(self) -> List[ActionServerParams]:
+        """
+        Read the parameters that specify what action servers to create.
+
+        Returns
+        -------
+        action_server_params: A list of ActionServerParams objects.
+        """
+        # Read the server names
+        server_names = self.declare_parameter(
+            "server_names",
+            descriptor=ParameterDescriptor(
+                name="server_names",
+                type=ParameterType.PARAMETER_STRING_ARRAY,
+                description="List of action server names to create. All names must correspond to their own param namespace within this node.",
+                read_only=True,
+            ),
+        )
+
+        # Read each action server's params
+        action_server_params = []
+        for server_name in server_names.value:
+            # Get the action server's params
+            action_type, tree_class, tick_rate = self.declare_parameters(
+                "",
+                [
+                    (
+                        "%s.action_type" % server_name,
+                        None,
+                        ParameterDescriptor(
+                            name="action_type",
+                            type=ParameterType.PARAMETER_STRING,
+                            description="The type of action server to create. E.g., ada_feeding_msgs.action.MoveTo",
+                            read_only=True,
+                        ),
+                    ),
+                    (
+                        "%s.tree_class" % server_name,
+                        None,
+                        ParameterDescriptor(
+                            name="tree_class",
+                            type=ParameterType.PARAMETER_STRING,
+                            description="The class of the behavior tree to run, must subclass ActionServerBT. E.g., ada_feeding.behaviors.MoveTo",
+                            read_only=True,
+                        ),
+                    ),
+                    (
+                        "%s.tick_rate" % server_name,
+                        30,
+                        ParameterDescriptor(
+                            name="tick_rate",
+                            type=ParameterType.PARAMETER_INTEGER,
+                            description="The rate at which the behavior tree should be ticked, in Hz.",
+                            read_only=True,
+                        ),
+                    ),
+                ],
+            )
+            tree_kws = self.declare_parameter(
+                "%s.tree_kws" % server_name,
+                descriptor=ParameterDescriptor(
+                    name="tree_kws",
+                    type=ParameterType.PARAMETER_STRING_ARRAY,
+                    description="List of keywords for custom arguments to be passed to the behavior tree during initialization.",
+                    read_only=True,
+                ),
+            )
+            if tree_kws.value is not None:
+                tree_kwargs = {
+                    kw: self.declare_parameter(
+                        "%s.tree_kwargs.%s" % (server_name, kw),
+                        descriptor=ParameterDescriptor(
+                            name=kw,
+                            description="Custom keyword argument for the behavior tree.",
+                            dynamic_typing=True,
+                            read_only=True,
+                        ),
+                    )
+                    for kw in tree_kws.value
+                }
+            else:
+                tree_kwargs = {}
+
+            action_server_params.append(
+                ActionServerParams(
+                    server_name=server_name,
+                    action_type=action_type.value,
+                    tree_class=tree_class.value,
+                    tree_kwargs={kw: arg.value for kw, arg in tree_kwargs.items()},
+                    tick_rate=tick_rate.value,
+                )
+            )
+
+        return action_server_params
+
+    def create_action_servers(
+        self, action_server_params: List[ActionServerParams]
+    ) -> None:
         """
         Create the action servers specified in the configuration file.
 
         Parameters
         ----------
-        configs: The configuration file.
+        action_server_params: A list of ActionServerParams objects.
         """
         # For every action server specified in the configuration file, create
         # an action server.
         self._action_servers = []
         self._action_types = {}
         self._tree_classes = {}
-        for action_config in configs["action_servers"]:
-            # Load the action server parameters from the configuration file.
-            server_name = action_config["server_name"]
-            action_type = action_config["action_type"]
-            tree_class = action_config["tree_class"]
-            if "tree_kwargs" in action_config:
-                tree_kwargs = action_config["tree_kwargs"]
-            else:
-                tree_kwargs = {}
-            if "tick_rate" in action_config:
-                tick_rate = action_config["tick_rate"]
-            else:
-                tick_rate = 30  # Hz, default tick rate
+        for params in action_server_params:
             self.get_logger().info(
-                "Creating action server %s with type %s" % (server_name, action_type)
+                "Creating action server %s with type %s"
+                % (params.server_name, params.action_type)
             )
 
             # Import the action type
             try:
-                action_package, action_module, action_class = action_type.split(".", 3)
+                action_package, action_module, action_class = params.action_type.split(
+                    ".", 3
+                )
             except Exception as exc:
                 raise NameError(
                     'Invalid action type %s. Except "package.module.class" e.g., "ada_feeding_msgs.action.MoveTo"'
-                    % action_type
+                    % params.action_type
                 ) from exc
             try:
-                self._action_types[action_type] = getattr(
+                self._action_types[params.action_type] = getattr(
                     getattr(
                         __import__("%s.%s" % (action_package, action_module)),
                         action_module,
@@ -116,37 +214,41 @@ class CreateActionServers(Node):
                     action_class,
                 )
             except Exception as exc:
-                raise ImportError("Error importing %s" % (action_type)) from exc
+                raise ImportError("Error importing %s" % (params.action_type)) from exc
 
             # Import the behavior tree class
             try:
-                tree_package, tree_module, tree_class = tree_class.split(".", 3)
+                tree_package, tree_module, tree_class = params.tree_class.split(".", 3)
             except Exception as exc:
                 raise NameError(
                     'Invalid tree class %s. Except "package.module.class" e.g., "ada_feeding.trees.MoveAbovePlate"'
-                    % tree_class
+                    % params.tree_class
                 ) from exc
             try:
-                self._tree_classes[tree_class] = getattr(
+                self._tree_classes[params.tree_class] = getattr(
                     getattr(
                         __import__("%s.%s" % (tree_package, tree_module)),
                         tree_module,
                     ),
                     tree_class,
                 )
-                assert issubclass(self._tree_classes[tree_class], ActionServerBT), (
-                    "Tree %s must subclass ActionServerBT" % tree_class
-                )
+                assert issubclass(
+                    self._tree_classes[params.tree_class], ActionServerBT
+                ), ("Tree %s must subclass ActionServerBT" % params.tree_class)
             except Exception as exc:
-                raise ImportError("Error importing %s" % (tree_class)) from exc
+                raise ImportError("Error importing %s" % (params.tree_class)) from exc
 
             # Create the action server.
             action_server = ActionServer(
                 self,
-                self._action_types[action_type],
-                server_name,
+                self._action_types[params.action_type],
+                params.server_name,
                 self.get_execute_callback(
-                    server_name, action_type, tree_class, tree_kwargs, tick_rate
+                    params.server_name,
+                    params.action_type,
+                    params.tree_class,
+                    params.tree_kwargs,
+                    params.tick_rate,
                 ),
                 goal_callback=self.goal_callback,
                 cancel_callback=self.cancel_callback,

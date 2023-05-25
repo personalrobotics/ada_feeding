@@ -1,10 +1,16 @@
-# A list of all the action servers to create. Each entry in the list 
-# should have a server_name, action_type, and tree_class.
-action_servers:
-  - server_name: "MoveAbovePlate" # required
-    action_type: "ada_feeding_msgs.action.MoveTo" # required
-    tree_class: "ada_feeding.trees.MoveAbovePlate" # required
-    tree_kwargs: # optional
-      dummy_plan_time: 1.0 # secs
-      dummy_motion_time: 10.0 # secs
-    tick_rate: 10 # Hz, optional, default: 30
+# NOTE: You have to change this node name if you change the node name in the launchfile.
+ada_feeding_action_servers:
+  ros__parameters:
+    # A list of the names of the action servers to create. Each one must have
+    # it's own parameters (below) specifying action_type and tree_class.
+    server_names: [MoveAbovePlate]
+
+    # Parameters for the MoveAbovePlate action
+    MoveAbovePlate: # required
+      action_type: ada_feeding_msgs.action.MoveTo # required
+      tree_class: ada_feeding.trees.MoveAbovePlate # required
+      tree_kws: ["dummy_plan_time", "dummy_motion_time"] # optional
+      tree_kwargs: # optional
+        dummy_plan_time: 1.0 # secs
+        dummy_motion_time: 10.0 # secs
+      tick_rate: 10 # Hz, optional, default: 30
