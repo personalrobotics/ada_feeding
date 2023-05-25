@@ -237,7 +237,9 @@ class CreateActionServers(Node):
                         # Note that the body of this conditional may be called
                         # multiple times until the preemption is complete.
                         self.get_logger().info("Goal canceled")
-                        tree_action_server.preempt_goal(tree) # blocks until the preempt succeeds
+                        tree_action_server.preempt_goal(
+                            tree
+                        )  # blocks until the preempt succeeds
                         goal_handle.canceled()
                         with self.active_goal_request_lock:
                             self.active_goal_request = None
@@ -283,7 +285,9 @@ class CreateActionServers(Node):
             try:
                 tree.shutdown()
             except Exception as exc:
-                self.get_logger().error("Error shutting down tree: \n%s\n%s" % (traceback.format_exc(), exc))
+                self.get_logger().error(
+                    "Error shutting down tree: \n%s\n%s" % (traceback.format_exc(), exc)
+                )
 
             # Unset the goal and return the result
             with self.active_goal_request_lock:
