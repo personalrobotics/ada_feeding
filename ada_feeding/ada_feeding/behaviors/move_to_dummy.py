@@ -62,7 +62,7 @@ def _move_group_dummy(
                 command = pipe_connection.recv().pop()
                 if command == ROSACTION_SHUTDOWN:
                     break
-                elif command == ROSACTION_NEW_GOAL:
+                if command == ROSACTION_NEW_GOAL:
                     idle = False
                     planning_start_time_s = time.time()
                 elif command == ROSACTION_PREEMPT_GOAL:

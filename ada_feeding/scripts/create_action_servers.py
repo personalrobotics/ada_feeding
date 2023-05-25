@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
+"""
+This module contains a node, CreateActionServers, for creating action servers
+that wrap behavior trees.
+"""
 
 # Standard imports
-import os
-import pprint
 import threading
 import traceback
-from typing import Awaitable, Callable, Dict, List
+from typing import Any, Awaitable, Callable, Dict, List
 
 # Third-party imports
 import py_trees
@@ -18,10 +20,9 @@ from rclpy.node import Node
 
 # Local imports
 from ada_feeding import ActionServerBT
-from typing import Any, Dict, List
 
 
-class ActionServerParams(object):
+class ActionServerParams:
     """
     A class to hold the parameters of an action server that wraps a behavior tree.
     """
