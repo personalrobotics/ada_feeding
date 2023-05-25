@@ -204,6 +204,7 @@ class MoveToDummy(Node):
                 # return the distance (not time) the robot has yet to move.
                 feedback_msg.motion_initial_distance = self.dummy_motion_time
                 elapsed_time = self.get_clock().now() - motion_start_time
+                feedback_msg.motion_time = elapsed_time.to_msg()
                 elapsed_time_float = elapsed_time.nanoseconds / 1.0e9
                 feedback_msg.motion_curr_distance = (
                     self.dummy_motion_time - elapsed_time_float
