@@ -13,27 +13,38 @@ import py_trees
 
 # Local imports
 from ada_feeding.behaviors import MoveToDummy
+from ada_feeding.helpers import import_from_string
 from ada_feeding import ActionServerBT
-from ada_feeding_msgs.action import MoveTo
 
 
-class MoveAbovePlate(ActionServerBT):
+class MoveToDummyTree(ActionServerBT):
     """
     A dummy behavior tree that mimics the interface of the MoveAbovePlate
     behavior tree.
     """
 
     def __init__(
-        self, dummy_plan_time: float = 2.5, dummy_motion_time: float = 7.5
+        self,
+        action_type_class: str,
+        dummy_plan_time: float = 2.5,
+        dummy_motion_time: float = 7.5,
     ) -> None:
         """
         Initializes tree-specific parameters.
 
         Parameters
         ----------
+        action_type_class: The type of action that this tree is implementing,
+            e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
+            type can be anything, but the Feedback and Result must at a minimum
+            include the fields of ada_feeding_msgs.action.MoveTo
         dummy_plan_time: How many seconds this dummy node should spend in planning.
         dummy_motion_time: How many seconds this dummy node should spend in motion.
         """
+        # Import the action type
+        self.action_type_class = import_from_string(action_type_class)
+
+        # Set the dummy motion parameters
         self.dummy_plan_time = dummy_plan_time
         self.dummy_motion_time = dummy_motion_time
 
@@ -68,7 +79,7 @@ class MoveAbovePlate(ActionServerBT):
 
         return self.tree
 
-    def send_goal(self, tree: py_trees.trees.BehaviourTree, goal: MoveTo.Goal) -> bool:
+    def send_goal(self, tree: py_trees.trees.BehaviourTree, goal: object) -> bool:
         """
         Sends the goal from the action client to the behavior tree.
 
@@ -83,10 +94,10 @@ class MoveAbovePlate(ActionServerBT):
         -------
         success: Whether the goal was sent successfully.
         """
-        # For MoveAbovePlate, there is no goal to send
+        # Write the goal to blackboard
         return True
 
-    def get_feedback(self, tree: py_trees.trees.BehaviourTree) -> MoveTo.Feedback:
+    def get_feedback(self, tree: py_trees.trees.BehaviourTree) -> object:
         """
         Traverses the tree to generate a feedback message for the MoveTo action.
 
@@ -100,7 +111,7 @@ class MoveAbovePlate(ActionServerBT):
         -------
         feedback: The ROS feedback message to be sent to the action client.
         """
-        feedback_msg = MoveTo.Feedback()
+        feedback_msg = self.action_type_class.Feedback()
         if tree.root.blackboard.exists("is_planning"):
             feedback_msg.is_planning = tree.root.blackboard.is_planning
             planning_time = tree.root.blackboard.planning_time
@@ -122,7 +133,7 @@ class MoveAbovePlate(ActionServerBT):
                 )
         return feedback_msg
 
-    def get_result(self, tree: py_trees.trees.BehaviourTree) -> MoveTo.Result:
+    def get_result(self, tree: py_trees.trees.BehaviourTree) -> object:
         """
         Traverses the tree to generate a result message for the MoveTo action.
 
@@ -136,7 +147,7 @@ class MoveAbovePlate(ActionServerBT):
         -------
         result: The ROS result message to be sent to the action client.
         """
-        result = MoveTo.Result()
+        result = self.action_type_class.Result()
         # If the tree succeeded, return success
         if tree.root.status == py_trees.common.Status.SUCCESS:
             result.status = result.STATUS_SUCCESS
