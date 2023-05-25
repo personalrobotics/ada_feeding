@@ -8,7 +8,6 @@ configurable number of secs for "planning" and another configurable number of
 secs for "motion" before returning success.
 """
 # Standard imports
-import atexit
 import multiprocessing
 import multiprocessing.connection
 import time
@@ -21,6 +20,7 @@ import py_trees
 MOVEGROUP_STATE_PLANNING = "PLAN"
 MOVEGROUP_STATE_MOTION = "MONITOR"
 MOVEGROUP_STATE_IDLE = "IDLE"
+ROSACTION_SHUTDOWN = "shutdown"
 ROSACTION_NEW_GOAL = "new_goal"
 ROSACTION_PREEMPT_GOAL = "preempt_goal"
 ROSACTION_GOAL_SUCCEEDED = "goal_succeeded"
@@ -60,7 +60,9 @@ def _move_group_dummy(
             # See if the main behavior process has sent a command
             if pipe_connection.poll():
                 command = pipe_connection.recv().pop()
-                if command == ROSACTION_NEW_GOAL:
+                if command == ROSACTION_SHUTDOWN:
+                    break
+                elif command == ROSACTION_NEW_GOAL:
                     idle = False
                     planning_start_time_s = time.time()
                 elif command == ROSACTION_PREEMPT_GOAL:
@@ -165,8 +167,6 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
             ),
         )
         self.move_group.start()
-        # Close it on exit
-        atexit.register(self.move_group.terminate)
 
     def initialise(self) -> None:
         """
@@ -259,3 +259,18 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
                     if response == ROSACTION_GOAL_PREEMPTED:
                         break
         self.logger.info("%s [MoveToDummy::terminate()] completed" % self.name)
+
+    def shutdown(self) -> None:
+        """
+        Shutdown infrastructure created in setup().
+
+        In this case, terminate the MoveGroup dummy action server.
+        """
+        self.logger.info("%s [MoveToDummy::shutdown()]" % self.name)
+        # Terminate the MoveGroup dummy action server
+        self.parent_connection.send([ROSACTION_SHUTDOWN])
+        self.move_group.join()
+        self.move_group.close()
+        # Close the pipe
+        self.parent_connection.close()
+        self.child_connection.close()

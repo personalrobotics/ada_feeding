@@ -229,6 +229,7 @@ class CreateActionServers(Node):
 
             # Execute the behavior tree
             rate = self.create_rate(tick_rate)
+            result = None
             try:
                 while rclpy.ok():
                     # Check if the goal has been canceled
@@ -240,7 +241,8 @@ class CreateActionServers(Node):
                         goal_handle.canceled()
                         with self.active_goal_request_lock:
                             self.active_goal_request = None
-                        return tree_action_server.get_result(tree)
+                        result = tree_action_server.get_result(tree)
+                        break
 
                     # Tick the tree once and publish feedback
                     tree.tick()
@@ -254,7 +256,8 @@ class CreateActionServers(Node):
                         goal_handle.succeed()
                         with self.active_goal_request_lock:
                             self.active_goal_request = None
-                        return tree_action_server.get_result(tree)
+                        result = tree_action_server.get_result(tree)
+                        break
                     if tree.root.status in set(
                         (py_trees.common.Status.FAILURE, py_trees.common.Status.INVALID)
                     ):
@@ -262,25 +265,30 @@ class CreateActionServers(Node):
                         goal_handle.abort()
                         with self.active_goal_request_lock:
                             self.active_goal_request = None
-                        return tree_action_server.get_result(tree)
+                        result = tree_action_server.get_result(tree)
+                        break
 
                     # Sleep
                     rate.sleep()
             except KeyboardInterrupt:
                 pass
 
-            # If we have gotten here without returning, that means something
-            # went wrong. Abort the goal, terminate the tree, and return an empty result.
-            if not goal_handle.is_cancel_requested:
+            # If we have gotten here without a result, that means something
+            # went wrong. Abort the goal.
+            if result is None:
                 goal_handle.abort()
+                result = self._action_types[action_type].Result()
+
+            # Shutdown the tree
             try:
                 tree.shutdown()
             except Exception as exc:
-                traceback.print_exc()
-                self.get_logger().error("Error shutting down tree: %s" % exc)
+                self.get_logger().error("Error shutting down tree: \n%s\n%s" % (traceback.format_exc(), exc))
+
+            # Unset the goal and return the result
             with self.active_goal_request_lock:
                 self.active_goal_request = None
-            return self._action_types[action_type].Result()
+            return result
 
         return execute_callback
 
