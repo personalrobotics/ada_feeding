@@ -15,8 +15,8 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
 3. Run the action servers: `ros2 launch ada_feeding ada_feeding_launch.xml`
 4. Test it:
     1. Individual actions:
-        1. `ros2 action send_goal /MoveAbovePlate ada_feeding_msgs/action/MoveTo {}\ `
-        2. **Not yet implemented** `ros2 action send_goal /AcquireFood ada_feeding_msgs/action/AcquireFood "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, detected_food: {roi: {x_offset: 0, y_offset: 0, height: 0, width: 0, do_rectify: false}, mask: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, format: '', data: []}, item_id: '', confidence: 0.0}}"`
+        1. `ros2 action send_goal /MoveAbovePlate ada_feeding_msgs/action/MoveTo "{}" --feedback`
+        2. **Not yet implemented** `ros2 action send_goal /AcquireFood ada_feeding_msgs/action/AcquireFood "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, detected_food: {roi: {x_offset: 0, y_offset: 0, height: 0, width: 0, do_rectify: false}, mask: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, format: '', data: []}, item_id: '', confidence: 0.0}}" --feedback`
     2. With the web app:
         1. Launch the perception nodes:
             1. Dummy nodes: `TODO`
@@ -30,8 +30,6 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
 In order to wrap a behavior tree into an action server, you have to subclass `ActionServerBT`. Your subclass must implement the following functions:
 - `create_tree`: Create the tree. This is called **once**, sometime before the first call to this action server begins executing.
 - `send_goal`: Take a goal from the action server and send it to the tree. This is called **once per goal** that is sent to this action server.
-- `preempt_goal`: Take a preempt request from the action server and send it to the tree. This may be called **multiple times per preempt request** that is sent to this action server.
-- `was_preempted`: Return whether a preempt request has been fully processed by the tree. This is called **once per action server iteration** after a preempt has been requested and before the preempt has been fully processed.
 - `get_feedback`: Return the feedback type that the ROS2 action is expecting, by examining the tree's current state. This is called **once per action server iteration** (which is the same as being called once per `tree.tick()`).
 - `get_result`: Return the result type that the ROS2 action is expecting, by examining the tree's current state. This is called **once per goal**, after the tree's status has switched away from `RUNNING`.
 
@@ -39,6 +37,7 @@ Note the following design paradigms when writing this subclass of `ActionServerB
 - None of the above functions should be blocking.
 - All communication between this file and the behavior tree should take place through the blackboard.
 - Only this file should need to import the ROS action type for the action server. The specific behaviors in the tree should not need access to that information.
+- ROS action preemption requests are implemented using the `stop()` pathway of the behavior tree, which internally calls `terminate()` on each behavior. Hence, `terminate()` must properly implement everything that needs to be done when the ROS action preempts. (It should already be implemented this way for good behavior tree design.)
 
 ### Updating the Config File
 
