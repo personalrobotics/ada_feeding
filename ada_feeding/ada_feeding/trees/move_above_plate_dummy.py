@@ -86,39 +86,6 @@ class MoveAbovePlate(ActionServerBT):
         # For MoveAbovePlate, there is no goal to send
         return True
 
-    def preempt_goal(self, tree: py_trees.trees.BehaviourTree) -> bool:
-        """
-        Preempts the currently running goal on the behavior tree.
-
-        Parameters
-        ----------
-        tree: The behavior tree that is being executed.
-
-        Returns
-        -------
-        success: Whether the preempt request was sent successfully.
-        """
-        tree.root.blackboard.preempt_requested = True
-        return True
-
-    def was_preempted(self, tree: py_trees.trees.BehaviourTree) -> bool:
-        """
-        Checks whether the tree has completely processed a preempt request.
-
-        Parameters
-        ----------
-        tree: The behavior tree that is being executed.
-
-        Returns
-        -------
-        success: Whether the preempt request was sent successfully.
-        """
-        return (
-            tree.root.status == py_trees.common.Status.INVALID
-            and tree.root.blackboard.exists("was_preempted")
-            and tree.root.blackboard.was_preempted
-        )
-
     def get_feedback(self, tree: py_trees.trees.BehaviourTree) -> MoveTo.Feedback:
         """
         Traverses the tree to generate a feedback message for the MoveTo action.
@@ -179,13 +146,7 @@ class MoveAbovePlate(ActionServerBT):
                 result.status = result.STATUS_UNKNOWN
         # If the tree has an invalid status, return unknown
         elif tree.root.status == py_trees.common.Status.INVALID:
-            if (
-                tree.root.blackboard.exists("was_preempted")
-                and tree.root.blackboard.was_preempted
-            ):
-                result.status = result.STATUS_CANCELED
-            else:
-                result.status = result.STATUS_UNKNOWN
+            result.status = result.STATUS_UNKNOWN
         # If the tree is running, the fact that `get_result` was called is
         # indicative of an error. Return unknown error.
         else:

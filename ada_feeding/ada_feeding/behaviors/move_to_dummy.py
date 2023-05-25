@@ -104,6 +104,7 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         name: str,
         dummy_plan_time_s: float = 2.5,
         dummy_motion_time_s: float = 7.5,
+        preempt_timeout_s: float = 10.0,
     ):
         """
         A dummy behavior for moving to a target position.
@@ -116,6 +117,8 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         name: The name of the behavior.
         dummy_plan_time_s: How many seconds this dummy node should spend in planning.
         dummy_motion_time_s: How many seconds this dummy node should spend in motion.
+        preempt_timeout_s: How long after a preempt is requested to wait for a
+            response from the dummy MoveGroup action.
         """
         # Initiatilize the behavior
         super().__init__(name=name)
@@ -123,19 +126,13 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         # Store parameters
         self.dummy_plan_time_s = dummy_plan_time_s
         self.dummy_motion_time_s = dummy_motion_time_s
+        self.preempt_timeout_s = preempt_timeout_s
         self.prev_response = None
         self.planning_start_time = None
         self.motion_start_time = None
 
         # Initialization the blackboard
         self.blackboard = self.attach_blackboard_client(name=name)
-        self.blackboard.register_key(
-            key="preempt_requested", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="was_preempted", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.preempt_requested = False
         self.blackboard.register_key(
             key="is_planning", access=py_trees.common.Access.WRITE
         )
@@ -179,8 +176,6 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         self.logger.info("%s [MoveToDummy::initialise()]" % self.name)
 
         # Reset the blackboard
-        self.blackboard.preempt_requested = False
-        self.blackboard.was_preempted = False
         self.blackboard.is_planning = False
         self.blackboard.planning_time = 0.0
         self.blackboard.motion_initial_distance = 0.0
@@ -201,12 +196,6 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
                 "%s [MoveToDummy::update()] MoveGroup dummy process died!" % self.name
             )
             return py_trees.common.Status.FAILURE
-
-        # Check if a preempt has been requested
-        if self.blackboard.preempt_requested:
-            self.parent_connection.send([ROSACTION_PREEMPT_GOAL])
-            self.blackboard.was_preempted = True
-            self.blackboard.preempt_requested = False
 
         # Check the status of the MoveGroup dummy action server
         if self.parent_connection.poll():
@@ -250,10 +239,23 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         """
         Terminate this behavior.
 
-        There is nothing to terminate in this case, since we already terminate
-        the move group process in `atexit`
+        This will cancel any active goal and wait for the MoveGroup dummy action
+        server to complete the preemption.
         """
         self.logger.info(
-            "%s [MoveToDummy::terminate().terminate()][%s->%s]"
+            "%s [MoveToDummy::terminate()][%s->%s]"
             % (self.name, self.status, new_status)
         )
+
+        # Cancel any active goal
+        if self.move_group.is_alive():
+            # Send the preempt request
+            self.parent_connection.send([ROSACTION_PREEMPT_GOAL])
+            preempt_requested_time = time.time()
+            # Wait for the response
+            while time.time() - preempt_requested_time < self.preempt_timeout_s:
+                if self.parent_connection.poll():
+                    response = self.parent_connection.recv().pop()
+                    if response == ROSACTION_GOAL_PREEMPTED:
+                        break
+        self.logger.info("%s [MoveToDummy::terminate()] completed" % self.name)

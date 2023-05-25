@@ -236,7 +236,11 @@ class CreateActionServers(Node):
                         # Note that the body of this conditional may be called
                         # multiple times until the preemption is complete.
                         self.get_logger().info("Goal canceled")
-                        tree_action_server.preempt_goal(tree)
+                        tree_action_server.preempt_goal(tree) # blocks until the preempt succeeds
+                        goal_handle.canceled()
+                        with self.active_goal_request_lock:
+                            self.active_goal_request = None
+                        return tree_action_server.get_result(tree)
 
                     # Tick the tree once and publish feedback
                     tree.tick()
@@ -255,11 +259,7 @@ class CreateActionServers(Node):
                         (py_trees.common.Status.FAILURE, py_trees.common.Status.INVALID)
                     ):
                         self.get_logger().info("Goal failed")
-                        # Checks if a preempt request was successful
-                        if tree_action_server.was_preempted(tree):
-                            goal_handle.canceled()
-                        else:
-                            goal_handle.abort()
+                        goal_handle.abort()
                         with self.active_goal_request_lock:
                             self.active_goal_request = None
                         return tree_action_server.get_result(tree)

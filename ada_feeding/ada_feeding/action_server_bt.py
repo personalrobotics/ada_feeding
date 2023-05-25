@@ -5,6 +5,7 @@ servers with py_trees.
 # Standard imports
 from abc import ABC, abstractmethod
 import logging
+import traceback
 
 # Third-party imports
 import py_trees
@@ -50,10 +51,15 @@ class ActionServerBT(ABC):
         """
         raise NotImplementedError("send_goal not implemented")
 
-    @abstractmethod
     def preempt_goal(self, tree: py_trees.trees.BehaviourTree) -> bool:
         """
-        Preempts the currently running goal on the behavior tree.
+        Preempts the currently running goal on the behavior tree and blocks until
+        the preemption has been completed.
+
+        The default behavior of this function calls the `stop` method on the
+        root of the behavior tree. This should block until all nodes of the
+        behavior tree have succesfully terminated. Subclasses can override this
+        method if they want to implement a different behavior.
 
         Parameters
         ----------
@@ -63,22 +69,12 @@ class ActionServerBT(ABC):
         -------
         success: Whether the goal was successfully preempted.
         """
-        raise NotImplementedError("preempt_goal not implemented")
-
-    @abstractmethod
-    def was_preempted(self, tree: py_trees.trees.BehaviourTree) -> bool:
-        """
-        Checks whether the tree has completely processed a preempt request.
-
-        Parameters
-        ----------
-        tree: The behavior tree that is being executed.
-
-        Returns
-        -------
-        preempted: Whether the current goal was preempted.
-        """
-        raise NotImplementedError("was_preempted not implemented")
+        try:
+            tree.root.stop(py_trees.common.Status.INVALID)
+            return True
+        except Exception:
+            tree.root.logger.warn("Failed to preempt goal \n%s" % traceback.format_exc())
+            return False
 
     @abstractmethod
     def get_feedback(self, tree: py_trees.trees.BehaviourTree) -> object:
