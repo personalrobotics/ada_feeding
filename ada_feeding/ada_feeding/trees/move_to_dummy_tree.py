@@ -50,6 +50,7 @@ class MoveToDummyTree(ActionServerBT):
 
         # Cache the tree so that it can be reused
         self.tree = None
+        self.blackboard = None
 
     def create_tree(
         self, name: str, logger: logging.Logger
@@ -76,6 +77,30 @@ class MoveToDummyTree(ActionServerBT):
             root.logger = logger
             # Create the tree
             self.tree = py_trees.trees.BehaviourTree(root)
+            # Create the blackboard
+            self.blackboard = py_trees.blackboard.Client(name=name + " Tree")
+            self.blackboard.register_key(
+                key="goal", access=py_trees.common.Access.WRITE
+            )
+            self.blackboard.register_key(
+                key="is_planning", access=py_trees.common.Access.READ
+            )
+            self.blackboard.register_key(
+                key="planning_time", access=py_trees.common.Access.READ
+            )
+            self.blackboard.register_key(
+                key="motion_time", access=py_trees.common.Access.READ
+            )
+            self.blackboard.register_key(
+                key="motion_initial_distance", access=py_trees.common.Access.READ
+            )
+            self.blackboard.register_key(
+                key="motion_curr_distance", access=py_trees.common.Access.READ
+            )
+            self.tree.root.logger.info(
+                "Root Blackboard \n%s" % self.tree.root.blackboard
+            )
+            self.tree.root.logger.info("Tree Blackboard \n%s" % self.blackboard)
 
         return self.tree
 
@@ -95,7 +120,7 @@ class MoveToDummyTree(ActionServerBT):
         success: Whether the goal was sent successfully.
         """
         # Write the goal to blackboard
-        tree.root.blackboard.goal = goal
+        self.blackboard.goal = goal
         return True
 
     def get_feedback(self, tree: py_trees.trees.BehaviourTree) -> object:
@@ -113,25 +138,23 @@ class MoveToDummyTree(ActionServerBT):
         feedback: The ROS feedback message to be sent to the action client.
         """
         feedback_msg = self.action_type_class.Feedback()
-        if tree.root.blackboard.exists("is_planning"):
-            feedback_msg.is_planning = tree.root.blackboard.is_planning
-            planning_time = tree.root.blackboard.planning_time
+        if self.blackboard.exists("is_planning"):
+            feedback_msg.is_planning = self.blackboard.is_planning
+            planning_time = self.blackboard.planning_time
             feedback_msg.planning_time.sec = int(planning_time)
             feedback_msg.planning_time.nanosec = int(
                 (planning_time - int(planning_time)) * 1e9
             )
-            motion_time = tree.root.blackboard.motion_time
+            motion_time = self.blackboard.motion_time
             feedback_msg.motion_time.sec = int(motion_time)
             feedback_msg.motion_time.nanosec = int(
                 (motion_time - int(motion_time)) * 1e9
             )
             if not feedback_msg.is_planning:
                 feedback_msg.motion_initial_distance = (
-                    tree.root.blackboard.motion_initial_distance
+                    self.blackboard.motion_initial_distance
                 )
-                feedback_msg.motion_curr_distance = (
-                    tree.root.blackboard.motion_curr_distance
-                )
+                feedback_msg.motion_curr_distance = self.blackboard.motion_curr_distance
         return feedback_msg
 
     def get_result(self, tree: py_trees.trees.BehaviourTree) -> object:
@@ -154,8 +177,8 @@ class MoveToDummyTree(ActionServerBT):
             result.status = result.STATUS_SUCCESS
         # If the tree failed, detemine whether it was a planning or motion failure
         elif tree.root.status == py_trees.common.Status.FAILURE:
-            if tree.root.blackboard.exists("is_planning"):
-                if tree.root.blackboard.is_planning:
+            if self.blackboard.exists("is_planning"):
+                if self.blackboard.is_planning:
                     result.status = result.STATUS_PLANNING_FAILED
                 else:
                     result.status = result.STATUS_MOTION_FAILED

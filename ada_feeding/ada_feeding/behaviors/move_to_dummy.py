@@ -134,10 +134,10 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         self.motion_start_time = None
 
         # Initialization the blackboard
-        self.blackboard = self.attach_blackboard_client(name=name)
+        self.blackboard = self.attach_blackboard_client(name=name + " Root")
         # Note that the dummy node doesn't actually access the goal, but this is
         # included for completeness
-        self.blackboard.register_key(key="goal", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key="goal", access=py_trees.common.Access.READ)
         self.blackboard.register_key(
             key="is_planning", access=py_trees.common.Access.WRITE
         )
