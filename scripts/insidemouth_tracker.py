@@ -28,19 +28,23 @@ INSIDE_DISTANCE_LOOKAHEAD_XY = 0.025
 TILT_DISTANCE_LOOKAHEAD = 0.05
 TILT_ANGULAR_LOOKAHEAD = 10*np.pi/180
 ANGULAR_LOOKAHEAD = 5*np.pi/180
-DISTANCE_INFRONT_MOUTH = 0.12
 MOVE_OUTSIDE_DISTANCE = 0.1
 TILT_MOVE_OUTSIDE_DISTANCE = 0.14
 MIN_DURATION_MOUTH_OPEN = 1.0
-IMPULSE_RETRACTION_DISTANCE = 0.05
+IMPULSE_RETRACTION_DISTANCE = 0.1
 IMPULSE_VELOCITY_THRESHOLD = 0.15
 
 
 EXPOSURE = False
-SCENARIO = 1
+SCENARIO = 2
 # 1: Head Tracking
 # 2: Mouth Tracking
 # 3: Impulse Tracking 
+
+if SCENARIO == 1 or SCENARIO == 2:
+    DISTANCE_INFRONT_MOUTH = 0.12
+else:
+    DISTANCE_INFRONT_MOUTH = 0.17
 
 
 class BiteTransferTrajectoryTracker:
@@ -118,7 +122,7 @@ class BiteTransferTrajectoryTracker:
             with self.state_lock:
                 current_state = self.state
 
-            if current_state == -2 and time.time() - self.last_impulse_time > 1.0:
+            if (current_state == -2 or current_state == -1) and time.time() - self.last_impulse_time > 1.0:
                 with self.state_lock:
                     self.state = 2
             
@@ -141,8 +145,8 @@ class BiteTransferTrajectoryTracker:
                 self.last_head_distance = head_distance
                 self.last_head_time = time.time()
 
-                print("Impulse: Head Distance: ", head_distance)
-                print("Impulse: Head Velocity: ", head_velocity)
+                # print("Impulse: Head Distance: ", head_distance)
+                # print("Impulse: Head Velocity: ", head_velocity)
 
         # if head_velocity[0] > 
 
@@ -157,7 +161,7 @@ class BiteTransferTrajectoryTracker:
                 self.state = 1
 
         if not EXPOSURE and SCENARIO == 2:
-            print("Pausing: Mouth State: ", msg.data)
+            # print("Pausing: Mouth State: ", msg.data)
 
             if current_state == 2:
 
@@ -168,14 +172,14 @@ class BiteTransferTrajectoryTracker:
                     with self.state_lock:
                         self.state = -1
                 
-                print("Pausing: In State 2 and Head Distance: ", head_distance)
+                # print("Pausing: In State 2 and Head Distance: ", head_distance)
             
             if current_state == -1:
                 
                 if not msg.data:
                     self.last_mouth_closed_time = time.time()
 
-                print("Pausing: In State -1 and Time Since Mouth Closed: ", time.time() - self.last_mouth_closed_time)
+                # print("Pausing: In State -1 and Time Since Mouth Closed: ", time.time() - self.last_mouth_closed_time)
                 if msg.data and (time.time() - self.last_mouth_closed_time) > MIN_DURATION_MOUTH_OPEN:
                     with self.state_lock:
                         self.state = 2
@@ -285,6 +289,7 @@ class BiteTransferTrajectoryTracker:
         # self.state = int(inp)
         closed_loop = True
         run_once = True
+        paused_once = False
 
         # Assumption: No one will be updating state when this runs
         previous_state = self.state
@@ -302,7 +307,7 @@ class BiteTransferTrajectoryTracker:
                 current_state = self.state
 
             if current_state != previous_state:
-                # print("Switching to self.state: ",current_state)
+                print("Switching to self.state: ",current_state)
                 closed_loop = True
                 run_once = True
                 previous_state = current_state
@@ -326,6 +331,13 @@ class BiteTransferTrajectoryTracker:
                         self.publishTaskCommand(forque_target)
 
                     run_once = False
+
+                forque_base = self.getTransformationFromTF("base_link", "forque_end_effector")
+                distance = np.linalg.norm(forque_base[:3,3] - forque_target[:3,3])
+
+                if distance < 0.05:
+                    with self.state_lock:
+                        self.state = -1
 
 
             if current_state == -1: # maintain position
@@ -374,8 +386,8 @@ class BiteTransferTrajectoryTracker:
                 distance = np.linalg.norm(forque_base[:3,3] - servo_point_base[:3,3])
                 angular_distance = self.getAngularDistance(forque_base[:3,:3], servo_point_base[:3,:3])
 
-                print("Distance: {} Angular Distance: {}".format(distance, angular_distance))
-                print("Threshold: {} Angular Threshold: {}".format(INTERMEDIATE_THRESHOLD_RELAXED, INTERMEDIATE_ANGULAR_THRESHOLD_RELAXED))
+                # print("Distance: {} Angular Distance: {}".format(distance, angular_distance))
+                # print("Threshold: {} Angular Threshold: {}".format(INTERMEDIATE_THRESHOLD_RELAXED, INTERMEDIATE_ANGULAR_THRESHOLD_RELAXED))
 
                 if distance < INTERMEDIATE_THRESHOLD_RELAXED and angular_distance < INTERMEDIATE_ANGULAR_THRESHOLD_RELAXED:
                     with self.state_lock:
@@ -415,8 +427,10 @@ class BiteTransferTrajectoryTracker:
                         self.publishTaskMode("move_inside_mouth_stiffness")
                         run_once = False
 
-                        time.sleep(0.5)
-                        print("PAUSING")
+                        if not paused_once:
+                            paused_once = True
+                            time.sleep(0.5)
+                            print("PAUSING")
                         
                     forque_target_base = self.getTransformationFromTF("base_link", "forque_end_effector_target")
 
@@ -431,8 +445,9 @@ class BiteTransferTrajectoryTracker:
 
                 distance = np.linalg.norm(forque_source[:3,3] - forque_target_base[:3,3])
 
-                if distance < OPEN_LOOP_RADIUS:
+                if distance < OPEN_LOOP_RADIUS and closed_loop:
                     closed_loop = False
+                    print(" Recording initial head pose...")
                     self.initial_head_pose = self.getTransformationFromTF("base_link", "head_pose")
 
                 intermediate_forque_target = np.zeros((4,4))
@@ -476,7 +491,7 @@ class BiteTransferTrajectoryTracker:
                     if not self.beeped_once: 
                         self.beeped_once = True   
                         beep_msg = Float64()
-                        beep_msg.data = 0.0
+                        beep_msg.data = 1.0
                         self.beep_publisher.publish(beep_msg)
                         if EXPOSURE:
                             with self.state_lock:
@@ -485,7 +500,8 @@ class BiteTransferTrajectoryTracker:
             elif current_state == 3: # move outside mouth
 
                 if closed_loop:
-
+                    
+                    print(" Recording final head pose...")
                     self.final_head_pose = self.getTransformationFromTF("base_link", "head_pose")
 
                     for i in range(0,10):
@@ -574,6 +590,9 @@ class BiteTransferTrajectoryTracker:
         if self.initial_head_pose is not None and self.final_head_pose is not None:
             print("Initial Head Pose: ", self.initial_head_pose)
             print("Final Head Pose: ", self.final_head_pose)
+
+            self.publishTransformationToTF("base_link", "initial_head_pose", self.initial_head_pose)
+            self.publishTransformationToTF("base_link", "final_head_pose", self.final_head_pose)
 
             neck_flexion, neck_rotation, neck_lateral_flexion = Rotation.from_matrix(self.final_head_pose[:3,:3]).as_euler('xyz')
             reference_neck_flexion, reference_neck_rotation, reference_neck_lateral_flexion = Rotation.from_matrix(self.initial_head_pose[:3,:3]).as_euler('xyz')

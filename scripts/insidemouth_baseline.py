@@ -17,7 +17,7 @@ import time
 import signal
 
 # Parameters
-OPEN_LOOP_RADIUS = 0.02
+OPEN_LOOP_RADIUS = 0.04
 # OPEN_LOOP_RADIUS = 0.0
 INTERMEDIATE_THRESHOLD_RELAXED = 0.02
 INTERMEDIATE_ANGULAR_THRESHOLD_RELAXED = 5*np.pi/180
@@ -28,15 +28,20 @@ INSIDE_DISTANCE_LOOKAHEAD_XY = 0.025
 TILT_DISTANCE_LOOKAHEAD = 0.05
 TILT_ANGULAR_LOOKAHEAD = 10*np.pi/180
 ANGULAR_LOOKAHEAD = 5*np.pi/180
-DISTANCE_INFRONT_MOUTH = 0.12
+DISTANCE_INFRONT_MOUTH = 0.17
 MOVE_OUTSIDE_DISTANCE = 0.1
 TILT_MOVE_OUTSIDE_DISTANCE = 0.14
 
 
-SCENARIO = 1
+SCENARIO = 2
 # 1: Head Tracking
 # 2: Mouth Tracking
 # 3: Impulse Tracking 
+
+if SCENARIO == 1 or SCENARIO == 2:
+    DISTANCE_INFRONT_MOUTH = 0.12
+else:
+    DISTANCE_INFRONT_MOUTH = 0.17
 
 class BiteTransferTrajectoryTracker:
     def __init__(self):
@@ -180,7 +185,7 @@ class BiteTransferTrajectoryTracker:
 
         while not rospy.is_shutdown():
             try:
-                print("Looking for transform")
+                # print("Looking for transform")
                 transform = self.tfBuffer.lookup_transform(source_frame, target_frame, rospy.Time())
                 break
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
@@ -201,6 +206,7 @@ class BiteTransferTrajectoryTracker:
         # self.state = int(inp)
         closed_loop = True
         run_once = True
+        recorded_intial_head_pose = False
 
         # Assumption: No one will be updating state when this runs
         previous_state = self.state
@@ -211,7 +217,7 @@ class BiteTransferTrajectoryTracker:
 
             self.control_rate.sleep()
 
-            print("Frequency: ",1.0/(time.time() - last_time))
+            # print("Frequency: ",1.0/(time.time() - last_time))
             last_time = time.time()
             
             with self.state_lock:
@@ -223,7 +229,7 @@ class BiteTransferTrajectoryTracker:
                 run_once = True
                 previous_state = current_state
 
-            print("Current self.state: ",current_state)
+            # print("Current self.state: ",current_state)
 
             if current_state == -1: # maintain position
 
@@ -253,8 +259,6 @@ class BiteTransferTrajectoryTracker:
 
                     forque_target_base = self.getTransformationFromTF("base_link", "forque_end_effector_target")
 
-                    self.initial_head_pose = self.getTransformationFromTF("base_link", "head_pose")
-
                     # forque_target_base = np.array([[-0.90093711, -0.1803962, 0.39467648, 0.42479337], 
                     #     [ 0.41205567, -0.07038973,  0.90843569,  0.16312421],
                     #     [-0.13609718, 0.98107212, 0.13775, 0.69508812],
@@ -273,8 +277,8 @@ class BiteTransferTrajectoryTracker:
                 distance = np.linalg.norm(forque_base[:3,3] - servo_point_base[:3,3])
                 angular_distance = self.getAngularDistance(forque_base[:3,:3], servo_point_base[:3,:3])
 
-                print("Distance: {} Angular Distance: {}".format(distance, angular_distance))
-                print("Threshold: {} Angular Threshold: {}".format(INTERMEDIATE_THRESHOLD_RELAXED, INTERMEDIATE_ANGULAR_THRESHOLD_RELAXED))
+                # print("Distance: {} Angular Distance: {}".format(distance, angular_distance))
+                # print("Threshold: {} Angular Threshold: {}".format(INTERMEDIATE_THRESHOLD_RELAXED, INTERMEDIATE_ANGULAR_THRESHOLD_RELAXED))
 
                 if distance < INTERMEDIATE_THRESHOLD_RELAXED and angular_distance < INTERMEDIATE_ANGULAR_THRESHOLD_RELAXED:
                     with self.state_lock:
@@ -327,9 +331,10 @@ class BiteTransferTrajectoryTracker:
 
                 distance = np.linalg.norm(forque_source[:3,3] - forque_target_base[:3,3])
 
-                if distance < OPEN_LOOP_RADIUS:
+                if distance < OPEN_LOOP_RADIUS and not recorded_intial_head_pose:
+                    print("Recording initial head pose...")
                     self.initial_head_pose = self.getTransformationFromTF("base_link", "head_pose")
-                    closed_loop = False
+                    recorded_intial_head_pose = True
 
                 intermediate_forque_target = np.zeros((4,4))
                 intermediate_forque_target[0, 0] = 1
@@ -343,11 +348,11 @@ class BiteTransferTrajectoryTracker:
                 intermediate_position_error = np.linalg.norm(forque_source[:3,3] - intermediate_forque_target[:3,3])
                 intermediate_angular_error = self.getAngularDistance(forque_source[:3,:3], intermediate_forque_target[:3,:3])
 
-                print("closed_loop: ",closed_loop)
-                # print("intermediate_position_error: ", forque_source[:3,3] - intermediate_forque_target[:3,3])
-                print("intermediate_position_error mag: ", intermediate_position_error)
-                print("INTERMEDIATE_THRESHOLD mag: ", INTERMEDIATE_THRESHOLD)
-                # print("intermediate_angular_error: ", intermediate_angular_error)
+                # print("closed_loop: ",closed_loop)
+                # # print("intermediate_position_error: ", forque_source[:3,3] - intermediate_forque_target[:3,3])
+                # print("intermediate_position_error mag: ", intermediate_position_error)
+                # print("INTERMEDIATE_THRESHOLD mag: ", INTERMEDIATE_THRESHOLD)
+                # # print("intermediate_angular_error: ", intermediate_angular_error)
 
                 ipe_forque_frame = np.linalg.inv(forque_source[:3,:3]) @ (forque_source[:3,3] - intermediate_forque_target[:3,3]).reshape(3,1)
                 # print("Error in forque frame: ",ipe_forque_frame)
@@ -355,10 +360,10 @@ class BiteTransferTrajectoryTracker:
                 # print("Error mag:",error_mag)
  
                 if intermediate_position_error > INTERMEDIATE_THRESHOLD: # The thresholds here should be ideally larger than the thresholds for tracking trajectories
-                    print("Tracking intermediate position... ")
+                    # print("Tracking intermediate position... ")
                     target = self.getNextWaypoint(forque_source, intermediate_forque_target, distance_lookahead = INSIDE_DISTANCE_LOOKAHEAD_XY)
                 else:
-                    print("Tracking target position... ")
+                    # print("Tracking target position... ")
                     distance_lookahead_update = INSIDE_DISTANCE_LOOKAHEAD_Z - intermediate_position_error
                     orientation_lookahead_update = ANGULAR_LOOKAHEAD - intermediate_angular_error
                     target = self.getNextWaypoint(intermediate_forque_target, forque_target_base, distance_lookahead = distance_lookahead_update)
@@ -373,13 +378,14 @@ class BiteTransferTrajectoryTracker:
                     if not self.beeped_once: 
                         self.beeped_once = True   
                         beep_msg = Float64()
-                        beep_msg.data = 0.0
+                        beep_msg.data = 1.0
                         self.beep_publisher.publish(beep_msg)
 
             elif current_state == 3: # move outside mouth
 
                 if closed_loop:
 
+                    print("Recording final head pose...")
                     self.final_head_pose = self.getTransformationFromTF("base_link", "head_pose")
 
                     for i in range(0,10):
@@ -463,6 +469,9 @@ class BiteTransferTrajectoryTracker:
         if self.initial_head_pose is not None and self.final_head_pose is not None:
             print("Initial Head Pose: ", self.initial_head_pose)
             print("Final Head Pose: ", self.final_head_pose)
+
+            self.publishTransformationToTF("base_link", "initial_head_pose", self.initial_head_pose)
+            self.publishTransformationToTF("base_link", "final_head_pose", self.final_head_pose)
 
             neck_flexion, neck_rotation, neck_lateral_flexion = Rotation.from_matrix(self.final_head_pose[:3,:3]).as_euler('xyz')
             reference_neck_flexion, reference_neck_rotation, reference_neck_lateral_flexion = Rotation.from_matrix(self.initial_head_pose[:3,:3]).as_euler('xyz')
