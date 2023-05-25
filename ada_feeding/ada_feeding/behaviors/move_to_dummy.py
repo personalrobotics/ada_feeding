@@ -142,6 +142,9 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
             key="planning_time", access=py_trees.common.Access.WRITE
         )
         self.blackboard.register_key(
+            key="motion_time", access=py_trees.common.Access.WRITE
+        )
+        self.blackboard.register_key(
             key="motion_initial_distance", access=py_trees.common.Access.WRITE
         )
         self.blackboard.register_key(
@@ -178,6 +181,7 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         # Reset the blackboard
         self.blackboard.is_planning = False
         self.blackboard.planning_time = 0.0
+        self.blackboard.motion_time = 0.0
         self.blackboard.motion_initial_distance = 0.0
         self.blackboard.motion_curr_distance = 0.0
 
@@ -228,8 +232,9 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
                     #       `motion_curr_distance` should determine the distance
                     #       to the goal.
                     self.blackboard.motion_initial_distance = self.dummy_motion_time_s
-                self.blackboard.motion_curr_distance = self.dummy_motion_time_s - (
-                    time.time() - self.motion_start_time
+                self.blackboard.motion_time = time.time() - self.motion_start_time
+                self.blackboard.motion_curr_distance = (
+                    self.dummy_motion_time_s - self.blackboard.motion_time
                 )
 
         # If it hasn't finished, return running

@@ -108,6 +108,11 @@ class MoveAbovePlate(ActionServerBT):
             feedback_msg.planning_time.nanosec = int(
                 (planning_time - int(planning_time)) * 1e9
             )
+            motion_time = tree.root.blackboard.motion_time
+            feedback_msg.motion_time.sec = int(motion_time)
+            feedback_msg.motion_time.nanosec = int(
+                (motion_time - int(motion_time)) * 1e9
+            )
             if not feedback_msg.is_planning:
                 feedback_msg.motion_initial_distance = (
                     tree.root.blackboard.motion_initial_distance
