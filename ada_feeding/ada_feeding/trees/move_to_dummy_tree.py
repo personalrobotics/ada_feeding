@@ -95,6 +95,7 @@ class MoveToDummyTree(ActionServerBT):
         success: Whether the goal was sent successfully.
         """
         # Write the goal to blackboard
+        tree.root.blackboard.goal = goal
         return True
 
     def get_feedback(self, tree: py_trees.trees.BehaviourTree) -> object:
