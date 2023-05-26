@@ -97,10 +97,6 @@ class MoveToDummyTree(ActionServerBT):
             self.blackboard.register_key(
                 key="motion_curr_distance", access=py_trees.common.Access.READ
             )
-            self.tree.root.logger.info(
-                "Root Blackboard \n%s" % self.tree.root.blackboard
-            )
-            self.tree.root.logger.info("Tree Blackboard \n%s" % self.blackboard)
 
         return self.tree
 
