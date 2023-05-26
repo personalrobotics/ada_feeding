@@ -181,6 +181,11 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         """
         self.logger.info("%s [MoveToDummy::initialise()]" % self.name)
 
+        # Reset local state variables
+        self.prev_response = None
+        self.planning_start_time = None
+        self.motion_start_time = None
+
         # Reset the blackboard
         self.blackboard.is_planning = False
         self.blackboard.planning_time = 0.0
