@@ -22,7 +22,8 @@ The overall user flow for this robot can be seen below.
 4. Source the directory: `source install/setup.bash`
 5. Navigate to the web app folder: `cd feeding_web_interface/feedingwebapp`
 6. Install web app dependencies: `npm install --legacy-peer-deps`
-* Consider checking out the [Troubleshooting](## Troubleshooting) section if there are errors in this process. 
+* Consider checking out the Troubleshooting section if there are errors in this process. 
+* Always run `source /opt/ros/humble/setup.bash` in the ROS2 workspace when a new terminal is opened.
 
 ### Usage (Web App)
 1. Navigate to the web app folder: `cd {path/to/feeding_web_interface}/feedingwebapp`

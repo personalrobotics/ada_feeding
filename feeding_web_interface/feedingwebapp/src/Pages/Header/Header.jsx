@@ -3,6 +3,8 @@ import React, { useCallback, useEffect, useState } from 'react'
 // The NavBar is the navigation toolbar at the top
 import Navbar from 'react-bootstrap/Navbar'
 import Nav from 'react-bootstrap/Nav'
+// The Button is used for stop icon at the top
+import Button from 'react-bootstrap/Button'
 // PropTypes is used to validate that the used props are in fact passed to this
 // Component
 import PropTypes from 'prop-types'
@@ -13,7 +15,7 @@ import 'react-toastify/dist/ReactToastify.css'
 import { useROS } from '../../ros/ros_helpers'
 
 // Local imports
-import { ROS_CHECK_INTERVAL_MS } from '../Constants'
+import { ROS_CHECK_INTERVAL_MS, NON_MOVING_STATES } from '../Constants'
 import { useGlobalState, APP_PAGE, MEAL_STATE } from '../GlobalState'
 import LiveVideoModal from './LiveVideoModal'
 
@@ -44,6 +46,7 @@ const Header = (props) => {
   // Get the relevant global state variables
   const mealState = useGlobalState((state) => state.mealState)
   const setAppPage = useGlobalState((state) => state.setAppPage)
+  const paused = useGlobalState((state) => state.paused)
 
   /**
    * When the Home button in the header is clicked, return to the Home page.
@@ -79,7 +82,7 @@ const Header = (props) => {
        * of the robot is placed in between Settings and Video.
        */}
       <Navbar collapseOnSelect expand='lg' bg='dark' variant='dark' sticky='top'>
-        <Navbar id='responsive-navbar-nav'>
+        <Navbar id='responsive-navbar-nav' bg='dark' variant='dark'>
           <Nav className='me-auto'>
             <Nav.Link
               onClick={homeClicked}
@@ -96,15 +99,41 @@ const Header = (props) => {
               Settings
             </Nav.Link>
           </Nav>
+          {NON_MOVING_STATES.has(mealState) || paused ? (
+            <div>
+              <Button
+                variant='danger'
+                disabled={true}
+                style={{
+                  marginLeft: 3,
+                  marginRight: 3,
+                  width: '44px',
+                  height: '56px',
+                  opacity: 1,
+                  '--bs-btn-padding-y': '0rem',
+                  '--bs-btn-padding-x': '0rem'
+                }}
+              >
+                <img
+                  style={{ width: '44px', height: '50px' }}
+                  src='/robot_state_imgs/lock_icon_image.svg'
+                  alt='lock_icon_img'
+                  className='center'
+                />
+              </Button>
+            </div>
+          ) : (
+            <></>
+          )}
           {isConnected ? (
             <div>
-              <p className='connectedDiv' style={{ fontSize: '24px' }}>
+              <p className='connectedDiv' style={{ fontSize: '24px', margin: 3 }}>
                 🔌
               </p>
             </div>
           ) : (
             <div>
-              <p className='notConnectedDiv' style={{ fontSize: '24px' }}>
+              <p className='notConnectedDiv' style={{ fontSize: '24px', marginLeft: 3, marginRight: 3 }}>
                 ⛔
               </p>
             </div>

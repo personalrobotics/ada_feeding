@@ -29,6 +29,7 @@ function Home(props) {
   const mealState = useGlobalState((state) => state.mealState)
   const mealStateTransitionTime = useGlobalState((state) => state.mealStateTransitionTime)
   const setMealState = useGlobalState((state) => state.setMealState)
+  const setPaused = useGlobalState((state) => state.setPaused)
 
   /**
    * Implement time-based transition of states. This is so that after the user
@@ -40,8 +41,9 @@ function Home(props) {
     if (Date.now() - mealStateTransitionTime >= TIME_TO_RESET_MS) {
       console.log('Reverting to PreMeal due to too much elapsed time in one state.')
       setMealState(MEAL_STATE.U_PreMeal)
+      setPaused(false)
     }
-  }, [mealStateTransitionTime, setMealState])
+  }, [mealStateTransitionTime, setMealState, setPaused])
 
   // Get the relevant global variables
   const desiredFoodItem = useGlobalState((state) => state.desiredFoodItem)

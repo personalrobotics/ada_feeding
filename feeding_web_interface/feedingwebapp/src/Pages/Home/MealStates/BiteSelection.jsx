@@ -25,7 +25,7 @@ import {
   SEGMENTATION_STATUS_SUCCESS
 } from '../../Constants'
 import { useGlobalState, MEAL_STATE } from '../../GlobalState'
-import { FOOTER_STATE_ICON_DICT } from '../../Constants'
+import { MOVING_STATE_ICON_DICT } from '../../Constants'
 
 /**
  * The BiteSelection component appears after the robot has moved above the plate,
@@ -39,7 +39,7 @@ const BiteSelection = (props) => {
   const setMealState = useGlobalState((state) => state.setMealState)
   const setDesiredFoodItem = useGlobalState((state) => state.setDesiredFoodItem)
   // Get icon image for move to staging
-  let moveToStagingImage = FOOTER_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingLocation]
+  let moveToStagingImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingLocation]
 
   /**
    * Create a local state variable to store the detected masks, the

@@ -8,7 +8,7 @@ import Row from 'react-bootstrap/Row'
 import PropTypes from 'prop-types'
 
 // Local imports
-import { FOOTER_STATE_ICON_DICT } from '../Constants'
+import { MOVING_STATE_ICON_DICT } from '../Constants'
 import { useGlobalState } from '../GlobalState'
 
 /**
@@ -32,8 +32,8 @@ const Footer = (props) => {
 
   // Icons and other parameters for the footer buttons
   let pauseIcon = '/robot_state_imgs/pause_button_icon.svg'
-  let backIcon = props.backMealState ? FOOTER_STATE_ICON_DICT[props.backMealState] : ''
-  let resumeIcon = FOOTER_STATE_ICON_DICT[mealState]
+  let backIcon = props.backMealState ? MOVING_STATE_ICON_DICT[props.backMealState] : ''
+  let resumeIcon = MOVING_STATE_ICON_DICT[mealState]
   let phantomButtonIcon = '/robot_state_imgs/phantom_view_image.svg'
   // Width of Back and Resume buttons
   let backResumeButtonWidth = '150px'

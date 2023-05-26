@@ -18,7 +18,7 @@ import {
   ROS_SERVICE_NAMES
 } from '../../Constants'
 import { useGlobalState, MEAL_STATE } from '../../GlobalState'
-import { FOOTER_STATE_ICON_DICT } from '../../Constants'
+import { MOVING_STATE_ICON_DICT } from '../../Constants'
 
 /**
  * The BiteInitiation component appears after the robot has moved to the staging
@@ -36,9 +36,9 @@ const BiteInitiation = (props) => {
   const setDetectedMouthCenter = useGlobalState((state) => state.setDetectedMouthCenter)
 
   // Get icon image for move above plate
-  let moveAbovePlateImage = FOOTER_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
+  let moveAbovePlateImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
   // Get icon image for move to mouth position
-  let moveToMouthImage = FOOTER_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth]
+  let moveToMouthImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth]
 
   /**
    * Callback function for when the user is ready for their bite.

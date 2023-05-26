@@ -87,12 +87,18 @@ export const SETTINGS = {
 export const useGlobalState = create(
   persist(
     (set) => ({
-      // Values stored in global state
+      // The app's current meal state
       mealState: MEAL_STATE.U_PreMeal,
+      // The timestamp when the robot transitioned to its current meal state
       mealStateTransitionTime: Date.now(),
+      // The current app page
       appPage: APP_PAGE.Home,
+      // The most recent food item that the user selected in "bite selection"
       desiredFoodItem: null,
+      // The center of the mouth as detected by face detection
       detectedMouthCenter: null,
+      // Whether or not the currently-executing robot motion was paused by the user
+      paused: false,
       // Settings values
       stagingPosition: SETTINGS.stagingPosition[0],
       biteInitiation: SETTINGS.biteInitiation[0],
@@ -115,6 +121,10 @@ export const useGlobalState = create(
       setDetectedMouthCenter: (detectedMouthCenter) =>
         set(() => ({
           detectedMouthCenter: detectedMouthCenter
+        })),
+      setPaused: (paused) =>
+        set(() => ({
+          paused: paused
         })),
       setStagingPosition: (stagingPosition) =>
         set(() => ({

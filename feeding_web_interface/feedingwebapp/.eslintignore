@@ -4,6 +4,8 @@
 /node_modules
 /.pnp
 .pnp.js
+# don't lint progressbar.js because it is a third-party
+/src/Pages/Home/MealStates/progressbar.js
 
 # testing
 /coverage

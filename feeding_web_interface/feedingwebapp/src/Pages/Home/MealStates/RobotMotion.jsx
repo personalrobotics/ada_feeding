@@ -5,10 +5,10 @@ import Button from 'react-bootstrap/Button'
 // Component
 import PropTypes from 'prop-types'
 import Row from 'react-bootstrap/Row'
-
 // Local Imports
 import { useROS, createROSActionClient, callROSAction, cancelROSAction, destroyActionClient } from '../../../ros/ros_helpers'
 import Footer from '../../Footer/Footer'
+import CircleProgressBar from './CircleProgressBar'
 import '../Home.css'
 import { useGlobalState, MEAL_STATE } from '../../GlobalState'
 import {
@@ -38,8 +38,6 @@ import {
  *        executing the action
  */
 const RobotMotion = (props) => {
-  // Create a local state variable for whether the robot is paused.
-  const [paused, setPaused] = useState(false)
   /**
    * NOTE: We slightly abuse the ROS_ACTION_STATUS values in this local state
    * variable, by using it as a proxy for whether the robot is executing, has
@@ -53,6 +51,8 @@ const RobotMotion = (props) => {
   // Get the relevant global variables
   const mealState = useGlobalState((state) => state.mealState)
   const setMealState = useGlobalState((state) => state.setMealState)
+  const paused = useGlobalState((state) => state.paused)
+  const setPaused = useGlobalState((state) => state.setPaused)
 
   /**
    * Connect to ROS, if not already connected. Put this in useRef to avoid
@@ -73,7 +73,7 @@ const RobotMotion = (props) => {
   }, [props.mealState])
 
   /**
-   * Callback function for when the action setns feedback. It updates the
+   * Callback function for when the action sends feedback. It updates the
    * actionStatus local state variable.
    *
    * @param {object} feedbackMsg - the feedback message sent by the action
@@ -164,6 +164,7 @@ const RobotMotion = (props) => {
     },
     [robotMotionAction, paused, props.actionInput, setActionStatus]
   )
+
   /**
    * Calls the action the first time this component is rendered, but not upon
    * any additional re-renders. See here for more details on how `useEffect`
@@ -226,47 +227,59 @@ const RobotMotion = (props) => {
    *
    * @returns {JSX.Element} the action status text to render
    */
-  const actionStatusText = useCallback((actionStatus) => {
-    switch (actionStatus.actionStatus) {
-      case ROS_ACTION_STATUS_EXECUTE:
-        if (actionStatus.feedback) {
-          let progress = 1 - actionStatus.feedback.motion_curr_distance / actionStatus.feedback.motion_initial_distance
-          if (!actionStatus.feedback.is_planning) {
-            return (
-              <>
-                <h3>Robot is moving...</h3>
-                <h3>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Progress: {Math.round(progress * 100)}%</h3>
-              </>
-            )
+  const actionStatusText = useCallback(
+    (actionStatus) => {
+      switch (actionStatus.actionStatus) {
+        case ROS_ACTION_STATUS_EXECUTE:
+          if (actionStatus.feedback) {
+            let progress = 1 - actionStatus.feedback.motion_curr_distance / actionStatus.feedback.motion_initial_distance
+            if (!actionStatus.feedback.is_planning) {
+              let moving_elapsed_time = actionStatus.feedback.motion_time.sec + actionStatus.feedback.motion_time.nanosec / 10 ** 9
+              // Calling CircleProgessBar component to visualize robot motion of moving
+              return (
+                <>
+                  <h3>Robot is moving...</h3>
+                  <h3>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Elapsed Time: {Math.round(moving_elapsed_time * 100) / 100} sec</h3>
+                  <center>
+                    <CircleProgressBar proportion={progress} />
+                  </center>
+                </>
+              )
+            } else {
+              let planning_elapsed_time = actionStatus.feedback.planning_time.sec + actionStatus.feedback.planning_time.nanosec / 10 ** 9
+              return (
+                <>
+                  <h3>Robot is thinking...</h3>
+                  <h3>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Elapsed Time: {Math.round(planning_elapsed_time * 100) / 100} sec</h3>
+                </>
+              )
+            }
           } else {
-            let elapsed_time = actionStatus.feedback.planning_time.sec + actionStatus.feedback.planning_time.nanosec / 10 ** 9
-            return (
-              <>
-                <h3>Robot is thinking...</h3>
-                <h3>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Elapsed Time: {Math.round(elapsed_time * 100) / 100} sec</h3>
-              </>
-            )
+            // If you haven't gotten feedback yet, assume the robot is planning
+            return <h3>Robot is thinking...</h3>
           }
-        } else {
-          // If you haven't gotten feedback yet, assume the robot is planning
-          return <h3>Robot is thinking...</h3>
-        }
-      case ROS_ACTION_STATUS_SUCCEED:
-        return <h3>Robot has finished</h3>
-      case ROS_ACTION_STATUS_ABORT:
-        /**
-         * TODO: Just displaying that the robot faced an error is not useful
-         * to the user. We should think more carefully about what different
-         * error cases might arise, and change the UI accordingly to instruct
-         * users on how to troubleshoot/fix it.
-         */
-        return <h3>Robot encountered an error</h3>
-      case ROS_ACTION_STATUS_CANCELED:
-        return <h3>Robot is paused</h3>
-      default:
-        return <h3>&nbsp;</h3>
-    }
-  }, [])
+        case ROS_ACTION_STATUS_SUCCEED:
+          return <h3>Robot has finished</h3>
+        case ROS_ACTION_STATUS_ABORT:
+          /**
+           * TODO: Just displaying that the robot faced an error is not useful
+           * to the user. We should think more carefully about what different
+           * error cases might arise, and change the UI accordingly to instruct
+           * users on how to troubleshoot/fix it.
+           */
+          return <h3>Robot encountered an error</h3>
+        case ROS_ACTION_STATUS_CANCELED:
+          return <h3>Robot is paused</h3>
+        default:
+          if (paused) {
+            return <h3>Robot is paused</h3>
+          } else {
+            return <h3>&nbsp;</h3>
+          }
+      }
+    },
+    [paused]
+  )
 
   // Render the component
   return (
