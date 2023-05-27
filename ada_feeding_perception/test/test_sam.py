@@ -8,6 +8,7 @@ import json
 from segment_anything import sam_model_registry, SamPredictor
 import argparse
 from skimage.measure import regionprops
+from scipy.ndimage import label, sum
 
 # Create an ArgumentParser object
 parser = argparse.ArgumentParser()
@@ -75,6 +76,17 @@ def crop_image_and_mask(image, mask, bbox):
     minr, minc, maxr, maxc = bbox
     cropped_image = image[minr:maxr, minc:maxc]
     cropped_mask = mask[minr:maxr, minc:maxc]
+    # Label all connected components in the mask
+    labeled, num_labels = label(cropped_mask)
+    # Determine the size of each component
+    component_sizes = sum(cropped_mask, labeled, range(num_labels + 1))
+    # Set a minimum size for components (you might need to adjust this value)
+    min_size = 100  # Adjust this value based on your requirements
+    # Create a mask to remove small components
+    remove_small_components = component_sizes < min_size
+    # Remove small components
+    remove_pixel = remove_small_components[labeled]
+    cropped_mask[remove_pixel] = 0
     return cropped_image, cropped_mask
 
 def show_mask_on_image(image, mask, alpha=0.5):
@@ -86,8 +98,17 @@ def show_mask_on_image(image, mask, alpha=0.5):
     blended = cv2.addWeighted(image, alpha, mask_rgb, 1 - alpha, 0)
     return blended
 
+def show_points(coords, labels, ax, marker_size=128):
+    pos_points = coords[labels==1]
+    neg_points = coords[labels==0]
+    ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green', marker='*', s=marker_size, edgecolor='white', linewidth=1)
+    ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='*', s=marker_size, edgecolor='white', linewidth=1) 
+
+number_output = 1
 # After getting the masks
 for i, (score, mask) in enumerate(scored_masks_sorted):
+    if i >= number_output:
+        break
     # compute the bounding box from the mask
     bbox = bbox_from_mask(mask)
     # crop the image and the mask
@@ -98,9 +119,15 @@ for i, (score, mask) in enumerate(scored_masks_sorted):
     # Overlay the mask on the image
     overlaid_image = show_mask_on_image(cropped_image, cropped_mask)
 
+    plt.figure(figsize=(10,10))
+    plt.imshow(image)
+    show_points(input_point, input_label, plt.gca())
+    plt.axis('on')
+    plt.show()
+
     # Create subplots to display the images side by side
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-
+    
     # Show the cropped image
     axes[0].imshow(cropped_image)
     axes[0].axis('off')
