@@ -20,7 +20,7 @@ import sys
 import os
 from segment_anything import sam_model_registry, SamPredictor
 from skimage.measure import regionprops
-
+from scipy.ndimage import label, sum
 
 class SegmentFromPointNode(Node):
     def __init__(self, sleep_time=2.0, send_feedback_hz=10):
@@ -124,6 +124,17 @@ class SegmentFromPointNode(Node):
         minr, minc, maxr, maxc = bbox
         cropped_image = image[minr:maxr, minc:maxc]
         cropped_mask = mask[minr:maxr, minc:maxc]
+        # Label all connected components in the mask
+        labeled, num_labels = label(cropped_mask)
+        # Determine the size of each component
+        component_sizes = sum(cropped_mask, labeled, range(num_labels + 1))
+        # Set a minimum size for components (you might need to adjust this value)
+        min_size = 100  # Adjust this value based on your requirements
+        # Create a mask to remove small components
+        remove_small_components = component_sizes < min_size
+        # Remove small components
+        remove_pixel = remove_small_components[labeled]
+        cropped_mask[remove_pixel] = 0
         return cropped_image, cropped_mask
 
     def segment_image(self, seed_point, result, segmentation_success):
@@ -178,8 +189,11 @@ class SegmentFromPointNode(Node):
         scored_masks = [(score, mask) for score, mask in zip(scores, masks)]
         scored_masks_sorted = sorted(scored_masks, key=lambda x: x[0], reverse=True)
 
+        number_output = 1
         # After getting the masks
         for i, (score, mask) in enumerate(scored_masks_sorted):
+            if i >= number_output:
+                break
             # compute the bounding box from the mask
             bbox = self.bbox_from_mask(mask)
             # crop the image and the mask
