@@ -51,7 +51,7 @@ const Footer = (props) => {
         <>
           <Row className='justify-content-center mx-auto'>
             <p className='transitionMessage' style={{ marginBottom: '0', fontSize: '170%', color: 'white', fontWeight: 'bold' }}>
-              ⏸️ Pause
+              Pause
             </p>
             {/* Icon to pause */}
             <Button
@@ -78,7 +78,7 @@ const Footer = (props) => {
       return (
         <>
           <p className='transitionMessage' style={{ marginBottom: '0', fontSize: '170%', color: 'white', fontWeight: 'bold' }}>
-            ◀️ Back
+            Back
           </p>
           {/* Icon to move to previous state */}
           <Button
@@ -103,11 +103,8 @@ const Footer = (props) => {
     (callback) => {
       return (
         <>
-          <p
-            className='transitionMessage'
-            style={{ marginBottom: '0', fontSize: '170%', color: 'white', fontWeight: 'bold', textAlign: 'right' }}
-          >
-            ▶️ Resume
+          <p className='transitionMessage' style={{ marginBottom: '0', fontSize: '170%', color: 'white', fontWeight: 'bold' }}>
+            Resume
           </p>
           {/* Icon to resume current state */}
           <Button
