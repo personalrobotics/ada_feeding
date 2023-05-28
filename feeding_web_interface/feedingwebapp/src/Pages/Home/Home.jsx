@@ -7,7 +7,6 @@ import './Home.css'
 import { useGlobalState, MEAL_STATE } from '../GlobalState'
 import BiteAcquisitionCheck from './MealStates/BiteAcquisitionCheck'
 import BiteDone from './MealStates/BiteDone'
-import BiteInitiation from './MealStates/BiteInitiation'
 import BiteSelection from './MealStates/BiteSelection'
 import PlateLocator from './MealStates/PlateLocator'
 import PostMeal from './MealStates/PostMeal'
@@ -102,22 +101,11 @@ function Home(props) {
           />
         )
       }
-      case MEAL_STATE.U_BiteAcquisitionCheck: {
-        return <BiteAcquisitionCheck debug={props.debug} />
-      }
-      case MEAL_STATE.R_MovingToStagingLocation: {
-        /**
-         * We recreate currentMealState due to a race condition where sometimes
-         * the app is performing a re-rendering and *then* the state is updated.
-         */
-        let currentMealState = MEAL_STATE.R_MovingToStagingLocation
-        let nextMealState = MEAL_STATE.U_BiteInitiation
+      case MEAL_STATE.R_MovingToRestingPosition: {
+        let currentMealState = MEAL_STATE.R_MovingToRestingPosition
+        let nextMealState = MEAL_STATE.U_BiteAcquisitionCheck
         let actionInput = {}
-        /**
-         * TODO: Determine the right user-facing name to give this position.
-         * "staging position"? "ready position?" what is most clear?
-         */
-        let waitingText = 'Waiting for the robot to move to the "ready" position...'
+        let waitingText = 'Waiting for the robot to move to the resting position...'
         return (
           <RobotMotion
             debug={props.debug}
@@ -128,8 +116,8 @@ function Home(props) {
           />
         )
       }
-      case MEAL_STATE.U_BiteInitiation: {
-        return <BiteInitiation debug={props.debug} webVideoServerURL={props.webVideoServerURL} />
+      case MEAL_STATE.U_BiteAcquisitionCheck: {
+        return <BiteAcquisitionCheck debug={props.debug} />
       }
       case MEAL_STATE.R_MovingToMouth: {
         /**
@@ -139,7 +127,7 @@ function Home(props) {
         let currentMealState = MEAL_STATE.R_MovingToMouth
         let nextMealState = MEAL_STATE.U_BiteDone
         let actionInput = { detected_mouth_center: detectedMouthCenter }
-        let waitingText = 'Waiting for Robot to move to your mouth...'
+        let waitingText = 'Waiting for the robot to move to your mouth...'
         return (
           <RobotMotion
             debug={props.debug}

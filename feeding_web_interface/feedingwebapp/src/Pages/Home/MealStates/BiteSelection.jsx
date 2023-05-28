@@ -38,8 +38,8 @@ const BiteSelection = (props) => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
   const setDesiredFoodItem = useGlobalState((state) => state.setDesiredFoodItem)
-  // Get icon image for move to staging
-  let moveToStagingImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingLocation]
+  // Get icon image for move to mouth
+  let moveToMouthImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth]
 
   /**
    * Create a local state variable to store the detected masks, the
@@ -81,10 +81,10 @@ const BiteSelection = (props) => {
   }, [setMealState])
 
   /**
-   * Callback function for when the user wants to move to staging position.
+   * Callback function for when the user wants to move to mouth position.
    */
-  const moveToStagingPosition = useCallback(() => {
-    setMealState(MEAL_STATE.R_MovingToStagingLocation)
+  const moveToMouth = useCallback(() => {
+    setMealState(MEAL_STATE.R_MovingToMouth)
   }, [setMealState])
 
   /**
@@ -329,16 +329,16 @@ const BiteSelection = (props) => {
         <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: '20px' }}>
           Continue without acquiring bite.
         </p>
-        {/* Icon to move above plate */}
+        {/* Icon to move to mouth */}
         <Row className='justify-content-center mx-auto mb-2 w-75'>
           <Button
             variant='warning'
             className='mx-2 mb-2 btn-huge'
             size='lg'
-            onClick={moveToStagingPosition}
+            onClick={moveToMouth}
             style={{ width: '300px', height: '200px' }}
           >
-            <img src={moveToStagingImage} alt='move_above_plate_image' className='center' />
+            <img src={moveToMouthImage} alt='move_to_mouth_image' className='center' />
           </Button>
         </Row>
       </div>

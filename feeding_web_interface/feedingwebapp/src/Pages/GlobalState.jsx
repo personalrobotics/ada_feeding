@@ -30,12 +30,10 @@ export const APP_PAGE = {
  *     the plate.
  *   - R_BiteAcquisition: Waiting for the robot to execute one bite acquisition
  *     attempt.
+ *   - R_MovingToRestingPosition: Waiting for the robot to move to resting
+ *     position.
  *   - U_BiteAcquisitionCheck: Waiting for the user to specify whether the
  *     bite acquisition was succesful or not.
- *   - R_MovingToStagingLocation: Waiting for the robot to move to the
- *     "staging location," where their face is in camera view.
- *   - U_BiteInitiation: Waiting for the user to initiate a bite with their
- *     preferred modalit(ies).
  *   - R_MovingToMouth: Waiting for the robot to finish moving to the user's
  *     mouth.
  *   - U_BiteDone: Waiting for the user to indicate that they are done eating
@@ -49,9 +47,8 @@ export const MEAL_STATE = {
   U_BiteSelection: 'U_BiteSelection',
   U_PlateLocator: 'U_PlateLocator',
   R_BiteAcquisition: 'R_BiteAcquisition',
+  R_MovingToRestingPosition: 'R_MovingToRestingPosition',
   U_BiteAcquisitionCheck: 'U_BiteAcquisitionCheck',
-  R_MovingToStagingLocation: 'R_MovingToStagingLocation',
-  U_BiteInitiation: 'U_BiteInitiation',
   R_MovingToMouth: 'R_MovingToMouth',
   U_BiteDone: 'U_BiteDone',
   R_StowingArm: 'R_StowingArm',

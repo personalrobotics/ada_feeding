@@ -8,12 +8,12 @@ from rclpy.executors import MultiThreadedExecutor
 def main(args=None):
     rclpy.init(args=args)
 
-    move_to_staging_location = MoveToDummy("MoveToStagingLocation", MoveTo)
+    move_to_resting_position = MoveToDummy("MoveToRestingPosition", MoveTo)
 
     # Use a MultiThreadedExecutor to enable processing goals concurrently
     executor = MultiThreadedExecutor()
 
-    rclpy.spin(move_to_staging_location, executor=executor)
+    rclpy.spin(move_to_resting_position, executor=executor)
 
 
 if __name__ == "__main__":

@@ -17,8 +17,8 @@ const BiteAcquisitionCheck = () => {
   const setMealState = useGlobalState((state) => state.setMealState)
   // Get icon image for move above plate
   let moveAbovePlateImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
-  // Get icon image for move to staging
-  let moveToStagingImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingLocation]
+  // Get icon image for move to mouth
+  let moveToMouthImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth]
 
   /**
    * Callback function for when the user indicates that the bite acquisition
@@ -26,7 +26,7 @@ const BiteAcquisitionCheck = () => {
    */
   const acquisitionSuccess = useCallback(() => {
     console.log('acquisitionSuccess')
-    setMealState(MEAL_STATE.R_MovingToStagingLocation)
+    setMealState(MEAL_STATE.R_MovingToMouth)
   }, [setMealState])
 
   /**
@@ -41,17 +41,11 @@ const BiteAcquisitionCheck = () => {
   // Render the component
   return (
     <div style={{ display: 'block', width: '100%', height: '115vh', overflowX: 'hidden', overflowY: 'auto' }} className='outer'>
-      {/**
-       * Ask the user whether the robot succeeded at picking up food or not.
-       */}
-      <p className='transitionMessage' style={{ marginBottom: '0px' }}>
-        Is there food on the fork?
-      </p>
-      {/* Ask the user whether they want to move to "ready" position */}
+      {/* Ask the user whether they want to move to mouth position */}
       <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: '140%' }}>
-        Yes, proceed
+        Ready for bite? Move to mouth.
       </p>
-      {/* Icon to move to staging position */}
+      {/* Icon to move to mouth position */}
       <Row className='justify-content-center mx-auto w-75'>
         <Button
           variant='success'
@@ -60,15 +54,15 @@ const BiteAcquisitionCheck = () => {
           onClick={acquisitionSuccess}
           style={{ width: '300px', height: '200px' }}
         >
-          <img src={moveToStagingImage} alt='move_to_staging_image' className='center' />
+          <img src={moveToMouthImage} alt='move_to_mouth_image' className='center' />
         </Button>
       </Row>
       {/* Add empty space */}
       <div className='justify-content-center mx-auto mb-1 row'>&nbsp;</div>
       <Row className='justify-content-center mx-auto mb-2'>
-        {/* Ask the user whether they want to try again */}
+        {/* Ask the user whether they want to try acquiring bite again */}
         <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: '140%' }}>
-          No, try again
+          Re-acquire bite? Move above plate.
         </p>
         {/* Icon for move above plate */}
         <Button

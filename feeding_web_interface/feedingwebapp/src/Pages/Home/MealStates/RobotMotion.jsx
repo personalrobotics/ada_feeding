@@ -200,21 +200,27 @@ const RobotMotion = (props) => {
    * state, all pressed of "back" will revert to the "Moving Above Plate" state.
    * - BiteAcquisition: In this case, pressing "back" should let the user
    *   reselect the bite, which requires the robot to move above plate.
-   * - MoveToStagingLocation: In this case, pressing "back" should move the
+   * - MoveToRestingPostion: In this case, pressing "back" should move the
    *   robot back to the plate. Although the user may not always want to
    *   reselect the bite, from `BiteSelection` they have the option to skip
-   *   BiteAcquisition and move straight to staging location (when they are ready).
-   * - MoveToMouth: Although in some cases the user may want "back" to move to
-   *   the staging location, since we will be removing the staging location
-   *   (Issue #45) it makes most sense to move the robot back to the plate.
+   *   BiteAcquisition and move straight to resting positon (when they are ready).
+   * - MoveToMouth: In this case, pressing "back" should move the
+   *   robot back to the resting positon.
    * - StowingArm: In this case, if the user presses back they likely want to
    *   eat another bite, hence moving above the plate makes sense.
    * - MovingAbovePlate: Although the user may want to press "back" to move
-   *   the robot to the staging location, they can also go forward to
-   *   BiteSelection and then move the robot to the staging location.
+   *   the robot to the mouth, they can also go forward to
+   *   BiteSelection and then move the robot to the mouth location.
    *   Hence, in this case we don't have a "back" button.
    */
   const backMealState = useRef(MEAL_STATE.R_MovingAbovePlate)
+  useEffect(() => {
+    if (mealState === MEAL_STATE.R_MovingToMouth) {
+      backMealState.current = MEAL_STATE.R_MovingToRestingPosition
+    } else {
+      backMealState.current = MEAL_STATE.R_MovingAbovePlate
+    }
+  }, [mealState, backMealState])
   const backCallback = useCallback(() => {
     setPaused(false)
     setMealState(backMealState.current)

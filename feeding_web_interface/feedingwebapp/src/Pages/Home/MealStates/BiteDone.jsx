@@ -11,15 +11,15 @@ import { MOVING_STATE_ICON_DICT } from '../../Constants'
 /**
  * The BiteDone component appears after the robot has moved to the user's mouth,
  * and waits for the user to specify that they have finished the bite before
- * moving back to the staging area.
+ * moving back to above plate.
  */
 const BiteDone = () => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
   // Get icon image for move above plate
   let moveAbovePlateImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
-  // Get icon image for move to staging
-  let moveToStagingImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingLocation]
+  // Get icon image for move to resting position
+  let moveToRestingPositionImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToRestingPosition]
 
   /**
    * Callback function for when the user wants to move above plate.
@@ -29,11 +29,10 @@ const BiteDone = () => {
   }, [setMealState])
 
   /**
-   * Callback function for if the user decides to move to staging position.
-   *
+   * Callback function for when the user wants to move to resting position.
    */
-  const moveToStagingPosition = useCallback(() => {
-    setMealState(MEAL_STATE.R_MovingToStagingLocation)
+  const moveToRestingPosition = useCallback(() => {
+    setMealState(MEAL_STATE.R_MovingToRestingPosition)
   }, [setMealState])
 
   // Render the component
@@ -58,19 +57,19 @@ const BiteDone = () => {
       {/* Add empty space */}
       <div className='justify-content-center mx-auto my-3 row'>&nbsp;</div>
       <Row className='justify-content-center mx-auto mt-2'>
-        {/* Ask the user whether they want to move to staging position */}
+        {/* Ask the user whether they want to move to resting position */}
         <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: '140%' }}>
-          Take another bite? Move to &quot;ready&quot; position.
+          Take another bite? Move to resting position.
         </p>
-        {/* Icon to move to staging position */}
+        {/* Icon to move to resting position */}
         <Button
           variant='warning'
           className='mx-2 mb-2 btn-huge'
           size='lg'
-          onClick={moveToStagingPosition}
+          onClick={moveToRestingPosition}
           style={{ width: '300px', height: '200px' }}
         >
-          <img src={moveToStagingImage} alt='move_to_staging_image' className='center' />
+          <img src={moveToRestingPositionImage} alt='move_to_resting_image' className='center' />
         </Button>
       </Row>
     </div>
