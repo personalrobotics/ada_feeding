@@ -1,3 +1,3 @@
 #!/bin/bash
-pip install git+https://github.com/facebookresearch/segment-anything.git
-pip install -r requirements.txt
+python3 -m pip install git+https://github.com/facebookresearch/segment-anything.git
+python3 -m pip install -r requirements.txt

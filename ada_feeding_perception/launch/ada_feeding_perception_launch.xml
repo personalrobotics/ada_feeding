@@ -1,0 +1,10 @@
+<launch>
+  <arg name="device" default="cuda" description=""/>
+  <arg name="model_name" default="sam_vit_b_01ec64.pth" description="The name of the model file to load."/>
+
+  <node pkg="ada_feeding_perception" exec="segment_from_point" name="segment_from_point">
+    <param from="$(find-pkg-share ada_feeding_perception)/config/segment_from_point.yaml"/>
+    <param name="model_dir" value="$(find-pkg-share ada_feeding_perception)/model/"/>
+  </node>
+
+</launch>

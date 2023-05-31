@@ -1,6 +1,7 @@
 numpy
-torch
 matplotlib
 opencv-python
 scikit-image
 scipy
+torch
+torchvision
