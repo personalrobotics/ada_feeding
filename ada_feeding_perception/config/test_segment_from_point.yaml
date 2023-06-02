@@ -1,0 +1,39 @@
+# NOTE: You have to change this node name if you change the node name in the launchfile.
+test_segment_from_point:
+  ros__parameters:
+    # There are two modes:
+    #   online:  The node will subscribe to the image topic and display the image.
+    #            When the user clicks a point on the image, it will call the
+    #            SegmentFromPoint action server and display the result(s).
+    #   offline: The node will read the images and points specified in the params.
+    #            It will call the SegmentFromPoint action server and save the results. 
+    mode: online # online or offline
+    
+    action_server_name: /SegmentFromPoint
+    
+    online: # Params for online mode
+      image_topic: /camera/color/image_raw
+    
+    offline: # Params for offline mode
+      # NOTE: The below lists must be the same length!
+      images: # list of images to segment
+        - test/food_img/sete_00100.jpg
+        - test/food_img/sete_00100.jpg
+        - test/food_img/sete_00100.jpg
+        - test/food_img/setf_00113.jpg
+        - test/food_img/setf_00113.jpg
+        - test/food_img/setf_00113.jpg
+      points_x: # list of x coordinates to segment
+        - 800
+        - 1050
+        - 1200
+        - 1050
+        - 1300
+        - 1300
+      points_y: # list of y coordinates to segment
+        - 500
+        - 400
+        - 400
+        - 400
+        - 500
+        - 800

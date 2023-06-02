@@ -5,3 +5,5 @@ segment_from_point:
     model_name: sam_vit_b_01ec64.pth
     # The URL to download the model checkpoint from if it is not already downloaded
     model_base_url: "https://dl.fbaipublicfiles.com/segment_anything/"
+    # The number of contender masks to return
+    n_contender_masks: 3
