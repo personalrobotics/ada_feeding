@@ -39,6 +39,7 @@ This repository includes several dummy nodes that match the interface that the r
 1. Navigate to your ROS2 workspace: `cd {path/to/your/ros2/workspace}`
 2. Build your workspace: `colcon build`
 3. Launch the dummy nodes, rosbridge, and web_video_server: `source install/setup.bash; ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml`
+    1. To not run the motion, perception or RealSense dummy nodes, add `run_motion:=false`, `run_perception:=false`, and/or `run_real_sense:=false` to the end of the above command.
 4. In another terminal, navigate to the web app folder: `cd {path/to/feeding_web_interface}/feedingwebapp`
 5. Start the app: `npm start`
 6. Use a web browser to navigate to `localhost:3000`. If serving the app on a different device (e.g., an EC2 instance, using ngork, etc.) navigate to `{url_of_device_serving_the_app}:3000`. See "Getting Started in Smartphone" below for more details.

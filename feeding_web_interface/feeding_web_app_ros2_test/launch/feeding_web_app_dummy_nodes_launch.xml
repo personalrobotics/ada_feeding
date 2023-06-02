@@ -1,5 +1,10 @@
 <launch>
 
+  <!-- What nodes to run -->
+  <arg name="run_perception" default="true" description="Whether to run the dummy perception nodes" />
+  <arg name="run_real_sense" default="true" description="Whether to run the dummy RealSense node" />
+  <arg name="run_motion" default="true"  description="Whether to run the dummy motion nodes" />
+
   <!-- The ROSBridge Node -->
   <include file="$(find-pkg-share rosbridge_server)/launch/rosbridge_websocket_launch.xml"/>
   <!-- The ROS web_video_server -->
@@ -7,22 +12,27 @@
 
   <!-- The dummy nodes -->
 
-  <!-- Perception: The RealSense Node -->
-  <node pkg="feeding_web_app_ros2_test" exec="DummyRealSense" name="DummyRealSense"/>
-  <!-- Perception: The FaceDetection node -->
-  <node pkg="feeding_web_app_ros2_test" exec="FaceDetection" name="FaceDetection"/>
-  <!-- Perception: The SegmentFromPoint node -->
-  <node pkg="feeding_web_app_ros2_test" exec="SegmentFromPoint" name="SegmentFromPoint"/>
+  <group if="$(var run_real_sense)">
+    <!-- Perception: The RealSense Node -->
+    <node pkg="feeding_web_app_ros2_test" exec="DummyRealSense" name="DummyRealSense"/>
+  </group>
+
+  <group if="$(var run_perception)">
+    <!-- Perception: The SegmentFromPoint node -->
+    <node pkg="feeding_web_app_ros2_test" exec="SegmentFromPoint" name="SegmentFromPoint"/>
+  </group>
   
-  <!-- Motion: The MoveAbovePlate action -->
-  <node pkg="feeding_web_app_ros2_test" exec="MoveAbovePlate" name="MoveAbovePlate"/>
-  <!-- Motion: The AcquireFood action -->
-  <node pkg="feeding_web_app_ros2_test" exec="AcquireFood" name="AcquireFood"/>
-  <!-- Motion: The MoveToRestingPosition action -->
-  <node pkg="feeding_web_app_ros2_test" exec="MoveToRestingPosition" name="MoveToRestingPosition"/>
-  <!-- Motion: The MoveToMouth action -->
-  <node pkg="feeding_web_app_ros2_test" exec="MoveToMouth" name="MoveToMouth"/>
-  <!-- Motion: The MoveToStowLocation action -->
-  <node pkg="feeding_web_app_ros2_test" exec="MoveToStowLocation" name="MoveToStowLocation"/>
+  <group if="$(var run_motion)">
+    <!-- Motion: The MoveAbovePlate action -->
+    <node pkg="feeding_web_app_ros2_test" exec="MoveAbovePlate" name="MoveAbovePlate"/>
+    <!-- Motion: The AcquireFood action -->
+    <node pkg="feeding_web_app_ros2_test" exec="AcquireFood" name="AcquireFood"/>
+    <!-- Motion: The MoveToRestingPosition action -->
+    <node pkg="feeding_web_app_ros2_test" exec="MoveToRestingPosition" name="MoveToRestingPosition"/>
+    <!-- Motion: The MoveToMouth action -->
+    <node pkg="feeding_web_app_ros2_test" exec="MoveToMouth" name="MoveToMouth"/>
+    <!-- Motion: The MoveToStowLocation action -->
+    <node pkg="feeding_web_app_ros2_test" exec="MoveToStowLocation" name="MoveToStowLocation"/>
+  </group>
 
 </launch>
