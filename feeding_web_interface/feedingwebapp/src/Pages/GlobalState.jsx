@@ -92,8 +92,6 @@ export const useGlobalState = create(
       appPage: APP_PAGE.Home,
       // The most recent food item that the user selected in "bite selection"
       desiredFoodItem: null,
-      // The center of the mouth as detected by face detection
-      detectedMouthCenter: null,
       // Whether or not the currently-executing robot motion was paused by the user
       paused: false,
       // Settings values
@@ -114,10 +112,6 @@ export const useGlobalState = create(
       setDesiredFoodItem: (desiredFoodItem) =>
         set(() => ({
           desiredFoodItem: desiredFoodItem
-        })),
-      setDetectedMouthCenter: (detectedMouthCenter) =>
-        set(() => ({
-          detectedMouthCenter: detectedMouthCenter
         })),
       setPaused: (paused) =>
         set(() => ({

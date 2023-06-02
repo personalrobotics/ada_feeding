@@ -68,7 +68,7 @@ ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingToRestingPosition] = {
 }
 ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingToMouth] = {
   actionName: 'MoveToMouth',
-  messageType: 'ada_feeding_msgs/action/MoveToMouth'
+  messageType: 'ada_feeding_msgs/action/MoveTo'
 }
 ROS_ACTIONS_NAMES[MEAL_STATE.R_StowingArm] = {
   actionName: 'MoveToStowLocation',
