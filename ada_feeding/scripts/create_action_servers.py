@@ -164,6 +164,13 @@ class CreateActionServers(Node):
             else:
                 tree_kwargs = {}
 
+            if action_type.value is None or tree_class.value is None:
+                self.get_logger().warn(
+                    "Skipping action server %s because it has no action type or tree class"
+                    % server_name
+                )
+                continue
+
             action_server_params.append(
                 ActionServerParams(
                     server_name=server_name,
