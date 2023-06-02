@@ -1,8 +1,6 @@
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 segment_from_point:
   ros__parameters:
-    # The torch.device to run Segment Anything on (e.g., 'cpu', 'cuda', etc.)
-    device: cpu
     # The name of the Segment Anything model checkpoint to use
     model_name: sam_vit_b_01ec64.pth
     # The URL to download the model checkpoint from if it is not already downloaded

@@ -29,7 +29,7 @@ image_path = args.input_image
 input_point = np.array(eval(args.input_point))
 
 # Model parameters
-device = "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 model_type = "vit_b"
 sam_checkpoint = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "model", "sam_vit_b_01ec64.pth")

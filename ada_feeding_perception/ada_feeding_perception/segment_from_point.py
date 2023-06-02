@@ -22,6 +22,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from segment_anything import sam_model_registry, SamPredictor
 from sensor_msgs.msg import CompressedImage, Image, RegionOfInterest
+import torch
 
 # Local imports
 from ada_feeding_msgs.action import SegmentFromPoint
@@ -47,17 +48,18 @@ class SegmentFromPointNode(Node):
         """
         super().__init__("segment_from_point")
 
+        # Check if cuda is available
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
         # Read the parameters
         # NOTE: These parameters are only read once. Any changes after the node
         # is initialized will not be reflected.
         (
-            device,
             model_name,
             model_base_url,
             model_dir,
             n_contender_masks,
         ) = self.read_params()
-        self.device = device.value
         self.model_name = model_name.value
         self.n_contender_masks = n_contender_masks.value
 
@@ -94,7 +96,6 @@ class SegmentFromPointNode(Node):
 
         Returns
         -------
-        device: The torch.device to run Segment Anything on (e.g., 'cpu', 'cuda', etc.)
         model_name: The name of the Segment Anything model checkpoint to use
         model_base_url: The URL to download the model checkpoint from if it is not already downloaded
         model_dir: The location of the directory where the model checkpoint is / should be stored
@@ -103,16 +104,6 @@ class SegmentFromPointNode(Node):
         return self.declare_parameters(
             "",
             [
-                (
-                    "device",
-                    None,
-                    ParameterDescriptor(
-                        name="device",
-                        type=ParameterType.PARAMETER_STRING,
-                        description="The torch.device to run Segment Anything on (e.g., 'cpu', 'cuda', etc.)",
-                        read_only=True,
-                    ),
-                ),
                 (
                     "model_name",
                     None,
