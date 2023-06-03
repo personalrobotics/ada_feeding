@@ -170,10 +170,10 @@ def get_connected_component(
             "Mask must be a 2D array, it instead has shape {}".format(mask.shape)
         )
     if (
-        point[0] < 0
-        or point[0] >= mask.shape[0]
-        or point[1] < 0
-        or point[1] >= mask.shape[1]
+        point[1] < 0
+        or point[1] >= mask.shape[0]
+        or point[0] < 0
+        or point[0] >= mask.shape[1]
     ):
         raise IndexError("Point %s is not in mask of shape %s" % (point, mask.shape))
     # Convert mask to uint8
@@ -226,6 +226,21 @@ def test_get_connected_component() -> None:
     point = (1, 3)
     ans = np.array(
         [[0, 0, 0, 0, 0], [0, 0, 1, 0, 0], [0, 1, 1, 0, 0], [0, 1, 1, 0, 0]], dtype=bool
+    )
+    ret = get_connected_component(mask, point)
+    print("ret")
+    pprint.pprint(ret)
+    print("ans")
+    pprint.pprint(ans)
+    assert np.all(ret == ans)
+
+    # Test that the function tests the bounds of the seed point correctly
+    mask = np.array(
+        [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 1, 1]], dtype=bool
+    )
+    point = (3, 4)
+    ans = np.array(
+        [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 1, 1]], dtype=bool
     )
     ret = get_connected_component(mask, point)
     print("ret")

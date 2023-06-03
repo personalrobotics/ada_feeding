@@ -262,32 +262,22 @@ class SegmentFromPointNode(Node):
         result.header = image_msg.header
 
         # Convert the image to OpenCV format
-        self.get_logger().info("Getting CV image...")
         image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        self.get_logger().info(
-            "Got CV image of shape %s and seed point %s"
-            % (str(image.shape), str(seed_point))
-        )
 
         # Segment the image
-        self.get_logger().info("Getting input point and label...")
         input_point = np.array([seed_point])
         input_label = np.array([1])
-        self.get_logger().info("Setting image...")
         self.predictor.set_image(image)
-        self.get_logger().info("Pre-predict...")
         masks, scores, _ = self.predictor.predict(
             point_coords=input_point,
             point_labels=input_label,
             multimask_output=True,
         )
-        self.get_logger().info("Post-predict...")
 
         # Sort the masks from highest to lowest score
         scored_masks = list(zip(scores, masks))
         scored_masks_sorted = sorted(scored_masks, key=lambda x: x[0], reverse=True)
-        self.get_logger().info("Sorted Masks...")
 
         # After getting the masks
         mask_num = -1
@@ -352,16 +342,13 @@ class SegmentFromPointNode(Node):
         latest_img_msg = None
         with self.latest_img_msg_lock:
             latest_img_msg = self.latest_img_msg
-        self.get_logger().info("Got latest point")
 
         # Segment the image
         seed_point = (
             int(goal_handle.request.seed_point.point.x),
             int(goal_handle.request.seed_point.point.y),
         )
-        self.get_logger().info("Got seed point")
         result = self.segment_image(seed_point, latest_img_msg)
-        self.get_logger().info("Got result")
 
         # Check if there was a cancel request
         if goal_handle.is_cancel_requested:

@@ -26,6 +26,11 @@ setup(
             os.path.join("share", package_name, "config"),
             glob(os.path.join("config", "*.yaml")),
         ),
+        # Include the test images
+        (
+            os.path.join("share", package_name, "test_img"),
+            glob(os.path.join("test", "food_img", "*.jpg")),
+        ),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
