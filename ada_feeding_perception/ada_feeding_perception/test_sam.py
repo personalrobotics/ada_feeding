@@ -124,14 +124,14 @@ for i, (score, mask) in enumerate(scored_masks_sorted):
     plt.figure(figsize=(10, 10))
     plt.imshow(image)
     plt.gca().scatter(
-            [input_point[0]],
-            [input_point[1]],
-            color="green",
-            marker="*",
-            s=128,
-            edgecolor="white",
-            linewidth=1,
-        )
+        [input_point[0]],
+        [input_point[1]],
+        color="green",
+        marker="*",
+        s=128,
+        edgecolor="white",
+        linewidth=1,
+    )
     plt.axis("on")
     plt.show()
 

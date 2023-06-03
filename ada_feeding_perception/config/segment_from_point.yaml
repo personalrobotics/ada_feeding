@@ -7,5 +7,3 @@ segment_from_point:
     model_base_url: "https://dl.fbaipublicfiles.com/segment_anything/"
     # The number of contender masks to return
     n_contender_masks: 3
-    # The rate at which to send feedback to the action client
-    send_feedback_hz: 10 # Hz

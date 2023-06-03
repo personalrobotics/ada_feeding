@@ -7,7 +7,7 @@ point using Segment Anything, and returns the top n contender masks.
 # Standard imports
 import os
 import threading
-from typing import List, Tuple
+from typing import Tuple
 
 # Third-party imports
 import cv2
@@ -59,11 +59,9 @@ class SegmentFromPointNode(Node):
             model_base_url,
             model_dir,
             n_contender_masks,
-            send_feedback_hz,
         ) = self.read_params()
         self.model_name = model_name.value
         self.n_contender_masks = n_contender_masks.value
-        self.send_feedback_hz = send_feedback_hz.value
 
         # Download the checkpoint if it doesn't exist
         self.model_path = os.path.join(model_dir.value, self.model_name)
@@ -102,7 +100,6 @@ class SegmentFromPointNode(Node):
         model_base_url: The URL to download the model checkpoint from if it is not already downloaded
         model_dir: The location of the directory where the model checkpoint is / should be stored
         n_contender_masks: The number of contender masks to return per point.
-        send_feedback_hz: The rate at which to send feedback to the action client.
         """
         return self.declare_parameters(
             "",
@@ -144,16 +141,6 @@ class SegmentFromPointNode(Node):
                         name="n_contender_masks",
                         type=ParameterType.PARAMETER_INTEGER,
                         description="The number of contender masks to return per point.",
-                        read_only=True,
-                    ),
-                ),
-                (
-                    "send_feedback_hz",
-                    10,
-                    ParameterDescriptor(
-                        name="send_feedback_hz",
-                        type=ParameterType.PARAMETER_INTEGER,
-                        description="The rate at which to send feedback to the action client.",
                         read_only=True,
                     ),
                 ),
@@ -255,27 +242,23 @@ class SegmentFromPointNode(Node):
         return CancelResponse.ACCEPT
 
     def segment_image(
-        self,
-        seed_point: Tuple[int, int],
-        result: SegmentFromPoint.Result,
-        segmentation_success: List[bool],
-    ) -> None:
+        self, seed_point: Tuple[int, int], image_msg: Image
+    ) -> SegmentFromPoint.Result:
         """
         Segment image using the SAM model.
 
         Parameters
         ----------
         seed_point: The seed point to segment from.
-        result: An empty result message to be populated with the contender masks.
-        segmentation_success: The list to append the segmentation success to.
+        image_msg: The Image message containing the image to segment.
+
+        Returns
+        -------
+        result: The result message containing the contender masks.
         """
         self.get_logger().info("Segmenting image...")
-
-        # Get the latest image
-        with self.latest_img_msg_lock:
-            image_msg = self.latest_img_msg
-
-        # Start populating the result
+        # Create the result
+        result = SegmentFromPoint.Result()
         result.header = image_msg.header
 
         # Convert the image to OpenCV format
@@ -330,7 +313,8 @@ class SegmentFromPointNode(Node):
             mask_msg.confidence = score.item()
             result.detected_items.append(mask_msg)
 
-        segmentation_success.append(True)
+        # Return the result message
+        return result
 
     async def execute_callback(
         self, goal_handle: ServerGoalHandle
@@ -354,74 +338,33 @@ class SegmentFromPointNode(Node):
         """
         self.get_logger().info("Executing goal...%s" % (goal_handle,))
 
-        # Load the feedback parameters
-        feedback_rate = self.create_rate(self.send_feedback_hz)
-        feedback_msg = SegmentFromPoint.Feedback()
+        # Get the latest image
+        latest_img_msg = None
+        with self.latest_img_msg_lock:
+            latest_img_msg = self.latest_img_msg
 
-        # Get the seed point
+        # Segment the image
         seed_point = (
             int(goal_handle.request.seed_point.point.x),
             int(goal_handle.request.seed_point.point.y),
         )
+        result = self.segment_image(seed_point, latest_img_msg)
 
-        # Start the segmentation thread
-        result = SegmentFromPoint.Result()
-        segmentation_success = [False]
-        segmentation_thread = threading.Thread(
-            target=self.segment_image,
-            args=(seed_point, result, segmentation_success),
-            daemon=True,
-        )
-        segmentation_thread.start()
-        segmentation_start_time = self.get_clock().now()
+        # Check if there was a cancel request
+        if goal_handle.is_cancel_requested:
+            self.get_logger().info("Goal canceled")
+            goal_handle.canceled()
+            result = SegmentFromPoint.Result()
+            result.status = result.STATUS_CANCELED
+            with self.active_goal_request_lock:
+                self.active_goal_request = None  # Clear the active goal
+            return result
+        self.get_logger().info("Goal not canceled")
 
-        # Monitor the segmentation thread, and send feedback
-        while rclpy.ok():
-            # Check if there is a cancel request
-            if goal_handle.is_cancel_requested:
-                self.get_logger().info("Goal canceled")
-                goal_handle.canceled()
-                result = SegmentFromPoint.Result()
-                result.status = result.STATUS_CANCELED
-                with self.active_goal_request_lock:
-                    self.active_goal_request = None  # Clear the active goal
-                return result
-
-            # Check if the segmentation thread has finished
-            if not segmentation_thread.is_alive():
-                if segmentation_success[-1]:
-                    self.get_logger().info("Segmentation succeeded, returning")
-                    # Succeed the goal
-                    goal_handle.succeed()
-                    result.status = result.STATUS_SUCCEEDED
-                    with self.active_goal_request_lock:
-                        self.active_goal_request = None  # Clear the active goal
-                    return result
-                else:
-                    self.get_logger().info("Segmentation failed, aborting")
-                    # Abort the goal
-                    goal_handle.abort()
-                    result = SegmentFromPoint.Result()
-                    result.status = result.STATUS_FAILED
-                    with self.active_goal_request_lock:
-                        self.active_goal_request = None  # Clear the active goal
-                    return result
-
-            # Send feedback
-            feedback_msg.elapsed_time = (
-                self.get_clock().now() - segmentation_start_time
-            ).to_msg()
-            self.get_logger().info("Feedback: %s" % feedback_msg)
-            goal_handle.publish_feedback(feedback_msg)
-
-            # Sleep for the specified feedback rate
-            feedback_rate.sleep()
-
-        # If we get here, something went wrong
-        self.get_logger().info("Unknown error, aborting")
-        goal_handle.abort()
-        result = SegmentFromPoint.Result()
-        result.status = result.STATUS_UNKNOWN
+        # Return the result
+        self.get_logger().info("Segmentation succeeded, returning")
+        goal_handle.succeed()
+        result.status = result.STATUS_SUCCEEDED
         with self.active_goal_request_lock:
             self.active_goal_request = None  # Clear the active goal
         return result
