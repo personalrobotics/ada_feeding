@@ -539,7 +539,9 @@ class TestSegmentFromPoint(Node):
             # Save them
             for j, overlaid_image in enumerate(overlaid_images):
                 save_path = os.path.join(
-                    self.base_dir.value, self.save_dir.value, f"image_{i}_{image_filename}_mask_{j}.png"
+                    self.base_dir.value,
+                    self.save_dir.value,
+                    f"image_{i}_{image_filename}_mask_{j}.png",
                 )
                 overlaid_image = cv2.cvtColor(overlaid_image, cv2.COLOR_RGB2BGR)
                 cv2.imwrite(save_path, overlaid_image)
