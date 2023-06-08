@@ -58,3 +58,8 @@ feeding/.vscode/
 
 # Debug/scratch tree
 trees/debug.xml
+
+# Perception: images and models
+*.pth
+ada_feeding_perception/test/food_img/
+ada_feeding_perception/test/output/
