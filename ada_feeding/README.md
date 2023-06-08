@@ -16,11 +16,14 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
 4. Test it:
     1. Individual actions:
         1. `ros2 action send_goal /MoveAbovePlate ada_feeding_msgs/action/MoveTo "{}" --feedback`
-        2. **Not yet implemented** `ros2 action send_goal /AcquireFood ada_feeding_msgs/action/AcquireFood "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, detected_food: {roi: {x_offset: 0, y_offset: 0, height: 0, width: 0, do_rectify: false}, mask: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, format: '', data: []}, item_id: '', confidence: 0.0}}" --feedback`
+        2. `ros2 action send_goal /AcquireFood ada_feeding_msgs/action/AcquireFood "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, detected_food: {roi: {x_offset: 0, y_offset: 0, height: 0, width: 0, do_rectify: false}, mask: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, format: '', data: []}, item_id: '', confidence: 0.0}}" --feedback`
+        3. `ros2 action send_goal /MoveToRestingPosition ada_feeding_msgs/action/MoveTo "{}" --feedback`
+        4. `ros2 action send_goal /MoveToMouth ada_feeding_msgs/action/MoveTo "{}" --feedback`
+        5. `ros2 action send_goal /MoveToStowLocation ada_feeding_msgs/action/MoveTo "{}" --feedback`
     2. With the web app:
         1. Launch the perception nodes:
-            1. Dummy nodes: `TODO`
-            2. Real nodes: `TODO`
+            1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false`
+            2. Real nodes: **NOT YET IMPLEMENTED**
         2. Launch the web app ([instructions here](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp))
 
 ## Writing Behavior Trees That Can Be Wrapped Into Action Servers

@@ -30,7 +30,6 @@ ament_python_install_package(${PROJECT_NAME})
 # Install Python executables
 install(PROGRAMS
   scripts/create_action_servers.py
-  scripts/run_tree.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

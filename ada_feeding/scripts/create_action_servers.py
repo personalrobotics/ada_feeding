@@ -20,6 +20,7 @@ from rclpy.node import Node
 
 # Local imports
 from ada_feeding import ActionServerBT
+from ada_feeding.helpers import import_from_string
 
 
 class ActionServerParams:
@@ -163,6 +164,13 @@ class CreateActionServers(Node):
             else:
                 tree_kwargs = {}
 
+            if action_type.value is None or tree_class.value is None:
+                self.get_logger().warn(
+                    "Skipping action server %s because it has no action type or tree class"
+                    % server_name
+                )
+                continue
+
             action_server_params.append(
                 ActionServerParams(
                     server_name=server_name,
@@ -197,47 +205,22 @@ class CreateActionServers(Node):
             )
 
             # Import the action type
-            try:
-                action_package, action_module, action_class = params.action_type.split(
-                    ".", 3
-                )
-            except Exception as exc:
-                raise NameError(
-                    'Invalid action type %s. Except "package.module.class" e.g., "ada_feeding_msgs.action.MoveTo"'
-                    % params.action_type
-                ) from exc
-            try:
-                self._action_types[params.action_type] = getattr(
-                    getattr(
-                        __import__("%s.%s" % (action_package, action_module)),
-                        action_module,
-                    ),
-                    action_class,
-                )
-            except Exception as exc:
-                raise ImportError("Error importing %s" % (params.action_type)) from exc
+            self._action_types[params.action_type] = import_from_string(
+                params.action_type
+            )
 
             # Import the behavior tree class
+            self._tree_classes[params.tree_class] = import_from_string(
+                params.tree_class
+            )
             try:
-                tree_package, tree_module, tree_class = params.tree_class.split(".", 3)
-            except Exception as exc:
-                raise NameError(
-                    'Invalid tree class %s. Except "package.module.class" e.g., "ada_feeding.trees.MoveAbovePlate"'
-                    % params.tree_class
-                ) from exc
-            try:
-                self._tree_classes[params.tree_class] = getattr(
-                    getattr(
-                        __import__("%s.%s" % (tree_package, tree_module)),
-                        tree_module,
-                    ),
-                    tree_class,
-                )
                 assert issubclass(
                     self._tree_classes[params.tree_class], ActionServerBT
                 ), ("Tree %s must subclass ActionServerBT" % params.tree_class)
-            except Exception as exc:
-                raise ImportError("Error importing %s" % (params.tree_class)) from exc
+            except Exception:
+                self.get_logger().warn(
+                    "%s\nSKIPPING THIS ACTION SERVER" % (traceback.format_exc())
+                )
 
             # Create the action server.
             action_server = ActionServer(
