@@ -21,7 +21,12 @@ For testing, be sure to unzip `test/food_img.zip`.
     2. Real nodes: `ros2 launch ada_feeding ada_feeding_launch.xml`
 5. Launch the RealSense node:
     1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false run_perception:=false`
-    2. Real nodes: **TODO**
+    2. Real nodes:
+        1. SSH into the `nano` user of `nano`: On a pre-configured lab computer, this should be `ssh nano`. Else, look here for [the IP address of nano](https://github.com/personalrobotics/pr_docs/wiki/Networking-and-SSH-Information).
+        2. On `nano`:
+            1. `ros2config` (this takes several seconds)
+            2. `ros2 launch realsense2_camera rs_launch.py rgb_camera.profile:='640,480,30' depth_module.profile:='640,480,30' align_depth.enable:='true' initial_reset:='true'`. See here for [a complete list of params](https://github.com/IntelRealSense/realsense-ros/blob/ros2-development/realsense2_camera/launch/rs_launch.py). **Note that `nano` must be connected to the same WiFi network as the computer running any ros2 nodes that subscribe to it.**
+        3. (To visualize the camera stream, run `ros2 run rviz2 rviz2`)
 6. Launch the web app ([instructions here](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp))
 
 ## Food Segmentation
