@@ -1,0 +1,16 @@
+# Configuration file for moving the Gen2 arm
+#
+# If not otherwise specified:
+#     All units are metric.
+#     All forces and torques are in N and Nm, respectively.
+#     All distances are in m.
+#     All rotations are in radians.
+#     All robot configurations specify 6 joint angles in a list
+#     All positiosn are [x, y, z], and quaternions are [w, x, y, z]
+
+
+# Hard-coded Configurations
+configs:
+  wheelchair:
+    # Ready for Acquisition
+    above_plate: [-2.11666, 3.34967, 2.04129, -2.30031, -2.34026, 2.9545]
