@@ -8,6 +8,8 @@ Left to Right -->
 
 ## Rectangle threshold values
 ### Trial 1:
+* `pt1 = (tine1_x - 50, tine1_y - 75)`
+* `pt2 = (tine1_x + 75, tine1_y + 30)`
 
 ## Depth threshold values
 ### Trial 1:
