@@ -245,21 +245,27 @@ class ADAWatchdog(Node):
         recv_first_ft_msg = False
         with self.ft_sensor_condition_lock:
             recv_first_ft_msg = self.recv_first_ft_msg
+
+        # Configure the output message
+        now = self.get_clock().now()
+        self.watchdog_output.header.stamp = now.to_msg()
+        self.watchdog_output.status = []
+
+        # Return the output
         if recv_first_ft_msg:
             # Check the force-torque sensor conditions
-            now = self.get_clock().now()
             ft_condition = self.ft_sensor_condition.check(now)
 
             # Generate the watchdog output
-            self.watchdog_output.header.stamp = now.to_msg()
-            self.watchdog_output.status = []
             if ft_condition:
                 self.watchdog_output.status.append(self.ft_ok_status)
             else:
                 self.watchdog_output.status.append(self.ft_error_status)
+        else:
+            self.watchdog_output.status.append(self.ft_error_status)
 
-            # Publish the watchdog output
-            self.watchdog_publisher.publish(self.watchdog_output)
+        # Publish the watchdog output
+        self.watchdog_publisher.publish(self.watchdog_output)
 
 
 def main(args=None):
