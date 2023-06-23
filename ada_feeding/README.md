@@ -34,6 +34,12 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
             - Terminating the node.
             - Disconnecting the physical force-torque sensor from power.
             - Inducing corruption by causing the dummy note to output zero-variance values: `ros2 param set /dummy_ft_sensor std  [0.1, 0.1, 0.0, 0.1, 0.1, 0.1]`
+    4. Test the watchdog with the action servers:
+        1. Launch the force-torque sensor (see above).
+        2. Start an action, induce errors in the force-torque sensor (see above), and ensure the action gets aborted.
+        3. While there are errors in the force-torque sensor, ensure no new goals get accepted.
+        4. Terminate the watchdog node and ensure in-progress actions get aborted and incoming goals get rejected.
+        5. Launch the action servers without the watchdog node running and ensure it rejects all goals.
 
 ## Writing Behavior Trees That Can Be Wrapped Into Action Servers
 

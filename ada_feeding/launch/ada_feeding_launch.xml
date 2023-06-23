@@ -1,5 +1,13 @@
 <launch>
+
+  <!-- Launch the watchdog -->
+  <node pkg="ada_feeding" exec="ada_watchdog.py" name="ada_watchdog">
+    <param from="$(find-pkg-share ada_feeding)/config/ada_watchdog.yaml"/>
+  </node>
+
+  <!-- Launch the action servers necessary to move the robot -->
   <node pkg="ada_feeding" exec="create_action_servers.py" name="ada_feeding_action_servers">
     <param from="$(find-pkg-share ada_feeding)/config/ada_feeding_action_servers.yaml"/>
   </node>
+
 </launch>
