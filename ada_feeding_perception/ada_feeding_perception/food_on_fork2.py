@@ -137,6 +137,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-
-# TODO: Just visualize the depth image and the color image in RVIZ. There is some error with displaying the depth
-#  image in the regular one.
