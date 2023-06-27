@@ -1,9 +1,6 @@
 <launch>
-  <!-- Base Args -->
-  <arg name="version" default="2" doc="Kinova Arm Version (JACO = 2, Kortex = 3)" />
-
   <node pkg="ada_feeding" exec="create_action_servers.py" name="ada_feeding_action_servers">
     <param from="$(find-pkg-share ada_feeding)/config/ada_feeding_action_servers.yaml"/>
-    <rosparam file="$(find-pkg-share ada_feeding)/config/gen$(arg version)_feeding_config.yaml" command="load" />
+    <param from="$(find-pkg-share ada_feeding)/config/feeding_goal_config.yaml"/>
   </node>
 </launch>
