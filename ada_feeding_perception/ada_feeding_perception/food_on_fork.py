@@ -132,6 +132,7 @@ class FoodOnForkSubscriber(Node):
 
 
 def main(args=None):
+    print("Running food_on_fork1")
     rclpy.init(args=args)
 
     food_on_fork = FoodOnForkSubscriber()

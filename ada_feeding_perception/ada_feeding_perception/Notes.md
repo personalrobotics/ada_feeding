@@ -13,10 +13,35 @@ Left to Right -->
 
 Note that I don't think we should hardcode the forktine
 and rectangle values because if we move the fork, then
-it can change.
+it can change. Furthermore, is the sensor specific enough 
+where having slighly off positions for the fork tine can cause
+issues?
 
 ## Depth threshold values
 ### Trial 1:
 
 ## Number of Pixels
 ### Trial 1:
+
+## Trials
+Food on Fork:
+```commandline
+number:  4774
+number:  3997
+number:  4847
+number:  4091
+number:  4069
+number:  4091
+number:  4125
+```
+Food not on Fork:
+```commandline
+number:  4195
+number:  956
+number:  1102
+number:  603
+number:  664
+number:  4170
+number:  4176
+number:  4062
+```

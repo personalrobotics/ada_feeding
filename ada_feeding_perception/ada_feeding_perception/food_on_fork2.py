@@ -58,7 +58,7 @@ class FoodOnFork(Node):
             cv.rectangle(img=color_img, pt1=pt1, pt2=pt2, color=(0, 0, 255))
 
             cv.imshow("after adding markings on color", color_img)
-            cv.waitKey(0)
+            cv.waitKey(1)
 
     def listener_callback_depth(self, depth_img_msg):
         unchanged_depth_img = None
@@ -78,9 +78,14 @@ class FoodOnFork(Node):
             # scale/normalize the manipulated depth image to be within 0 and 255 for rendering
             manipulated_depth_img = cv.normalize(src=manipulated_depth_img, dst=None, alpha=0, beta=255,
                                                  norm_type=cv.NORM_MINMAX)
+            # print("Min: ", np.min(manipulated_depth_img))
+            # print("Max: ", np.max(manipulated_depth_img))
             cv.imshow("after normalizing", manipulated_depth_img)
 
-            # Fork tines
+            cv.circle(img=manipulated_depth_img, center=(400, 100), radius=3, color=(0, 255, 255), thickness=1,
+                      lineType=8, shift=0)
+
+            # Fork tines (Note: center = (col, row) format)
             centers = [(359, 275), (367, 274), (375, 273), (381, 272)]
             for center in centers:
                 # (0, 0, 255) is red cause BGR
@@ -88,16 +93,39 @@ class FoodOnFork(Node):
                           lineType=8, shift=0)
 
             # Bounding rectangle
-            tine1_x, tine1_y = centers[0]
-            pt1 = (tine1_x - 50, tine1_y - 75)  # left-top corner of the rectangle
-            pt2 = (tine1_x + 75, tine1_y + 30)  # right-bottom corner of the rectangle
+            tine1_col, tine1_row = centers[0]
+            pt1 = (tine1_col - 50, tine1_row - 55)  # left-top corner of the rectangle
+            pt2 = (tine1_col + 75, tine1_row + 30)  # right-bottom corner of the rectangle
             cv.rectangle(img=manipulated_depth_img, pt1=pt1, pt2=pt2, color=(0, 0, 255))
 
             cv.imshow("after adding markings on depth", manipulated_depth_img)
-            cv.waitKey(0)
+
+            # 1. Distance threshold (Note: to index into cv img, we need (row, col) format
+            #        -> https://stackoverflow.com/questions/9623435/image-processing-mainly-opencv-indexing-conventions)
+            min_dist = unchanged_depth_img[(tine1_row, tine1_col)] - 20  # distance @ left-most tine - 2 cm
+            max_dist = unchanged_depth_img[(tine1_row, tine1_col)] + 40  # distance @ left-most tine + 4 cm
+
+            # 2. Consider only the part of the image with the rectangle
+            pt1_col, pt1_row = pt1
+            pt2_col, pt2_row = pt2
+
+            # create a mask that has all zeros and then change the values between the rectangle to be true
+            mask_img = np.zeros_like(unchanged_depth_img, dtype=bool)
+            mask_img[pt1_row:pt2_row, pt1_col:pt2_col] = True
+            result = unchanged_depth_img
+            result[~mask_img] = 0  # anything not in the mask area should be 0
+
+            # result > min_dist -> if true: keeps the result otherwise makes it 0
+            result = result & (result > min_dist)
+            # result < min_dist -> if true: keeps the result otherwise makes it 0
+            result = result & (result < max_dist)
+
+            print("number: ", np.count_nonzero(result))
+            cv.waitKey(1)
 
 
 def main(args=None):
+    print("Running food_on_fork2")
     rclpy.init(args=args)
     food_on_fork = FoodOnFork()
 
