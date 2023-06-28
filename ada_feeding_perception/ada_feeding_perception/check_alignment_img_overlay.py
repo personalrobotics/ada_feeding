@@ -52,59 +52,52 @@ class CheckAlignmentImgOverlay(Node):
         try:
             # passthrough is essentially rendering the image as it sees
             depth_img = self.bridge.imgmsg_to_cv2(depth_img_msg, "passthrough")
+            changed_depth_img = np.copy(depth_img)
         except CvBridgeError as e:
             print(e)
 
         if depth_img is not None:
-            depth_img = self.bridge.imgmsg_to_cv2(depth_img_msg, "passthrough")  # converts image message and keeps
-            # all the values as is because "passthrough" is used
-            depth_img = (depth_img - np.max(depth_img)) / (
-                        np.max(depth_img) - np.min(depth_img)) * 255  # scales the image to 0-255
-            cv.imshow("depth_after_scaling", depth_img)
-            depth_img = cv.cvtColor(depth_img, cv.COLOR_GRAY2BGR)
-            result = cv.bitwise_and(self.most_recent_color_img, depth_img)
-            cv.imshow("result", result)
-            cv.waitKey(0)
-            # print(np.max(depth_img))
-            # depth_img = (depth_img - np.max(depth_img)) / (np.max(depth_img) - np.min(depth_img)) * 255
-            # print(np.max(depth_img))
-            # cv.imshow("depth_bgr62", depth_img)
-            # cv.waitKey(0)
-            # # depth_normalized = cv.normalize(depth_img, None, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1)
-            # # # depth_colormap = cv.applyColorMap(depth_normalized, cv.COLORMA)
-            # # depth_bgr = cv.cvtColor(depth_normalized, cv.COLOR_GRAY2BGR)
-            # # print(np.max(depth_bgr))
-            # # cv.imshow("depth_bgr", depth_bgr)
-            # # cv.waitKey(0)
-            # result = cv.bitwise_and(self.most_recent_color_img, depth_img)
-            # cv.imshow("Result", result)
-            # cv.waitKey(0)
-        else:
-            print("no most recent color img")
+            cv.imshow("before anything", changed_depth_img)
+            changed_depth_img = np.asarray(changed_depth_img)  # convert to np array
 
+            # The fork is located about 30cm away from the camera.
+            # When I performed np.max(changed_depth_img), I got like 65000+, which is mm and
+            # when converted to cm, that is 6500 cm, which is completely unecessary. We only care
+            # about 1.5 meters away. So, I decided to cut anything greater than 1500 mm (1.5 m) to 1500 mm!
+            # Helps with visualization!
+            changed_depth_img = np.where(changed_depth_img > 1500, 1500, changed_depth_img)
 
+            # print("max dist: ", np.max(changed_depth_img)) # should be 1500!
 
+            cv.imshow("after making 1500 plus 1500",
+                      changed_depth_img)  # expected to be black because not in the correct type
 
-            # # cv.imshow("depth_59", depth_img)
-            # # depth_img = np.array(depth_img, dtype=np.uint16)
-            # cv.imshow("depth_60", depth_img)
-            # depth_img = (depth_img - np.min(depth_img)) / (np.max(depth_img) - np.min(depth_img)) * 255
-            # cv.imshow("depth_63", depth_img)
-            # print("64", np.max(depth_img))
-            # depth_img = np.array(depth_img, dtype=np.uint8)
-            # # depth_img = depth_img.astype(np.uint8)
-            # cv.imshow("depth_66", depth_img)
-            # if self.most_recent_color_img is not None:
-            #     depth_img = cv.cvtColor(depth_img, cv.COLOR_GRAY2BGR)
-            #     cv.imshow("most_recent_color_img", self.most_recent_color_img)
-            #     cv.imshow("depth_img", depth_img)
-            #     print(self.most_recent_color_img.shape, self.most_recent_color_img.dtype)
-            #     print(depth_img.shape, depth_img.dtype)
-            #     result = cv.bitwise_and(self.most_recent_color_img, depth_img)
-            #     cv.imshow("Result", result)
-            #     cv.waitKey(0)
-            # else:
-            #     print("no most recent color img")
+            # convert the depth image to display something between 0 and 255 for rendering purposes
+            # Note that 0 (black) is close and 255 (white) is farther away!
+            depth_img_normalized = cv.normalize(src=changed_depth_img, dst=None, alpha=0, beta=255,
+                                                norm_type=cv.NORM_MINMAX)
+
+            # convert to uint8, which has bounds between 0 and 255!!
+            depth_img_normalized = depth_img_normalized.astype(np.uint8)
+            cv.imshow("Normalized depth image", depth_img_normalized)
+
+            # invert the image for purposes of using it a as a mask for color image on top of this one!
+            depth_img_normalized = 255 - depth_img_normalized
+            cv.imshow("After inversion", depth_img_normalized)
+
+            # convert to three channel image because you want to use that to "and" that with the original
+            # image to be able to overlay the two images correctly
+            depth_img_color_img = cv.cvtColor(depth_img_normalized, cv.COLOR_GRAY2BGR)
+            cv.imshow("After converting to color", depth_img_color_img)
+
+            # overlay the color image on top of this converted depth image
+            if self.most_recent_color_img is not None:
+                overlaid_img = cv.bitwise_and(self.most_recent_color_img, depth_img_color_img)
+                cv.imshow("Overlaid Image", overlaid_img)
+            else:
+                print("most recent image is none :(")
+
+            cv.waitKey(1)
 
 
 def main(args=None):
