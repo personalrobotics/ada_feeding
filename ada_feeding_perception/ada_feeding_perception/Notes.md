@@ -45,3 +45,25 @@ number:  4170
 number:  4176
 number:  4062
 ```
+
+## Testing to check if initial approach works
+1. Home Position
+   1. Without Food
+   2. With Donut Hole
+   3. With leaf
+   4. With ___
+2. In-Front of face
+   1. Without Food
+   2. With Donut Hole
+   3. With leaf
+   4. With ___
+3. Over the plate
+   1. Without Food
+   2. With Donut Hole
+   3. With leaf
+   4. With ___
+4. Edge Case: Straight up
+   1. Without Food
+   2. With Donut Hole
+   3. With leaf
+   4. With ___

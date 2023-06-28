@@ -46,6 +46,7 @@ setup(
             "food_on_fork = ada_feeding_perception.food_on_fork:main",
             "food_on_fork2 = ada_feeding_perception.food_on_fork2:main",
             "check_alignment_img_overlay = ada_feeding_perception.check_alignment_img_overlay:main",
+            "food_on_fork3 = ada_feeding_perception.food_on_fork3:main",
         ],
     },
 )
