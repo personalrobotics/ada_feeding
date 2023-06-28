@@ -12,6 +12,10 @@ import numpy as np
 
 
 class FoodOnFork(Node):
+    """
+    This class is the second version of the Food on Fork node written. There is an error in
+    the process used to visualize the depth image. The overall concept is valid, however.
+    """
     def __init__(self):
         super().__init__('food_on_fork')
 

@@ -13,9 +13,24 @@ import numpy as np
 
 
 class CheckAlignmentImgOverlay(Node):
+    """
+    This class checks if the depth image and the rgb image are aligned. It also
+    checks if the output depth values for the fork tines are in-sync with the
+    actual values
+
+    Attributes:
+        - most_recent_color_img: Color image that was most recently received from the color topic
+        - overlay_img: boolean value that tells whether or not to produce an image overlaid on depth image
+        - find_dist_at_tine: boolean value that tells whether or not to produce a distance to the fork tines
+
+    There are also callback functions defined to be used when listening to the color topic
+    and aligned depth topic
+    """
     def __init__(self):
         super().__init__('food_on_fork')
         self.most_recent_color_img = None
+        self.overlay_img = True
+        self.find_dist_at_tine = True
         # color topic subscription
         self.subscription_color = self.create_subscription(
             Image,
@@ -91,11 +106,34 @@ class CheckAlignmentImgOverlay(Node):
             cv.imshow("After converting to color", depth_img_color_img)
 
             # overlay the color image on top of this converted depth image
-            if self.most_recent_color_img is not None:
-                overlaid_img = cv.bitwise_and(self.most_recent_color_img, depth_img_color_img)
-                cv.imshow("Overlaid Image", overlaid_img)
-            else:
-                print("most recent image is none :(")
+            if self.overlay_img:
+                if self.most_recent_color_img is not None:
+                    overlaid_img = cv.bitwise_and(self.most_recent_color_img, depth_img_color_img)
+                    cv.imshow("Overlaid Image", overlaid_img)
+                else:
+                    print("most recent image is none :(")
+
+            # find the distance for a hardcoded tine position
+            if self.find_dist_at_tine:
+                depth_color_img_changed = np.copy(depth_img_color_img)
+                # Fork tines (Note: center = (col, row) format)
+                centers = [(359, 275), (367, 274), (375, 273), (381, 272)]
+                for center in centers:
+                    # (0, 0, 255) is red cause BGR
+                    cv.circle(img=depth_color_img_changed, center=center, radius=3, color=(0, 0, 255), thickness=1,
+                              lineType=8, shift=0)
+
+                # Bounding rectangle
+                tine1_col, tine1_row = centers[0]
+                pt1 = (tine1_col - 50, tine1_row - 55)  # left-top corner of the rectangle
+                pt2 = (tine1_col + 75, tine1_row + 30)  # right-bottom corner of the rectangle
+                cv.rectangle(img=depth_color_img_changed, pt1=pt1, pt2=pt2, color=(0, 0, 255))
+
+                # position
+                for i in range(len(centers)):
+                    tine_col, tine_row = centers[i]
+                    print(i + 1, ": ", depth_img[tine_row, tine_col])
+                cv.imshow("after adding markings on depth", depth_color_img_changed)
 
             cv.waitKey(1)
 
