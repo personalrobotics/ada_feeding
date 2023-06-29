@@ -11,11 +11,19 @@ import cv2 as cv
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 
+import csv
+from datetime import datetime
+
 
 class FoodOnFork(Node):
+    """
+    This class is updated last on 6/29/2023! It has code that colors the pixels that
+    are in the range of where the food is
+    """
     def __init__(self):
         super().__init__('food_on_fork')
         self.most_recent_color_img = None
+        self.data = [("Timestamp", "Number of Pixels in Range")]
 
         # color topic subscription
         self.subscription_color = self.create_subscription(
@@ -102,6 +110,16 @@ class FoodOnFork(Node):
             # print(depth_img_color_img.shape)
             # print(depth_img_color_img)
             depth_img_color_img[mask_img] = (0, 0, 255)
+
+            # append to the data list
+            self.data.append([datetime.now(), np.count_nonzero(mask_img)])
+            print(self.data)
+
+            with open(r'/home/atharva2/atharvak_ws/src/ada_feeding/ada_feeding_perception/ada_feeding_perception/data/PlateLeaf.csv', 'w', newline='') as f:
+                f_write = csv.writer(f)
+
+                for v in self.data:
+                    f_write.writerow(v)
 
             cv.imshow("changed depth image after depth", depth_img_color_img)
 
