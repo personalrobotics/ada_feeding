@@ -1,5 +1,1 @@
-# Hard-coded Configurations
-configs:
-  wheelchair:
-  # Ready for Acquisition
-    above_plate: [-2.11666, 3.34967, 2.04129, -2.30031, -2.34026, 2.9545]
+above_plate: [-2.11666, 3.34967, 2.04129, -2.30031, -2.34026, 2.9545]
