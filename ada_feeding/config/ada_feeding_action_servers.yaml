@@ -5,71 +5,11 @@ ada_feeding_action_servers:
     # it's own parameters (below) specifying action_type and tree_class.
     server_names:
       - MoveAbovePlate
-      - AcquireFood
-      - MoveToMouth
-      - MoveToRestingPosition
-      - MoveToStowLocation
 
     # Parameters for the MoveAbovePlate action
     MoveAbovePlate: # required
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveAbovePlateTree # required
-      tree_kws: # optional
-        - action_type_class
-        - plan_time
-        - motion_time
-      tree_kwargs: # optional
-        action_type_class: ada_feeding_msgs.action.MoveTo # required
-        plan_time: 1.0 # secs
-        motion_time: 10.0 # secs
-      tick_rate: 10 # Hz, optional, default: 30
-
-    # Parameters for the AcquireFood action
-    AcquireFood: # required
-      action_type: ada_feeding_msgs.action.AcquireFood # required
-      tree_class: ada_feeding.trees.MoveToDummyTree # required
-      tree_kws: # optional
-        - action_type_class
-        - dummy_plan_time
-        - dummy_motion_time
-      tree_kwargs: # optional
-        action_type_class: ada_feeding_msgs.action.AcquireFood # required
-        dummy_plan_time: 1.0 # secs
-        dummy_motion_time: 10.0 # secs
-      tick_rate: 10 # Hz, optional, default: 30
-
-   # Parameters for the MoveToRestingPosition action
-    MoveToRestingPosition: # required
-      action_type: ada_feeding_msgs.action.MoveTo # required
-      tree_class: ada_feeding.trees.MoveToDummyTree # required
-      tree_kws: # optional
-        - action_type_class
-        - dummy_plan_time
-        - dummy_motion_time
-      tree_kwargs: # optional
-        action_type_class: ada_feeding_msgs.action.MoveTo # required
-        dummy_plan_time: 1.0 # secs
-        dummy_motion_time: 10.0 # secs
-      tick_rate: 10 # Hz, optional, default: 30
-
-    # Parameters for the MoveToMouth action
-    MoveToMouth: # required
-      action_type: ada_feeding_msgs.action.MoveTo # required
-      tree_class: ada_feeding.trees.MoveToDummyTree # required
-      tree_kws: # optional
-        - action_type_class
-        - dummy_plan_time
-        - dummy_motion_time
-      tree_kwargs: # optional
-        action_type_class: ada_feeding_msgs.action.MoveTo # required
-        dummy_plan_time: 1.0 # secs
-        dummy_motion_time: 10.0 # secs
-      tick_rate: 10 # Hz, optional, default: 30
-
-    # Parameters for the MoveToStowLocation action
-    MoveToStowLocation: # required
-      action_type: ada_feeding_msgs.action.MoveTo # required
-      tree_class: ada_feeding.trees.MoveToDummyTree # required
       tree_kws: # optional
         - action_type_class
         - dummy_plan_time

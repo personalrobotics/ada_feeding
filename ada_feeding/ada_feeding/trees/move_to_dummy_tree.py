@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-This module defines the MoveAbovePlate behavior tree and provides functions to
+This module defines the MoveAbovePlateTree behavior tree and provides functions to
 wrap that behavior tree in a ROS2 action server.
 """
 
