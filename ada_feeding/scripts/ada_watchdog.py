@@ -169,7 +169,7 @@ class ADAWatchdog(Node):
             WrenchStamped,
             self.ft_topic.value,
             self.ft_sensor_callback,
-            1,
+            rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value,
         )
 
         # Publish at the specified rate
