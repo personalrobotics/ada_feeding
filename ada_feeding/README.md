@@ -33,7 +33,7 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
         3. Induce errors in the force-torque sensor and verify the watchdog reacts appropiately. Errors could include:
             - Terminating the node.
             - Disconnecting the physical force-torque sensor from power.
-            - Inducing corruption by causing the dummy note to output zero-variance values: `ros2 param set /dummy_ft_sensor std  [0.1, 0.1, 0.0, 0.1, 0.1, 0.1]`
+            - Inducing corruption by causing the dummy note to output zero-variance values: `ros2 param set /dummy_ft_sensor std  '[0.1, 0.1, 0.0, 0.1, 0.1, 0.1]'`
     4. Test the watchdog with the action servers:
         1. Launch the force-torque sensor (see above).
         2. Start an action, induce errors in the force-torque sensor (see above), and ensure the action gets aborted.
