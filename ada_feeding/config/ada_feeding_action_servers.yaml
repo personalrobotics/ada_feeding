@@ -1,6 +1,10 @@
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 ada_feeding_action_servers:
   ros__parameters:
+    # Parameters to specify the watchdog topic and timeout
+    watchdog_topic: /ada_watchdog
+    watchdog_timeout_sec: 0.5 # If we haven't received a message from the watchdog in this time, stop all robot motions
+
     # A list of the names of the action servers to create. Each one must have
     # it's own parameters (below) specifying action_type and tree_class.
     server_names:

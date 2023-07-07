@@ -30,6 +30,8 @@ ament_python_install_package(${PROJECT_NAME})
 # Install Python executables
 install(PROGRAMS
   scripts/create_action_servers.py
+  scripts/ada_watchdog.py
+  scripts/dummy_ft_sensor.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

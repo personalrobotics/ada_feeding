@@ -7,16 +7,20 @@ that wrap behavior trees.
 # Standard imports
 import threading
 import traceback
-from typing import Any, Awaitable, Callable, Dict, List
+from typing import Any, Awaitable, Callable, Dict, List, Tuple
 
 # Third-party imports
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 import py_trees
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.action.server import ServerGoalHandle
+from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.parameter import Parameter
+from rclpy.time import Time
 
 # Local imports
 from ada_feeding import ActionServerBT
@@ -72,7 +76,20 @@ class CreateActionServers(Node):
         super().__init__("create_action_servers")
 
         # Read the parameters that specify what action servers to create.
-        action_server_params = self.read_params()
+        watchdog_topic, watchdog_timeout, action_server_params = self.read_params()
+
+        # Subscribe to the watchdog topic
+        self.watchdog_failed = (
+            True  # until we get a message from the watchdog, assume it has failed
+        )
+        self.last_watchdog_msg_time = None
+        self.watchdog_sub = self.create_subscription(
+            DiagnosticArray,
+            watchdog_topic.value,
+            self.watchdog_callback,
+            1,
+        )
+        self.watchdog_timeout = Duration(seconds=watchdog_timeout.value)
 
         # Track the active goal request.
         self.active_goal_request_lock = threading.Lock()
@@ -81,7 +98,7 @@ class CreateActionServers(Node):
         # Create the action servers.
         self.create_action_servers(action_server_params)
 
-    def read_params(self) -> List[ActionServerParams]:
+    def read_params(self) -> Tuple[Parameter, Parameter, List[ActionServerParams]]:
         """
         Read the parameters that specify what action servers to create.
 
@@ -89,6 +106,28 @@ class CreateActionServers(Node):
         -------
         action_server_params: A list of ActionServerParams objects.
         """
+        # Read the watchdog parameters
+        watchdog_topic = self.declare_parameter(
+            "watchdog_topic",
+            "/ada_watchdog",
+            ParameterDescriptor(
+                name="watchdog_topic",
+                type=ParameterType.PARAMETER_STRING,
+                description="The topic on which the watchdog publishes.",
+                read_only=True,
+            ),
+        )
+        watchdog_timeout = self.declare_parameter(
+            "watchdog_timeout",
+            0.5,
+            ParameterDescriptor(
+                name="watchdog_timeout",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="The maximum time (s) that the watchdog can go without publishing before the watchdog fails.",
+                read_only=True,
+            ),
+        )
+
         # Read the server names
         server_names = self.declare_parameter(
             "server_names",
@@ -181,7 +220,39 @@ class CreateActionServers(Node):
                 )
             )
 
-        return action_server_params
+        return watchdog_topic, watchdog_timeout, action_server_params
+
+    def watchdog_callback(self, msg: DiagnosticArray) -> None:
+        """
+        Callback function for the watchdog topic. This function checks if the
+        watchdog has failed and, if so, cancels the active goal. Further, it
+        prevents any goals from being accepted once the watchdog has failed.
+
+        Parameters
+        ----------
+        msg: The watchdog message.
+        """
+        watchdog_failed = False
+        for status in msg.status:
+            if status.level != DiagnosticStatus.OK:
+                watchdog_failed = True
+                break
+        self.watchdog_failed = watchdog_failed
+
+        self.last_watchdog_msg_time = Time.from_msg(msg.header.stamp)
+
+    def is_watchdog_ok(self) -> bool:
+        """
+        Returns True if the watchdog is OK and has not timed out, else False.
+        """
+        return (
+            (not self.watchdog_failed)
+            and (self.last_watchdog_msg_time is not None)
+            and (
+                (self.get_clock().now() - self.last_watchdog_msg_time)
+                < self.watchdog_timeout
+            )
+        )
 
     def create_action_servers(
         self, action_server_params: List[ActionServerParams]
@@ -252,7 +323,7 @@ class CreateActionServers(Node):
 
         # If we don't already have an active goal_request, accept this one
         with self.active_goal_request_lock:
-            if self.active_goal_request is None:
+            if self.is_watchdog_ok() and self.active_goal_request is None:
                 self.get_logger().info("Accepting goal request")
                 self.active_goal_request = goal_request
                 return GoalResponse.ACCEPT
@@ -327,8 +398,16 @@ class CreateActionServers(Node):
                             tree
                         )  # blocks until the preempt succeeds
                         goal_handle.canceled()
-                        with self.active_goal_request_lock:
-                            self.active_goal_request = None
+                        result = tree_action_server.get_result(tree)
+                        break
+
+                    # Check if the watchdog has failed
+                    if not self.is_watchdog_ok():
+                        self.get_logger().info("Watchdog failed, aborting goal")
+                        tree_action_server.preempt_goal(
+                            tree
+                        )  # blocks until the preempt succeeds
+                        goal_handle.abort()
                         result = tree_action_server.get_result(tree)
                         break
 
@@ -342,8 +421,6 @@ class CreateActionServers(Node):
                     if tree.root.status == py_trees.common.Status.SUCCESS:
                         self.get_logger().info("Goal succeeded")
                         goal_handle.succeed()
-                        with self.active_goal_request_lock:
-                            self.active_goal_request = None
                         result = tree_action_server.get_result(tree)
                         break
                     if tree.root.status in set(
@@ -351,8 +428,6 @@ class CreateActionServers(Node):
                     ):
                         self.get_logger().info("Goal failed")
                         goal_handle.abort()
-                        with self.active_goal_request_lock:
-                            self.active_goal_request = None
                         result = tree_action_server.get_result(tree)
                         break
 

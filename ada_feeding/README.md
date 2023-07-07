@@ -23,8 +23,23 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
     2. With the web app:
         1. Launch the perception nodes:
             1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false`
-            2. Real nodes: **NOT YET IMPLEMENTED**
+            2. Real nodes: Follow the instructions in the [`ada_feeding_perception` README](https://github.com/personalrobotics/ada_feeding/blob/ros2-devel/ada_feeding_perception/README.md#usage)
         2. Launch the web app ([instructions here](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp))
+    3. Test the watchdog in isolation:
+        1. Launch the force-torque sensor:
+            1. Dummy node: `ros2 run ada_feeding dummy_ft_sensor.py`
+            2. Real node: Follow the instructions in the [`forque_sensor_hardware` README](https://github.com/personalrobotics/forque_sensor_hardware/blob/main/README.md). Note that this is in the _main_ branch, which may not be the default branch.
+        2. Echo the watchdog topic: `ros2 topic echo /ada_watchdog`
+        3. Induce errors in the force-torque sensor and verify the watchdog reacts appropiately. Errors could include:
+            - Terminating the node.
+            - Disconnecting the physical force-torque sensor from power.
+            - Inducing corruption by causing the dummy note to output zero-variance values: `ros2 param set /dummy_ft_sensor std  [0.1, 0.1, 0.0, 0.1, 0.1, 0.1]`
+    4. Test the watchdog with the action servers:
+        1. Launch the force-torque sensor (see above).
+        2. Start an action, induce errors in the force-torque sensor (see above), and ensure the action gets aborted.
+        3. While there are errors in the force-torque sensor, ensure no new goals get accepted.
+        4. Terminate the watchdog node and ensure in-progress actions get aborted and incoming goals get rejected.
+        5. Launch the action servers without the watchdog node running and ensure it rejects all goals.
 
 ## Writing Behavior Trees That Can Be Wrapped Into Action Servers
 
