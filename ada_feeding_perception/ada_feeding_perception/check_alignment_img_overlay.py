@@ -43,7 +43,8 @@ class CheckAlignmentImgOverlay(Node):
         # depth topic subscription
         self.subscription_depth = self.create_subscription(
             Image,
-            'camera/aligned_depth_to_color/image_raw',
+            # 'camera/aligned_depth_to_color/image_raw',
+            'camera/depth/image_rect_raw',
             self.listener_callback_depth,  # when the subscriber gets something, it calls the callback function
             1
         )
@@ -94,6 +95,14 @@ class CheckAlignmentImgOverlay(Node):
 
             # convert to uint8, which has bounds between 0 and 255!!
             depth_img_normalized = depth_img_normalized.astype(np.uint8)
+            # cv.circle(img=depth_img_normalized, center=(270, 320), radius=3, color=(255,), thickness=1,
+            #                   lineType=8, shift=0)
+            # cv.circle(img=depth_img_normalized, center=(350, 320), radius=3, color=(255,), thickness=1,
+            #           lineType=8, shift=0)
+            cv.rectangle(img=depth_img_normalized, pt1=(297, 248), pt2=(422, 332), color=(0,))
+
+            print("Left", depth_img[(320, 270)])
+            print("Right", depth_img[(320, 350)])
             cv.imshow("Normalized depth image", depth_img_normalized)
 
             # invert the image for purposes of using it a as a mask for color image on top of this one!

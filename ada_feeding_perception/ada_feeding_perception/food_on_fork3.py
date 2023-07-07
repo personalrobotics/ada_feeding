@@ -13,6 +13,7 @@ import numpy as np
 
 import csv
 from datetime import datetime
+import time
 
 
 class FoodOnFork(Node):
@@ -37,7 +38,8 @@ class FoodOnFork(Node):
         # depth topic subscription
         self.subscription_depth = self.create_subscription(
             Image,
-            'camera/aligned_depth_to_color/image_raw',
+            # 'camera/aligned_depth_to_color/image_raw',
+            'camera/depth/image_rect_raw',
             self.listener_callback_depth,  # when the subscriber gets something, it calls the callback function
             1
         )
@@ -92,8 +94,10 @@ class FoodOnFork(Node):
 
             # consider only the points within the rectangle
             tine1_col, tine1_row = centers[0]
-            pt1 = (tine1_col - 50, tine1_row - 55)  # left-top corner of the rectangle
-            pt2 = (tine1_col + 75, tine1_row + 30)  # right-bottom corner of the rectangle
+            # pt1 = (tine1_col - 50, tine1_row - 55)  # left-top corner of the rectangle
+            # pt2 = (tine1_col + 75, tine1_row + 30)  # right-bottom corner of the rectangle
+            pt1 = (297, 248)
+            pt2 = (422, 332)
             pt1_col, pt1_row = pt1
             pt2_col, pt2_row = pt2
 
@@ -115,7 +119,7 @@ class FoodOnFork(Node):
             self.data.append([datetime.now(), np.count_nonzero(mask_img)])
             print(self.data)
 
-            with open(r'/home/atharva2/atharvak_ws/src/ada_feeding/ada_feeding_perception/ada_feeding_perception/data/PlateLeaf.csv', 'w', newline='') as f:
+            with open(r'/home/atharva2/atharvak_ws/src/ada_feeding/ada_feeding_perception/ada_feeding_perception/data/PlateLeaf_7-7-23.csv', 'w', newline='') as f:
                 f_write = csv.writer(f)
 
                 for v in self.data:
