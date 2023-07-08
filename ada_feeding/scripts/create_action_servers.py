@@ -378,7 +378,7 @@ class CreateActionServers(Node):
             )
 
             # Load the behavior tree class
-            tree = tree_action_server.create_tree(server_name, self.get_logger())
+            tree = tree_action_server.create_tree(server_name, self.get_logger(), self)
             tree.setup()  # TODO: consider adding a timeout here
 
             # Send the goal to the behavior tree

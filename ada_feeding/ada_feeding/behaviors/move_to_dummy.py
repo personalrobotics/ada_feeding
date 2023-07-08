@@ -139,22 +139,22 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         # included for completeness
         self.blackboard.register_key(key="goal", access=py_trees.common.Access.READ)
         self.blackboard.register_key(
-            key="is_planning", access=py_trees.common.Access.WRITE
+            key="is_planning", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
         self.blackboard.register_key(
-            key="planning_time", access=py_trees.common.Access.WRITE
+            key="planning_time", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
         self.blackboard.register_key(
-            key="motion_time", access=py_trees.common.Access.WRITE
+            key="motion_time", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
         self.blackboard.register_key(
-            key="motion_initial_distance", access=py_trees.common.Access.WRITE
+            key="motion_initial_distance", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
         self.blackboard.register_key(
-            key="motion_curr_distance", access=py_trees.common.Access.WRITE
+            key="motion_curr_distance", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
 
-    def setup(self, **kwargs: int) -> None:
+    def setup(self, **kwargs) -> None:
         """
         Start the MoveGroup dummy action server.
 

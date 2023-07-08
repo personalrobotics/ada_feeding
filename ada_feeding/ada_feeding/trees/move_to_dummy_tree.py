@@ -10,6 +10,7 @@ import logging
 
 # Third-party imports
 import py_trees
+from rclpy.node import Node
 
 # Local imports
 from ada_feeding.behaviors import MoveToDummy
@@ -53,7 +54,10 @@ class MoveToDummyTree(ActionServerBT):
         self.blackboard = None
 
     def create_tree(
-        self, name: str, logger: logging.Logger
+        self,
+        name: str,
+        logger: logging.Logger,
+        node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
         Creates the MoveAbovePlate behavior tree.
@@ -66,6 +70,8 @@ class MoveToDummyTree(ActionServerBT):
         ----------
         name: The name of the behavior tree.
         logger: The logger to use for the behavior tree.
+        node: The ROS2 node that this tree is associated with. Necessary for
+            behaviors within the tree connect to ROS topics/services/actions.
 
         Returns
         -------
