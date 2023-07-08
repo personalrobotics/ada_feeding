@@ -134,27 +134,29 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         self.motion_start_time = None
 
         # Initialization the blackboard
-        self.blackboard = self.attach_blackboard_client(name=name + " Root")
+        self.blackboard = self.attach_blackboard_client(
+            name=name + " MoveToDummyBehavior", namespace=name
+        )
         # Note that the dummy node doesn't actually access the goal, but this is
         # included for completeness
         self.blackboard.register_key(key="goal", access=py_trees.common.Access.READ)
         self.blackboard.register_key(
-            key="is_planning", access=py_trees.common.Access.WRITE
+            key="is_planning", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
         self.blackboard.register_key(
-            key="planning_time", access=py_trees.common.Access.WRITE
+            key="planning_time", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
         self.blackboard.register_key(
-            key="motion_time", access=py_trees.common.Access.WRITE
+            key="motion_time", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
         self.blackboard.register_key(
-            key="motion_initial_distance", access=py_trees.common.Access.WRITE
+            key="motion_initial_distance", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
         self.blackboard.register_key(
-            key="motion_curr_distance", access=py_trees.common.Access.WRITE
+            key="motion_curr_distance", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
 
-    def setup(self, **kwargs: int) -> None:
+    def setup(self, **kwargs) -> None:
         """
         Start the MoveGroup dummy action server.
 
