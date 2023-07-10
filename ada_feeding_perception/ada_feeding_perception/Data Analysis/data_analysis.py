@@ -9,7 +9,9 @@ This file goes through csv files and creates matplotlib plots and saves them to 
 def main(args=None):
     # File names
     # files = ['HomeDonut', 'HomeLeaf', 'FaceDonut', 'FaceLeaf', 'PlateDonut', 'PlateLeaf']
-    files = ["HomeCarrot_7-7-23", "HomeLeaf_7-7-23", "PlateCarrot_7-7-23", "PlateLeaf_7-7-23", "FaceCarrot_7-7-23", "FaceLeaf_7-7-23"]
+    # files = ["HomeCarrot_7-7-23", "HomeLeaf_7-7-23", "PlateCarrot_7-7-23", "PlateLeaf_7-7-23", "FaceCarrot_7-7-23", "FaceLeaf_7-7-23"]
+
+    files = []
 
     for file in files:
         x_values = []
@@ -27,24 +29,25 @@ def main(args=None):
                     labels.append(line[2])
                 i += 1
 
-            y_start = 0
-            y_end = 20000
+        y_start = min(y_values)
+        y_end = max(y_values)
 
-            for i in range(len(labels)):
-                if labels[i] == 'empty':
-                    plt.fill_betweenx([y_start, y_end], x_values[i - 1], x_values[i], color="red", alpha=0.2)
-                elif labels[i] == 'hand':
-                    plt.fill_betweenx([y_start, y_end], x_values[i - 1], x_values[i], color="blue", alpha=0.2)
-                else:
-                    plt.fill_betweenx([y_start, y_end], x_values[i - 1], x_values[i], color="green", alpha=0.2)
+        print(labels)
+        for i in range(len(labels) - 1):
+            if labels[i] == 'empty':
+                plt.fill_betweenx(y=[y_start, y_end], x1=x_values[i], x2=x_values[i + 1], color="red", alpha=0.2)
+            elif labels[i] == 'hand':
+                plt.fill_betweenx([y_start, y_end], x_values[i], x_values[i + 1], color="blue", alpha=0.2)
+            else:
+                plt.fill_betweenx([y_start, y_end], x_values[i], x_values[i + 1], color="green", alpha=0.2)
 
-        print(x_values)
         plt.scatter(x_values, y_values, color='black', alpha=0.5)
         plt.xlabel("Time")
         plt.ylabel("Number of Pixel Values in range")
         plt.title("Number of Pixel Values in range vs. Time (" + file + ")")
         # plt.show()
         plt.savefig(file + "_fig.png")
+        plt.close()
 
 
 if __name__ == '__main__':
