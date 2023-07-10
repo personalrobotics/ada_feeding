@@ -82,8 +82,9 @@ class MoveAbovePlateTree(ActionServerBT):
             #)
 
             # read goal from yaml file
-            #with open('./feeding_goal_config.yaml', 'r') as file:
-             #   parameter_service = yaml.safe_load(file)
+            # with open('../config/feeding_goal_config.yaml', 'r') as file:
+               # parameter_service = yaml.safe_load(file)
+            # location_goal = parameter_service['above_plate']
             location_goal = [-2.11666, 3.34967, 2.04129, -2.30031, -2.34026, 2.9545]
             print(location_goal)
             # create blackboard and write goal in blackboard
