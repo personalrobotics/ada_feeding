@@ -17,15 +17,19 @@ ada_feeding_action_servers:
     # Parameters for the MoveAbovePlate action
     MoveAbovePlate: # required
       action_type: ada_feeding_msgs.action.MoveTo # required
-      tree_class: ada_feeding.trees.MoveToDummyTree # required
+      tree_class: ada_feeding.trees.MoveAbovePlateTree # required
       tree_kws: # optional
         - action_type_class
-        - dummy_plan_time
-        - dummy_motion_time
+        - joint_positions
       tree_kwargs: # optional
         action_type_class: ada_feeding_msgs.action.MoveTo # required
-        dummy_plan_time: 1.0 # secs
-        dummy_motion_time: 10.0 # secs
+        joint_positions: # required
+          - -2.11666 # j2n6s200_joint_1
+          - 3.34967 # j2n6s200_joint_2
+          - 2.04129 # j2n6s200_joint_3
+          - -2.30031 # j2n6s200_joint_4
+          - -2.34026 # j2n6s200_joint_5
+          - 2.9545 # j2n6s200_joint_6
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the AcquireFood action

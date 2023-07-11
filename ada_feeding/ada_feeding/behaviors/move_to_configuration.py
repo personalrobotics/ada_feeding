@@ -5,14 +5,11 @@ This module defines the MoveToConfiguration behavior tree, which moves the Jaco
 arm to a specified joint configuration.
 """
 # Standard imports
-import multiprocessing
-import multiprocessing.connection
 import time
-from typing import Annotated, List
 
 # Third-party imports
 from action_msgs.msg import GoalStatus
-from moveit2_msgs.msg import MoveItErrorCodes
+from moveit_msgs.msg import MoveItErrorCodes
 import py_trees
 from pymoveit2 import MoveIt2, MoveIt2State
 from pymoveit2.robots import kinova
@@ -53,7 +50,8 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
         self.terminate_rate_hz = terminate_rate_hz
 
         # Initialization the blackboard
-        self.blackboard = self.attach_blackboard_client(name=name + " Root")
+        self.blackboard = self.attach_blackboard_client(name=name + " MoveToConfigurationBehavior", namespace=name)
+        # Inputs for MoveToConfiguration
         self.blackboard.register_key(
             key="joint_positions", access=py_trees.common.Access.READ
         )
@@ -67,6 +65,7 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(
             key="cartesian", access=py_trees.common.Access.READ
         )
+        # Feedback from MoveToConfiguration for the ROS2 Action Server
         self.blackboard.register_key(
             key="is_planning", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
@@ -83,16 +82,10 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
             key="motion_curr_distance", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
 
-    def setup(self, **kwargs) -> None:
-        """
-        Create the MoveIt interface.
-        """
-        self.logger.info("%s [MoveToConfiguration::setup()]" % self.name)
-
-        # Create callback group that allows execution of callbacks in parallel without restrictions
+        # Create MoveIt 2 interface for moving the Jaco arm. This must be done
+        # in __init__ and not setup since the MoveIt2 interface must be
+        # initialized before the ROS2 node starts spinning.
         callback_group = ReentrantCallbackGroup()
-
-        # Create MoveIt 2 interface for moving the Jaco arm
         self.moveit2 = MoveIt2(
             node=self.node,
             joint_names=kinova.joint_names(),
@@ -102,6 +95,12 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
             callback_group=callback_group,
         )
 
+    def setup(self, **kwargs) -> None:
+        """
+        Create the MoveIt interface.
+        """
+        self.logger.info("%s [MoveToConfiguration::setup()]" % self.name)
+
     def initialise(self) -> None:
         """
         Send the goal to MoveIt and reset the blackboard.
@@ -110,13 +109,13 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
 
         # Reset local state variables
         self.prev_query_state = None
-        self.planning_start_time = None
+        self.planning_start_time = time.time()
         self.motion_start_time = None
         self.motion_future = None
 
         # Reset the blackboard. The robot starts in planning.
         self.blackboard.is_planning = True
-        self.blackboard.planning_time = time.time()
+        self.blackboard.planning_time = 0.0
         self.blackboard.motion_time = 0.0
         self.blackboard.motion_initial_distance = 0.0
         self.blackboard.motion_curr_distance = 0.0
@@ -175,6 +174,7 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
                 traj = self.moveit2.get_trajectory(
                     self.planning_future, cartesian=self.cartesian
                 )
+                self.logger.info("Trajectory: %s | type %s" % (traj, type(traj)))
                 if traj is None:
                     self.logger.error(
                         "%s [MoveToConfiguration::update()] Failed to get trajectory from MoveIt!"
@@ -266,4 +266,3 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
         Shutdown infrastructure created in setup().
         """
         self.logger.info("%s [MoveToConfiguration::shutdown()]" % self.name)
-        pass

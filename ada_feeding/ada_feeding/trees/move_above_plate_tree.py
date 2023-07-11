@@ -1,34 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-This module defines the MoveToDummy behavior tree and provides functions to
+This module defines the MoveAbovePlate behavior tree and provides functions to
 wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
 import logging
+from typing import List
 
 # Third-party imports
 import py_trees
 from rclpy.node import Node
 
 # Local imports
-from ada_feeding.behaviors import MoveToDummy
+from ada_feeding.behaviors import MoveToConfiguration
 from ada_feeding.helpers import import_from_string
 from ada_feeding import ActionServerBT
 
 
-class MoveToDummyTree(ActionServerBT):
+class MoveAbovePlateTree(ActionServerBT):
     """
-    A dummy behavior tree that mimics the interface of the MoveAbovePlate
-    behavior tree.
+    Move the robot arm to a fixed above-plate position.
     """
 
     def __init__(
         self,
         action_type_class: str,
-        dummy_plan_time: float = 2.5,
-        dummy_motion_time: float = 7.5,
+        joint_positions: List[float],
     ) -> None:
         """
         Initializes tree-specific parameters.
@@ -39,19 +38,14 @@ class MoveToDummyTree(ActionServerBT):
             e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
             type can be anything, but the Feedback and Result must at a minimum
             include the fields of ada_feeding_msgs.action.MoveTo
-        dummy_plan_time: How many seconds this dummy node should spend in planning.
-        dummy_motion_time: How many seconds this dummy node should spend in motion.
+        joint_positions: The joint positions to move the robot arm to.
         """
         # Import the action type
         self.action_type_class = import_from_string(action_type_class)
 
-        # Set the dummy motion parameters
-        self.dummy_plan_time = dummy_plan_time
-        self.dummy_motion_time = dummy_motion_time
-
-        # Cache the tree so that it can be reused
-        self.tree = None
-        self.blackboard = None
+        # Store the joint positions
+        self.joint_positions = joint_positions
+        assert len(self.joint_positions) == 6, "Must provide 6 joint positions"
 
     def create_tree(
         self,
@@ -77,34 +71,52 @@ class MoveToDummyTree(ActionServerBT):
         -------
         tree: The behavior tree that moves the robot above the plate.
         """
-        # Create the behaviors in the tree
-        if self.tree is None:
-            root = MoveToDummy(name, self.dummy_plan_time, self.dummy_motion_time)
-            root.logger = logger
-            # Create the tree
-            self.tree = py_trees.trees.BehaviourTree(root)
-            # Create the blackboard
-            self.blackboard = py_trees.blackboard.Client(name=name + " Tree", namespace=name)
-            self.blackboard.register_key(
-                key="goal", access=py_trees.common.Access.WRITE
-            )
-            self.blackboard.register_key(
-                key="is_planning", access=py_trees.common.Access.READ
-            )
-            self.blackboard.register_key(
-                key="planning_time", access=py_trees.common.Access.READ
-            )
-            self.blackboard.register_key(
-                key="motion_time", access=py_trees.common.Access.READ
-            )
-            self.blackboard.register_key(
-                key="motion_initial_distance", access=py_trees.common.Access.READ
-            )
-            self.blackboard.register_key(
-                key="motion_curr_distance", access=py_trees.common.Access.READ
-            )
+        # Create the blackboard
+        self.blackboard = py_trees.blackboard.Client(name=name + " Tree", namespace=name)
+        # Inputs for MoveToConfiguration
+        self.blackboard.register_key(
+            key="joint_positions", access=py_trees.common.Access.WRITE
+        )
+        self.blackboard.register_key(
+            key="joint_names", access=py_trees.common.Access.WRITE
+        )
+        self.blackboard.register_key(
+            key="tolerance", access=py_trees.common.Access.WRITE
+        )
+        self.blackboard.register_key(key="weight", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(
+            key="cartesian", access=py_trees.common.Access.WRITE
+        )
+        # Goal that is passed from the ROS2 Action Server
+        self.blackboard.register_key(
+            key="goal", access=py_trees.common.Access.WRITE
+        )
+        # Feedback from MoveToConfiguration for the ROS2 Action Server
+        self.blackboard.register_key(
+            key="is_planning", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="planning_time", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="motion_time", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="motion_initial_distance", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="motion_curr_distance", access=py_trees.common.Access.READ
+        )
 
-        return self.tree
+        # Write the inputs to MoveToConfiguration to blackboard
+        self.blackboard.joint_positions = self.joint_positions
+
+        # Create the tree
+        root = MoveToConfiguration(name, node)
+        root.logger = logger
+        tree = py_trees.trees.BehaviourTree(root)
+            
+        return tree
 
     def send_goal(self, tree: py_trees.trees.BehaviourTree, goal: object) -> bool:
         """
