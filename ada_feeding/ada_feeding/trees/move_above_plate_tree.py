@@ -27,6 +27,7 @@ class MoveAbovePlateTree(ActionServerBT):
     def __init__(
         self,
         action_type_class: str,
+        joint_names: List[str],
         joint_positions: List[float],
     ) -> None:
         """
@@ -38,14 +39,19 @@ class MoveAbovePlateTree(ActionServerBT):
             e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
             type can be anything, but the Feedback and Result must at a minimum
             include the fields of ada_feeding_msgs.action.MoveTo
+        joint_names: The names of the joints that the robot arm is moving.
         joint_positions: The joint positions to move the robot arm to.
         """
         # Import the action type
         self.action_type_class = import_from_string(action_type_class)
 
-        # Store the joint positions
+        # Store the joint names/positions
+        self.joint_names = joint_names
+        assert len(self.joint_names) == 6, "Must provide 6 joint names"
         self.joint_positions = joint_positions
-        assert len(self.joint_positions) == 6, "Must provide 6 joint positions"
+        assert len(self.joint_positions) == len(
+            self.joint_names
+        ), "Must provide the same number of joint positions as joint names"
 
     def create_tree(
         self,
@@ -72,7 +78,9 @@ class MoveAbovePlateTree(ActionServerBT):
         tree: The behavior tree that moves the robot above the plate.
         """
         # Create the blackboard
-        self.blackboard = py_trees.blackboard.Client(name=name + " Tree", namespace=name)
+        self.blackboard = py_trees.blackboard.Client(
+            name=name + " Tree", namespace=name
+        )
         # Inputs for MoveToConfiguration
         self.blackboard.register_key(
             key="joint_positions", access=py_trees.common.Access.WRITE
@@ -88,9 +96,7 @@ class MoveAbovePlateTree(ActionServerBT):
             key="cartesian", access=py_trees.common.Access.WRITE
         )
         # Goal that is passed from the ROS2 Action Server
-        self.blackboard.register_key(
-            key="goal", access=py_trees.common.Access.WRITE
-        )
+        self.blackboard.register_key(key="goal", access=py_trees.common.Access.WRITE)
         # Feedback from MoveToConfiguration for the ROS2 Action Server
         self.blackboard.register_key(
             key="is_planning", access=py_trees.common.Access.READ
@@ -110,12 +116,13 @@ class MoveAbovePlateTree(ActionServerBT):
 
         # Write the inputs to MoveToConfiguration to blackboard
         self.blackboard.joint_positions = self.joint_positions
+        self.blackboard.joint_names = self.joint_names
 
         # Create the tree
         root = MoveToConfiguration(name, node)
         root.logger = logger
         tree = py_trees.trees.BehaviourTree(root)
-            
+
         return tree
 
     def send_goal(self, tree: py_trees.trees.BehaviourTree, goal: object) -> bool:

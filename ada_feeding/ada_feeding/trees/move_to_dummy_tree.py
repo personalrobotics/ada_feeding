@@ -84,7 +84,9 @@ class MoveToDummyTree(ActionServerBT):
             # Create the tree
             self.tree = py_trees.trees.BehaviourTree(root)
             # Create the blackboard
-            self.blackboard = py_trees.blackboard.Client(name=name + " Tree", namespace=name)
+            self.blackboard = py_trees.blackboard.Client(
+                name=name + " Tree", namespace=name
+            )
             self.blackboard.register_key(
                 key="goal", access=py_trees.common.Access.WRITE
             )

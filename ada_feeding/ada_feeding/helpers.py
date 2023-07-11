@@ -4,61 +4,122 @@ Ada Feeding project.
 """
 
 # Standard imports
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 # Third-party imports
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectory
 
-class CartesianDistanceToGoal(object):
+
+class DistanceToGoal(object):
     """
-    The CartesianDistanceToGoal class is used to compute the cartesian distance
-    between the robot end effector's current position and it's goal position.
+    The DistanceToGoal class is used to determine how much of the trajectory
+    the robot arm has yet to execute.
+
+    In practice, it keeps track of what joint state along the trajectory the
+    robot is currently in, and returns the number of remaining joint states. As
+    a result, this is not technically a measure of either distance or time, but
+    should give some intuition of how much of the trajectory is left to execute.
     """
 
     def __init__(self):
         """
-        Initializes the CartesianDistanceToGoal class.
+        Initializes the DistanceToGoal class.
         """
-        pass
+        self.joint_names = None
+        self.aligned_joint_indices = None
 
-    def set_trajectory(self, trajectory: JointTrajectory) -> None:
-        """
-        This function takes in a trajectory and initiates an asynchronous call
-        to compute the forward kinematics of the trajectory's goal position.
-        """
-        pass
+        self.trajectory = None
 
-    def get_goal_end_effector_pose(self) -> Optional[PoseStamped]:
+    def set_joint_names(self, joint_names: List[str]) -> None:
         """
-        This function returns the end effector position at the goal of the
-        trajectory, if it has been computed, and None otherwise.
+        This function stores the robot's joint names.
+
+        Parameters
+        ----------
+        joint_names: The names of the joints that the robot arm is moving.
         """
-        pass
+        self.joint_names = joint_names
+
+    def set_trajectory(self, trajectory: JointTrajectory) -> float:
+        """
+        This function takes in the robot's trajectory and returns the initial
+        distance to goal e.g., the distance between the starting and ending
+        joint state. In practice, this returns the length of the trajectory.
+        """
+        self.trajectory = trajectory
+        self.curr_joint_state_i = 0
+        return float(len(self.trajectory.points))
 
     def joint_state_callback(self, msg: JointState) -> None:
         """
-        This function takes in the robot's current joint state. If there is
-        an unfinished asynchrcall to forward kinematics, it ignores the current
-        joint state. Otherwise, it stores the results of the previous forward
-        kinematics call and starts a new asynchronous forward kinematics call.
+        This function stores the robot's current joint state, and
         """
-        pass
+        self.curr_joint_state = msg
 
-    def get_latest_end_effector_pose(self) -> Optional[PoseStamped]:
-        """
-        This function returns the end effector position at the latest joint
-        state, if it has been computed, and None otherwise.
-        """
-        pass
+        if (
+            self.aligned_joint_indices is None
+            and self.joint_names is not None
+            and self.trajectory is not None
+        ):
+            # Align the joint names between the JointState and JointTrajectory
+            # messages.
+            self.aligned_joint_indices = []
+            for joint_name in self.joint_names:
+                if joint_name in msg.name and joint_name in self.trajectory.joint_names:
+                    joint_state_i = msg.name.index(joint_name)
+                    joint_traj_i = self.trajectory.joint_names.index(joint_name)
+                    self.aligned_joint_indices.append(
+                        (joint_name, joint_state_i, joint_traj_i)
+                    )
 
-    def get_distance(self) -> float:
+    def get_distance(self) -> Optional[float]:
         """
-        This function returns the cartesian distance between the latest end
-        effector pose and its goal pose.
+        This function determines where in the trajectory the robot is. It does
+        this by computing the distance (L1 distance across the joint positions)
+        between the current joint state and the upcoming joint states in the
+        trajectory, and selecting the nearest local min.
+
+        This function assumes the joint names are aligned between the JointState
+        and JointTrajectory messages.
         """
-        pass
+        # If we haven't yet received a joint state message to the trajectory,
+        # immediately return
+        if self.aligned_joint_indices is None:
+            if self.trajectory is None:
+                return None
+            else:
+                return float(len(self.trajectory.points) - self.curr_joint_state_i)
+
+        # Else, determine how much remaining the robot has of the trajectory
+        prev_dist = None
+        for i in range(self.curr_joint_state_i, len(self.trajectory.points)):
+            # Compute the distance between the current joint state and the
+            # ujoint state at index i.
+            traj_joint_state = self.trajectory.points[i]
+            dist = sum(
+                [
+                    abs(
+                        self.curr_joint_state.position[joint_state_i]
+                        - traj_joint_state.positions[joint_traj_i]
+                    )
+                    for (_, joint_state_i, joint_traj_i) in self.aligned_joint_indices
+                ]
+            )
+
+            # If the distance is increasing, we've found the local min.
+            if prev_dist is not None:
+                if dist >= prev_dist:
+                    self.curr_joint_state_i = i - 1
+                    return float(len(self.trajectory.points) - self.curr_joint_state_i)
+
+            prev_dist = dist
+
+        # If the distance never increased, we are nearing the final waypoint.
+        # Because the robot may still have slight motion even after this point,
+        # we conservatively return 1.0.
+        return 1.0
 
 
 def import_from_string(import_string: str) -> Any:

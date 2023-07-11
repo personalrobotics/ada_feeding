@@ -15,6 +15,11 @@ from pymoveit2 import MoveIt2, MoveIt2State
 from pymoveit2.robots import kinova
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
+from rclpy.qos import QoSPresetProfiles
+from sensor_msgs.msg import JointState
+
+# Local imports
+from ada_feeding.helpers import DistanceToGoal
 
 
 class MoveToConfiguration(py_trees.behaviour.Behaviour):
@@ -50,7 +55,9 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
         self.terminate_rate_hz = terminate_rate_hz
 
         # Initialization the blackboard
-        self.blackboard = self.attach_blackboard_client(name=name + " MoveToConfigurationBehavior", namespace=name)
+        self.blackboard = self.attach_blackboard_client(
+            name=name + " MoveToConfigurationBehavior", namespace=name
+        )
         # Inputs for MoveToConfiguration
         self.blackboard.register_key(
             key="joint_positions", access=py_trees.common.Access.READ
@@ -93,6 +100,16 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
             end_effector_name="forkTip",
             group_name=kinova.MOVE_GROUP_ARM,
             callback_group=callback_group,
+        )
+
+        # Subscribe to the joint state and track the distance to goal while the
+        # robot is executing the trajectory.
+        self.distance_to_goal = DistanceToGoal()
+        node.create_subscription(
+            msg_type=JointState,
+            topic="joint_states",
+            callback=self.distance_to_goal.joint_state_callback,
+            qos_profile=QoSPresetProfiles.SENSOR_DATA.value,
         )
 
     def setup(self, **kwargs) -> None:
@@ -139,6 +156,9 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
         except KeyError:
             self.cartesian = False  # default value
 
+        # Set the joint names
+        self.distance_to_goal.set_joint_names(joint_names)
+
         # Send a new goal to MoveIt
         self.planning_future = self.moveit2.plan_async(
             joint_positions=joint_positions,
@@ -163,12 +183,6 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
                 # Transition from planning to motion
                 self.blackboard.is_planning = False
                 self.motion_start_time = time.time()
-                self.blackboard.motion_initial_distance = (
-                    0.0  # TODO: set motion initial distance!
-                )
-                self.blackboard.motion_curr_distance = (
-                    self.blackboard.motion_initial_distance
-                )
 
                 # Get the trajectory
                 traj = self.moveit2.get_trajectory(
@@ -181,6 +195,14 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
                         % self.name
                     )
                     return py_trees.common.Status.FAILURE
+
+                # Set the trajectory's initial distance to goal
+                self.blackboard.motion_initial_distance = (
+                    self.distance_to_goal.set_trajectory(traj)
+                )
+                self.blackboard.motion_curr_distance = (
+                    self.blackboard.motion_initial_distance
+                )
 
                 # Send the trajectory to MoveIt
                 self.moveit2.execute(traj)
@@ -195,7 +217,9 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
                     # The goal has been sent to the action server, but not yet accepted
                     return py_trees.common.Status.RUNNING
                 elif self.moveit2.query_state() == MoveIt2State.EXECUTING:
-                    # The goal has been accepted and is executing
+                    # The goal has been accepted and is executing. In this case
+                    # don't return a status since we drop down into the below
+                    # for when the robot is in motion.
                     self.motion_future = self.moveit2.get_execution_future()
                 elif self.moveit2.query_state() == MoveIt2State.IDLE:
                     # If we get here (i.e., self.moveit2 returned to IDLE without executing)
@@ -203,8 +227,9 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
                     # trajectory, action server not available, goal was rejected, etc.)
                     return py_trees.common.Status.FAILURE
             if self.motion_future is not None:
-                # TODO: Set motion_curr_distance to the actual distance to the goal!!
-                self.blackboard.motion_curr_distance = 0.0
+                self.blackboard.motion_curr_distance = (
+                    self.distance_to_goal.get_distance()
+                )
                 if self.motion_future.done():
                     # The goal has finished executing
                     if (
@@ -214,6 +239,7 @@ class MoveToConfiguration(py_trees.behaviour.Behaviour):
                         error_code = self.motion_future.result().result.error_code
                         if error_code.val == MoveItErrorCodes.SUCCESS:
                             # The goal succeeded
+                            self.blackboard.motion_curr_distance = 0.0
                             return py_trees.common.Status.SUCCESS
                         else:
                             # The goal failed
