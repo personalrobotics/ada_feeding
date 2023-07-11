@@ -13,7 +13,6 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from threading import Lock
 
-import rospy
 import tf2_ros
 from tf2_geometry_msgs import do_transform_point
 from geometry_msgs.msg import Point
@@ -35,11 +34,11 @@ class FaceDetectionNode(Node):
         self.bridge = CvBridge()
 
         # Keeps track of whether face detection is on or not
-        self.is_on = False
+        self.is_on = True
         self.is_on_lock = Lock()
 
         # Keeps track of the detected mouth center
-        self.2d_mouth_center = None
+        self.img_mouth_center = []
         self.is_face_detected = False
 
         # Create the service
@@ -57,7 +56,7 @@ class FaceDetectionNode(Node):
 
         #subscribe to the depth image
         self.depth_subscription = self.create_subscription(
-            Image, "camera/color/depth_image_raw", self.depth_callback, 1
+            Image, "camera/aligned_depth_to_color/image_raw", self.depth_callback, 1
         )
         self.depth_subscription  # prevent unused variable warning
 
@@ -88,45 +87,44 @@ class FaceDetectionNode(Node):
             response.face_detection_is_on = False
         return response
     
-        
-    def pixel_to_3d_point(self, point_cloud, u, v, p): 
-        #Convert from u (column / width), v (row/height) to position in array
-        #where X,Y,Z data starts
-        array_position = v*point_cloud.row_step + u*point_cloud.point_step
-        
-        #compute position in array where x,y,z data start
-        array_pos_x = array_position + point_cloud.fields[0].offset 
-        array_pos_y = array_position + point_cloud.fields[1].offset
-        array_pos_z = array_position + point_cloud.fields[2].offset
-
-        p = Point(x=point_cloud.data[array_pos_x], y=point_cloud.data[array_pos_y], z=point_cloud.data[array_pos_z])
-        return p
+    
 
     def depth_callback(self, msg):
-        if self.2d_mouth_center != None:
-            point_source = pixel_to_3d_point(msg, self.2d_mouth_center[0], self.2d_mouth_center[1])
-            source_frame = 'camera_depth_frame'
-            target_frame = 'camera_color_optical_frame'
-            tf_buffer = tf2_ros.Buffer(rospy.Duration(tf_cache_duration))
-            tf2_ros.TransformListener(tf_buffer)
+        print("depth callback")
+        if len(self.img_mouth_center) == 2:
+            u = int(self.img_mouth_center[0])
+            v = int(self.img_mouth_center[1])
+            width = msg.width
+            print("Made it")
+            depth = msg.data[(u%width) + (v*width)]
+            #point_source = self.pixel_to_3d_point(msg, self.img_mouth_center[0], self.img_mouth_center[1])
 
+            depth_point = Point()
+            depth_point.x = float(u)
+            depth_point.y = float(v)
+            depth_point.z = float(depth)
+            point_source = PointStamped()
+            point_source.header = msg.header
+            point_source.point = depth_point
+            color_frame = 'camera_color_optical_frame'
+            tf_buffer = tf2_ros.Buffer()
+            tf_listener = tf2_ros.TransformListener(tf_buffer,self)
+
+            
+            #point_source = []
             # get the transformation from source_frame to target_frame.
-            try:
-                transformation = tf_buffer.lookup_transform(target_frame,
-                        source_frame, rospy.Time(0), rospy.Duration(0.1))
-            except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
-                    tf2_ros.ExtrapolationException):
-                rospy.logerr('Unable to find the transformation from %s to %s'
-                            % source_frame, target_frame)
+            #try:
+            point_target = tf_buffer.transform(point_source, color_frame)
+            #except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
+            #        tf2_ros.ExtrapolationException):
+            #    rospy.logerr('Unable to find the transformation from %s to %s'
+            #                % source_frame, target_frame)
 
-            point_target = do_transform_point(transformation, point_source)
 
             # Publish the face detection information
             face_detection_msg = FaceDetection()
             face_detection_msg.is_face_detected = self.is_face_detected
 
-            face_detection_msg.detected_mouth_center = PointStamped()
-            face_detection_msg.detected_mouth_center.header = msg.header
             face_detection_msg.detected_mouth_center = point_target
             
             self.publisher_results.publish(face_detection_msg)
@@ -143,8 +141,8 @@ class FaceDetectionNode(Node):
         is_on = self.is_on
         self.is_on_lock.release()
         if is_on:
-            is_face_detected = False
-            image = cv2.imread(msg)
+            self.is_face_detected = False
+            image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
             # convert image to RGB colour
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             # convert image to Grayscale
@@ -155,7 +153,6 @@ class FaceDetectionNode(Node):
             detector = cv2.CascadeClassifier(haarcascade)
             # Detect faces using the haarcascade classifier on the "grayscale image"
             faces = detector.detectMultiScale(image_gray)
-
             if len(faces) > 0:
                 self.is_face_detected = True
 
@@ -173,15 +170,15 @@ class FaceDetectionNode(Node):
                 # Detect landmarks on "image_gray"
                 _, landmarks = landmark_detector.fit(image_gray, faces)
                 for landmark in landmarks:
-                count = 0
-                # Add a dummy face marker to the sensor_msgs/Image
-                cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-                for face in faces:
-                    #save the coordinates in x, y, w, d variables
-                    (x,y,w,d) = face
-                    # Draw a white coloured rectangle around each face using the face's coordinates
-                    # on the "image_template" with the thickness of 2 
-                    cv2.rectangle(cv_image,(x,y),(x+w, y+d),(255, 255, 255), 2)
+                    count = 0
+                    # Add a dummy face marker to the sensor_msgs/Image
+                    cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+                    for face in faces:
+                        #save the coordinates in x, y, w, d variables
+                        (x,y,w,d) = face
+                        # Draw a white coloured rectangle around each face using the face's coordinates
+                        # on the "image_template" with the thickness of 2 
+                        cv2.rectangle(cv_image,(x,y),(x+w, y+d),(255, 255, 255), 2)
 
                 for x,y in landmark[0]:
                     # display landmarks on "image_rgb"
@@ -192,7 +189,8 @@ class FaceDetectionNode(Node):
                 annotated_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
                 annotated_img = annotated_msg
                 # Find stomion in image
-                self.2d_mouth_center = landmark[0][0][66]
+   
+                self.img_mouth_center = landmark[0][66]
                 # Publish the detected mouth center
                 #face_detection_msg.detected_mouth_center = PointStamped()
                 #face_detection_msg.detected_mouth_center.header = msg.header
@@ -201,8 +199,8 @@ class FaceDetectionNode(Node):
                 #face_detection_msg.detected_mouth_center.point.z = 
             else:
                 annotated_img = msg
-                self.2d_mouth_center = None
-            #self.publisher_image.publish(annotated_img)
+                self.img_mouth_center = []
+            self.publisher_image.publish(annotated_img)
 
 
 def main(args=None):
