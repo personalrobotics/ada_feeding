@@ -379,7 +379,7 @@ class CreateActionServers(Node):
                 )
             )
 
-            # Load the behavior tree class
+            # Setup the behavior tree class
             tree.setup()  # TODO: consider adding a timeout here
 
             # Send the goal to the behavior tree

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-This module defines the MoveToConfiguration behavior tree and provides functions to
+This module defines the MoveToConfigurationTree behavior tree and provides functions to
 wrap that behavior tree in a ROS2 action server.
 """
 
