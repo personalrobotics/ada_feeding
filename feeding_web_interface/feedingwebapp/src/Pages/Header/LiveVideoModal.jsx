@@ -1,5 +1,6 @@
 // React imports
-import React, { useRef } from 'react'
+import React, { useMemo, useRef } from 'react'
+import { useMediaQuery } from 'react-responsive'
 // The Modal is a screen that appears on top of the main app, and can be toggled
 // on and off.
 import Modal from 'react-bootstrap/Modal'
@@ -8,8 +9,8 @@ import Modal from 'react-bootstrap/Modal'
 import PropTypes from 'prop-types'
 
 // Local imports
-import { REALSENSE_WIDTH, REALSENSE_HEIGHT, CAMERA_FEED_TOPIC } from '../Constants'
-import { convertRemToPixels, scaleWidthHeightToWindow } from '../../helpers'
+import { convertRemToPixels } from '../../helpers'
+import VideoFeed from '../Home/VideoFeed'
 
 /**
  * The LiveVideoModal displays to the user the live video feed from the robot.
@@ -17,20 +18,17 @@ import { convertRemToPixels, scaleWidthHeightToWindow } from '../../helpers'
  * TODO: Consider what will happen if the connection to ROS isn't working.
  */
 function LiveVideoModal(props) {
-  const ref = useRef(null)
-  // Use the default CSS properties of Modals to determine the margin around
-  // the image. This is necessary so the image is scaled to fit the window.
-  //
-  // NOTE: This must change if the CSS properties of the Modal change.
-  //
-  // marginTop: bs-modal-header-padding, h4 font size & line height, bs-modal-header-padding, bs-modal-padding
-  const marginTop = convertRemToPixels(1 + 1.5 * 1.5 + 1 + 1)
-  const marginBottom = convertRemToPixels(1)
-  const marginLeft = convertRemToPixels(1)
-  const marginRight = convertRemToPixels(1)
+  // Variables to render the VideoFeed
+  const modalBodyRef = useRef(null)
+  // Margin for the video feed and between the mask buttons. Note this cannot
+  // be re-defined per render, otherwise it messes up re-rendering order upon
+  // resize in VideoFeed.
+  const margin = useMemo(() => convertRemToPixels(1), [])
+  // Flag to check if the current orientation is portrait
+  const isPortrait = useMediaQuery({ query: '(orientation: portrait)' })
+  // Text font size for portrait and landscape orientations
+  let textFontSize = isPortrait ? '3vh' : '6vh'
 
-  // 640 x 480 is the standard dimension of images outputed by the RealSense
-  let { width, height } = scaleWidthHeightToWindow(REALSENSE_WIDTH, REALSENSE_HEIGHT, marginTop, marginBottom, marginLeft, marginRight)
   return (
     <Modal
       show={props.show}
@@ -41,20 +39,22 @@ function LiveVideoModal(props) {
       keyboard={false}
       centered
       id='liveVideoModal'
-      ref={ref}
       fullscreen={true}
     >
       <Modal.Header closeButton>
-        <Modal.Title id='contained-modal-title-vcenter'>Live Video</Modal.Title>
+        <Modal.Title id='contained-modal-title-vcenter' style={{ fontSize: textFontSize }}>
+          Live Video
+        </Modal.Title>
       </Modal.Header>
-      <Modal.Body style={{ overflow: 'hidden' }}>
+      <Modal.Body ref={modalBodyRef} style={{ overflow: 'hidden' }}>
         <center>
-          <img
-            src={`${props.webVideoServerURL}/stream?topic=${CAMERA_FEED_TOPIC}&width=${Math.round(width)}&height=${Math.round(
-              height
-            )}&quality=20`}
-            alt='Live video feed from the robot'
-            style={{ width: width, height: height, display: 'block' }}
+          <VideoFeed
+            webVideoServerURL={props.webVideoServerURL}
+            parent={modalBodyRef}
+            marginTop={margin}
+            marginBottom={margin}
+            marginLeft={margin}
+            marginRight={margin}
           />
         </center>
       </Modal.Body>

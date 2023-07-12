@@ -1,45 +1,32 @@
+import { useLayoutEffect, useState } from 'react'
+
 /**
- * Takes in an imageWidth and imageHeight, and returns a width and height that
- * maintains the same aspect ratio but fits within the window.
+ * Returns the window size, which gets updated every time the window is resized.
  *
- * @param {number} imageWidth the original image's width in pixels
- * @param {number} imageHeight the original image's height in pixels
- * @param {number} marginTop the desired top margin between window and image, in pixels
- * @param {number} marginBottom the desired bottom margin between window and image, in pixels
- * @param {number} marginLeft the desired left margin between window and image, in pixels
- * @param {number} marginRight the desired right margin between window and image, in pixels
- *
- * @returns {object} the width and height of the image that fits within the window and has the requested margins
+ * @param {func} resizeCallback an optional function to call when the window is
+ *     resized. Note that this function cannot use any react hooks.
  */
-export function scaleWidthHeightToWindow(imageWidth, imageHeight, marginTop = 0, marginBottom = 0, marginLeft = 0, marginRight = 0) {
-  // Calculate the aspect ratio of the image
-  let imageAspectRatio = imageWidth / imageHeight
-
-  // Get the aspect ratio of the available subset of the window
-  let availableWidth = window.innerWidth - marginLeft - marginRight
-  let availableHeight = window.innerHeight - marginTop - marginBottom
-  let availableAspectRatio = availableWidth / availableHeight
-
-  // Calculate the width and height of the image that fits within the window
-  let returnWidth, returnHeight
-  if (availableAspectRatio > imageAspectRatio) {
-    returnHeight = availableHeight
-    returnWidth = imageAspectRatio * returnHeight
-  } else {
-    returnWidth = availableWidth
-    returnHeight = returnWidth / imageAspectRatio
-  }
-
-  // Calculate the scale factor
-  let scaleFactorWidth = returnWidth / imageWidth
-  let scaleFactorHeight = returnHeight / imageHeight
-  let scaleFactor = (scaleFactorWidth + scaleFactorHeight) / 2
-
-  return {
-    width: returnWidth,
-    height: returnHeight,
-    scaleFactor: scaleFactor
-  }
+export function useWindowSize(resizeCallback = null) {
+  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 })
+  useLayoutEffect(() => {
+    // set current window size
+    function updateWindowSize() {
+      // There is a known bug in Chrome iOS, where the window's innerHeight
+      // is smaller than it should be immediately after a rotation from
+      // from landscape to portrait. To address this, we wait 100ms before
+      // updating the windowSize.
+      setTimeout(() => {
+        setWindowSize({ width: window.innerWidth, height: window.innerHeight })
+        if (resizeCallback) {
+          resizeCallback()
+        }
+      }, 200)
+    }
+    window.addEventListener('resize', updateWindowSize)
+    updateWindowSize()
+    return () => window.removeEventListener('resize', updateWindowSize)
+  }, [resizeCallback])
+  return windowSize
 }
 
 /**

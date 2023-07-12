@@ -1,7 +1,8 @@
 // React Imports
 import React, { useCallback } from 'react'
 import Button from 'react-bootstrap/Button'
-import Row from 'react-bootstrap/Row'
+import { useMediaQuery } from 'react-responsive'
+import { View } from 'react-native'
 
 // Local Imports
 import '../Home.css'
@@ -20,6 +21,16 @@ const BiteDone = () => {
   let moveAbovePlateImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
   // Get icon image for move to resting position
   let moveToRestingPositionImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToRestingPosition]
+  // Flag to check if the current orientation is portrait
+  const isPortrait = useMediaQuery({ query: '(orientation: portrait)' })
+  // Indicator of how to arrange screen elements based on orientation
+  let dimension = isPortrait ? 'column' : 'row'
+  // Font size for text
+  let textFontSize = isPortrait ? '3vh' : '3vw'
+  let buttonWidth = isPortrait ? '30vh' : '30vw'
+  let buttonHeight = isPortrait ? '20vh' : '20vw'
+  let iconWidth = isPortrait ? '28vh' : '28vw'
+  let iconHeight = isPortrait ? '18vh' : '18vw'
 
   /**
    * Callback function for when the user wants to move above plate.
@@ -35,45 +46,108 @@ const BiteDone = () => {
     setMealState(MEAL_STATE.R_MovingToRestingPosition)
   }, [setMealState])
 
-  // Render the component
-  return (
-    <div style={{ display: 'block', width: '100%', height: '115vh', overflowX: 'hidden', overflowY: 'auto' }} className='outer'>
-      {/* Ask the user whether they want to move to above plate position */}
-      <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: '140%' }}>
-        Bite finished? Move above plate.
-      </p>
-      {/* Icon to move above plate */}
-      <Row className='justify-content-center mx-auto mb-2 w-75'>
+  /**
+   * Get the bite finished text to render.
+   *
+   * @returns {JSX.Element} the bite finished text
+   */
+  const biteFinishedText = useCallback(() => {
+    return (
+      <>
+        {/* Ask the user whether they want to move to above plate position */}
+        <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: textFontSize }}>
+          Bite finished? Move above plate.
+        </p>
+      </>
+    )
+  }, [textFontSize])
+
+  /**
+   * Get the bite finished button to render.
+   *
+   * @returns {JSX.Element} the bite finished button
+   */
+  const biteFinishedButton = useCallback(() => {
+    return (
+      <>
+        {/* Icon to move above plate */}
         <Button
           variant='success'
           className='mx-2 mb-2 btn-huge'
           size='lg'
           onClick={moveAbovePlate}
-          style={{ width: '300px', height: '200px' }}
+          style={{ width: buttonWidth, height: buttonHeight }}
         >
-          <img src={moveAbovePlateImage} alt='move_above_plate_image' className='center' />
+          <img src={moveAbovePlateImage} alt='move_above_plate_image' className='center' style={{ width: iconWidth, height: iconHeight }} />
         </Button>
-      </Row>
-      {/* Add empty space */}
-      <div className='justify-content-center mx-auto my-3 row'>&nbsp;</div>
-      <Row className='justify-content-center mx-auto mt-2'>
+      </>
+    )
+  }, [moveAbovePlate, moveAbovePlateImage, buttonHeight, buttonWidth, iconHeight, iconWidth])
+
+  /**
+   * Get the take another bite text to render.
+   *
+   * @returns {JSX.Element} the take another bite text
+   */
+  const takeAnotherBiteText = useCallback(() => {
+    return (
+      <>
         {/* Ask the user whether they want to move to resting position */}
-        <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: '140%' }}>
-          Take another bite? Move to resting position.
+        <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: textFontSize }}>
+          Take another bite? Move back.
         </p>
+      </>
+    )
+  }, [textFontSize])
+
+  /**
+   * Get the take another bite button to render.
+   *
+   * @returns {JSX.Element} the take another bite button
+   */
+  const takeAnotherBiteButton = useCallback(() => {
+    return (
+      <>
         {/* Icon to move to resting position */}
         <Button
           variant='warning'
           className='mx-2 mb-2 btn-huge'
           size='lg'
           onClick={moveToRestingPosition}
-          style={{ width: '300px', height: '200px' }}
+          style={{ width: buttonWidth, height: buttonHeight }}
         >
-          <img src={moveToRestingPositionImage} alt='move_to_resting_image' className='center' />
+          <img
+            src={moveToRestingPositionImage}
+            alt='move_to_resting_image'
+            className='center'
+            style={{ width: iconWidth, height: iconHeight }}
+          />
         </Button>
-      </Row>
-    </div>
-  )
+      </>
+    )
+  }, [moveToRestingPosition, moveToRestingPositionImage, buttonHeight, buttonWidth, iconHeight, iconWidth])
+
+  /** Get the full page view
+   *
+   * @returns {JSX.Element} the the full page view
+   */
+  const fullPageView = useCallback(() => {
+    return (
+      <View style={{ flex: 'auto', flexDirection: dimension, alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+        <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center' }}>
+          {biteFinishedText()}
+          {biteFinishedButton()}
+        </View>
+        <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center' }}>
+          {takeAnotherBiteText()}
+          {takeAnotherBiteButton()}
+        </View>
+      </View>
+    )
+  }, [dimension, biteFinishedButton, biteFinishedText, takeAnotherBiteButton, takeAnotherBiteText])
+
+  // Render the component
+  return <>{fullPageView()}</>
 }
 
 export default BiteDone

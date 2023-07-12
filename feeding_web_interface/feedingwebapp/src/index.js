@@ -3,10 +3,26 @@ import ReactDOM from 'react-dom'
 import './index.css'
 import App from './App'
 import reportWebVitals from './reportWebVitals'
+import { View } from 'react-native'
+import { useWindowSize } from './helpers'
+
+const AppComponent = () => {
+  /**
+   * NOTE: windowSize.height is necessary as opposed to '100vh' because some
+   * browsers have footers (e.g., with control buttons) that are not accounted
+   * for in '100vh'.
+   */
+  let windowSize = useWindowSize()
+  return (
+    <View style={{ flex: 1, height: windowSize.height }}>
+      <App />
+    </View>
+  )
+}
 
 ReactDOM.render(
   <React.StrictMode>
-    <App />
+    <AppComponent />
   </React.StrictMode>,
   document.getElementById('root')
 )

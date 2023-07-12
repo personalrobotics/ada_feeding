@@ -1,8 +1,8 @@
 // React Imports
 import React from 'react'
 import Button from 'react-bootstrap/Button'
-import { scaleWidthHeightToWindow } from '../../../helpers'
 import PropTypes from 'prop-types'
+import { REALSENSE_WIDTH, REALSENSE_HEIGHT } from '../../Constants'
 
 import '../Button.css'
 
@@ -23,9 +23,14 @@ import '../Button.css'
  */
 
 const ImageWithButtonOverlay = (props) => {
-  const width = scaleWidthHeightToWindow(props.imgWidth, props.imgHeight, 0, 0, 0, 0).width
-  const height = scaleWidthHeightToWindow(props.imgWidth, props.imgHeight, 0, 0, 0, 0).height
-  const scaleFactor = scaleWidthHeightToWindow(props.imgWidth, props.imgHeight, 0, 0, 0, 0).scaleFactor
+  // NOTE: The width and height here may be broken, due to changes in and
+  // then deprecation of the `scaleWidthHeightToWindow` function. Changes were
+  // made (resulting in the below code) but not tested.
+  const width = props.imgWidth
+  const height = props.imgHeight
+  let scaleFactorWidth = width / REALSENSE_WIDTH
+  let scaleFactorHeight = height / REALSENSE_HEIGHT
+  let scaleFactor = (scaleFactorWidth + scaleFactorHeight) / 2
 
   return (
     <>

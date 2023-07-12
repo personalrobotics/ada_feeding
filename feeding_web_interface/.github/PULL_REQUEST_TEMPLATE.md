@@ -13,7 +13,7 @@
 - [ ] Format React code with `npm run format`
 - [ ] Format Python code by running `python3 -m black .` in the top-level of this repository
 - [ ] Thoroughly test your code's functionality, including unintended uses.
-- [ ] Thoroughly test your code's responsiveness by rendering it on different devices, browsers, etc.
+- [ ] Fully test the responsiveness of the feature as documented in the [Responsiveness Testing Guidelines](https://github.com/personalrobotics/feeding_web_interface/blob/main/feedingwebapp/ResponsivenessTesting.md). If you deviate from those guidelines, document above why you deviated and what you did instead.
 - [ ] Consider the user flow between states that this feature introduces, consider different situations that might occur for the user, and ensure that there is no way for the user to get stuck in a loop.
 
 **Before merging a pull request**

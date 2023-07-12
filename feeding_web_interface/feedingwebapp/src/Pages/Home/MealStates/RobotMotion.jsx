@@ -1,10 +1,10 @@
 // React Imports
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMediaQuery } from 'react-responsive'
 import Button from 'react-bootstrap/Button'
-// PropTypes is used to validate that the used props are in fact passed to this
-// Component
+import { View } from 'react-native'
+// PropTypes is used to validate that the used props are in fact passed to this Component
 import PropTypes from 'prop-types'
-import Row from 'react-bootstrap/Row'
 // Local Imports
 import { useROS, createROSActionClient, callROSAction, cancelROSAction, destroyActionClient } from '../../../ros/ros_helpers'
 import Footer from '../../Footer/Footer'
@@ -59,6 +59,16 @@ const RobotMotion = (props) => {
    * re-connecting upon re-renders.
    */
   const ros = useRef(useROS().ros)
+
+  // Flag to check if the current orientation is portrait
+  const isPortrait = useMediaQuery({ query: '(orientation: portrait)' })
+
+  // Indicator of how to arrange screen elements based on orientation
+  let dimension = isPortrait ? 'column' : 'row'
+  // Waiting text font size
+  let waitingTextFontSize = isPortrait ? '4.5vh' : '9vh'
+  // Motion text font size
+  let motionTextFontSize = isPortrait ? '3vh' : '6vh'
 
   /**
    * Create the ROS Action Client. This is re-created every time props.mealState
@@ -227,45 +237,90 @@ const RobotMotion = (props) => {
   }, [setPaused, setMealState, backMealState])
 
   /**
-   * Get the action status text to render. Note that once Issue #22 is addressed,
-   * this will likely no longer be necessary (since that issue focuses on
-   * visually rendering robot progress).
+   * Get the action status text and progress bar or blank view to render.
    *
-   * @returns {JSX.Element} the action status text to render
+   * @param {flexSizeOuter} - flexbox percentage for parent element rendering everything
+   * @param {flexSizeTextInner} - flexbox percentage for child element rendering text
+   * @param {flexSizeVisualInner} - flexbox percentage for child element rendering visual
+   * @param {progress} - progress proportion; if null progress bar not shown
+   * @param {text} - action status text
+   * @param {showTime} - indicates if elapsed time needs to be shown
+   * @param {time} - calculated elapsed time, 0 if time not available
+   *
+   * @returns {JSX.Element} the action status text, progress bar or blank view
+   */
+  const actionStatusTextAndVisual = useCallback(
+    (flexSizeOuter, flexSizeTextInner, flexSizeVisualInner, text, showTime, time, progress) => {
+      return (
+        <>
+          <View style={{ flex: flexSizeOuter, flexDirection: dimension, alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+            <View style={{ flex: flexSizeTextInner, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
+              <p id='Waiting for robot motion' className='waitingMsg' style={{ fontSize: waitingTextFontSize }}>
+                {props.waitingText}
+              </p>
+              <p style={{ fontSize: motionTextFontSize }}>{text}</p>
+              {showTime ? <p style={{ fontSize: motionTextFontSize }}>&nbsp;&nbsp;Elapsed Time: {time} sec</p> : <></>}
+            </View>
+            <View
+              style={{
+                flex: flexSizeVisualInner,
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                height: '100%'
+              }}
+            >
+              {progress === null ? <></> : <CircleProgressBar proportion={progress} />}
+            </View>
+          </View>
+        </>
+      )
+    },
+    [dimension, props.waitingText, motionTextFontSize, waitingTextFontSize]
+  )
+
+  /**
+   * Get the action status elements to render in a view flexbox.
+   *
+   * @returns {JSX.Element} the action status elements (e.g., robot motion text, elapsed time, progress bar)
    */
   const actionStatusText = useCallback(
-    (actionStatus) => {
+    (actionStatus, flexSizeOuter) => {
+      let flexSizeTextInner = 1
+      let flexSizeVisualInner = 1
+      let text
+      let time
+      let showTime
       switch (actionStatus.actionStatus) {
         case ROS_ACTION_STATUS_EXECUTE:
           if (actionStatus.feedback) {
             let progress = 1 - actionStatus.feedback.motion_curr_distance / actionStatus.feedback.motion_initial_distance
             if (!actionStatus.feedback.is_planning) {
               let moving_elapsed_time = actionStatus.feedback.motion_time.sec + actionStatus.feedback.motion_time.nanosec / 10 ** 9
+              text = 'Robot is moving...'
+              time = Math.round(moving_elapsed_time * 100) / 100
+              showTime = true
               // Calling CircleProgessBar component to visualize robot motion of moving
-              return (
-                <>
-                  <h3>Robot is moving...</h3>
-                  <h3>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Elapsed Time: {Math.round(moving_elapsed_time * 100) / 100} sec</h3>
-                  <center>
-                    <CircleProgressBar proportion={progress} />
-                  </center>
-                </>
-              )
+              return <>{actionStatusTextAndVisual(flexSizeOuter, flexSizeTextInner, flexSizeVisualInner, text, showTime, time, progress)}</>
             } else {
               let planning_elapsed_time = actionStatus.feedback.planning_time.sec + actionStatus.feedback.planning_time.nanosec / 10 ** 9
-              return (
-                <>
-                  <h3>Robot is thinking...</h3>
-                  <h3>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Elapsed Time: {Math.round(planning_elapsed_time * 100) / 100} sec</h3>
-                </>
-              )
+              text = 'Robot is thinking...'
+              time = Math.round(planning_elapsed_time * 100) / 100
+              showTime = true
+              return <>{actionStatusTextAndVisual(flexSizeOuter, flexSizeTextInner, flexSizeVisualInner, text, showTime, time, null)}</>
             }
           } else {
             // If you haven't gotten feedback yet, assume the robot is planning
-            return <h3>Robot is thinking...</h3>
+            text = 'Robot is thinking...'
+            time = 0
+            showTime = false
+            return <>{actionStatusTextAndVisual(flexSizeOuter, flexSizeTextInner, flexSizeVisualInner, text, showTime, time, null)}</>
           }
         case ROS_ACTION_STATUS_SUCCEED:
-          return <h3>Robot has finished</h3>
+          text = 'Robot has finished'
+          time = 0
+          showTime = false
+          return <>{actionStatusTextAndVisual(flexSizeOuter, flexSizeTextInner, flexSizeVisualInner, text, showTime, time, null)}</>
         case ROS_ACTION_STATUS_ABORT:
           /**
            * TODO: Just displaying that the robot faced an error is not useful
@@ -273,47 +328,48 @@ const RobotMotion = (props) => {
            * error cases might arise, and change the UI accordingly to instruct
            * users on how to troubleshoot/fix it.
            */
-          return <h3>Robot encountered an error</h3>
+          text = 'Robot encountered an error'
+          time = 0
+          showTime = false
+          return <>{actionStatusTextAndVisual(flexSizeOuter, flexSizeTextInner, flexSizeVisualInner, text, showTime, time, null)}</>
         case ROS_ACTION_STATUS_CANCELED:
-          return <h3>Robot is paused</h3>
+          text = 'Robot is paused'
+          time = 0
+          showTime = false
+          return <>{actionStatusTextAndVisual(flexSizeOuter, flexSizeTextInner, flexSizeVisualInner, text, showTime, time, null)}</>
         default:
           if (paused) {
-            return <h3>Robot is paused</h3>
+            text = 'Robot is paused'
+            time = 0
+            showTime = false
+            return <>{actionStatusTextAndVisual(flexSizeOuter, flexSizeTextInner, flexSizeVisualInner, text, showTime, time, null)}</>
           } else {
-            return <h3>&nbsp;</h3>
+            return (
+              <View
+                style={{ flex: flexSizeOuter, flexDirection: dimension, alignItems: 'center', justifyContent: 'center', width: '100%' }}
+              >
+                <h3>&nbsp;</h3>
+              </View>
+            )
           }
       }
     },
-    [paused]
+    [paused, dimension, actionStatusTextAndVisual]
   )
 
   // Render the component
   return (
     <>
-      {/* TODO: Consider vertically centering this element */}
-      <Row className='justify-content-center mx-auto my-2 w-75'>
-        <div>
-          <h1 id='Waiting for robot motion' className='waitingMsg'>
-            {props.waitingText}
-          </h1>
-          {props.debug ? (
-            <Button variant='secondary' className='justify-content-center mx-2 mb-2' size='lg' onClick={robotMotionDone}>
-              Continue (Debug Mode)
-            </Button>
-          ) : (
-            <></>
-          )}
-          <br />
-          <br />
-          <br />
-          {/**
-           * TODO (Issue #22): Instead of just displaying progress via text on
-           * the page, we should visually show a progress bar. This will also
-           * negate the need for the `actionStatusText` function.
-           */}
-          {actionStatusText(actionStatus)}
-        </div>
-      </Row>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+        {props.debug ? (
+          <Button variant='secondary' className='justify-content-center mx-2 mb-2' size='lg' onClick={robotMotionDone}>
+            Continue (Debug Mode)
+          </Button>
+        ) : (
+          <></>
+        )}
+        {actionStatusText(actionStatus, 1)}
+      </View>
       {/**
        * Display the footer with the Pause button.
        */}
@@ -327,6 +383,7 @@ const RobotMotion = (props) => {
     </>
   )
 }
+
 RobotMotion.propTypes = {
   /**
    * Whether to run it in debug mode (e.g., if you aren't simulatenously running

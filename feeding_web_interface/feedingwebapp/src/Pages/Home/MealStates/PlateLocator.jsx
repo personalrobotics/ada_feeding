@@ -1,6 +1,8 @@
 // React Imports
-import React from 'react'
+import React, { useCallback, useMemo, useRef } from 'react'
 import Button from 'react-bootstrap/Button'
+import { useMediaQuery } from 'react-responsive'
+import { View } from 'react-native'
 // PropTypes is used to validate that the used props are in fact passed to this
 // Component
 import PropTypes from 'prop-types'
@@ -8,8 +10,9 @@ import PropTypes from 'prop-types'
 // Local Imports
 import '../Home.css'
 import { useGlobalState, MEAL_STATE } from '../../GlobalState'
-import { REALSENSE_WIDTH, REALSENSE_HEIGHT, CAMERA_FEED_TOPIC } from '../../Constants'
-import { convertRemToPixels, scaleWidthHeightToWindow } from '../../../helpers'
+import { convertRemToPixels } from '../../../helpers'
+import { Col, Row, Container } from 'react-bootstrap'
+import VideoFeed from '../VideoFeed'
 
 /**
  * The PlateLocator component appears if the user decides to adjust the position
@@ -20,6 +23,29 @@ import { convertRemToPixels, scaleWidthHeightToWindow } from '../../../helpers'
 const PlateLocator = (props) => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
+  // Get robot motion flag for plate locator
+  const setTeleopIsMoving = useGlobalState((state) => state.setTeleopIsMoving)
+
+  // Flag to check if the current orientation is portrait
+  const isPortrait = useMediaQuery({ query: '(orientation: portrait)' })
+  // Indicator of how to arrange screen elements based on orientation
+  let dimension = isPortrait ? 'column' : 'row'
+
+  // Variables to render the VideoFeed
+  const videoParentRef = useRef(null)
+  // Margin for the video feed and between the mask buttons. Note this cannot
+  // be re-defined per render, otherwise it messes up re-rendering order upon
+  // resize in VideoFeed.
+  const margin = useMemo(() => convertRemToPixels(1), [])
+
+  // text font size
+  let textFontSize = isPortrait ? '2vh' : '2vw'
+  // done button width
+  let doneButtonWidth = '47vw'
+  // button height
+  let buttonHeight = isPortrait ? '6vh' : '12vh'
+  // arrow button width
+  let arrowButtonWidth = '13vw'
 
   /**
    * Callback function for when the user presses one of the buttons to teleop
@@ -27,103 +53,146 @@ const PlateLocator = (props) => {
    *
    * TODO: Implement this when ROS is connected to the robot!
    */
-  function cartesianControlCommandReceived(event) {
-    let direction = event.target.value
-    console.log('cartesianControlCommandReceived', direction)
-  }
+  const cartesianControlCommandReceived = useCallback(
+    (event) => {
+      let direction = event.target.value
+      setTeleopIsMoving(true)
+      console.log('cartesianControlCommandReceived', direction)
+    },
+    [setTeleopIsMoving]
+  )
 
   /**
    * Callback function for when the user indicates that they are done
    * teleoperating the robot.
    */
-  function doneClicked() {
+  const doneClicked = useCallback(() => {
     console.log('doneClicked')
+    setTeleopIsMoving(false)
     setMealState(MEAL_STATE.U_BiteSelection)
-  }
+  }, [setMealState, setTeleopIsMoving])
 
-  // Get the size of the robot's live video stream.
-  const margin = convertRemToPixels(1)
-  let { width, height } = scaleWidthHeightToWindow(REALSENSE_WIDTH, REALSENSE_HEIGHT, margin, margin, margin, margin)
-
-  // Render the component
-  return (
-    <div style={{ overflowX: 'hidden', overflowY: 'auto' }} className='outer'>
-      {/**
-       * Display the live stream from the robot's camera.
-       */}
+  /**
+   * Get the done button to click when locating plate is done.
+   *
+   * @returns {JSX.Element} the done button
+   */
+  const doneButton = useCallback(() => {
+    return (
       <center>
-        <img
-          src={`${props.webVideoServerURL}/stream?topic=${CAMERA_FEED_TOPIC}&width=${Math.round(width)}&height=${Math.round(
-            height
-          )}&quality=20`}
-          alt='Live video feed from the robot'
-          style={{ width: width, height: height, display: 'block' }}
-        />
+        <Button variant='success' onClick={doneClicked} style={{ width: doneButtonWidth, height: buttonHeight, fontSize: textFontSize }}>
+          ✅ Done
+        </Button>
       </center>
+    )
+  }, [doneClicked, textFontSize, buttonHeight, doneButtonWidth])
 
-      {/**
-       * An array of buttons for the user to teleoperate the robot, and a
-       * button for the user to indicate that they are done teleoperating the
-       * robot.
-       *
-       * TODO: The values for margins should not be hardcoded. Bootstrap's
-       * grid should be able to get alignment without fine-tuning of margins.
-       */}
-      <div className='container'>
-        <div className='row'>
-          <div className='col'>
+  /**
+   * An array of directional buttons for the user to teleoperate the robot, and a
+   * button for the user to indicate that they are done teleoperating the robot.
+   *
+   * @returns {JSX.Element} the directional arrow buttons
+   */
+  const directionalArrows = useCallback(() => {
+    return (
+      <>
+        <Container fluid>
+          <Row className='justify-content-center'>
             <Button
               onClick={cartesianControlCommandReceived}
-              style={{ fontSize: '25px', marginLeft: '15%' }}
+              style={{
+                fontSize: textFontSize,
+                alignItems: 'right',
+                justifyContent: 'center',
+                width: arrowButtonWidth,
+                height: buttonHeight,
+                marginTop: margin
+              }}
               value='forward'
               variant='primary'
             >
               ⬆
             </Button>
-          </div>
-
-          <div className='w-100'></div>
-
-          <div className='col-3'>
-            <Button onClick={cartesianControlCommandReceived} style={{ fontSize: '25px', marginLeft: '2%' }} value='left' variant='primary'>
-              ⬅
-            </Button>
-          </div>
-
-          <div className='col'>
+          </Row>
+          <Row className='justify-content-center' style={{ '--bs-gutter-x': '0rem' }} xs='auto'>
+            <Col>
+              <center>
+                <Button
+                  onClick={cartesianControlCommandReceived}
+                  style={{
+                    fontSize: textFontSize,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: arrowButtonWidth,
+                    height: buttonHeight
+                  }}
+                  value='left'
+                  variant='primary'
+                >
+                  ⬅
+                </Button>
+              </center>
+            </Col>
+            <Col style={{ width: '55px' }}></Col>
+            <Col>
+              <center>
+                <Button
+                  onClick={cartesianControlCommandReceived}
+                  style={{
+                    fontSize: textFontSize,
+                    alignItems: 'left',
+                    justifyContent: 'center',
+                    width: arrowButtonWidth,
+                    height: buttonHeight
+                  }}
+                  value='right'
+                  variant='primary'
+                >
+                  ➡
+                </Button>
+              </center>
+            </Col>
+          </Row>
+          <Row className='justify-content-center'>
             <Button
               onClick={cartesianControlCommandReceived}
-              style={{ fontSize: '25px', marginLeft: '3%' }}
-              value='right'
-              variant='primary'
-            >
-              ➡
-            </Button>
-          </div>
-
-          <div className='w-100'></div>
-          <div className='col'>
-            <Button
-              onClick={cartesianControlCommandReceived}
-              style={{ fontSize: '25px', marginLeft: '30%', marginTop: '5%', marginRight: '15%' }}
+              style={{
+                fontSize: textFontSize,
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: arrowButtonWidth,
+                height: buttonHeight,
+                marginBottom: margin
+              }}
               value='back'
               variant='primary'
             >
               ⬇
             </Button>
-          </div>
-          <div className='col'>
-            <Button
-              variant='success'
-              onClick={doneClicked}
-              style={{ width: '96%', fontSize: '25px', marginLeft: '10%', marginRight: '2%' }}
-            >
-              ✅ Done
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
+          </Row>
+        </Container>
+      </>
+    )
+  }, [cartesianControlCommandReceived, arrowButtonWidth, buttonHeight, textFontSize, margin])
+
+  // Render the component
+  return (
+    <View style={{ flex: 'auto', flexDirection: dimension, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
+      <View ref={videoParentRef} style={{ flex: 5, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+        <VideoFeed
+          webVideoServerURL={props.webVideoServerURL}
+          parent={videoParentRef}
+          marginTop={margin}
+          marginBottom={margin}
+          marginLeft={margin}
+          marginRight={margin}
+        />
+      </View>
+      <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center' }}>
+        {directionalArrows()}
+        {doneButton()}
+      </View>
+    </View>
   )
 }
 PlateLocator.propTypes = {

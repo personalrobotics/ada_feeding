@@ -2,7 +2,6 @@
 import React, { useState } from 'react'
 import Button from 'react-bootstrap/Button'
 import Row from 'react-bootstrap/Row'
-import { scaleWidthHeightToWindow } from '../../../helpers'
 import PropTypes from 'prop-types'
 
 import '../Button.css'
@@ -18,8 +17,11 @@ import '../Button.css'
  *        the realsense camera
  */
 const ImageWithPointMask = (props) => {
-  const width = scaleWidthHeightToWindow(props.imgWidth, props.imgHeight, 0, 0, 0, 0).width
-  const height = scaleWidthHeightToWindow(props.imgWidth, props.imgHeight, 0, 0, 0, 0).height
+  // NOTE: The width and height here may be broken, due to changes in and
+  // then deprecation of the `scaleWidthHeightToWindow` function. Changes were
+  // made (resulting in the below code) but not tested.
+  const width = props.imgWidth
+  const height = props.imgHeight
   const [foodMasksToDisplay, setFoodMasksToDisplay] = useState([])
 
   const imageClicked = (event) => {

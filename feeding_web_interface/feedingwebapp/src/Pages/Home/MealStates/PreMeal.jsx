@@ -15,6 +15,14 @@ import { useGlobalState, MEAL_STATE } from '../../GlobalState'
 const PreMeal = () => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
+  // Font size for text
+  let textFontSize = '4.2vh'
+  // Width for button
+  let buttonWidth = '70vw'
+  // Height for button
+  let buttonHeight = '10vh'
+  // Margin
+  let margin = '5vh'
 
   /**
    * Callback function for when the user decides to start feeding using the app.
@@ -27,7 +35,7 @@ const PreMeal = () => {
   // Render the component
   return (
     <Row xs={1} md={1} className='justify-content-center mx-2 my-2'>
-      <p className='transitionMessage' style={{ marginBottom: '10px', marginTop: '0px', fontSize: '24px' }}>
+      <p className='transitionMessage' style={{ marginBottom: margin, marginTop: '0', fontSize: textFontSize }}>
         Hello!👋 I am ADA&apos;s faithful assistant, ADAWebapp! Bon Appétit! 😋
       </p>
       <Button
@@ -36,7 +44,7 @@ const PreMeal = () => {
         className='btn-huge'
         id='#startFeedingBtn'
         onClick={startFeedingClicked}
-        style={{ width: '75%', fontSize: '35px', marginTop: '30px' }}
+        style={{ width: buttonWidth, height: buttonHeight, fontSize: textFontSize, marginTop: margin }}
       >
         Start Feeding
       </Button>
