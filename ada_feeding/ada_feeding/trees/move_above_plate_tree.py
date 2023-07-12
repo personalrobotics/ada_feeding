@@ -25,9 +25,7 @@ class MoveAbovePlateTree(ActionServerBT):
 
     def __init__(
         self,
-        action_type_class: str,
-        dummy_plan_time: float = 2.5,
-        dummy_motion_time: float = 7.5
+        action_type_class: str
     ) -> None:
         """
         Initializes tree-specific parameters.
@@ -38,15 +36,9 @@ class MoveAbovePlateTree(ActionServerBT):
             e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
             type can be anything, but the Feedback and Result must at a minimum
             include the fields of ada_feeding_msgs.action.MoveTo
-        dummy_plan_time: How many seconds this dummy node should spend in planning.
-        dummy_motion_time: How many seconds this dummy node should spend in motion.
         """
         # Import the action type
         self.action_type_class = import_from_string(action_type_class)
-
-        # Set the dummy motion parameters
-        self.dummy_plan_time = dummy_plan_time
-        self.dummy_motion_time = dummy_motion_time
 
         # Cache the tree so that it can be reused
         self.tree = None
@@ -70,7 +62,7 @@ class MoveAbovePlateTree(ActionServerBT):
         # Create the behaviors in the tree
         if self.tree is None:
             # parallel root
-            root = MoveTo(name, self.dummy_plan_time, self.dummy_motion_time)
+            root = MoveTo(name)
             root.logger = logger
             # Create the tree
             self.tree = py_trees.trees.BehaviourTree(root)
@@ -94,18 +86,6 @@ class MoveAbovePlateTree(ActionServerBT):
             )
             self.blackboard.register_key(
                 key="is_planning", access=py_trees.common.Access.READ
-            )
-            self.blackboard.register_key(
-                key="planning_time", access=py_trees.common.Access.READ
-            )
-            self.blackboard.register_key(
-                key="motion_time", access=py_trees.common.Access.READ
-            )
-            self.blackboard.register_key(
-                key="motion_initial_distance", access=py_trees.common.Access.READ
-            )
-            self.blackboard.register_key(
-                key="motion_curr_distance", access=py_trees.common.Access.READ
             )
             # set blackboard key value
             self.blackboard.goal = location_goal
@@ -150,11 +130,6 @@ class MoveAbovePlateTree(ActionServerBT):
         feedback_msg = self.action_type_class.Feedback()
         if self.blackboard.exists("is_planning"):
             feedback_msg.is_planning = self.blackboard.is_planning
-            planning_time = self.blackboard.planning_time
-            feedback_msg.planning_time.sec = int(planning_time)
-            feedback_msg.planning_time.nanosec = int(
-                (planning_time - int(planning_time)) * 1e9
-            )
         return feedback_msg
 
     def get_result(self, tree: py_trees.trees.BehaviourTree) -> object:

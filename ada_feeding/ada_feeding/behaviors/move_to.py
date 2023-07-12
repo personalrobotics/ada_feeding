@@ -29,8 +29,6 @@ ROSACTION_GOAL_PREEMPTED = "goal_preempted"
 
 
 def _move_group_dummy(
-    dummy_plan_time_s: float,
-    dummy_motion_time_s: float,
     pipe_connection: multiprocessing.connection.Connection,
     feedback_s: float = 0.2,
 ) -> None:
@@ -38,14 +36,8 @@ def _move_group_dummy(
     This function is loosely designed to mimic a call to the MoveGroup action:
     https://github.com/ros-planning/moveit_msgs/blob/ros2/action/MoveGroup.action
 
-    Specifically, it sends a string with the state MOVEGROUP_STATE_PLANNING while
-    it is planning, and MOVEGROUP_STATE_MOTION while it is moving. It plans for
-    `dummy_plan_time_s` seconds, and moves for `dummy_motion_time_s` seconds.
-
     Parameters
     ----------
-    dummy_plan_time_s: How many seconds this dummy node should spend in planning.
-    dummy_motion_time_s: How many seconds this dummy node should spend in motion.
     pipe_connection: The pipe connection to the main behavior process.
     feedback_s: How often to send feedback to the main behavior process. NOTE
         that because Pipe has no option to only take the latest message,
@@ -74,19 +66,13 @@ def _move_group_dummy(
             if not idle:
                 if motion_start_time_s is None:  # If we're planning
                     planning_elapsed_time_s = time.time() - planning_start_time_s
-                    if planning_elapsed_time_s < dummy_plan_time_s:
-                        pipe_connection.send([MOVEGROUP_STATE_PLANNING])
-                    else:
-                        motion_start_time_s = time.time()
+                    motion_start_time_s = time.time()
                 else:  # If we're moving
                     motion_elapsed_time_s = time.time() - motion_start_time_s
-                    if motion_elapsed_time_s < dummy_motion_time_s:
-                        pipe_connection.send([MOVEGROUP_STATE_MOTION])
-                    else:
-                        idle = True
-                        planning_start_time_s = None
-                        motion_start_time_s = None
-                        pipe_connection.send([ROSACTION_GOAL_SUCCEEDED])
+                    idle = True
+                    planning_start_time_s = None
+                    motion_start_time_s = None
+                    pipe_connection.send([ROSACTION_GOAL_SUCCEEDED])
             # Sleep for a bit before checking again
             time.sleep(feedback_s)
     except KeyboardInterrupt:
@@ -104,21 +90,14 @@ class MoveTo(py_trees.behaviour.Behaviour):
     def __init__(
         self,
         name: str,
-        dummy_plan_time_s: float = 2.5,
-        dummy_motion_time_s: float = 7.5,
         preempt_timeout_s: float = 10.0,
     ):
         """
         A dummy behavior for moving to a target position.
 
-        This behavior will sleep for `dummy_plan_time_s` sec, then sleep for
-        `dummy_motion_time_s` sec, and then succeed.
-
         Parameters
         ----------
         name: The name of the behavior.
-        dummy_plan_time_s: How many seconds this dummy node should spend in planning.
-        dummy_motion_time_s: How many seconds this dummy node should spend in motion.
         preempt_timeout_s: How long after a preempt is requested to wait for a
             response from the dummy MoveGroup action.
         """
@@ -126,8 +105,6 @@ class MoveTo(py_trees.behaviour.Behaviour):
         super().__init__(name=name)
 
         # Store parameters
-        self.dummy_plan_time_s = dummy_plan_time_s
-        self.dummy_motion_time_s = dummy_motion_time_s
         self.preempt_timeout_s = preempt_timeout_s
         self.prev_response = None
         self.planning_start_time = None
@@ -161,8 +138,6 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.move_group = multiprocessing.Process(
             target=_move_group_dummy,
             args=(
-                self.dummy_plan_time_s,
-                self.dummy_motion_time_s,
                 self.child_connection,
             ),
         )
@@ -227,10 +202,6 @@ class MoveTo(py_trees.behaviour.Behaviour):
                     # TODO: On the actual robot, `motion_initial_distance` and
                     #       `motion_curr_distance` should determine the distance
                     #       to the goal.
-                    self.blackboard.motion_initial_distance = self.dummy_motion_time_s
-                self.blackboard.motion_curr_distance = self.dummy_motion_time_s - (
-                    time.time() - self.motion_start_time
-                )
 
         # If it hasn't finished, return running
         return py_trees.common.Status.RUNNING
