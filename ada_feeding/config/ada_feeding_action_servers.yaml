@@ -65,17 +65,27 @@ ada_feeding_action_servers:
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToMouth action
+    # TODO: This is a dummy MoveToMouth implementation used to test MoveToPose.
+    # It will be replaced with the actual MoveToMouth action once that is
+    # implemented.
     MoveToMouth: # required
       action_type: ada_feeding_msgs.action.MoveTo # required
-      tree_class: ada_feeding.trees.MoveToDummyTree # required
+      tree_class: ada_feeding.trees.MoveToPoseTree # required
       tree_kws: # optional
         - action_type_class
-        - dummy_plan_time
-        - dummy_motion_time
+        - position
+        - quat_xyzw
       tree_kwargs: # optional
         action_type_class: ada_feeding_msgs.action.MoveTo # required
-        dummy_plan_time: 1.0 # secs
-        dummy_motion_time: 10.0 # secs
+        position:
+          -  0.27971 # x
+          -  0.07175 # y
+          -  0.77314 # z
+        quat_xyzw:
+          -  0.00175 # x
+          -  0.70159 # y
+          -  0.71255 # z
+          - -0.00636 # w
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToStowLocation action

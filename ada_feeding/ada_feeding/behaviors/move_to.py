@@ -397,7 +397,7 @@ class DistanceToGoal:
                 [
                     DistanceToGoal.joint_position_dist(
                         self.curr_joint_state.position[joint_state_i],
-                        traj_joint_state.positions[joint_traj_i]
+                        traj_joint_state.positions[joint_traj_i],
                     )
                     for (_, joint_state_i, joint_traj_i) in self.aligned_joint_indices
                 ]
