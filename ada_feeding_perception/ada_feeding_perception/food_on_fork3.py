@@ -29,7 +29,7 @@ class FoodOnFork(Node):
         # color topic subscription
         self.subscription_color = self.create_subscription(
             Image,
-            '/camera/color/image_raw',
+            '/camera2/color/image_raw',
             self.listener_callback_color,  # when the subscriber gets something, it calls the callback function
             1
         )
@@ -39,7 +39,7 @@ class FoodOnFork(Node):
         self.subscription_depth = self.create_subscription(
             Image,
             # 'camera/aligned_depth_to_color/image_raw',
-            'camera/depth/image_rect_raw',
+            'camera2/depth/image_rect_raw',
             self.listener_callback_depth,  # when the subscriber gets something, it calls the callback function
             1
         )
@@ -119,7 +119,7 @@ class FoodOnFork(Node):
             self.data.append([datetime.now(), np.count_nonzero(mask_img)])
             print(self.data)
 
-            with open(r'/home/atharva2/atharvak_ws/src/ada_feeding/ada_feeding_perception/ada_feeding_perception/data/PlateLeaf_7-7-23.csv', 'w', newline='') as f:
+            with open(r'/home/atharva2/atharvak_ws/src/ada_feeding/ada_feeding_perception/ada_feeding_perception/data/Test_7-7-23.csv', 'w', newline='') as f:
                 f_write = csv.writer(f)
 
                 for v in self.data:

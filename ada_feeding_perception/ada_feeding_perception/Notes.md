@@ -67,3 +67,10 @@ number:  4062
    2. With Donut Hole
    3. With leaf
    4. With ___
+
+## Trial name: Ross (7/11/2023): 
+### Default Parameters used:
+- `left_top_corner = (297, 248)`
+- `right_bottom_corner = (422, 332)`
+- `min_dist = (330 - 20)`
+- `max_dist = (330 + 40)`
