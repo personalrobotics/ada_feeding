@@ -10,6 +10,7 @@ method, and everything else should fall into place.
 # Standard imports
 from abc import ABC, abstractmethod
 from asyncio import Future
+import math
 import time
 from typing import List, Optional
 
@@ -359,6 +360,15 @@ class DistanceToGoal:
                         (joint_name, joint_state_i, joint_traj_i)
                     )
 
+    @staticmethod
+    def joint_position_dist(p1: float, p2: float) -> float:
+        """
+        Given two joint positions in radians, this function computes the
+        distance between then, accounting for rotational symmetry.
+        """
+        abs_dist = abs(p1 - p2) % (2 * math.pi)
+        return min(abs_dist, 2 * math.pi - abs_dist)
+
     def get_distance(self) -> Optional[float]:
         """
         This function determines where in the trajectory the robot is. It does
@@ -385,9 +395,9 @@ class DistanceToGoal:
             traj_joint_state = self.trajectory.points[i]
             dist = sum(
                 [
-                    abs(
-                        self.curr_joint_state.position[joint_state_i]
-                        - traj_joint_state.positions[joint_traj_i]
+                    DistanceToGoal.joint_position_dist(
+                        self.curr_joint_state.position[joint_state_i],
+                        traj_joint_state.positions[joint_traj_i]
                     )
                     for (_, joint_state_i, joint_traj_i) in self.aligned_joint_indices
                 ]
