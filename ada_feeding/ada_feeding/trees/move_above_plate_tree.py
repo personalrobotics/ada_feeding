@@ -13,7 +13,7 @@ import py_trees
 import yaml
 
 # Local imports
-from ada_feeding.behaviors import MoveToDummy
+from ada_feeding.behaviors import MoveTo
 from ada_feeding.helpers import import_from_string
 from ada_feeding import ActionServerBT
 
@@ -70,7 +70,7 @@ class MoveAbovePlateTree(ActionServerBT):
         # Create the behaviors in the tree
         if self.tree is None:
             # parallel root
-            root = MoveToDummy(name, self.dummy_plan_time, self.dummy_motion_time)
+            root = MoveTo(name, self.dummy_plan_time, self.dummy_motion_time)
             root.logger = logger
             # Create the tree
             self.tree = py_trees.trees.BehaviourTree(root)
