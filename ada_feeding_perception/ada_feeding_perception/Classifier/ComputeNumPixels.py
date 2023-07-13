@@ -8,11 +8,35 @@ from rosbags.rosbag2 import Reader
 from rosbags.serde import deserialize_cdr
 from cv_bridge import CvBridge, CvBridgeError
 
+"""
+Computes the number of pixels for the rosbags within the specified rosbag folder
+Adds the information of [rosbag_path, timestamp_secs, timestamp_nanosecs, num_pixels] 
+into a csv file
+
+Use Master_with_labels.csv to overlay the labels
+"""
+
 
 def parse_images_from_rosbags(f_write, rosbag_dir_path, rosbag_name,
                               left_top_corner=(297, 248), right_bottom_corner=(422, 332),
                               min_dist=(330 - 20), max_dist=(330 + 40)):
+    """
+    Accesses a particular rosbag specified by the dir_name and rosbag name
+    Then, parses the entire rosbag into images and calls the food_on_fork_num_pixels()
+    method, which returns the number of pixels within the specified parameters in this
+    method
+
+    Parameters:
+        f_write: csv writer
+        rosbag_dir_path: String: directory path for all the rosbags
+        rosbag_name: String: rosbag name
+        left_top_corner: Tuple(col, row)
+        right_bottom_corner: Tuple(col, row)
+        min_dist: int: minimum distance to be within range for detection
+        max_dist: int: maximum distance to be within range for detection
+    """
     rosbag_access_folder = rosbag_dir_path + rosbag_name
+    # we only care about the depth image topic
     topics = ["/camera/depth/image_rect_raw"]
 
     with Reader(rosbag_access_folder) as reader:
@@ -61,11 +85,17 @@ def food_on_fork_num_pixels(depth_img_msg,
 
 
 def main():
+    # directory path for where all the rosbags are stored
     rosbag_dir_path = "/home/atharva2/atharvak_ws/src/rosbags/"
+
+    # get all the rosbags stored in that directory
     rosbag_names = []
     for p in os.listdir(rosbag_dir_path):
         rosbag_names.append(p)
 
+    # Each trial gets a unique name, which is the "key" and then they have certain
+    # hard-coded parameters. As we do more testing with different parameters, we
+    # want to add another unique name and then add the corresponding parameters
     trials = {
         "Ross": {
             "left_top_corner": (297, 248),
@@ -75,6 +105,7 @@ def main():
         }
     }
 
+    # Specifies the name we want to generate the num_pixels data in the csv from
     name = "Ross"
     date = "7-11-23"
     left_top_corner = trials[name]["left_top_corner"]
