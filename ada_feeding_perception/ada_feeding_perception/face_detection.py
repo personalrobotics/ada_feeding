@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 """
-This file defines the FaceDetection class, which ...
+This file defines the FaceDetection class, which publishes a 3d PointStamped location
+of a detected mouth.
 """
 from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding_msgs.srv import ToggleFaceDetection
@@ -51,7 +52,7 @@ class FaceDetectionNode(Node):
         self.face_model_name = face_model_name.value
         self.landmark_model_name = landmark_model_name.value 
 
-        # Download the checkpoint if it doesn't exist
+        # Download the checkpoints if they don't exist
         self.face_model_path = os.path.join(model_dir.value, self.face_model_name)
         if not os.path.isfile(self.face_model_path):
             self.get_logger().info("Face detection model checkpoint does not exist. Downloading...")
@@ -96,7 +97,7 @@ class FaceDetectionNode(Node):
 
         #subscribe to the depth image
         self.depth_subscription = self.create_subscription(
-            Image, "camera/aligned_depth_to_color/image_raw", self.depth_callback, 1
+            Image, "/camera/aligned_depth_to_color/image_raw", self.depth_callback, 1
         )
         self.depth_subscription  # prevent unused variable warning
 
@@ -200,15 +201,15 @@ class FaceDetectionNode(Node):
     
 
     def depth_callback(self, msg):
-        print("depth callback")
-        if len(self.img_mouth_center) == 2:
+        self.is_on_lock.acquire()
+        is_on = self.is_on
+        self.is_on_lock.release()
+        if is_on and len(self.img_mouth_center) == 2:
             u = int(self.img_mouth_center[0])
             v = int(self.img_mouth_center[1])
             width = msg.width
-            print("Made it")
             depth = msg.data[(u%width) + (v*width)]
-            #point_source = self.pixel_to_3d_point(msg, self.img_mouth_center[0], self.img_mouth_center[1])
-
+            
             depth_point = Point()
             depth_point.x = float(u)
             depth_point.y = float(v)
@@ -218,26 +219,26 @@ class FaceDetectionNode(Node):
             point_source.point = depth_point
             color_frame = 'camera_color_optical_frame'
             tf_buffer = tf2_ros.Buffer()
-            tf_listener = tf2_ros.TransformListener(tf_buffer,self)
 
             
-            #point_source = []
+
             # get the transformation from source_frame to target_frame.
             try:
                 point_target = tf_buffer.transform(point_source, color_frame)
+                # Publish the face detection information
+                face_detection_msg = FaceDetection()
+                face_detection_msg.is_face_detected = self.is_face_detected
+
+                face_detection_msg.detected_mouth_center = point_target
+                
+                self.publisher_results.publish(face_detection_msg)
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
                     tf2_ros.ExtrapolationException):
                 self.get_logger().info('Unable to find the transformation to %s'
-                            % target_frame)
+                            % color_frame)
 
 
-            # Publish the face detection information
-            face_detection_msg = FaceDetection()
-            face_detection_msg.is_face_detected = self.is_face_detected
-
-            face_detection_msg.detected_mouth_center = point_target
             
-            self.publisher_results.publish(face_detection_msg)
             
     
 
@@ -299,15 +300,9 @@ class FaceDetectionNode(Node):
                 # Find stomion in image
    
                 self.img_mouth_center = landmark[0][66]
-                # Publish the detected mouth center
-                #face_detection_msg.detected_mouth_center = PointStamped()
-                #face_detection_msg.detected_mouth_center.header = msg.header
-                #face_detection_msg.detected_mouth_center.point.x = 
-                #face_detection_msg.detected_mouth_center.point.y = 
-                #face_detection_msg.detected_mouth_center.point.z = 
+
             else:
                 annotated_img = msg
-                #self.img_mouth_center = []
             self.publisher_image.publish(annotated_img)
 
 
