@@ -11,6 +11,7 @@ from urllib.request import urlretrieve
 # Third-party imports
 import cv2
 import numpy as np
+import numpy.typing as npt
 from skimage.morphology import flood_fill
 
 
@@ -60,7 +61,7 @@ class BoundingBox:
         self.ymax = ymax
 
 
-def bbox_from_mask(mask: np.ndarray[bool]) -> BoundingBox:
+def bbox_from_mask(mask: npt.NDArray[bool]) -> BoundingBox:
     """
     Takes in a binary mask and returns the smallest axis-aligned bounding box
     that contains all the True pixels in the mask.
@@ -83,8 +84,8 @@ def bbox_from_mask(mask: np.ndarray[bool]) -> BoundingBox:
 
 
 def crop_image_mask_and_point(
-    image: np.ndarray, mask: np.ndarray[bool], point: Tuple[int, int], bbox: BoundingBox
-) -> Tuple[np.ndarray, np.ndarray[bool], Tuple[int, int]]:
+    image: np.ndarray, mask: npt.NDArray[bool], point: Tuple[int, int], bbox: BoundingBox
+) -> Tuple[np.ndarray, npt.NDArray[bool], Tuple[int, int]]:
     """
     Crop the image and mask to the bounding box.
 
@@ -112,7 +113,7 @@ def crop_image_mask_and_point(
 
 def overlay_mask_on_image(
     image: np.ndarray,
-    mask: np.ndarray[bool],
+    mask: npt.NDArray[bool],
     alpha: float = 0.5,
     color: Tuple[int, int, int] = (0, 255, 0),
 ):
@@ -140,8 +141,8 @@ def overlay_mask_on_image(
 
 
 def get_connected_component(
-    mask: np.ndarray[bool], point: Tuple[int, int]
-) -> np.ndarray[bool]:
+    mask: npt.NDArray[bool], point: Tuple[int, int]
+) -> npt.NDArray[bool]:
     """
     Takes in a binary mask and returns a new mask that has only the connected
     component that contains the given point.

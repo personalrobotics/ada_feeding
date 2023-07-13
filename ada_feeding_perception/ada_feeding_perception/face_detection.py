@@ -11,11 +11,19 @@ from geometry_msgs.msg import PointStamped
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+import os
 from threading import Lock
+from typing import Tuple
+from rclpy.parameter import Parameter
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 
 import tf2_ros
 from tf2_geometry_msgs import do_transform_point
 from geometry_msgs.msg import Point
+
+from ada_feeding_perception.helpers import (
+    download_checkpoint,
+)
 
 
 class FaceDetectionNode(Node):
@@ -30,16 +38,48 @@ class FaceDetectionNode(Node):
         """
         super().__init__("face_detection")
 
+        # Read the parameters
+        # NOTE: These parameters are only read once. Any changes after the node
+        # is initialized will not be reflected.
+        (
+            face_model_name,
+            face_model_base_url,
+            landmark_model_name,
+            landmark_model_base_url,
+            model_dir,
+        ) = self.read_params()
+        self.face_model_name = face_model_name.value
+        self.landmark_model_name = landmark_model_name.value 
+
+        # Download the checkpoint if it doesn't exist
+        self.face_model_path = os.path.join(model_dir.value, self.face_model_name)
+        if not os.path.isfile(self.face_model_path):
+            self.get_logger().info("Face detection model checkpoint does not exist. Downloading...")
+            download_checkpoint(self.face_model_name, model_dir.value, face_model_base_url.value)
+            self.get_logger().info(
+                "Model checkpoint downloaded %s."
+                % os.path.join(model_dir.value, self.face_model_name)
+            )
+        self.landmark_model_path = os.path.join(model_dir.value, self.landmark_model_name)
+        if not os.path.isfile(self.landmark_model_path):
+            self.get_logger().info("Facial landmark model checkpoint does not exist. Downloading...")
+            download_checkpoint(self.landmark_model_name, model_dir.value, landmark_model_base_url.value)
+            self.get_logger().info(
+                "Model checkpoint downloaded %s."
+                % os.path.join(model_dir.value, self.landmark_model_name)
+            )
+  
         # Convert between ROS and CV images
         self.bridge = CvBridge()
 
         # Keeps track of whether face detection is on or not
-        self.is_on = True
+        self.is_on = False
         self.is_on_lock = Lock()
 
         # Keeps track of the detected mouth center
         self.img_mouth_center = []
         self.is_face_detected = False
+
 
         # Create the service
         self.srv = self.create_service(
@@ -65,6 +105,76 @@ class FaceDetectionNode(Node):
             FaceDetection, "face_detection", 1
         )
         self.publisher_image = self.create_publisher(Image, "face_detection_img", 1)
+
+    def read_params(
+        self,
+    ) -> Tuple[Parameter, Parameter, Parameter, Parameter, Parameter]:
+        """
+        Read the parameters for this node.
+
+        Returns
+        -------
+        face_model_name: The name of the face detection model checkpoint to use
+        face_model_base_url: The URL to download the model checkpoint from if it is not already downloaded
+        landmark_model_name: The name of the facial landmark detection model checkpoint to use
+        landmark_model_base_url: The URL to download the model checkpoint from if it is not already downloaded
+        model_dir: The location of the directory where the model checkpoint is / should be stored
+        """
+        return self.declare_parameters(
+            "",
+            [
+                (
+                    "face_model_name",
+                    None,
+                    ParameterDescriptor(
+                        name="face_model_name",
+                        type=ParameterType.PARAMETER_STRING,
+                        description="The name of the face detection model checkpoint to use",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "face_model_base_url",
+                    None,
+                    ParameterDescriptor(
+                        name="face_model_base_url",
+                        type=ParameterType.PARAMETER_STRING,
+                        description="The URL to download the model checkpoint from if it is not already downloaded",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "landmark_model_name",
+                    None,
+                    ParameterDescriptor(
+                        name="landmark_model_name",
+                        type=ParameterType.PARAMETER_STRING,
+                        description="The name of the face detection model checkpoint to use",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "landmark_model_base_url",
+                    None,
+                    ParameterDescriptor(
+                        name="landmark_model_base_url",
+                        type=ParameterType.PARAMETER_STRING,
+                        description="The URL to download the model checkpoint from if it is not already downloaded",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "model_dir",
+                    None,
+                    ParameterDescriptor(
+                        name="model_dir",
+                        type=ParameterType.PARAMETER_STRING,
+                        description="The location of the directory where the model checkpoint is / should be stored",
+                        read_only=True,
+                    ),
+                ),
+            ],
+        )
 
     def toggle_face_detection_callback(self, request, response):
         """
@@ -113,12 +223,12 @@ class FaceDetectionNode(Node):
             
             #point_source = []
             # get the transformation from source_frame to target_frame.
-            #try:
-            point_target = tf_buffer.transform(point_source, color_frame)
-            #except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
-            #        tf2_ros.ExtrapolationException):
-            #    rospy.logerr('Unable to find the transformation from %s to %s'
-            #                % source_frame, target_frame)
+            try:
+                point_target = tf_buffer.transform(point_source, color_frame)
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException):
+                self.get_logger().info('Unable to find the transformation to %s'
+                            % target_frame)
 
 
             # Publish the face detection information
@@ -147,10 +257,9 @@ class FaceDetectionNode(Node):
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             # convert image to Grayscale
             image_gray = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2GRAY)
-            # save face detection algorithm's name as haarcascade
-            haarcascade = "haarcascade_frontalface_alt2.xml"
+            
             # create an instance of the Face Detection Cascade Classifier
-            detector = cv2.CascadeClassifier(haarcascade)
+            detector = cv2.CascadeClassifier(self.face_model_path)
             # Detect faces using the haarcascade classifier on the "grayscale image"
             faces = detector.detectMultiScale(image_gray)
             if len(faces) > 0:
@@ -161,11 +270,10 @@ class FaceDetectionNode(Node):
             if self.is_face_detected:
 
                 # Detect mouth center
-                LBFmodel = "lbfmodel.yaml"
 
                 # create an instance of the Facial landmark Detector with the model
                 landmark_detector  = cv2.face.createFacemarkLBF()
-                landmark_detector.loadModel(LBFmodel)
+                landmark_detector.loadModel(self.landmark_model_path)
 
                 # Detect landmarks on "image_gray"
                 _, landmarks = landmark_detector.fit(image_gray, faces)
@@ -199,7 +307,7 @@ class FaceDetectionNode(Node):
                 #face_detection_msg.detected_mouth_center.point.z = 
             else:
                 annotated_img = msg
-                self.img_mouth_center = []
+                #self.img_mouth_center = []
             self.publisher_image.publish(annotated_img)
 
 
