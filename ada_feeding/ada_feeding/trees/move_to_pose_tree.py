@@ -164,6 +164,14 @@ class MoveToPoseTree(MoveToTree):
             key=orientation_weight_key, access=py_trees.common.Access.WRITE
         )
 
+        # MoveTo inputs
+        cartesian_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "cartesian"]
+        )
+        self.blackboard.register_key(
+            key=cartesian_key, access=py_trees.common.Access.WRITE
+        )
+
         # Write the inputs to MoveToPose to blackboard
         self.blackboard.set(position_key, self.position)
         self.blackboard.set(position_frame_id_key, self.frame_id)
@@ -175,6 +183,7 @@ class MoveToPoseTree(MoveToTree):
         self.blackboard.set(orientation_target_link_key, self.target_link)
         self.blackboard.set(orientation_tolerance_key, self.tolerance_orientation)
         self.blackboard.set(orientation_weight_key, self.weight_orientation)
+        self.blackboard.set(cartesian_key, self.cartesian)
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])

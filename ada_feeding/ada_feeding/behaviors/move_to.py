@@ -182,7 +182,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
                     )
                     return py_trees.common.Status.FAILURE
                 # Initiate an asynchronous planning call
-                self.planning_future = self.moveit2.plan_async()
+                self.planning_future = self.moveit2.plan_async(cartesian=self.cartesian)
                 return py_trees.common.Status.RUNNING
 
             if self.planning_future.done():  # Finished planning
