@@ -8,4 +8,3 @@ from .move_to_constraint import MoveToConstraint
 from .set_joint_goal_constraint import SetJointGoalConstraint
 from .set_position_goal_constraint import SetPositionGoalConstraint
 from .set_orientation_goal_constraint import SetOrientationGoalConstraint
-from .set_pose_goal_constraint import SetPoseGoalConstraint

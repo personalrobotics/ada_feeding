@@ -11,6 +11,7 @@ from typing import List
 
 # Third-party imports
 import py_trees
+from py_trees.blackboard import Blackboard
 from rclpy.node import Node
 
 # Local imports
@@ -70,22 +71,39 @@ class MoveToConfigurationTree(MoveToTree):
         -------
         tree: The behavior tree that moves the robot above the plate.
         """
+        # Separate blackboard namespaces for children
+        joint_constraint_namespace_prefix = "joint_goal_constraint"
+        move_to_namespace_prefix = "move_to"
+
         # Inputs for MoveToConfiguration
-        self.blackboard.register_key(
-            key="joint_positions", access=py_trees.common.Access.WRITE
+        joint_positions_key = Blackboard.separator.join(
+            [joint_constraint_namespace_prefix, "joint_positions"]
         )
         self.blackboard.register_key(
-            key="tolerance", access=py_trees.common.Access.WRITE
+            key=joint_positions_key, access=py_trees.common.Access.WRITE
+        )
+        tolerance_key = Blackboard.separator.join(
+            [joint_constraint_namespace_prefix, "tolerance"]
+        )
+        self.blackboard.register_key(
+            key=tolerance_key, access=py_trees.common.Access.WRITE
         )
 
         # Write the inputs to MoveToConfiguration to blackboard
-        self.blackboard.joint_positions = self.joint_positions
-        self.blackboard.tolerance = self.tolerance
+        self.blackboard.set(joint_positions_key, self.joint_positions)
+        self.blackboard.set(tolerance_key, self.tolerance)
 
-        # Create the tree
-        move_to = MoveTo(name, node)
-        root = SetJointGoalConstraint(name, move_to)
+        # Create the MoveTo behavior
+        move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])
+        move_to = MoveTo(move_to_name, name, node)
+        move_to.logger = logger
+
+        # Add the joint goal constraint to the MoveTo behavior
+        joint_goal_constaint_name = Blackboard.separator.join(
+            [name, joint_constraint_namespace_prefix]
+        )
+        root = SetJointGoalConstraint(joint_goal_constaint_name, move_to)
         root.logger = logger
-        tree = py_trees.trees.BehaviourTree(root)
 
+        tree = py_trees.trees.BehaviourTree(root)
         return tree

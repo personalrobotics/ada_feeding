@@ -38,6 +38,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
     def __init__(
         self,
         name: str,
+        tree_name: str,
         node: Node,
         terminate_timeout_s: float = 10.0,
         terminate_rate_hz: float = 30.0,
@@ -48,6 +49,10 @@ class MoveTo(py_trees.behaviour.Behaviour):
 
         Parameters
         ----------
+        name: The name of the behavior.
+        tree_name: The name of the behavior tree. This is necessary because the
+            blackboard elements related to feedback, e.g., is_planning, are
+            defined in the behavior tree's namespace.
         node: The ROS2 node that this behavior is associated with. Necessary to
             connect to the MoveIt action server.
         terminate_timeout_s: How long after a terminate is requested to wait for a
@@ -66,28 +71,32 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.terminate_rate_hz = terminate_rate_hz
         self.planning_service_timeout_s = planning_service_timeout_s
 
-        # Initialization the blackboard
-        self.blackboard = self.attach_blackboard_client(
+        # Initialization the blackboard for this behavior
+        self.move_to_blackboard = self.attach_blackboard_client(
             name=name + " MoveTo", namespace=name
         )
         # All planning calls have the option to either be cartesian or kinematic
-        self.blackboard.register_key(
+        self.move_to_blackboard.register_key(
             key="cartesian", access=py_trees.common.Access.READ
         )
+        # Initialize the blackboard to read from the parent behavior tree
+        self.tree_blackboard = self.attach_blackboard_client(
+            name=name + " MoveTo", namespace=tree_name
+        )
         # Feedback from MoveTo for the ROS2 Action Server
-        self.blackboard.register_key(
+        self.tree_blackboard.register_key(
             key="is_planning", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
-        self.blackboard.register_key(
+        self.tree_blackboard.register_key(
             key="planning_time", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
-        self.blackboard.register_key(
+        self.tree_blackboard.register_key(
             key="motion_time", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
-        self.blackboard.register_key(
+        self.tree_blackboard.register_key(
             key="motion_initial_distance", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
-        self.blackboard.register_key(
+        self.tree_blackboard.register_key(
             key="motion_curr_distance", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
 
@@ -133,17 +142,17 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.motion_start_time = None
         self.motion_future = None
 
-        # Reset the blackboard. The robot starts in planning.
-        self.blackboard.is_planning = True
-        self.blackboard.planning_time = 0.0
-        self.blackboard.motion_time = 0.0
-        self.blackboard.motion_initial_distance = 0.0
-        self.blackboard.motion_curr_distance = 0.0
+        # Reset the feedback. The robot starts in planning.
+        self.tree_blackboard.is_planning = True
+        self.tree_blackboard.planning_time = 0.0
+        self.tree_blackboard.motion_time = 0.0
+        self.tree_blackboard.motion_initial_distance = 0.0
+        self.tree_blackboard.motion_curr_distance = 0.0
 
         # Get all parameters for motion, resorting to default values if unset.
         self.joint_names = kinova.joint_names()
         self.cartesian = get_from_blackboard_with_default(
-            self.blackboard, "cartesian", False
+            self.move_to_blackboard, "cartesian", False
         )
 
         # Set the joint names
@@ -160,14 +169,14 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.logger.info("%s [MoveTo::update()]" % self.name)
 
         # Check the state of MoveIt
-        if self.blackboard.is_planning:  # Is planning
+        if self.tree_blackboard.is_planning:  # Is planning
             # Update the feedback
-            self.blackboard.planning_time = time.time() - self.planning_start_time
+            self.tree_blackboard.planning_time = time.time() - self.planning_start_time
 
             # Check if we have succesfully initiated planning
             if self.planning_future is None:
                 # Check if we have timed out waiting for the planning service
-                if self.blackboard.planning_time > self.planning_service_timeout_s:
+                if self.tree_blackboard.planning_time > self.planning_service_timeout_s:
                     self.logger.error(
                         "%s [MoveTo::update()] Planning timed out!" % self.name
                     )
@@ -178,7 +187,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
 
             if self.planning_future.done():  # Finished planning
                 # Transition from planning to motion
-                self.blackboard.is_planning = False
+                self.tree_blackboard.is_planning = False
                 self.motion_start_time = time.time()
 
                 # Get the trajectory
@@ -194,11 +203,11 @@ class MoveTo(py_trees.behaviour.Behaviour):
                     return py_trees.common.Status.FAILURE
 
                 # Set the trajectory's initial distance to goal
-                self.blackboard.motion_initial_distance = (
+                self.tree_blackboard.motion_initial_distance = (
                     self.distance_to_goal.set_trajectory(traj)
                 )
-                self.blackboard.motion_curr_distance = (
-                    self.blackboard.motion_initial_distance
+                self.tree_blackboard.motion_curr_distance = (
+                    self.tree_blackboard.motion_initial_distance
                 )
 
                 # Send the trajectory to MoveIt
@@ -208,7 +217,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
             else:  # Still planning
                 return py_trees.common.Status.RUNNING
         else:  # Is moving
-            self.blackboard.motion_time = time.time() - self.motion_start_time
+            self.tree_blackboard.motion_time = time.time() - self.motion_start_time
             if self.motion_future is None:
                 if self.moveit2.query_state() == MoveIt2State.REQUESTING:
                     # The goal has been sent to the action server, but not yet accepted
@@ -224,7 +233,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
                     # trajectory, action server not available, goal was rejected, etc.)
                     return py_trees.common.Status.FAILURE
             if self.motion_future is not None:
-                self.blackboard.motion_curr_distance = (
+                self.tree_blackboard.motion_curr_distance = (
                     self.distance_to_goal.get_distance()
                 )
                 if self.motion_future.done():
@@ -236,7 +245,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
                         error_code = self.motion_future.result().result.error_code
                         if error_code.val == MoveItErrorCodes.SUCCESS:
                             # The goal succeeded
-                            self.blackboard.motion_curr_distance = 0.0
+                            self.tree_blackboard.motion_curr_distance = 0.0
                             return py_trees.common.Status.SUCCESS
                         else:
                             # The goal failed
