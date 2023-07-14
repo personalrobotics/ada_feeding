@@ -96,8 +96,8 @@ class MoveToPoseTree(MoveToTree):
         tree: The behavior tree that moves the robot above the plate.
         """
         # Separate blackboard namespaces for children
-        position_constraint_namespace_prefix = "position_constraint"
-        orientation_constraint_namespace_prefix = "orientation_constraint"
+        position_constraint_namespace_prefix = "position_goal_constraint"
+        orientation_constraint_namespace_prefix = "orientation_goal_constraint"
         move_to_namespace_prefix = "move_to"
 
         # Position constraints
