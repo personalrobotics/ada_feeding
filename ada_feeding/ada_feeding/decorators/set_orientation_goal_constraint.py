@@ -52,10 +52,7 @@ class SetOrientationGoalConstraint(MoveToConstraint):
 
     def set_constraint(self) -> None:
         """
-        Sets the constraint. For example, this function can call:
-          - self.moveit2.set_joint_goal(...)
-          - self.moveit2.set_path_position_constraint(...)
-          - and so on.
+        sets the orientation goal constraint.
         """
         self.logger.info(
             "%s [SetOrientationGoalConstraint::set_constraint()]" % self.name

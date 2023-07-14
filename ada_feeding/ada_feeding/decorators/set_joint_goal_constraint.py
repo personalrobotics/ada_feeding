@@ -51,10 +51,7 @@ class SetJointGoalConstraint(MoveToConstraint):
 
     def set_constraint(self) -> None:
         """
-        Sets the constraint. For example, this function can call:
-          - self.moveit2.set_joint_goal(...)
-          - self.moveit2.set_path_position_constraint(...)
-          - and so on.
+        Sets the joint goal constraint.
         """
         self.logger.info("%s [SetJointGoalConstraint::set_constraint()]" % self.name)
 
