@@ -52,7 +52,7 @@ class SetOrientationGoalConstraint(MoveToConstraint):
 
     def set_constraint(self) -> None:
         """
-        sets the orientation goal constraint.
+        Sets the orientation goal constraint.
         """
         self.logger.info(
             "%s [SetOrientationGoalConstraint::set_constraint()]" % self.name
