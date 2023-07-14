@@ -78,6 +78,9 @@ class SegmentFromPointNode(Node):
         self.active_goal_request_lock = threading.Lock()
         self.active_goal_request = None
 
+        # Initialize Segment Anything
+        self.initialize_food_segmentation()
+
         # Subscribe to the image topic, to store the latest image
         self.image_subscriber = self.create_subscription(
             Image,
@@ -200,10 +203,6 @@ class SegmentFromPointNode(Node):
         msg: The image message.
         """
         with self.latest_img_msg_lock:
-            # Only create the action server after we have received at least one
-            # image
-            if self.latest_img_msg is None:
-                self.initialize_food_segmentation()
             self.latest_img_msg = msg
 
     def goal_callback(self, goal_request: SegmentFromPoint.Goal) -> GoalResponse:
@@ -220,12 +219,18 @@ class SegmentFromPointNode(Node):
         goal_request: The goal request message.
         """
         self.get_logger().info("Received goal request")
+        with self.latest_img_msg_lock:
+            if self.latest_img_msg is None:
+                self.get_logger().info("Rejecting goal request since no image recv")
+                return GoalResponse.REJECT
         with self.active_goal_request_lock:
             if self.active_goal_request is None:
                 self.get_logger().info("Accepting goal request")
                 self.active_goal_request = goal_request
                 return GoalResponse.ACCEPT
-            self.get_logger().info("Rejecting goal request")
+            self.get_logger().info(
+                "Rejecting goal request since there is already an active one"
+            )
             return GoalResponse.REJECT
 
     def cancel_callback(self, _: ServerGoalHandle) -> CancelResponse:

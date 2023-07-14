@@ -2,13 +2,14 @@
 
 """
 This file defines the FaceDetection class, which publishes a 3d PointStamped location
-of a detected mouth.
+of a detected mouth with respect to camera_depth_optical_frame.
 """
 from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding_msgs.srv import ToggleFaceDetection
 import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import Point
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -18,9 +19,6 @@ from typing import Tuple
 from rclpy.parameter import Parameter
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 
-import tf2_ros
-from tf2_geometry_msgs import do_transform_point
-from geometry_msgs.msg import Point
 
 from ada_feeding_perception.helpers import (
     download_checkpoint,
@@ -32,7 +30,7 @@ class FaceDetectionNode(Node):
         self,
     ):
         """
-        Initializes the FaceDetection node, which exposes a ToggleFaceDetection
+        Initializes the FaceDetection node. This node exposes a ToggleFaceDetection
         service that can be used to toggle the face detection on or off and
         publishes information about detected faces to the /face_detection
         topic when face detection is on.
@@ -50,26 +48,36 @@ class FaceDetectionNode(Node):
             model_dir,
         ) = self.read_params()
         self.face_model_name = face_model_name.value
-        self.landmark_model_name = landmark_model_name.value 
+        self.landmark_model_name = landmark_model_name.value
 
         # Download the checkpoints if they don't exist
         self.face_model_path = os.path.join(model_dir.value, self.face_model_name)
         if not os.path.isfile(self.face_model_path):
-            self.get_logger().info("Face detection model checkpoint does not exist. Downloading...")
-            download_checkpoint(self.face_model_name, model_dir.value, face_model_base_url.value)
+            self.get_logger().info(
+                "Face detection model checkpoint does not exist. Downloading..."
+            )
+            download_checkpoint(
+                self.face_model_name, model_dir.value, face_model_base_url.value
+            )
             self.get_logger().info(
                 "Model checkpoint downloaded %s."
                 % os.path.join(model_dir.value, self.face_model_name)
             )
-        self.landmark_model_path = os.path.join(model_dir.value, self.landmark_model_name)
+        self.landmark_model_path = os.path.join(
+            model_dir.value, self.landmark_model_name
+        )
         if not os.path.isfile(self.landmark_model_path):
-            self.get_logger().info("Facial landmark model checkpoint does not exist. Downloading...")
-            download_checkpoint(self.landmark_model_name, model_dir.value, landmark_model_base_url.value)
+            self.get_logger().info(
+                "Facial landmark model checkpoint does not exist. Downloading..."
+            )
+            download_checkpoint(
+                self.landmark_model_name, model_dir.value, landmark_model_base_url.value
+            )
             self.get_logger().info(
                 "Model checkpoint downloaded %s."
                 % os.path.join(model_dir.value, self.landmark_model_name)
             )
-  
+
         # Convert between ROS and CV images
         self.bridge = CvBridge()
 
@@ -80,7 +88,6 @@ class FaceDetectionNode(Node):
         # Keeps track of the detected mouth center
         self.img_mouth_center = []
         self.is_face_detected = False
-
 
         # Create the service
         self.srv = self.create_service(
@@ -95,9 +102,9 @@ class FaceDetectionNode(Node):
         )
         self.img_subscription  # prevent unused variable warning
 
-        #subscribe to the depth image
+        # Subscribe to the depth image
         self.depth_subscription = self.create_subscription(
-            Image, "/camera/aligned_depth_to_color/image_raw", self.depth_callback, 1
+            Image, "/camera/depth/image_rect_raw", self.depth_callback, 1
         )
         self.depth_subscription  # prevent unused variable warning
 
@@ -197,50 +204,40 @@ class FaceDetectionNode(Node):
             self.is_on_lock.release()
             response.face_detection_is_on = False
         return response
-    
-    
 
     def depth_callback(self, msg):
+        """
+        Callback function for depth images. If a face has been detected in the
+        most recent rgb image, this function publishes the 3d location of the
+        mouth on the /face_detection topic in the camera_depth_optical_frame
+        """
         self.is_on_lock.acquire()
         is_on = self.is_on
         self.is_on_lock.release()
-        if is_on and len(self.img_mouth_center) == 2:
+
+        # Check if face detection is on and a face has been detected
+        if is_on and self.is_face_detected:
+            # Retrieve the 2d location of the mouth center
             u = int(self.img_mouth_center[0])
             v = int(self.img_mouth_center[1])
+
+            # Retrieve the depth value for this 2d coordinate
             width = msg.width
-            depth = msg.data[(u%width) + (v*width)]
+            depth = msg.data[(u % width) + (v * width)]
+
+            # Create target 3d point
+            mouth_location = PointStamped()
+            mouth_location.header = msg.header
+            mouth_location.point.x = float(u)
+            mouth_location.point.y = float(v)
+            mouth_location.point.z = float(depth)
             
-            depth_point = Point()
-            depth_point.x = float(u)
-            depth_point.y = float(v)
-            depth_point.z = float(depth)
-            point_source = PointStamped()
-            point_source.header = msg.header
-            point_source.point = depth_point
-            color_frame = 'camera_color_optical_frame'
-            tf_buffer = tf2_ros.Buffer()
-
+            # Publish 3d point
+            face_detection_msg = FaceDetection()
+            face_detection_msg.is_face_detected = self.is_face_detected
+            face_detection_msg.detected_mouth_center = mouth_location
+            self.publisher_results.publish(face_detection_msg)
             
-
-            # get the transformation from source_frame to target_frame.
-            try:
-                point_target = tf_buffer.transform(point_source, color_frame)
-                # Publish the face detection information
-                face_detection_msg = FaceDetection()
-                face_detection_msg.is_face_detected = self.is_face_detected
-
-                face_detection_msg.detected_mouth_center = point_target
-                
-                self.publisher_results.publish(face_detection_msg)
-            except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
-                    tf2_ros.ExtrapolationException):
-                self.get_logger().info('Unable to find the transformation to %s'
-                            % color_frame)
-
-
-            
-            
-    
 
     def camera_callback(self, msg):
         """
@@ -253,56 +250,54 @@ class FaceDetectionNode(Node):
         self.is_on_lock.release()
         if is_on:
             self.is_face_detected = False
-            image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
-            # convert image to RGB colour
+            image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
+            # Convert image to RGB colour
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            # convert image to Grayscale
+            # Convert image to Grayscale
             image_gray = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2GRAY)
-            
-            # create an instance of the Face Detection Cascade Classifier
+
+            # Create an instance of the Face Detection Cascade Classifier
             detector = cv2.CascadeClassifier(self.face_model_path)
-            # Detect faces using the haarcascade classifier on the "grayscale image"
+            # Detect faces using the haarcascade classifier on the grayscale image
             faces = detector.detectMultiScale(image_gray)
+
+            # Check if a face has been detected
             if len(faces) > 0:
                 self.is_face_detected = True
 
-
-            
             if self.is_face_detected:
-
-                # Detect mouth center
-
-                # create an instance of the Facial landmark Detector with the model
-                landmark_detector  = cv2.face.createFacemarkLBF()
+                # Create an instance of the Facial landmark Detector with the model
+                landmark_detector = cv2.face.createFacemarkLBF()
                 landmark_detector.loadModel(self.landmark_model_path)
 
-                # Detect landmarks on "image_gray"
+                # Detect landmarks on image
                 _, landmarks = landmark_detector.fit(image_gray, faces)
                 for landmark in landmarks:
                     count = 0
-                    # Add a dummy face marker to the sensor_msgs/Image
+                    # Add a dummy face marker to the image
                     cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
                     for face in faces:
-                        #save the coordinates in x, y, w, d variables
-                        (x,y,w,d) = face
-                        # Draw a white coloured rectangle around each face using the face's coordinates
-                        # on the "image_template" with the thickness of 2 
-                        cv2.rectangle(cv_image,(x,y),(x+w, y+d),(255, 255, 255), 2)
+                        # Draw a white coloured rectangle around each face
+                        (x, y, w, d) = face
+                        cv2.rectangle(
+                            cv_image, (x, y), (x + w, y + d), (255, 255, 255), 2
+                        )
 
-                for x,y in landmark[0]:
-                    # display landmarks on "image_rgb"
-                    # with white colour in BGR and thickness 1
-                    if count >= 48:
-                        cv2.circle(cv_image, (int(x),int(y)), 1, (0, 255, 0), 5)
-                    count += 1
+                # Display mouth landmarks (landmarks 48-67 are mouth landmarks, and the length of landmark[0] is 68)
+                for i in range(48, len(landmark[0])): 
+                    x, y = landmark[0][i]
+                    cv2.circle(cv_image, (int(x), int(y)), 1, (0, 255, 0), 5)
+            
                 annotated_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
                 annotated_img = annotated_msg
-                # Find stomion in image
-   
+
+                # Find stomion (mouth center) in image
                 self.img_mouth_center = landmark[0][66]
 
             else:
                 annotated_img = msg
+
+            # Publish annotated image with face and mouth landmarks
             self.publisher_image.publish(annotated_img)
 
 

@@ -84,7 +84,10 @@ def bbox_from_mask(mask: npt.NDArray[bool]) -> BoundingBox:
 
 
 def crop_image_mask_and_point(
-    image: np.ndarray, mask: npt.NDArray[bool], point: Tuple[int, int], bbox: BoundingBox
+    image: np.ndarray,
+    mask: npt.NDArray[bool],
+    point: Tuple[int, int],
+    bbox: BoundingBox,
 ) -> Tuple[np.ndarray, npt.NDArray[bool], Tuple[int, int]]:
     """
     Crop the image and mask to the bounding box.

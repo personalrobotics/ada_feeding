@@ -44,6 +44,7 @@ setup(
             "segment_from_point = ada_feeding_perception.segment_from_point:main",
             "test_segment_from_point = ada_feeding_perception.test_segment_from_point:main",
             "face_detection = ada_feeding_perception.face_detection:main",
+            "test_realsense = ada_feeding_perception.test_realsense:main",
         ],
     },
 )
