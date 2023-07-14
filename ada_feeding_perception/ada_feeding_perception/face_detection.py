@@ -231,13 +231,12 @@ class FaceDetectionNode(Node):
             mouth_location.point.x = float(u)
             mouth_location.point.y = float(v)
             mouth_location.point.z = float(depth)
-            
+
             # Publish 3d point
             face_detection_msg = FaceDetection()
             face_detection_msg.is_face_detected = self.is_face_detected
             face_detection_msg.detected_mouth_center = mouth_location
             self.publisher_results.publish(face_detection_msg)
-            
 
     def camera_callback(self, msg):
         """
@@ -284,10 +283,10 @@ class FaceDetectionNode(Node):
                         )
 
                 # Display mouth landmarks (landmarks 48-67 are mouth landmarks, and the length of landmark[0] is 68)
-                for i in range(48, len(landmark[0])): 
+                for i in range(48, len(landmark[0])):
                     x, y = landmark[0][i]
                     cv2.circle(cv_image, (int(x), int(y)), 1, (0, 255, 0), 5)
-            
+
                 annotated_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
                 annotated_img = annotated_msg
 
