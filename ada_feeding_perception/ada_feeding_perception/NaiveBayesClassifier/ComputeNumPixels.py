@@ -113,7 +113,7 @@ def main():
     min_dist = trials[name]["min_dist"]
     max_dist = trials[name]["max_dist"]
 
-    with open(r'/home/atharva2/atharvak_ws/src/ada_feeding/ada_feeding_perception/ada_feeding_perception/Classifier/' +
+    with open(r'/home/atharva2/atharvak_ws/src/ada_feeding/ada_feeding_perception/ada_feeding_perception/NaiveBayesClassifier/' +
               name + '_' + date + '.csv', 'a', newline='') as f:
         f_write = csv.writer(f)
         f_write.writerow(["rosbag_path", "timestamp_sec", "timestamp_nanosec", "num_pixels"])
