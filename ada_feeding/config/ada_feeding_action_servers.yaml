@@ -19,10 +19,10 @@ ada_feeding_action_servers:
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveToConfigurationTree # required
       tree_kws: # optional
-        - action_type_class
+        - action_type_class_str
         - joint_positions
       tree_kwargs: # optional
-        action_type_class: ada_feeding_msgs.action.MoveTo # required
+        action_type_class_str: ada_feeding_msgs.action.MoveTo # required
         joint_positions: # required
           - -2.11666 # j2n6s200_joint_1
           -  3.34967 # j2n6s200_joint_2
@@ -37,11 +37,11 @@ ada_feeding_action_servers:
       action_type: ada_feeding_msgs.action.AcquireFood # required
       tree_class: ada_feeding.trees.MoveToDummyTree # required
       tree_kws: # optional
-        - action_type_class
+        - action_type_class_str
         - dummy_plan_time
         - dummy_motion_time
       tree_kwargs: # optional
-        action_type_class: ada_feeding_msgs.action.AcquireFood # required
+        action_type_class_str: ada_feeding_msgs.action.AcquireFood # required
         dummy_plan_time: 1.0 # secs
         dummy_motion_time: 10.0 # secs
       tick_rate: 10 # Hz, optional, default: 30
@@ -51,10 +51,10 @@ ada_feeding_action_servers:
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveToConfigurationTree # required
       tree_kws: # optional
-        - action_type_class
+        - action_type_class_str
         - joint_positions
       tree_kwargs: # optional
-        action_type_class: ada_feeding_msgs.action.MoveTo # required
+        action_type_class_str: ada_feeding_msgs.action.MoveTo # required
         joint_positions: # required
           - -1.94672 # j2n6s200_joint_1
           -  2.51268 # j2n6s200_joint_2
@@ -70,22 +70,38 @@ ada_feeding_action_servers:
     # implemented.
     MoveToMouth: # required
       action_type: ada_feeding_msgs.action.MoveTo # required
-      tree_class: ada_feeding.trees.MoveToPoseTree # required
+      tree_class: ada_feeding.trees.MoveToConfigurationWithPosePathConstraintsTree # required
       tree_kws: # optional
-        - action_type_class
-        - position
+        - action_type_class_str
+        - joint_positions
+        - tolerance_joint_goal
+        - weight_joint_goal
         - quat_xyzw
+        - tolerance_x_orientation_path
+        - tolerance_y_orientation_path
+        - tolerance_z_orientation_path
+        - weight_orientation_path
       tree_kwargs: # optional
-        action_type_class: ada_feeding_msgs.action.MoveTo # required
-        position:
-          -  0.27971 # x
-          -  0.07175 # y
-          -  0.77314 # z
-        quat_xyzw:
-          -  0.00175 # x
-          -  0.70159 # y
-          -  0.71255 # z
-          - -0.00636 # w
+        action_type_class_str: ada_feeding_msgs.action.MoveTo # required
+        joint_positions:
+          - -2.30252 # j2n6s200_joint_1
+          -  4.23221 # j2n6s200_joint_2
+          -  3.84109 # j2n6s200_joint_3
+          - -4.65546 # j2n6s200_joint_4
+          -  3.94225 # j2n6s200_joint_5
+          -  4.26543 # j2n6s200_joint_6
+        tolerance_joint_goal: 1.0
+        weight_joint_goal: 1.0
+        quat_xyzw: # perpendicular to the base link
+          - 0.0006405447359909941 # x
+          - 0.701664610203983 # y
+          - 0.7124985284564345 # z
+          - -0.003494486679044656 # w
+        # Note that tolerances are w.r.t. the axes in quat_xyzw
+        tolerance_x_orientation_path: 0.698132 # 40 degrees
+        tolerance_y_orientation_path: 6.28319 # 360 degrees
+        tolerance_z_orientation_path: 0.523599 # 30 degrees
+        weight_orientation_path: 1.0
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToStowLocation action
@@ -95,10 +111,10 @@ ada_feeding_action_servers:
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveToConfigurationTree # required
       tree_kws: # optional
-        - action_type_class
+        - action_type_class_str
         - joint_positions
       tree_kwargs: # optional
-        action_type_class: ada_feeding_msgs.action.MoveTo # required
+        action_type_class_str: ada_feeding_msgs.action.MoveTo # required
         joint_positions: # required
           - -1.52101 # j2n6s200_joint_1
           -  2.60098 # j2n6s200_joint_2

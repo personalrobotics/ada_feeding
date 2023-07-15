@@ -30,7 +30,7 @@ class MoveToPoseTree(MoveToTree):
 
     def __init__(
         self,
-        action_type_class: str,
+        action_type_class_str: str,
         position: Tuple[float, float, float],
         quat_xyzw: Tuple[float, float, float, float],
         frame_id: Optional[str] = None,
@@ -46,7 +46,7 @@ class MoveToPoseTree(MoveToTree):
 
         Parameters
         ----------
-        action_type_class: The type of action that this tree is implementing,
+        action_type_class_str: The type of action that this tree is implementing,
             e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
             type can be anything, but the Feedback and Result must at a minimum
             include the fields of ada_feeding_msgs.action.MoveTo
@@ -62,7 +62,7 @@ class MoveToPoseTree(MoveToTree):
         cartesian: whether to use cartesian path planning.
         """
         # Initialize MoveTo
-        super().__init__(action_type_class)
+        super().__init__(action_type_class_str)
 
         # Store the parameters for the move to pose behavior
         self.position = position

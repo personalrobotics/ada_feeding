@@ -27,29 +27,32 @@ class MoveToConfigurationTree(MoveToTree):
 
     def __init__(
         self,
-        action_type_class: str,
+        action_type_class_str: str,
         joint_positions: List[float],
         tolerance: float = 0.001,
+        weight: float = 1.0,
     ) -> None:
         """
         Initializes tree-specific parameters.
 
         Parameters
         ----------
-        action_type_class: The type of action that this tree is implementing,
+        action_type_class_str: The type of action that this tree is implementing,
             e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
             type can be anything, but the Feedback and Result must at a minimum
             include the fields of ada_feeding_msgs.action.MoveTo
         joint_positions: The joint positions to move the robot arm to.
         tolerance: The tolerance for the joint positions.
+        weight: The weight for the joint goal constraint.
         """
         # Initialize MoveToTree
-        super().__init__(action_type_class)
+        super().__init__(action_type_class_str)
 
         # Store the parameters
         self.joint_positions = joint_positions
         assert len(self.joint_positions) == 6, "Must provide 6 joint positions"
         self.tolerance = tolerance
+        self.weight = weight
 
     def create_move_to_tree(
         self,
@@ -88,10 +91,17 @@ class MoveToConfigurationTree(MoveToTree):
         self.blackboard.register_key(
             key=tolerance_key, access=py_trees.common.Access.WRITE
         )
+        weight_key = Blackboard.separator.join(
+            [joint_constraint_namespace_prefix, "weight"]
+        )
+        self.blackboard.register_key(
+            key=weight_key, access=py_trees.common.Access.WRITE
+        )
 
         # Write the inputs to MoveToConfiguration to blackboard
         self.blackboard.set(joint_positions_key, self.joint_positions)
         self.blackboard.set(tolerance_key, self.tolerance)
+        self.blackboard.set(weight_key, self.weight)
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])
