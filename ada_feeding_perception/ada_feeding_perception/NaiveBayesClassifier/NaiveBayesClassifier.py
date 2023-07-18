@@ -41,6 +41,30 @@ def raincloud_with_boxplot(df):
     plt.savefig('overall_data.png')
     plt.show()
 
+def raincloud_with_boxplot2(df):
+    f, ax = plt.subplots(figsize=(7, 5))
+    dy = "label"
+    dx = "num_pixels"
+    ort = "h"
+    pal = sns.color_palette(n_colors=1)
+
+    ax = pt.half_violinplot(x=dx, y=dy, data=df, palette=pal, bw=.2, cut=0.,
+                            scale="area", width=.6, inner=None, orient=ort)
+
+    ax = sns.stripplot(x=dx, y=dy, data=df, palette=pal, edgecolor="white",
+                       size=3, jitter=1, zorder=0, orient=ort, ax=ax, alpha=0.5)
+
+    ax = sns.boxplot(x=dx, y=dy, data=df, color="black", width=.15, zorder=10,
+                     showcaps=True, boxprops={'facecolor': 'none', "zorder": 10},
+                     showfliers=True, whiskerprops={'linewidth': 2, "zorder": 10},
+                     saturation=1, orient=ort)
+
+    plt.title("Overall Data (all labels)")
+    figure = plt.gcf()  # get current figure
+    figure.set_size_inches(18, 9)
+    plt.savefig('overall_data_all_labels.png')
+    plt.show()
+
 
 def raincloud_with_boxplot_hand_dropped(df):
     # before dropping hand data
@@ -114,6 +138,29 @@ def raincloud_with_boxplot_position(df):
     plt.savefig('overall_data_with_position.png')
     plt.show()
 
+def raincloud_with_boxplot_position2(df):
+    f, ax = plt.subplots(figsize=(7, 5))
+    dy = "label"
+    dx = "num_pixels"
+    ort = "h"
+    pal = sns.color_palette(n_colors=3)
+
+    ax = pt.half_violinplot(x=dx, y=dy, data=df, palette=pal, bw=.2, cut=0.,
+                            scale="area", width=.6, inner=None, orient=ort)
+
+    ax = sns.stripplot(x=dx, y=dy, data=df, palette=pal, edgecolor="white",
+                       size=3, jitter=1, zorder=0, orient=ort, ax=ax, alpha=0.5, hue="position")
+
+    ax = sns.boxplot(x=dx, y=dy, data=df, color="black", width=.15, zorder=10, showcaps=True,
+                     boxprops={'facecolor': 'none', "zorder": 10},
+                     showfliers=True, whiskerprops={'linewidth': 2, "zorder": 10}, saturation=1, orient=ort)
+
+    plt.title("Overall Data with position (all labels)")
+    figure = plt.gcf()  # get current figure
+    figure.set_size_inches(18, 9)
+    plt.savefig('overall_data_with_position_all_labels.png')
+    plt.show()
+
 def raincloud_with_boxplot_position_divided(df):
     f, ax = plt.subplots(figsize=(7, 5))
     dy = "binary_label"
@@ -153,6 +200,29 @@ def raincloud_with_boxplot_food(df):
     figure = plt.gcf()  # get current figure
     figure.set_size_inches(18, 9)
     plt.savefig('overall_data_with_food_types.png')
+    plt.show()
+
+def raincloud_with_boxplot_food2(df):
+    f, ax = plt.subplots(figsize=(7, 5))
+    dy = "label"
+    dx = "num_pixels"
+    ort = "h"
+    pal = sns.color_palette(n_colors=8)
+
+    ax = pt.half_violinplot(x=dx, y=dy, data=df, palette=pal, bw=.2, cut=0.,
+                            scale="area", width=.6, inner=None, orient=ort)
+
+    ax = sns.stripplot(x=dx, y=dy, data=df, palette=pal, edgecolor="white",
+                       size=3, jitter=1, zorder=0, orient=ort, ax=ax, alpha=0.5, hue="food")
+
+    ax = sns.boxplot(x=dx, y=dy, data=df, color="black", width=.15, zorder=10, showcaps=True,
+                     boxprops={'facecolor': 'none', "zorder": 10},
+                     showfliers=True, whiskerprops={'linewidth': 2, "zorder": 10}, saturation=1, orient=ort)
+
+    plt.title("Overall Data with food types (all labels)")
+    figure = plt.gcf()  # get current figure
+    figure.set_size_inches(18, 9)
+    plt.savefig('overall_data_with_food_types_all_labels.png')
     plt.show()
 
 def raincloud_with_boxplot_food_divided(df):
@@ -252,6 +322,15 @@ def main():
     #
     # df_raincloud_with_boxplot_food_divided_hand_dropped = df.copy(deep=True)
     # raincloud_with_boxplot_food_divided_hand_dropped(df_raincloud_with_boxplot_food_divided_hand_dropped)
+
+    df_raincloud_with_boxplot2 = df.copy(deep=True)
+    raincloud_with_boxplot2(df_raincloud_with_boxplot2)
+
+    df_raincloud_with_boxplot_position2 = df.copy(deep=True)
+    raincloud_with_boxplot_position2(df_raincloud_with_boxplot_position2)
+
+    df_raincloud_with_boxplot_food2 = df.copy(deep=True)
+    raincloud_with_boxplot_food2(df_raincloud_with_boxplot_food2)
 
     # shuffle all the rows
     df = df.sample(frac=1)

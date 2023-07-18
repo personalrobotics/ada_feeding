@@ -64,40 +64,24 @@ def main():
     print("Train Confusion Matrix: ", confusion_matrix(y_train, y_train_pred, normalize='true'))
     print("Majority Class Accuracy Score", sum(y_train) / len(y_train))
 
-    temp_x_values = np.arange(0, 9001, 1)
-    temp_x_values = temp_x_values.reshape(-1, 1)
-    prob = lgr.predict_proba(temp_x_values)
-    plus_minus = 0.00015
-    for i in np.arange(0, 1.1, 0.1):
-        print("prob: ", i)
-        print("num_pixels: ", np.argwhere((prob[:, 1] <= (i + plus_minus)) & (prob[:, 1] >= (i - plus_minus))))
-        print("count: ", np.count_nonzero(np.argwhere((prob[:, 1] <= (i + plus_minus)) & (prob[:, 1] >= (i - plus_minus)))))
-        print("---")
+    # temp_x_values = np.arange(0, 9001, 1)
+    # temp_x_values = temp_x_values.reshape(-1, 1)
+    # prob = lgr.predict_proba(temp_x_values)
+    # plus_minus = 0.00015
+    # for i in np.arange(0, 1.1, 0.1):
+    #     print("prob: ", i)
+    #     print("num_pixels: ", np.argwhere((prob[:, 1] <= (i + plus_minus)) & (prob[:, 1] >= (i - plus_minus))))
+    #     print("count: ", np.count_nonzero(np.argwhere((prob[:, 1] <= (i + plus_minus)) & (prob[:, 1] >= (i - plus_minus)))))
+    #     print("---")
     # pprint.pprint(list(zip(temp_x_values, prob)))
 
-    plt.subplot(2, 1, 1)
-    f, ax = plt.subplots(figsize=(7, 5))
-    dy = "binary_label"
-    dx = "num_pixels"
-    ort = "h"
-    pal = sns.color_palette(n_colors=1)
-
-    ax = pt.half_violinplot(x=dx, y=dy, data=df, palette=pal, bw=.2, cut=0.,
-                            scale="area", width=.6, inner=None, orient=ort)
-
-    ax = sns.stripplot(x=dx, y=dy, data=df, palette=pal, edgecolor="white",
-                       size=3, jitter=1, zorder=0, orient=ort, ax=ax, alpha=0.5)
-
-    ax = sns.boxplot(x=dx, y=dy, data=df, color="black", width=.15, zorder=10,
-                     showcaps=True, boxprops={'facecolor': 'none', "zorder": 10},
-                     showfliers=True, whiskerprops={'linewidth': 2, "zorder": 10},
-                     saturation=1, orient=ort)
-    plt.axvline(x=1780, color='r', label='lower bound')
-    plt.axvline(x=2417, color='r', label='upper bound')
-
-    plt.subplot(2, 1, 2)
-    plt.plot(temp_x_values, prob[:, 1])
-    plt.show()
+    # plt.plot(temp_x_values, prob[:, 1])
+    # plt.scatter(df["num_pixels"], df["binary_label"], alpha=0.5, color="black")
+    # plt.xlabel("Number of pixels")
+    # figure = plt.gcf()
+    # figure.set_size_inches(18, 9)
+    # plt.savefig("logistic_reg_with_num_pixels")
+    # plt.show()
 
 
 if __name__ == "__main__":
