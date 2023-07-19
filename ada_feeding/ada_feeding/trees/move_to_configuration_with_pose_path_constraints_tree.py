@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-This module defines the MoveToConfigurationWithPosePathConstraintsTree behavior tree and provides functions to
-wrap that behavior tree in a ROS2 action server.
+This module defines the MoveToConfigurationWithPosePathConstraintsTree behavior
+tree and provides functions to wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
@@ -15,28 +15,28 @@ from py_trees.blackboard import Blackboard
 from rclpy.node import Node
 
 # Local imports
-from ada_feeding.decorators import SetPositionPathConstraint, SetOrientationPathConstraint
+from ada_feeding.idioms import add_pose_path_constraints
 from ada_feeding.trees import MoveToTree, MoveToConfigurationTree
 
 
 class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
     """
-    A behavior tree that moves the robot to a specified configuration.
+    A behavior tree that moves the robot to a specified configuration while
+    honoring pose path constraints.
     """
 
     def __init__(
         self,
         action_type_class_str: str,
         # Required parameters for moving to a configuration
-        joint_positions: List[float],
-        # Required parameters for the pose path constraint
-        position: Tuple[float, float, float] = None,
-        quat_xyzw: Tuple[float, float, float, float] = None,
+        joint_positions_goal: List[float],
         # Optional parameters for moving to a configuration
         tolerance_joint_goal: float = 0.001,
         weight_joint_goal: float = 1.0,
         planner_id: str = "RRTstarkConfigDefault",
         # Optional parameters for the pose path constraint
+        position_path: Tuple[float, float, float] = None,
+        quat_xyzw_path: Tuple[float, float, float, float] = None,
         frame_id: Optional[str] = None,
         target_link: Optional[str] = None,
         tolerance_position_path: float = 0.001,
@@ -54,12 +54,12 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
             e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
             type can be anything, but the Feedback and Result must at a minimum
             include the fields of ada_feeding_msgs.action.MoveTo
-        joint_positions: The joint positions for the goal constraint.
-        position: the position for the path constraint.
-        quat_xyzw: the orientation for the path constraint.
+        joint_positions_goal: The joint positions for the goal constraint.
         tolerance_joint_goal: The tolerance for the joint goal constraint.
         weight_joint_goal: The weight for the joint goal constraint.
         planner_id: The planner ID to use for the MoveIt2 motion planning.
+        position_path: the position for the path constraint.
+        quat_xyzw_path: the orientation for the path constraint.
         frame_id: the frame id of the target pose, for the pose path constraint.
             If None, the base link is used.
         target_link: the link to move to the target pose, for the pose path
@@ -79,15 +79,15 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         super().__init__(action_type_class_str)
 
         # Store the parameters for the joint goal constraint
-        self.joint_positions = joint_positions
-        assert len(self.joint_positions) == 6, "Must provide 6 joint positions"
+        self.joint_positions_goal = joint_positions_goal
+        assert len(self.joint_positions_goal) == 6, "Must provide 6 joint positions"
         self.tolerance_joint_goal = tolerance_joint_goal
         self.weight_joint_goal = weight_joint_goal
         self.planner_id = planner_id
 
         # Store the parameters for the pose path constraint
-        self.position = position
-        self.quat_xyzw = quat_xyzw
+        self.position_path = position_path
+        self.quat_xyzw_path = quat_xyzw_path
         self.frame_id = frame_id
         self.target_link = target_link
         self.tolerance_position_path = tolerance_position_path
@@ -103,7 +103,7 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
-        Creates the MoveToConfiguration behavior tree.
+        Creates the MoveToConfigurationWithPosePathConstraintsTree behavior tree.
 
         Parameters
         ----------
@@ -120,128 +120,29 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         # namespace as this tree
         move_to_configuration_root = MoveToConfigurationTree(
             action_type_class_str=self.action_type_class_str,
-            joint_positions=self.joint_positions,
+            joint_positions=self.joint_positions_goal,
             tolerance=self.tolerance_joint_goal,
             weight=self.weight_joint_goal,
             planner_id=self.planner_id,
         ).create_tree(name, logger, node).root
 
-        # Separate blackboard namespaces for decorators
-        if self.position is not None:
-            position_constraint_namespace_prefix = "position_path_constraint"
-        if self.quat_xyzw is not None:
-            orientation_constraint_namespace_prefix = "orientation_path_constraint"
-
-        # Position constraints
-        if self.position is not None:
-            position_key = Blackboard.separator.join(
-                [position_constraint_namespace_prefix, "position"]
-            )
-            self.blackboard.register_key(
-                key=position_key, access=py_trees.common.Access.WRITE
-            )
-            position_frame_id_key = Blackboard.separator.join(
-                [position_constraint_namespace_prefix, "frame_id"]
-            )
-            self.blackboard.register_key(
-                key=position_frame_id_key, access=py_trees.common.Access.WRITE
-            )
-            position_target_link_key = Blackboard.separator.join(
-                [position_constraint_namespace_prefix, "target_link"]
-            )
-            self.blackboard.register_key(
-                key=position_target_link_key, access=py_trees.common.Access.WRITE
-            )
-            position_tolerance_key = Blackboard.separator.join(
-                [position_constraint_namespace_prefix, "tolerance"]
-            )
-            self.blackboard.register_key(
-                key=position_tolerance_key, access=py_trees.common.Access.WRITE
-            )
-            position_weight_key = Blackboard.separator.join(
-                [position_constraint_namespace_prefix, "weight"]
-            )
-            self.blackboard.register_key(
-                key=position_weight_key, access=py_trees.common.Access.WRITE
-            )
-
-        # Orientation constraints
-        if self.quat_xyzw is not None:
-            orientation_key = Blackboard.separator.join(
-                [orientation_constraint_namespace_prefix, "quat_xyzw"]
-            )
-            self.blackboard.register_key(
-                key=orientation_key, access=py_trees.common.Access.WRITE
-            )
-            orientation_frame_id_key = Blackboard.separator.join(
-                [orientation_constraint_namespace_prefix, "frame_id"]
-            )
-            self.blackboard.register_key(
-                key=orientation_frame_id_key, access=py_trees.common.Access.WRITE
-            )
-            orientation_target_link_key = Blackboard.separator.join(
-                [orientation_constraint_namespace_prefix, "target_link"]
-            )
-            self.blackboard.register_key(
-                key=orientation_target_link_key, access=py_trees.common.Access.WRITE
-            )
-            orientation_tolerance_key = Blackboard.separator.join(
-                [orientation_constraint_namespace_prefix, "tolerance"]
-            )
-            self.blackboard.register_key(
-                key=orientation_tolerance_key, access=py_trees.common.Access.WRITE
-            )
-            orientation_parameterization_key = Blackboard.separator.join(
-                [orientation_constraint_namespace_prefix, "parameterization"]
-            )
-            self.blackboard.register_key(
-                key=orientation_parameterization_key, access=py_trees.common.Access.WRITE
-            )
-            orientation_weight_key = Blackboard.separator.join(
-                [orientation_constraint_namespace_prefix, "weight"]
-            )
-            self.blackboard.register_key(
-                key=orientation_weight_key, access=py_trees.common.Access.WRITE
-            )
-
-        # Write the inputs to MoveToConfigurationWithPosePathConstraintsTree to blackboard
-        if self.position is not None:
-            self.blackboard.set(position_key, self.position)
-            self.blackboard.set(position_frame_id_key, self.frame_id)
-            self.blackboard.set(position_target_link_key, self.target_link)
-            self.blackboard.set(position_tolerance_key, self.tolerance_position_path)
-            self.blackboard.set(position_weight_key, self.weight_position_path)
-        if self.quat_xyzw is not None:
-            self.blackboard.set(orientation_key, self.quat_xyzw)
-            self.blackboard.set(orientation_frame_id_key, self.frame_id)
-            self.blackboard.set(orientation_target_link_key, self.target_link)
-            self.blackboard.set(orientation_tolerance_key, self.tolerance_orientation_path)
-            self.blackboard.set(orientation_parameterization_key, self.parameterization_orientation_path)
-            self.blackboard.set(orientation_weight_key, self.weight_orientation_path)
-
-        # Add the position goal constraint to the MoveToConfiguration root
-        if self.position is not None:
-            position_goal_constaint_name = Blackboard.separator.join(
-                [name, position_constraint_namespace_prefix]
-            )
-            position_constraint = SetPositionPathConstraint(
-                position_goal_constaint_name, move_to_configuration_root
-            )
-            position_constraint.logger = logger
-        else:
-            position_constraint = move_to_configuration_root
-
-        # Add the orientation goal constraint to the MoveTo behavior
-        if self.quat_xyzw is not None:
-            orientation_goal_constaint_name = Blackboard.separator.join(
-                [name, orientation_constraint_namespace_prefix]
-            )
-            root = SetOrientationPathConstraint(
-                orientation_goal_constaint_name, position_constraint
-            )
-            root.logger = logger
-        else:
-            root = position_constraint
+        # Add the pose path constraints
+        root = add_pose_path_constraints(
+            child=move_to_configuration_root,
+            name=name,
+            blackboard=self.blackboard,
+            logger=logger,
+            set_blackboard_variables=True,
+            position_path=self.position_path,
+            quat_xyzw_path=self.quat_xyzw_path,
+            frame_id_path=self.frame_id,
+            target_link_path=self.target_link,
+            tolerance_position_path=self.tolerance_position_path,
+            tolerance_orientation_path=self.tolerance_orientation_path,
+            parameterization_orientation_path=self.parameterization_orientation_path,
+            weight_position_path=self.weight_position_path,
+            weight_orientation_path=self.weight_orientation_path,
+        )
 
         tree = py_trees.trees.BehaviourTree(root)
         return tree

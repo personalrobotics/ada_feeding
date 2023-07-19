@@ -14,6 +14,7 @@ ada_feeding_action_servers:
       - MoveToRestingPosition
       - MoveToStowLocation
       - TestMoveToPose
+      - TestMoveToPoseWithPosePathConstraints
 
     # Parameters for the MoveAbovePlate action
     MoveAbovePlate: # required
@@ -74,15 +75,15 @@ ada_feeding_action_servers:
       tree_class: ada_feeding.trees.MoveToConfigurationWithPosePathConstraintsTree # required
       tree_kws: # optional
         - action_type_class_str
-        - joint_positions
+        - joint_positions_goal
         - weight_joint_goal
-        - quat_xyzw
+        - quat_xyzw_path
         - tolerance_orientation_path
         - parameterization_orientation_path
         - weight_orientation_path
       tree_kwargs: # optional
         action_type_class_str: ada_feeding_msgs.action.MoveTo # required
-        joint_positions:
+        joint_positions_goal:
           -  2.74709 # j2n6s200_joint_1
           -  2.01400 # j2n6s200_joint_2
           -  1.85257 # j2n6s200_joint_3
@@ -90,12 +91,12 @@ ada_feeding_action_servers:
           - -1.61925 # j2n6s200_joint_5
           - -2.67325 # j2n6s200_joint_6
         weight_joint_goal: 1.0
-        quat_xyzw: # perpendicular to the base link
+        quat_xyzw_path: # perpendicular to the base link
           - 0.707168 # x
           - 0.0 # y
           - 0.0 # z
           - 0.707168 # w
-        tolerance_orientation_path: # Note that tolerances are w.r.t. the axes in quat_xyzw
+        tolerance_orientation_path: # Note that tolerances are w.r.t. the axes in quat_xyzw_path
           - 0.6 # x, rad
           - 3.14159 # y, rad
           - 0.5 # z, rad
@@ -142,4 +143,40 @@ ada_feeding_action_servers:
           -  0.70159 # y
           -  0.71255 # z
           - -0.00636 # w
+      tick_rate: 10 # Hz, optional, default: 30
+
+    # Parameters for the TestMoveToPoseWithPosePathConstraints action. Moves to the staging location
+    TestMoveToPoseWithPosePathConstraints: # required
+      action_type: ada_feeding_msgs.action.MoveTo # required
+      tree_class: ada_feeding.trees.MoveToPoseWithPosePathConstraintsTree # required
+      tree_kws: # optional
+        - action_type_class_str
+        - position_goal
+        - quat_xyzw_goal
+        - quat_xyzw_path
+        - tolerance_orientation_path
+        - parameterization_orientation_path
+        - weight_orientation_path
+      tree_kwargs: # optional
+        action_type_class_str: ada_feeding_msgs.action.MoveTo # required
+        position_goal:
+          - -0.00070 # x
+          -  0.15619 # y
+          -  0.76133 # z
+        quat_xyzw_goal:
+          -  0.34230 # x
+          -  0.59603 # y
+          -  0.64371 # z
+          -  0.33647 # w
+        quat_xyzw_path: # perpendicular to the base link
+          - 0.707168 # x
+          - 0.0 # y
+          - 0.0 # z
+          - 0.707168 # w
+        tolerance_orientation_path: # Note that tolerances are w.r.t. the axes in quat_xyzw_path
+          - 0.6 # x, rad
+          - 3.14159 # y, rad
+          - 0.5 # z, rad
+        parameterization_orientation_path: 1 # 0: Euler, 1: Rotation Vector
+        weight_orientation_path: 1.0
       tick_rate: 10 # Hz, optional, default: 30
