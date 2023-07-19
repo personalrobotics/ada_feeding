@@ -9,5 +9,7 @@ from .move_to_configuration_with_pose_path_constraints_tree import (
     MoveToConfigurationWithPosePathConstraintsTree,
 )
 from .move_to_pose_tree import MoveToPoseTree
-from .move_to_pose_with_pose_path_constraints_tree import MoveToPoseWithPosePathConstraintsTree
+from .move_to_pose_with_pose_path_constraints_tree import (
+    MoveToPoseWithPosePathConstraintsTree,
+)
 from .move_to_dummy_tree import MoveToDummyTree

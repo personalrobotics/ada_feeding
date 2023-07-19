@@ -11,7 +11,6 @@ from typing import Tuple, Optional, Union
 
 # Third-party imports
 import py_trees
-from py_trees.blackboard import Blackboard
 from rclpy.node import Node
 
 # Local imports
@@ -137,36 +136,40 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         """
         # First, create the MoveToPose behavior tree, in the same
         # namespace as this tree
-        move_to_pose_root = MoveToPoseTree(
-            action_type_class_str = self.action_type_class_str,
-            position = self.position_goal,
-            quat_xyzw = self.quat_xyzw_goal,
-            frame_id = self.frame_id_goal,
-            target_link = self.target_link_goal,
-            tolerance_position = self.tolerance_position_goal,
-            tolerance_orientation = self.tolerance_orientation_goal,
-            parameterization = self.parameterization_orientation_goal,
-            weight_position = self.weight_position_goal,
-            weight_orientation = self.weight_orientation_goal,
-            cartesian = self.cartesian,
-            planner_id = self.planner_id,
-        ).create_tree(name, logger, node).root
+        move_to_pose_root = (
+            MoveToPoseTree(
+                action_type_class_str=self.action_type_class_str,
+                position=self.position_goal,
+                quat_xyzw=self.quat_xyzw_goal,
+                frame_id=self.frame_id_goal,
+                target_link=self.target_link_goal,
+                tolerance_position=self.tolerance_position_goal,
+                tolerance_orientation=self.tolerance_orientation_goal,
+                parameterization=self.parameterization_orientation_goal,
+                weight_position=self.weight_position_goal,
+                weight_orientation=self.weight_orientation_goal,
+                cartesian=self.cartesian,
+                planner_id=self.planner_id,
+            )
+            .create_tree(name, logger, node)
+            .root
+        )
 
         root = add_pose_path_constraints(
-            child = move_to_pose_root,
-            name = name,
-            blackboard = self.blackboard,
-            logger = logger,
-            set_blackboard_variables = True,
-            position_path = self.position_path,
-            quat_xyzw_path = self.quat_xyzw_path,
-            frame_id_path = self.frame_id_path,
-            target_link_path = self.target_link_path,
-            tolerance_position_path = self.tolerance_position_path,
-            tolerance_orientation_path = self.tolerance_orientation_path,
-            parameterization_orientation_path = self.parameterization_orientation_path,
-            weight_position_path = self.weight_position_path,
-            weight_orientation_path = self.weight_orientation_path,
+            child=move_to_pose_root,
+            name=name,
+            blackboard=self.blackboard,
+            logger=logger,
+            set_blackboard_variables=True,
+            position_path=self.position_path,
+            quat_xyzw_path=self.quat_xyzw_path,
+            frame_id_path=self.frame_id_path,
+            target_link_path=self.target_link_path,
+            tolerance_position_path=self.tolerance_position_path,
+            tolerance_orientation_path=self.tolerance_orientation_path,
+            parameterization_orientation_path=self.parameterization_orientation_path,
+            weight_position_path=self.weight_position_path,
+            weight_orientation_path=self.weight_orientation_path,
         )
 
         # # Separate blackboard namespaces for decorators

@@ -50,7 +50,9 @@ class SetOrientationPathConstraint(MoveToConstraint):
             key="tolerance", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(key="weight", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="parameterization", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(
+            key="parameterization", access=py_trees.common.Access.READ
+        )
 
     def set_constraint(self) -> None:
         """

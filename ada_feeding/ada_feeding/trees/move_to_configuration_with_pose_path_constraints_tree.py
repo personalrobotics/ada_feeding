@@ -118,13 +118,17 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         """
         # First, create the MoveToConfiguration behavior tree, in the same
         # namespace as this tree
-        move_to_configuration_root = MoveToConfigurationTree(
-            action_type_class_str=self.action_type_class_str,
-            joint_positions=self.joint_positions_goal,
-            tolerance=self.tolerance_joint_goal,
-            weight=self.weight_joint_goal,
-            planner_id=self.planner_id,
-        ).create_tree(name, logger, node).root
+        move_to_configuration_root = (
+            MoveToConfigurationTree(
+                action_type_class_str=self.action_type_class_str,
+                joint_positions=self.joint_positions_goal,
+                tolerance=self.tolerance_joint_goal,
+                weight=self.weight_joint_goal,
+                planner_id=self.planner_id,
+            )
+            .create_tree(name, logger, node)
+            .root
+        )
 
         # Add the pose path constraints
         root = add_pose_path_constraints(

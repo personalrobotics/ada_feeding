@@ -15,7 +15,11 @@ import py_trees
 from py_trees.blackboard import Blackboard
 
 # Local imports
-from ada_feeding.decorators import SetPositionPathConstraint, SetOrientationPathConstraint
+from ada_feeding.decorators import (
+    SetPositionPathConstraint,
+    SetOrientationPathConstraint,
+)
+
 
 def add_pose_path_constraints(
     child: py_trees.behaviour.Behaviour,
@@ -73,9 +77,7 @@ def add_pose_path_constraints(
         position_key = Blackboard.separator.join(
             [position_constraint_namespace_prefix, "position"]
         )
-        blackboard.register_key(
-            key=position_key, access=py_trees.common.Access.WRITE
-        )
+        blackboard.register_key(key=position_key, access=py_trees.common.Access.WRITE)
         position_frame_id_key = Blackboard.separator.join(
             [position_constraint_namespace_prefix, "frame_id"]
         )
@@ -153,7 +155,9 @@ def add_pose_path_constraints(
             blackboard.set(orientation_frame_id_key, frame_id_path)
             blackboard.set(orientation_target_link_key, target_link_path)
             blackboard.set(orientation_tolerance_key, tolerance_orientation_path)
-            blackboard.set(orientation_parameterization_key, parameterization_orientation_path)
+            blackboard.set(
+                orientation_parameterization_key, parameterization_orientation_path
+            )
             blackboard.set(orientation_weight_key, weight_orientation_path)
 
     # Add the position path constraint to the child behavior
