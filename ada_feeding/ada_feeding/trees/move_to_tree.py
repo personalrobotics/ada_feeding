@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-This module defines the MoveToDummy behavior tree and provides functions to
+This module defines the abstract MoveTo behavior tree and provides functions to
 wrap that behavior tree in a ROS2 action server.
+
+This module is intended to consolidate all the logic for generating feedback
+and results, which is shared across all MoveTo actions, into one place.
+Subclasses should only need to define create_move_to_tree.
 """
 
 # Standard imports
+from abc import ABC, abstractmethod
 import logging
 
 # Third-party imports
@@ -13,22 +18,20 @@ import py_trees
 from rclpy.node import Node
 
 # Local imports
-from ada_feeding.behaviors import MoveToDummy
 from ada_feeding.helpers import import_from_string
 from ada_feeding import ActionServerBT
 
 
-class MoveToDummyTree(ActionServerBT):
+class MoveToTree(ActionServerBT, ABC):
     """
-    A dummy behavior tree that mimics the interface of the MoveAbovePlate
-    behavior tree.
+    An abstract behvaior tree for any behavior that moves the robot and provides
+    results and feedback as specified in ada_feeding_msgs.action.MoveTo or
+    ada_feeding_msgs.action.AcquireFood.
     """
 
     def __init__(
         self,
         action_type_class: str,
-        dummy_plan_time: float = 2.5,
-        dummy_motion_time: float = 7.5,
     ) -> None:
         """
         Initializes tree-specific parameters.
@@ -39,19 +42,9 @@ class MoveToDummyTree(ActionServerBT):
             e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
             type can be anything, but the Feedback and Result must at a minimum
             include the fields of ada_feeding_msgs.action.MoveTo
-        dummy_plan_time: How many seconds this dummy node should spend in planning.
-        dummy_motion_time: How many seconds this dummy node should spend in motion.
         """
         # Import the action type
         self.action_type_class = import_from_string(action_type_class)
-
-        # Set the dummy motion parameters
-        self.dummy_plan_time = dummy_plan_time
-        self.dummy_motion_time = dummy_motion_time
-
-        # Cache the tree so that it can be reused
-        self.tree = None
-        self.blackboard = None
 
     def create_tree(
         self,
@@ -60,11 +53,7 @@ class MoveToDummyTree(ActionServerBT):
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
-        Creates the MoveAbovePlate behavior tree.
-
-        Currently, this only has one behavior in it, MoveToDummy. Eventually,
-        this should be replaced with a behavior tree that actually moves the
-        robot arm above the plate.
+        Create the behavior tree.
 
         Parameters
         ----------
@@ -77,36 +66,67 @@ class MoveToDummyTree(ActionServerBT):
         -------
         tree: The behavior tree that moves the robot above the plate.
         """
-        # Create the behaviors in the tree
-        if self.tree is None:
-            root = MoveToDummy(name, self.dummy_plan_time, self.dummy_motion_time)
-            root.logger = logger
-            # Create the tree
-            self.tree = py_trees.trees.BehaviourTree(root)
-            # Create the blackboard
-            self.blackboard = py_trees.blackboard.Client(
-                name=name + " Tree", namespace=name
-            )
-            self.blackboard.register_key(
-                key="goal", access=py_trees.common.Access.WRITE
-            )
-            self.blackboard.register_key(
-                key="is_planning", access=py_trees.common.Access.READ
-            )
-            self.blackboard.register_key(
-                key="planning_time", access=py_trees.common.Access.READ
-            )
-            self.blackboard.register_key(
-                key="motion_time", access=py_trees.common.Access.READ
-            )
-            self.blackboard.register_key(
-                key="motion_initial_distance", access=py_trees.common.Access.READ
-            )
-            self.blackboard.register_key(
-                key="motion_curr_distance", access=py_trees.common.Access.READ
-            )
+        self.create_blackboard(name)
+        return self.create_move_to_tree(name, logger, node)
 
-        return self.tree
+    def create_blackboard(self, name: str) -> None:
+        """
+        Creates the blackboard for the behavior tree, and defines the blackboard
+        keys necessary to set the goal and send feedback.
+
+        Parameters
+        ----------
+        name: The name of the behavior tree.
+        """
+        # Create the blackboard
+        self.blackboard = py_trees.blackboard.Client(
+            name=name + " Tree", namespace=name
+        )
+        # Goal that is passed from the ROS2 Action Server
+        self.blackboard.register_key(key="goal", access=py_trees.common.Access.WRITE)
+        # Feedback from MoveToConfiguration for the ROS2 Action Server
+        self.blackboard.register_key(
+            key="is_planning", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="planning_time", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="motion_time", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="motion_initial_distance", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="motion_curr_distance", access=py_trees.common.Access.READ
+        )
+
+    @abstractmethod
+    def create_move_to_tree(
+        self,
+        name: str,
+        logger: logging.Logger,
+        node: Node,
+    ) -> py_trees.trees.BehaviourTree:
+        """
+        Create the behavior tree. By the time this function is called, the
+        blackboard has already been created and been defined with the keys
+        necessary to set the goal and send feedback. Therefore, this function
+        is just responsible for defining the blackboard keys specific to the
+        movement behavior, and creating the tree.
+
+        Parameters
+        ----------
+        name: The name of the behavior tree.
+        logger: The logger to use for the behavior tree.
+        node: The ROS2 node that this tree is associated with. Necessary for
+            behaviors within the tree connect to ROS topics/services/actions.
+
+        Returns
+        -------
+        tree: The behavior tree that moves the robot above the plate.
+        """
+        raise NotImplementedError("create_move_to_tree not implemented")
 
     def send_goal(self, tree: py_trees.trees.BehaviourTree, goal: object) -> bool:
         """
