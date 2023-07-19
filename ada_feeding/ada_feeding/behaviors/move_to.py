@@ -79,6 +79,10 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.move_to_blackboard.register_key(
             key="cartesian", access=py_trees.common.Access.READ
         )
+        # Add the ability to set a planner_id
+        self.move_to_blackboard.register_key(
+            key="planner_id", access=py_trees.common.Access.READ
+        )
         # Initialize the blackboard to read from the parent behavior tree
         self.tree_blackboard = self.attach_blackboard_client(
             name=name + " MoveTo", namespace=tree_name
@@ -134,6 +138,11 @@ class MoveTo(py_trees.behaviour.Behaviour):
         Reset the blackboard and configure all parameters for motion.
         """
         self.logger.info("%s [MoveTo::initialise()]" % self.name)
+
+        # Set the planner_id
+        self.moveit2.set_planner_id(get_from_blackboard_with_default(
+            self.move_to_blackboard, "planner_id", "RRTstarkConfigDefault"
+        ))
 
         # Reset local state variables
         self.prev_query_state = None

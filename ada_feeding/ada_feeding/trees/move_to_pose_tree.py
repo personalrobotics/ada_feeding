@@ -7,7 +7,7 @@ wrap that behavior tree in a ROS2 action server.
 
 # Standard imports
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 # Third-party imports
 import py_trees
@@ -36,11 +36,13 @@ class MoveToPoseTree(MoveToTree):
         frame_id: Optional[str] = None,
         target_link: Optional[str] = None,
         tolerance_position: float = 0.001,
-        tolerance_orientation: float = 0.001,
+        tolerance_orientation: Union[float, Tuple[float, float, float]] = 0.001,
+        parameterization: int = 0,
         weight_position: float = 1.0,
         weight_orientation: float = 1.0,
         cartesian: bool = False,
-    ) -> None:
+        planner_id: str = "RRTstarkConfigDefault",
+    ):
         """
         Initializes tree-specific parameters.
 
@@ -57,9 +59,12 @@ class MoveToPoseTree(MoveToTree):
             link is used.
         tolerance_position: the tolerance for the end effector position.
         tolerance_orientation: the tolerance for the end effector orientation.
+        parameterization: the parameterization of the orientation goal constraint.
+            0 is Euler angles, 1 is rotation vector
         weight_position: the weight for the end effector position.
         weight_orientation: the weight for the end effector orientation.
         cartesian: whether to use cartesian path planning.
+        planner_id: the planner to use for path planning.
         """
         # Initialize MoveTo
         super().__init__(action_type_class_str)
@@ -71,9 +76,11 @@ class MoveToPoseTree(MoveToTree):
         self.target_link = target_link
         self.tolerance_position = tolerance_position
         self.tolerance_orientation = tolerance_orientation
+        self.parameterization = parameterization
         self.weight_position = weight_position
         self.weight_orientation = weight_orientation
         self.cartesian = cartesian
+        self.planner_id = planner_id
 
     def create_move_to_tree(
         self,
@@ -157,6 +164,12 @@ class MoveToPoseTree(MoveToTree):
         self.blackboard.register_key(
             key=orientation_tolerance_key, access=py_trees.common.Access.WRITE
         )
+        orientation_parameterization_key = Blackboard.separator.join(
+            [orientation_constraint_namespace_prefix, "parameterization"]
+        )
+        self.blackboard.register_key(
+            key=orientation_parameterization_key, access=py_trees.common.Access.WRITE
+        )
         orientation_weight_key = Blackboard.separator.join(
             [orientation_constraint_namespace_prefix, "weight"]
         )
@@ -171,6 +184,12 @@ class MoveToPoseTree(MoveToTree):
         self.blackboard.register_key(
             key=cartesian_key, access=py_trees.common.Access.WRITE
         )
+        planner_id_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "planner_id"]
+        )
+        self.blackboard.register_key(
+            key=planner_id_key, access=py_trees.common.Access.WRITE
+        )
 
         # Write the inputs to MoveToPose to blackboard
         self.blackboard.set(position_key, self.position)
@@ -182,8 +201,10 @@ class MoveToPoseTree(MoveToTree):
         self.blackboard.set(orientation_frame_id_key, self.frame_id)
         self.blackboard.set(orientation_target_link_key, self.target_link)
         self.blackboard.set(orientation_tolerance_key, self.tolerance_orientation)
+        self.blackboard.set(orientation_parameterization_key, self.parameterization)
         self.blackboard.set(orientation_weight_key, self.weight_orientation)
         self.blackboard.set(cartesian_key, self.cartesian)
+        self.blackboard.set(planner_id_key, self.planner_id)
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])

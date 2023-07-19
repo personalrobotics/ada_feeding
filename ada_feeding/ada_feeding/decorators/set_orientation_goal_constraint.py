@@ -49,6 +49,7 @@ class SetOrientationGoalConstraint(MoveToConstraint):
             key="tolerance", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(key="weight", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="parameterization", access=py_trees.common.Access.READ)
 
     def set_constraint(self) -> None:
         """
@@ -68,6 +69,7 @@ class SetOrientationGoalConstraint(MoveToConstraint):
             self.blackboard, "tolerance", 0.001
         )
         weight = get_from_blackboard_with_default(self.blackboard, "weight", 1.0)
+        parameterization = get_from_blackboard_with_default(self.blackboard, "parameterization", 0)
 
         # Set the constraint
         self.moveit2.set_orientation_goal(
@@ -76,4 +78,5 @@ class SetOrientationGoalConstraint(MoveToConstraint):
             target_link=target_link,
             tolerance=tolerance,
             weight=weight,
+            parameterization=parameterization,
         )

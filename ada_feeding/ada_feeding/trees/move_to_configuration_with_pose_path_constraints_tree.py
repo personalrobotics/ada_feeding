@@ -7,7 +7,7 @@ wrap that behavior tree in a ROS2 action server.
 
 # Standard imports
 import logging
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Union
 
 # Third-party imports
 import py_trees
@@ -35,16 +35,16 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         # Optional parameters for moving to a configuration
         tolerance_joint_goal: float = 0.001,
         weight_joint_goal: float = 1.0,
+        planner_id: str = "RRTstarkConfigDefault",
         # Optional parameters for the pose path constraint
         frame_id: Optional[str] = None,
         target_link: Optional[str] = None,
         tolerance_position_path: float = 0.001,
-        tolerance_x_orientation_path: float = 0.001,
-        tolerance_y_orientation_path: float = 0.001,
-        tolerance_z_orientation_path: float = 0.001,
+        tolerance_orientation_path: Union[float, Tuple[float, float, float]] = 0.001,
+        parameterization_orientation_path: int = 0,
         weight_position_path: float = 1.0,
         weight_orientation_path: float = 1.0,
-    ) -> None:
+    ):
         """
         Initializes tree-specific parameters.
 
@@ -59,18 +59,18 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         quat_xyzw: the orientation for the path constraint.
         tolerance_joint_goal: The tolerance for the joint goal constraint.
         weight_joint_goal: The weight for the joint goal constraint.
+        planner_id: The planner ID to use for the MoveIt2 motion planning.
         frame_id: the frame id of the target pose, for the pose path constraint.
             If None, the base link is used.
         target_link: the link to move to the target pose, for the pose path
             constraint. If None, the end effector link is used.
         tolerance_position_path: the tolerance for the end effector position,
             for the pose path constraint.
-        tolerance_x_orientation_path: the tolerance for the end effector x
-            orientation (roll), for the pose path constraint.
-        tolerance_y_orientation_path: the tolerance for the end effector y
-            orientation (pitch), for the pose path constraint.
-        tolerance_z_orientation_path: the tolerance for the end effector z
-            orientation (yaw), for the pose path constraint.
+        tolerance_orientation_path: the tolerance for the end effector orientation,
+            for the pose path constraint.
+        parameterization_orientation_path: the parameterization for the end effector
+            orientation, for the pose path constraint. 0 is Euler angles, 1 is
+            rotation vector.
         weight_position_path: the weight for the end effector position path constraint.
         weight_orientation_path: the weight for the end effector orientation path constraint.
         """
@@ -83,6 +83,7 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         assert len(self.joint_positions) == 6, "Must provide 6 joint positions"
         self.tolerance_joint_goal = tolerance_joint_goal
         self.weight_joint_goal = weight_joint_goal
+        self.planner_id = planner_id
 
         # Store the parameters for the pose path constraint
         self.position = position
@@ -90,9 +91,8 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         self.frame_id = frame_id
         self.target_link = target_link
         self.tolerance_position_path = tolerance_position_path
-        self.tolerance_x_orientation_path = tolerance_x_orientation_path
-        self.tolerance_y_orientation_path = tolerance_y_orientation_path
-        self.tolerance_z_orientation_path = tolerance_z_orientation_path
+        self.tolerance_orientation_path = tolerance_orientation_path
+        self.parameterization_orientation_path = parameterization_orientation_path
         self.weight_position_path = weight_position_path
         self.weight_orientation_path = weight_orientation_path
 
@@ -119,10 +119,11 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         # First, create the MoveToConfiguration behavior tree, in the same
         # namespace as this tree
         move_to_configuration_root = MoveToConfigurationTree(
-            self.action_type_class_str,
-            self.joint_positions,
-            self.tolerance_joint_goal,
-            self.weight_joint_goal,
+            action_type_class_str=self.action_type_class_str,
+            joint_positions=self.joint_positions,
+            tolerance=self.tolerance_joint_goal,
+            weight=self.weight_joint_goal,
+            planner_id=self.planner_id,
         ).create_tree(name, logger, node).root
 
         # Separate blackboard namespaces for decorators
@@ -184,23 +185,17 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
             self.blackboard.register_key(
                 key=orientation_target_link_key, access=py_trees.common.Access.WRITE
             )
-            orientation_tolerance_x_key = Blackboard.separator.join(
-                [orientation_constraint_namespace_prefix, "tolerance_x"]
+            orientation_tolerance_key = Blackboard.separator.join(
+                [orientation_constraint_namespace_prefix, "tolerance"]
             )
             self.blackboard.register_key(
-                key=orientation_tolerance_x_key, access=py_trees.common.Access.WRITE
+                key=orientation_tolerance_key, access=py_trees.common.Access.WRITE
             )
-            orientation_tolerance_y_key = Blackboard.separator.join(
-                [orientation_constraint_namespace_prefix, "tolerance_y"]
-            )
-            self.blackboard.register_key(
-                key=orientation_tolerance_y_key, access=py_trees.common.Access.WRITE
-            )
-            orientation_tolerance_z_key = Blackboard.separator.join(
-                [orientation_constraint_namespace_prefix, "tolerance_z"]
+            orientation_parameterization_key = Blackboard.separator.join(
+                [orientation_constraint_namespace_prefix, "parameterization"]
             )
             self.blackboard.register_key(
-                key=orientation_tolerance_z_key, access=py_trees.common.Access.WRITE
+                key=orientation_parameterization_key, access=py_trees.common.Access.WRITE
             )
             orientation_weight_key = Blackboard.separator.join(
                 [orientation_constraint_namespace_prefix, "weight"]
@@ -220,9 +215,8 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
             self.blackboard.set(orientation_key, self.quat_xyzw)
             self.blackboard.set(orientation_frame_id_key, self.frame_id)
             self.blackboard.set(orientation_target_link_key, self.target_link)
-            self.blackboard.set(orientation_tolerance_x_key, self.tolerance_x_orientation_path)
-            self.blackboard.set(orientation_tolerance_y_key, self.tolerance_y_orientation_path)
-            self.blackboard.set(orientation_tolerance_z_key, self.tolerance_z_orientation_path)
+            self.blackboard.set(orientation_tolerance_key, self.tolerance_orientation_path)
+            self.blackboard.set(orientation_parameterization_key, self.parameterization_orientation_path)
             self.blackboard.set(orientation_weight_key, self.weight_orientation_path)
 
         # Add the position goal constraint to the MoveToConfiguration root

@@ -47,15 +47,10 @@ class SetOrientationPathConstraint(MoveToConstraint):
             key="target_link", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
-            key="tolerance_x", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="tolerance_y", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="tolerance_z", access=py_trees.common.Access.READ
+            key="tolerance", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(key="weight", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="parameterization", access=py_trees.common.Access.READ)
 
     def set_constraint(self) -> None:
         """
@@ -71,24 +66,20 @@ class SetOrientationPathConstraint(MoveToConstraint):
         target_link = get_from_blackboard_with_default(
             self.blackboard, "target_link", None
         )
-        tolerance_x = get_from_blackboard_with_default(
-            self.blackboard, "tolerance_x", 0.001
-        )
-        tolerance_y = get_from_blackboard_with_default(
-            self.blackboard, "tolerance_y", 0.001
-        )
-        tolerance_z = get_from_blackboard_with_default(
-            self.blackboard, "tolerance_z", 0.001
+        tolerance = get_from_blackboard_with_default(
+            self.blackboard, "tolerance", 0.001
         )
         weight = get_from_blackboard_with_default(self.blackboard, "weight", 1.0)
+        parameterization = get_from_blackboard_with_default(
+            self.blackboard, "parameterization", 0
+        )
 
         # Set the constraint
         self.moveit2.set_path_orientation_constraint(
             quat_xyzw=quat_xyzw,
             frame_id=frame_id,
             target_link=target_link,
-            tolerance_x=tolerance_x,
-            tolerance_y=tolerance_y,
-            tolerance_z=tolerance_z,
+            tolerance=tolerance,
             weight=weight,
+            parameterization=parameterization,
         )
