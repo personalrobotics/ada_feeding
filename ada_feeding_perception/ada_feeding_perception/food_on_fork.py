@@ -112,7 +112,13 @@ class FoodOnFork(Node):
         num_pixels = np.array([[num_pixels]])
         num_pixels_reshape = num_pixels.reshape(-1, 1)
         prediction_prob = self.model.predict_proba(num_pixels_reshape)
-        return float(prediction_prob[0])
+        # print("Pred_prob", prediction_prob[0][1])
+
+        # prediction_prob is a matrix that looks like: [[percentage1, percentage2]]
+        # Note that percentage1 is the percent probability that the predicted value is 0 (no food on fork)
+        # and percentage2 is the percent probability that the predicted value is 1 (food on fork)
+        # we care about the probability that there is food on fork. As such, [0][1] makes sense!
+        return float(prediction_prob[0][1])
 
 
 def main(args=None):
