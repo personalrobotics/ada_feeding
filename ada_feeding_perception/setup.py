@@ -43,6 +43,7 @@ setup(
         "console_scripts": [
             "segment_from_point = ada_feeding_perception.segment_from_point:main",
             "test_segment_from_point = ada_feeding_perception.test_segment_from_point:main",
+            "food_on_fork = ada_feeding_perception.food_on_fork:main",
         ],
     },
 )
