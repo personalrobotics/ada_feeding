@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # ROS Client Library for the Python language
 import rclpy
 # Create a Node
@@ -7,6 +7,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Pose
 # Threading in python is used to run multiple threads (tasks, function calls) at the same time.
 import threading
+import moveit_commander
 
 # main function with no arguments passed
 def main(args=None):
@@ -41,4 +42,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-```
