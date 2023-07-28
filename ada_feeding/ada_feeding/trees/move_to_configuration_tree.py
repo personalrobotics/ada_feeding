@@ -71,6 +71,7 @@ class MoveToConfigurationTree(MoveToTree):
     def create_move_to_tree(
         self,
         name: str,
+        tree_root_name: str,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -80,6 +81,9 @@ class MoveToConfigurationTree(MoveToTree):
         Parameters
         ----------
         name: The name of the behavior tree.
+        tree_root_name: The name of the tree. This is necessary because sometimes
+            trees create subtrees, but still need to track the top-level tree
+            name to read/write the correct blackboard variables.
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
@@ -135,7 +139,7 @@ class MoveToConfigurationTree(MoveToTree):
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])
-        move_to = MoveTo(move_to_name, name, node)
+        move_to = MoveTo(move_to_name, tree_root_name, node)
         move_to.logger = logger
 
         # Add the joint goal constraint to the MoveTo behavior

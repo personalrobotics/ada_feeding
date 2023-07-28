@@ -3,7 +3,7 @@ ada_planning_scene:
   ros__parameters:
     object_ids: # list of objects to add to the planning scene
       - wheelchair
-      - wheelchair_collision
+      # - wheelchair_collision
       - table
       - head
     # For each object, specify the filename of the mesh, and the position and

@@ -7,7 +7,7 @@ provides functions to wrap that behavior tree in a ROS2 action server.
 
 # Standard imports
 import logging
-from typing import Tuple, Optional, Union
+from typing import Optional, Set, Tuple, Union
 
 # Third-party imports
 import py_trees
@@ -36,8 +36,8 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
     def __init__(
         self,
         # Required parameters for moving to a pose
-        position_goal: Tuple[float, float, float],
-        quat_xyzw_goal: Tuple[float, float, float, float],
+        position_goal: Optional[Tuple[float, float, float]] = None,
+        quat_xyzw_goal: Optional[Tuple[float, float, float, float]] = None,
         # Optional parameters for moving to a pose
         frame_id_goal: Optional[str] = None,
         target_link_goal: Optional[str] = None,
@@ -59,6 +59,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         parameterization_orientation_path: int = 0,
         weight_position_path: float = 1.0,
         weight_orientation_path: float = 1.0,
+        keys_to_not_write_to_blackboard: Set[str] = set(),
     ):
         """
         Initializes tree-specific parameters.
@@ -92,6 +93,10 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
             orientation tolerance.
         weight_position_path: the weight for the position path.
         weight_orientation_path: the weight for the orientation path.
+        keys_to_not_write_to_blackboard: the keys to not write to the blackboard.
+            Note that the keys need to be exact e.g., "move_to.cartesian,"
+            "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
+            etc.
         """
         # Initialize MoveToTree
         super().__init__()
@@ -121,9 +126,12 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         self.weight_position_path = weight_position_path
         self.weight_orientation_path = weight_orientation_path
 
+        self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
+
     def create_move_to_tree(
         self,
         name: str,
+        tree_root_name: str,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -133,6 +141,9 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         Parameters
         ----------
         name: The name of the behavior tree.
+        tree_root_name: The name of the tree. This is necessary because sometimes
+            trees create subtrees, but still need to track the top-level tree
+            name to read/write the correct blackboard variables.
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
@@ -157,8 +168,9 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
                 cartesian=self.cartesian,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time,
+                keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
             )
-            .create_tree(name, self.action_type, logger, node)
+            .create_tree(name, self.action_type, tree_root_name, logger, node)
             .root
         )
 
@@ -167,7 +179,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
             name=name,
             blackboard=self.blackboard,
             logger=logger,
-            set_blackboard_variables=True,
+            keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
             position_path=self.position_path,
             quat_xyzw_path=self.quat_xyzw_path,
             frame_id_path=self.frame_id_path,

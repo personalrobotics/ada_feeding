@@ -35,6 +35,7 @@ class MoveToTree(ActionServerBT, ABC):
         self,
         name: str,
         action_type: type,
+        tree_root_name: str,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -45,6 +46,9 @@ class MoveToTree(ActionServerBT, ABC):
         ----------
         name: The name of the behavior tree.
         action_type: the type for the action, as a class.
+        tree_root_name: The name of the tree. This is necessary because sometimes
+            trees create subtrees, but still need to track the top-level tree
+            name to read/write the correct blackboard variables.
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
@@ -53,49 +57,57 @@ class MoveToTree(ActionServerBT, ABC):
         -------
         tree: The behavior tree that moves the robot above the plate.
         """
-        self.create_blackboard(name)
+        self.create_blackboard(name, tree_root_name)
 
         # Import the action type
         self.action_type = action_type
 
-        return self.create_move_to_tree(name, logger, node)
+        return self.create_move_to_tree(name, tree_root_name, logger, node)
 
-    def create_blackboard(self, name: str) -> None:
+    def create_blackboard(self, name: str, tree_root_name: str) -> None:
         """
         Creates the blackboard for the behavior tree, and defines the blackboard
         keys necessary to set the goal and send feedback.
 
         Parameters
         ----------
-        name: The name of the behavior tree.
+        name: The name of this behavior tree.
+        tree_root_name: The name of the tree. This is necessary because sometimes
+            trees create subtrees, but still need to track the top-level tree
+            name to read/write the correct blackboard variables.
         """
-        # Create the blackboard
-        self.blackboard = py_trees.blackboard.Client(
-            name=name + " Tree", namespace=name
+        # Create the blackboard for the tree root
+        self.blackboard_tree_root = py_trees.blackboard.Client(
+            name=name + " Tree", namespace=tree_root_name
         )
         # Goal that is passed from the ROS2 Action Server
-        self.blackboard.register_key(key="goal", access=py_trees.common.Access.WRITE)
+        self.blackboard_tree_root.register_key(key="goal", access=py_trees.common.Access.WRITE)
         # Feedback from MoveToConfiguration for the ROS2 Action Server
-        self.blackboard.register_key(
+        self.blackboard_tree_root.register_key(
             key="is_planning", access=py_trees.common.Access.READ
         )
-        self.blackboard.register_key(
+        self.blackboard_tree_root.register_key(
             key="planning_time", access=py_trees.common.Access.READ
         )
-        self.blackboard.register_key(
+        self.blackboard_tree_root.register_key(
             key="motion_time", access=py_trees.common.Access.READ
         )
-        self.blackboard.register_key(
+        self.blackboard_tree_root.register_key(
             key="motion_initial_distance", access=py_trees.common.Access.READ
         )
-        self.blackboard.register_key(
+        self.blackboard_tree_root.register_key(
             key="motion_curr_distance", access=py_trees.common.Access.READ
+        )
+        # Create the blackboard for this tree
+        self.blackboard = py_trees.blackboard.Client(
+            name=name + " Tree", namespace=name
         )
 
     @abstractmethod
     def create_move_to_tree(
         self,
         name: str,
+        tree_root_name: str,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -109,6 +121,9 @@ class MoveToTree(ActionServerBT, ABC):
         Parameters
         ----------
         name: The name of the behavior tree.
+        tree_root_name: The name of the tree. This is necessary because sometimes
+            trees create subtrees, but still need to track the top-level tree
+            name to read/write the correct blackboard variables.
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
@@ -135,7 +150,7 @@ class MoveToTree(ActionServerBT, ABC):
         success: Whether the goal was sent successfully.
         """
         # Write the goal to blackboard
-        self.blackboard.goal = goal
+        self.blackboard_tree_root.goal = goal
         return True
 
     def get_feedback(self, tree: py_trees.trees.BehaviourTree) -> object:
@@ -152,24 +167,31 @@ class MoveToTree(ActionServerBT, ABC):
         -------
         feedback: The ROS feedback message to be sent to the action client.
         """
+<<<<<<< HEAD
         feedback_msg = self.action_type.Feedback()
         if self.blackboard.exists("is_planning"):
             feedback_msg.is_planning = self.blackboard.is_planning
             planning_time = self.blackboard.planning_time
+=======
+        feedback_msg = self.action_type_class.Feedback()
+        if self.blackboard_tree_root.exists("is_planning"):
+            feedback_msg.is_planning = self.blackboard_tree_root.is_planning
+            planning_time = self.blackboard_tree_root.planning_time
+>>>>>>> 679292a ([WIP] MoveToMouth mostly done)
             feedback_msg.planning_time.sec = int(planning_time)
             feedback_msg.planning_time.nanosec = int(
                 (planning_time - int(planning_time)) * 1e9
             )
-            motion_time = self.blackboard.motion_time
+            motion_time = self.blackboard_tree_root.motion_time
             feedback_msg.motion_time.sec = int(motion_time)
             feedback_msg.motion_time.nanosec = int(
                 (motion_time - int(motion_time)) * 1e9
             )
             if not feedback_msg.is_planning:
                 feedback_msg.motion_initial_distance = (
-                    self.blackboard.motion_initial_distance
+                    self.blackboard_tree_root.motion_initial_distance
                 )
-                feedback_msg.motion_curr_distance = self.blackboard.motion_curr_distance
+                feedback_msg.motion_curr_distance = self.blackboard_tree_root.motion_curr_distance
         return feedback_msg
 
     def get_result(self, tree: py_trees.trees.BehaviourTree) -> object:
@@ -192,8 +214,8 @@ class MoveToTree(ActionServerBT, ABC):
             result.status = result.STATUS_SUCCESS
         # If the tree failed, detemine whether it was a planning or motion failure
         elif tree.root.status == py_trees.common.Status.FAILURE:
-            if self.blackboard.exists("is_planning"):
-                if self.blackboard.is_planning:
+            if self.blackboard_tree_root.exists("is_planning"):
+                if self.blackboard_tree_root.is_planning:
                     result.status = result.STATUS_PLANNING_FAILED
                 else:
                     result.status = result.STATUS_MOTION_FAILED

@@ -99,19 +99,19 @@ class MoveTo(py_trees.behaviour.Behaviour):
         )
         # Feedback from MoveTo for the ROS2 Action Server
         self.tree_blackboard.register_key(
-            key="is_planning", access=py_trees.common.Access.EXCLUSIVE_WRITE
+            key="is_planning", access=py_trees.common.Access.WRITE
         )
         self.tree_blackboard.register_key(
-            key="planning_time", access=py_trees.common.Access.EXCLUSIVE_WRITE
+            key="planning_time", access=py_trees.common.Access.WRITE
         )
         self.tree_blackboard.register_key(
-            key="motion_time", access=py_trees.common.Access.EXCLUSIVE_WRITE
+            key="motion_time", access=py_trees.common.Access.WRITE
         )
         self.tree_blackboard.register_key(
-            key="motion_initial_distance", access=py_trees.common.Access.EXCLUSIVE_WRITE
+            key="motion_initial_distance", access=py_trees.common.Access.WRITE
         )
         self.tree_blackboard.register_key(
-            key="motion_curr_distance", access=py_trees.common.Access.EXCLUSIVE_WRITE
+            key="motion_curr_distance", access=py_trees.common.Access.WRITE
         )
 
         # Create MoveIt 2 interface for moving the Jaco arm. This must be done
