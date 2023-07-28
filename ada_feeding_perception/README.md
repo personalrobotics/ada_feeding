@@ -11,6 +11,9 @@ chmod +x install.sh
 
 For testing, be sure to unzip `test/food_img.zip`.
 
+### Dependencies
+- [joblib](https://joblib.readthedocs.io/en/stable/installing.html#using-pip)
+
 ## Usage
 
 1. Build your workspace: `colcon build`
@@ -90,3 +93,14 @@ Launch the web app along with all the other nodes (real or dummy) as documented 
 - `offline.images` (list of strings, required): The paths, relative to `install/ada_feeding_perception/share/ada_feeding_perception`, to the images to test.
 - `offline.point_xs` (list of ints, required): The x-coordinates of the seed points. Must be the same length as `offline.images`.
 - `offline.point_ys` (list of ints, required): The y-coordinates of the seed points. Must be the same length as `offline.images`.
+
+## Food on Fork
+Food on Fork currently uses Logistic Regression model and takes in a particular depth image to output a probability of whether or not Food is on the Fork.
+
+### Training Food on Fork Logisitic Regression model
+- Navigate to `food_on_fork_logistic_reg_training.py` within `/ada_feeding_perception` package.
+- Make sure to update the `csv_to_read_from` with an updated training set. Note that the current training set is located in `ada_feeding_perception/datasets`.
+  - Make sure to change the name of the model by updating `model_save_filename` variable in this file
+- Then, run `food_on_fork_logistic_reg_training.py`, making sure its dependencies are installed
+- Additionally, after training, make sure to update the right model to use in `food_on_fork.py` node
+  - The location of the model can be updated by updating the variable `self.model`

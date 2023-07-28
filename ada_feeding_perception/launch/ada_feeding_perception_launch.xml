@@ -3,5 +3,8 @@
     <param from="$(find-pkg-share ada_feeding_perception)/config/segment_from_point.yaml"/>
     <param name="model_dir" value="$(find-pkg-share ada_feeding_perception)/model/"/>
   </node>
+  <node pkg="ada_feeding_perception" exec="food_on_fork" name="food_on_fork">
+    <param from="$(find-pkg-share ada_feeding_perception)/config/food_on_fork.yaml"/>
+  </node>
 
 </launch>

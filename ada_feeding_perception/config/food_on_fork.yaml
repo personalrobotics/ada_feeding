@@ -1,0 +1,17 @@
+# NOTE: You have to change this node name if you change the node name in the launchfile.
+food_on_fork:
+  ros__parameters:
+    # Top-left point's x-val of the bounding box rectangle
+    left_top_corner_x: 297
+    # Top-left point's y-val of the bounding box rectangle
+    left_top_corner_y: 248
+    # Bottom-right point's x-val of the bounding box of the rectangle
+    right_bottom_corner_x: 422
+    # Bottom-right point's y-val of the bounding box of the rectangle
+    right_bottom_corner_y: 332
+    # minimum depth to consider (note that 330 is approx distance to the fork tine)
+    min_dist: 310
+    # maximum depth to consider (note that 330 is approx distance to the fork tine)
+    max_dist: 370
+    # absolute path for the model
+    model_location: "/home/atharva2/atharvak_node_ws/src/ada_feeding/ada_feeding_perception/model/logistic_reg_model.pkl"
