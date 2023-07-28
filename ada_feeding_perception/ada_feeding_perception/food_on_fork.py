@@ -41,12 +41,15 @@ class FoodOnFork(Node):
             right_bottom_corner_y,
             min_dist,
             max_dist,
-            model_loc
+            model_loc,
         ) = self.read_params()
 
         # set the read in parameters
         self.left_top_corner = (left_top_corner_x.value, left_top_corner_y.value)
-        self.right_bottom_corner = (right_bottom_corner_x.value, right_bottom_corner_y.value)
+        self.right_bottom_corner = (
+            right_bottom_corner_x.value,
+            right_bottom_corner_y.value,
+        )
         self.min_dist = min_dist.value
         self.max_dist = max_dist.value
 
@@ -70,7 +73,11 @@ class FoodOnFork(Node):
         # initialize the model
         self.model = joblib.load(model_loc.value)
 
-    def read_params(self) -> Tuple[Parameter, Parameter, Parameter, Parameter, Parameter, Parameter, Parameter]:
+    def read_params(
+        self,
+    ) -> Tuple[
+        Parameter, Parameter, Parameter, Parameter, Parameter, Parameter, Parameter
+    ]:
         """
         Read the parameters for this node.
 
@@ -155,9 +162,9 @@ class FoodOnFork(Node):
                         name="model_location",
                         type=ParameterType.PARAMETER_STRING,
                         description="model location",
-                        read_only=True
-                    )
-                )
+                        read_only=True,
+                    ),
+                ),
             ],
         )
 
@@ -185,10 +192,7 @@ class FoodOnFork(Node):
             float32msg.data = prediction
             self.publisher_depth.publish(float32msg)
 
-    def food_on_fork_num_pixels(
-            self,
-            depth_img: np.ndarray
-    ) -> int:
+    def food_on_fork_num_pixels(self, depth_img: np.ndarray) -> int:
         """
         Calculates the number of pixels in the provided depth image (through a depth image message)
 
