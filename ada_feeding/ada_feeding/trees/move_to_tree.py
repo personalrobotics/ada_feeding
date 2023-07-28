@@ -31,20 +31,20 @@ class MoveToTree(ActionServerBT, ABC):
 
     def __init__(
         self,
-        action_type_class: str,
+        action_type_class_str: str,
     ) -> None:
         """
         Initializes tree-specific parameters.
 
         Parameters
         ----------
-        action_type_class: The type of action that this tree is implementing,
+        action_type_class_str: The type of action that this tree is implementing,
             e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
             type can be anything, but the Feedback and Result must at a minimum
             include the fields of ada_feeding_msgs.action.MoveTo
         """
         # Import the action type
-        self.action_type_class = import_from_string(action_type_class)
+        self.action_type_class = import_from_string(action_type_class_str)
 
     def create_tree(
         self,

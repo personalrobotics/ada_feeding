@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-This module defines the SetOrientationGoalConstraint decorator, which adds an
-orientation goal to any behavior that moves the robot using MoveIt2.
+This module defines the SetOrientationPathConstraint decorator, which adds a path
+constraint that keeps a specified frame within a secified tolerance of a
+specified orientation.
 """
 # Third-party imports
 import py_trees
@@ -12,10 +13,10 @@ from ada_feeding.decorators import MoveToConstraint
 from ada_feeding.helpers import get_from_blackboard_with_default
 
 
-class SetOrientationGoalConstraint(MoveToConstraint):
+class SetOrientationPathConstraint(MoveToConstraint):
     """
-    SetOrientationGoalConstraint adds orientation goal constraints to any
-    behavior that moves the robot using MoveIt2.
+    SetOrientationPathConstraint adds a path constraint that keeps a specified frame
+    within a secified tolerance of a specified orientation.
     """
 
     def __init__(
@@ -36,7 +37,7 @@ class SetOrientationGoalConstraint(MoveToConstraint):
 
         # Define inputs from the blackboard
         self.blackboard = self.attach_blackboard_client(
-            name=name + " SetOrientationGoalConstraint", namespace=name
+            name=name + " SetOrientationPathConstraint", namespace=name
         )
         self.blackboard.register_key(
             key="quat_xyzw", access=py_trees.common.Access.READ
@@ -58,7 +59,7 @@ class SetOrientationGoalConstraint(MoveToConstraint):
         Sets the orientation goal constraint.
         """
         self.logger.info(
-            "%s [SetOrientationGoalConstraint::set_constraint()]" % self.name
+            "%s [SetOrientationPathConstraint::set_constraint()]" % self.name
         )
 
         # Get all parameters for planning, resorting to default values if unset.
@@ -76,7 +77,7 @@ class SetOrientationGoalConstraint(MoveToConstraint):
         )
 
         # Set the constraint
-        self.moveit2.set_orientation_goal(
+        self.moveit2.set_path_orientation_constraint(
             quat_xyzw=quat_xyzw,
             frame_id=frame_id,
             target_link=target_link,

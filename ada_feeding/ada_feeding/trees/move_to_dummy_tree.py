@@ -26,7 +26,7 @@ class MoveToDummyTree(ActionServerBT):
 
     def __init__(
         self,
-        action_type_class: str,
+        action_type_class_str: str,
         dummy_plan_time: float = 2.5,
         dummy_motion_time: float = 7.5,
     ) -> None:
@@ -35,7 +35,7 @@ class MoveToDummyTree(ActionServerBT):
 
         Parameters
         ----------
-        action_type_class: The type of action that this tree is implementing,
+        action_type_class_str: The type of action that this tree is implementing,
             e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
             type can be anything, but the Feedback and Result must at a minimum
             include the fields of ada_feeding_msgs.action.MoveTo
@@ -43,7 +43,7 @@ class MoveToDummyTree(ActionServerBT):
         dummy_motion_time: How many seconds this dummy node should spend in motion.
         """
         # Import the action type
-        self.action_type_class = import_from_string(action_type_class)
+        self.action_type_class = import_from_string(action_type_class_str)
 
         # Set the dummy motion parameters
         self.dummy_plan_time = dummy_plan_time
