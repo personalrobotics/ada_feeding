@@ -80,3 +80,7 @@ Then, to execute the behavior tree in `create_action_servers.py`, you have to mo
     - `tick_rate` (int, optional, default `30`): the frequency (Hz) at which the action server should tick the tree.
 
 Once you've made the above changes, you should be good to go. Rebuild your workspace and run the launchfile!
+
+## Troubleshooting
+
+- If you get `Error: the following exception was never retrieved: cannot use destroyable because destruction was requested` that likely means you are running an old version of `rclpy`. Upgrading `rclpy` should address the issue.
