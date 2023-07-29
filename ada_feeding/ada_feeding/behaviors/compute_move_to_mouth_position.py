@@ -118,8 +118,7 @@ class ComputeMoveToMouthPosition(py_trees.behaviour.Behaviour):
                 self.logger.warning(
                     "%s [ComputeMoveToMouthPosition::update()] "
                     "Transform failed at timestamp in message: %s: %s. "
-                    "Retrying with latest transform."
-                    % (self.name, type(e), e)
+                    "Retrying with latest transform." % (self.name, type(e), e)
                 )
                 face_detection.detected_mouth_center.header.stamp = Time().to_msg()
                 target_position = self.tf_buffer.transform(

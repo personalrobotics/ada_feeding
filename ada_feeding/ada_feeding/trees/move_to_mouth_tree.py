@@ -231,7 +231,7 @@ class MoveToMouthTree(MoveToTree):
         # has the fork facing in the +y direction of the base line (towards the
         # back of the wheelchair), but eventually this should be variable
         # based on the `target_position_offset`, so the fork is always facing
-        # the mouth. We also add an orientation path constraint (e.g., to keep 
+        # the mouth. We also add an orientation path constraint (e.g., to keep
         # the fork straight).
         move_to_target_pose_name = Blackboard.separator.join(
             [name, move_to_target_pose_prefix]

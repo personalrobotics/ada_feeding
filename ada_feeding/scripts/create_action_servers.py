@@ -408,7 +408,10 @@ class CreateActionServers(Node):
                             result = tree_action_server.get_result(tree)
                             break
                         if tree.root.status in set(
-                            (py_trees.common.Status.FAILURE, py_trees.common.Status.INVALID)
+                            (
+                                py_trees.common.Status.FAILURE,
+                                py_trees.common.Status.INVALID,
+                            )
                         ):
                             self.get_logger().info("Goal failed")
                             goal_handle.abort()
