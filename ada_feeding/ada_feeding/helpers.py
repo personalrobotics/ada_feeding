@@ -27,6 +27,7 @@ ORIENTATION_PATH_CONSTRAINT_NAMESPACE_PREFIX = "orientation_path_constraint"
 JOINT_PATH_CONSTRAINT_NAMESPACE_PREFIX = "joint_path_constraint"
 MOVE_TO_NAMESPACE_PREFIX = "move_to"
 
+
 def get_from_blackboard_with_default(
     blackboard: py_trees.blackboard.Client, key: str, default: Any
 ) -> Any:

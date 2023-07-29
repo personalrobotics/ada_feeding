@@ -129,9 +129,13 @@ class MoveToPoseTree(MoveToTree):
         """
         # Separate blackboard namespaces for children
         if self.position is not None:
-            position_goal_constraint_namespace_prefix = POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX
+            position_goal_constraint_namespace_prefix = (
+                POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX
+            )
         if self.quat_xyzw is not None:
-            orientation_goal_constraint_namespace_prefix = ORIENTATION_GOAL_CONSTRAINT_NAMESPACE_PREFIX
+            orientation_goal_constraint_namespace_prefix = (
+                ORIENTATION_GOAL_CONSTRAINT_NAMESPACE_PREFIX
+            )
         move_to_namespace_prefix = MOVE_TO_NAMESPACE_PREFIX
 
         # Position constraints
@@ -197,7 +201,8 @@ class MoveToPoseTree(MoveToTree):
                 [orientation_goal_constraint_namespace_prefix, "parameterization"]
             )
             self.blackboard.register_key(
-                key=orientation_parameterization_key, access=py_trees.common.Access.WRITE
+                key=orientation_parameterization_key,
+                access=py_trees.common.Access.WRITE,
             )
             orientation_weight_key = Blackboard.separator.join(
                 [orientation_goal_constraint_namespace_prefix, "weight"]
@@ -246,9 +251,16 @@ class MoveToPoseTree(MoveToTree):
             if orientation_target_link_key not in self.keys_to_not_write_to_blackboard:
                 self.blackboard.set(orientation_target_link_key, self.target_link)
             if orientation_tolerance_key not in self.keys_to_not_write_to_blackboard:
-                self.blackboard.set(orientation_tolerance_key, self.tolerance_orientation)
-            if orientation_parameterization_key not in self.keys_to_not_write_to_blackboard:
-                self.blackboard.set(orientation_parameterization_key, self.parameterization)
+                self.blackboard.set(
+                    orientation_tolerance_key, self.tolerance_orientation
+                )
+            if (
+                orientation_parameterization_key
+                not in self.keys_to_not_write_to_blackboard
+            ):
+                self.blackboard.set(
+                    orientation_parameterization_key, self.parameterization
+                )
             if orientation_weight_key not in self.keys_to_not_write_to_blackboard:
                 self.blackboard.set(orientation_weight_key, self.weight_orientation)
         if cartesian_key not in self.keys_to_not_write_to_blackboard:

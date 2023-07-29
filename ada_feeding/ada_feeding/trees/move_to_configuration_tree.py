@@ -7,7 +7,7 @@ wrap that behavior tree in a ROS2 action server.
 
 # Standard imports
 import logging
-from typing import List
+from typing import List, Set
 
 # Third-party imports
 import py_trees
@@ -41,6 +41,7 @@ class MoveToConfigurationTree(MoveToTree):
         weight: float = 1.0,
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
+        keys_to_not_write_to_blackboard: Set[str] = set(),
     ):
         """
         Initializes tree-specific parameters.
@@ -53,6 +54,10 @@ class MoveToConfigurationTree(MoveToTree):
         planner_id: The planner ID to use for the MoveIt2 motion planning.
         allowed_planning_time: The allowed planning time for the MoveIt2 motion
             planner.
+        keys_to_not_write_to_blackboard: A set of keys that should not be written
+            Note that the keys need to be exact e.g., "move_to.cartesian,"
+            "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
+            etc.
         """
         # Initialize MoveToTree
         super().__init__()
@@ -64,6 +69,7 @@ class MoveToConfigurationTree(MoveToTree):
         self.weight = weight
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
+        self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
 
     # pylint: disable=too-many-locals
     # Unfortunately, many local variables are required here to isolate the keys
@@ -131,11 +137,18 @@ class MoveToConfigurationTree(MoveToTree):
         )
 
         # Write the inputs to MoveToConfiguration to blackboard
-        self.blackboard.set(joint_positions_key, self.joint_positions)
-        self.blackboard.set(tolerance_key, self.tolerance)
-        self.blackboard.set(weight_key, self.weight)
-        self.blackboard.set(planner_id_key, self.planner_id)
-        self.blackboard.set(allowed_planning_time_key, self.allowed_planning_time)
+        if joint_positions_key not in self.keys_to_not_write_to_blackboard:
+            self.blackboard.set(joint_positions_key, self.joint_positions)
+        if tolerance_key not in self.keys_to_not_write_to_blackboard:
+            self.blackboard.set(tolerance_key, self.tolerance)
+        if weight_key not in self.keys_to_not_write_to_blackboard:
+            self.blackboard.set(weight_key, self.weight)
+        if planner_id_key not in self.keys_to_not_write_to_blackboard:
+            self.blackboard.set(planner_id_key, self.planner_id)
+        if allowed_planning_time_key not in self.keys_to_not_write_to_blackboard:
+            self.blackboard.set(
+                allowed_planning_time_key, self.allowed_planning_time
+            )
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])

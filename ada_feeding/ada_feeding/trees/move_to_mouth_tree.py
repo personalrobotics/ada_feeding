@@ -24,9 +24,9 @@ from ada_feeding.helpers import (
 )
 from ada_feeding.idioms import retry_call_ros_service
 from ada_feeding.trees import (
-    MoveToTree, 
+    MoveToTree,
     MoveToConfigurationWithPosePathConstraintsTree,
-    MoveToPoseWithPosePathConstraintsTree
+    MoveToPoseWithPosePathConstraintsTree,
 )
 from ada_feeding_msgs.msg import FaceDetection
 
@@ -133,11 +133,11 @@ class MoveToMouthTree(MoveToTree):
             service_name=self.toggle_face_detection_service_name,
             key_request=None,
             request=SetBool.Request(data=True),
-            key_response = turn_face_detection_on_name,
+            key_response=turn_face_detection_on_name,
             response_check=py_trees.common.ComparisonExpression(
-                variable=turn_face_detection_on_name+".success",
-                value= True,
-                operator=operator.eq
+                variable=turn_face_detection_on_name + ".success",
+                value=True,
+                operator=operator.eq,
             ),
             logger=logger,
         )
@@ -146,21 +146,25 @@ class MoveToMouthTree(MoveToTree):
         move_to_staging_configuration_name = Blackboard.separator.join(
             [name, move_to_staging_configuration_prefix]
         )
-        move_to_staging_configuration = MoveToConfigurationWithPosePathConstraintsTree(
-            action_type_class_str=self.action_type_class_str,
-            joint_positions_goal=self.staging_configuration,
-            tolerance_joint_goal=self.staging_configuration_tolerance,
-            planner_id=self.planner_id,
-            quat_xyzw_path=self.orientation_constraint_quaternion,
-            tolerance_orientation_path=self.orientation_constraint_tolerances,
-            parameterization_orientation_path=1, # Rotation vector
-        ).create_tree(move_to_staging_configuration_name, tree_root_name, logger, node).root
+        move_to_staging_configuration = (
+            MoveToConfigurationWithPosePathConstraintsTree(
+                action_type_class_str=self.action_type_class_str,
+                joint_positions_goal=self.staging_configuration,
+                tolerance_joint_goal=self.staging_configuration_tolerance,
+                planner_id=self.planner_id,
+                quat_xyzw_path=self.orientation_constraint_quaternion,
+                tolerance_orientation_path=self.orientation_constraint_tolerances,
+                parameterization_orientation_path=1,  # Rotation vector
+            )
+            .create_tree(
+                move_to_staging_configuration_name, tree_root_name, logger, node
+            )
+            .root
+        )
 
         # Create the behaviour to subscribe to the face detection topic until
         # a face is detected
-        get_face_name = Blackboard.separator.join(
-            [name, get_face_prefix]
-        )
+        get_face_name = Blackboard.separator.join([name, get_face_prefix])
         get_face = py_trees_ros.subscribers.ToBlackboard(
             name=get_face_name,
             topic_name=self.face_detection_topic_name,
@@ -169,24 +173,22 @@ class MoveToMouthTree(MoveToTree):
             blackboard_variables={
                 "face_detection": None,
             },
-            initialise_variables = {
+            initialise_variables={
                 "face_detection": FaceDetection(),
-            }
+            },
         )
         get_face.logger = logger
-        check_face_name = Blackboard.separator.join(
-            [name, check_face_prefix]
-        )
+        check_face_name = Blackboard.separator.join([name, check_face_prefix])
         check_face = py_trees.decorators.FailureIsRunning(
             name=check_face_name,
             child=py_trees.behaviours.CheckBlackboardVariableValue(
                 name=check_face_name,
-                check = py_trees.common.ComparisonExpression(
+                check=py_trees.common.ComparisonExpression(
                     variable="face_detection.is_face_detected",
                     value=True,
-                    operator=operator.eq
-                )
-            )
+                    operator=operator.eq,
+                ),
+            ),
         )
         check_face.logger = logger
         detect_face = py_trees.composites.Sequence(
@@ -208,38 +210,54 @@ class MoveToMouthTree(MoveToTree):
             name=compute_target_position_name,
             node=node,
             face_detection_input_key="/face_detection",
-            target_position_output_key="/"+Blackboard.separator.join(
-                [name, move_to_target_pose_prefix, POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX, "position"]
+            target_position_output_key="/"
+            + Blackboard.separator.join(
+                [
+                    name,
+                    move_to_target_pose_prefix,
+                    POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
+                    "position",
+                ]
             ),
             target_position_frame_id="j2n6s200_link_base",
             # The target position is 5cm away from the mouth
-            target_position_offset = (0.0, -0.05, 0.0),
+            target_position_offset=(0.0, -0.05, 0.0),
         )
         compute_target_position.logger = logger
 
         # Create the behaviour to move the robot to the target pose
         # We want to add a position goal, but it should come from the
-        # blackboard instead of being hardcoded. For now we won't add
-        # an orientation goal, but TODO consider adding one. We also
-        # add an orientation path constraint (e.g., to keep the fork straight).
+        # blackboard instead of being hardcoded. For now the orientation goal
+        # has the fork facing in the +y direction of the base line (towards the
+        # back of the wheelchair), but eventually this should be variable
+        # based on the `target_position_offset`, so the fork is always facing
+        # the mouth. We also add an orientation path constraint (e.g., to keep 
+        # the fork straight).
         move_to_target_pose_name = Blackboard.separator.join(
             [name, move_to_target_pose_prefix]
         )
-        move_to_target_pose = MoveToPoseWithPosePathConstraintsTree(
-            action_type_class_str=self.action_type_class_str,
-            position_goal=(0.0, 0.0, 0.0),
-            tolerance_position_goal = self.mouth_pose_tolerance,
-            cartesian=False,
-            planner_id=self.planner_id,
-            quat_xyzw_path=self.orientation_constraint_quaternion,
-            tolerance_orientation_path=self.orientation_constraint_tolerances,
-            parameterization_orientation_path=1, # Rotation vector
-            keys_to_not_write_to_blackboard={
-                Blackboard.separator.join(
-                    [POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX, "position"],
-                ),
-            }
-        ).create_tree(move_to_target_pose_name, tree_root_name, logger, node).root
+        move_to_target_pose = (
+            MoveToPoseWithPosePathConstraintsTree(
+                action_type_class_str=self.action_type_class_str,
+                position_goal=(0.0, 0.0, 0.0),
+                quat_xyzw_goal=(0.0, 0.7071068, 0.7071068, 0.0),
+                tolerance_position_goal=self.mouth_pose_tolerance,
+                tolerance_orientation_goal=(0.6, 0.5, 0.5),
+                parameterization_orientation_goal=1,  # Rotation vector
+                cartesian=False,
+                planner_id=self.planner_id,
+                quat_xyzw_path=self.orientation_constraint_quaternion,
+                tolerance_orientation_path=self.orientation_constraint_tolerances,
+                parameterization_orientation_path=1,  # Rotation vector
+                keys_to_not_write_to_blackboard={
+                    Blackboard.separator.join(
+                        [POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX, "position"],
+                    ),
+                },
+            )
+            .create_tree(move_to_target_pose_name, tree_root_name, logger, node)
+            .root
+        )
 
         # Create the behaviour to turn face detection off
         turn_face_detection_off_name = Blackboard.separator.join(
@@ -254,11 +272,11 @@ class MoveToMouthTree(MoveToTree):
             service_name=self.toggle_face_detection_service_name,
             key_request=None,
             request=SetBool.Request(data=False),
-            key_response = turn_face_detection_off_key_response,
+            key_response=turn_face_detection_off_key_response,
             response_check=py_trees.common.ComparisonExpression(
-                variable=turn_face_detection_off_key_response+".success",
-                value= True,
-                operator=operator.eq
+                variable=turn_face_detection_off_key_response + ".success",
+                value=True,
+                operator=operator.eq,
             ),
             logger=logger,
         )

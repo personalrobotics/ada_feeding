@@ -262,10 +262,21 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 # for when the robot is in motion.
                 self.motion_future = self.moveit2.get_execution_future()
             elif self.moveit2.query_state() == MoveIt2State.IDLE:
-                # If we get here (i.e., self.moveit2 returned to IDLE without executing)
-                # then something went wrong (e.g., controller is already executing a
-                # trajectory, action server not available, goal was rejected, etc.)
-                return py_trees.common.Status.FAILURE
+                last_error_code = self.moveit2.get_last_execution_error_code()
+                if last_error_code is None or last_error_code.val != 1:
+                    # If we get here then something went wrong (e.g., controller
+                    # is already executing a trajectory, action server not
+                    # available, goal was rejected, etc.)
+                    self.logger.error(
+                        "%s [MoveTo::update()] Failed to execute trajectory before goal was accepted!"
+                        % self.name
+                    )
+                    return py_trees.common.Status.FAILURE
+                else:
+                    # If we get here, the goal finished executing within the
+                    # last tick.
+                    self.tree_blackboard.motion_curr_distance = 0.0
+                    return py_trees.common.Status.SUCCESS
         if self.motion_future is not None:
             self.tree_blackboard.motion_curr_distance = (
                 self.distance_to_goal.get_distance()

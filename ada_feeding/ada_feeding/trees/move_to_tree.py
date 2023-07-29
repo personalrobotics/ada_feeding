@@ -81,7 +81,9 @@ class MoveToTree(ActionServerBT, ABC):
             name=name + " Tree", namespace=tree_root_name
         )
         # Goal that is passed from the ROS2 Action Server
-        self.blackboard_tree_root.register_key(key="goal", access=py_trees.common.Access.WRITE)
+        self.blackboard_tree_root.register_key(
+            key="goal", access=py_trees.common.Access.WRITE
+        )
         # Feedback from MoveToConfiguration for the ROS2 Action Server
         self.blackboard_tree_root.register_key(
             key="is_planning", access=py_trees.common.Access.READ
@@ -191,7 +193,9 @@ class MoveToTree(ActionServerBT, ABC):
                 feedback_msg.motion_initial_distance = (
                     self.blackboard_tree_root.motion_initial_distance
                 )
-                feedback_msg.motion_curr_distance = self.blackboard_tree_root.motion_curr_distance
+                feedback_msg.motion_curr_distance = (
+                    self.blackboard_tree_root.motion_curr_distance
+                )
         return feedback_msg
 
     def get_result(self, tree: py_trees.trees.BehaviourTree) -> object:

@@ -79,9 +79,13 @@ def add_pose_path_constraints(
 
     # Separate blackboard namespaces for decorators
     if position_path is not None:
-        position_path_constraint_namespace_prefix = POSITION_PATH_CONSTRAINT_NAMESPACE_PREFIX
+        position_path_constraint_namespace_prefix = (
+            POSITION_PATH_CONSTRAINT_NAMESPACE_PREFIX
+        )
     if quat_xyzw_path is not None:
-        orientation_path_constraint_namespace_prefix = ORIENTATION_PATH_CONSTRAINT_NAMESPACE_PREFIX
+        orientation_path_constraint_namespace_prefix = (
+            ORIENTATION_PATH_CONSTRAINT_NAMESPACE_PREFIX
+        )
 
     # Position constraints
     if position_path is not None:

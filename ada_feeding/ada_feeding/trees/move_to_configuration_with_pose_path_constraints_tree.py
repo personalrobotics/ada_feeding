@@ -142,6 +142,7 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
                 weight=self.weight_joint_goal,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time,
+                keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
             )
             .create_tree(name, self.action_type, tree_root_name, logger, node)
             .root
