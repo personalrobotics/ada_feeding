@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 from ada_feeding_msgs.msg import FaceDetection
-from ada_feeding_msgs.srv import ToggleFaceDetection
+from std_srvs.srv import SetBool
 import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PointStamped
+import numpy as np
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -19,7 +20,7 @@ class FaceDetectionNode(Node):
         num_images_with_open_mouth=30,
     ):
         """
-        Initializes the FaceDetection node, which exposes a ToggleFaceDetection
+        Initializes the FaceDetection node, which exposes a SetBool
         service that can be used to toggle the face detection on or off and
         publishes information about detected faces to the /face_detection
         topic when face detection is on.
@@ -57,8 +58,8 @@ class FaceDetectionNode(Node):
 
         # Create the service
         self.srv = self.create_service(
-            ToggleFaceDetection,
-            "ToggleFaceDetection",
+            SetBool,
+            "toggle_face_detection",
             self.toggle_face_detection_callback,
         )
 
@@ -76,13 +77,11 @@ class FaceDetectionNode(Node):
 
     def toggle_face_detection_callback(self, request, response):
         """
-        Callback function for the ToggleFaceDetection service. Safely toggles
+        Callback function for the SetBool service. Safely toggles
         the face detection on or off depending on the request.
         """
-        self.get_logger().info(
-            "Incoming service request. turn_on: %s" % (request.turn_on)
-        )
-        if request.turn_on:
+        self.get_logger().info("Incoming service request. turn_on: %s" % (request.data))
+        if request.data:
             # Reset counters
             self.num_consecutive_images_without_face = 0
             self.num_consecutive_images_with_face = 0
@@ -92,12 +91,14 @@ class FaceDetectionNode(Node):
             self.is_on_lock.acquire()
             self.is_on = True
             self.is_on_lock.release()
-            response.face_detection_is_on = True
+            response.success = True
+            response.message = "Succesfully turned face detection on"
         else:
             self.is_on_lock.acquire()
             self.is_on = False
             self.is_on_lock.release()
-            response.face_detection_is_on = False
+            response.success = True
+            response.message = "Succesfully turned face detection off"
         return response
 
     def camera_callback(self, msg):
@@ -158,12 +159,21 @@ class FaceDetectionNode(Node):
                 )
                 annotated_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
                 annotated_img = annotated_msg
-                # Publish the detected mouth center
+                # Publish the detected mouth center. The below is a hardcoded
+                # rough position of the mouth from the side staging location,
+                # in "camera_color_optical_frame." We add 5cm of noise to the
+                # position for added realism
                 face_detection_msg.detected_mouth_center = PointStamped()
                 face_detection_msg.detected_mouth_center.header = msg.header
-                face_detection_msg.detected_mouth_center.point.x = msg.width / 2.0
-                face_detection_msg.detected_mouth_center.point.y = msg.height / 2.0
-                face_detection_msg.detected_mouth_center.point.z = 0.0
+                face_detection_msg.detected_mouth_center.point.x = (
+                    0.049 + (np.random.rand() - 0.5) / 10
+                )
+                face_detection_msg.detected_mouth_center.point.y = (
+                    -0.177 + (np.random.rand() - 0.5) / 10
+                )
+                face_detection_msg.detected_mouth_center.point.z = (
+                    0.642 + (np.random.rand() - 0.5) / 10
+                )
             else:
                 annotated_img = msg
             face_detection_msg.is_mouth_open = open_mouth_detected

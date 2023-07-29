@@ -44,6 +44,7 @@ class DummyRealSense(Node):
                 self.video.set(cv2.CAP_PROP_POS_FRAMES, self.num_frames)
             # Convert to a ROS2 msg
             frame_msg = self.bridge.cv2_to_imgmsg(frame, "bgr8")
+            frame_msg.header.frame_id = "camera_color_optical_frame"
             frame_msg.header.stamp = self.get_clock().now().to_msg()
             self.publisher_.publish(frame_msg)
             # # Our operations on the frame come here
