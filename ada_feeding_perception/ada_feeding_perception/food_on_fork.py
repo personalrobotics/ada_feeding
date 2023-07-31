@@ -79,7 +79,14 @@ class FoodOnFork(Node):
     def read_params(
         self,
     ) -> Tuple[
-        Parameter, Parameter, Parameter, Parameter, Parameter, Parameter, Parameter, Parameter
+        Parameter,
+        Parameter,
+        Parameter,
+        Parameter,
+        Parameter,
+        Parameter,
+        Parameter,
+        Parameter,
     ]:
         """
         Read the parameters for this node.
