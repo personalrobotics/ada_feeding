@@ -15,3 +15,5 @@ food_on_fork:
     max_dist: 370
     # absolute path for the model
     model_location: "/home/atharva2/atharvak_node_ws/src/ada_feeding/ada_feeding_perception/model/logistic_reg_model.pkl"
+    # testing
+    test: False

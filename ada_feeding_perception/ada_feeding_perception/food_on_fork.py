@@ -42,6 +42,7 @@ class FoodOnFork(Node):
             min_dist,
             max_dist,
             model_loc,
+            test,
         ) = self.read_params()
 
         # set the read in parameters
@@ -53,6 +54,8 @@ class FoodOnFork(Node):
         self.min_dist = min_dist.value
         self.max_dist = max_dist.value
 
+        self.test = test.value
+        self.get_logger().info(str(self.test))
         # self.get_logger().info(str(self.left_top_corner))
         # self.get_logger().info(str(self.right_bottom_corner))
         # self.get_logger().info(str(self.min_dist))
@@ -76,7 +79,7 @@ class FoodOnFork(Node):
     def read_params(
         self,
     ) -> Tuple[
-        Parameter, Parameter, Parameter, Parameter, Parameter, Parameter, Parameter
+        Parameter, Parameter, Parameter, Parameter, Parameter, Parameter, Parameter, Parameter
     ]:
         """
         Read the parameters for this node.
@@ -91,6 +94,7 @@ class FoodOnFork(Node):
         min_dist: minimum depth to consider (note that 330 is approx distance to the fork tine)
         max_dist: maximum depth to consider (note that 330 is approx distance to the fork tine)
         model_loc: location of the model
+        test: boolean value representing whether this node is testing
         """
         return self.declare_parameters(
             "",
@@ -165,6 +169,16 @@ class FoodOnFork(Node):
                         read_only=True,
                     ),
                 ),
+                (
+                    "test",
+                    None,
+                    ParameterDescriptor(
+                        name="test",
+                        type=ParameterType.PARAMETER_BOOL,
+                        description="testing",
+                        read_only=True,
+                    ),
+                ),
             ],
         )
 
@@ -185,9 +199,11 @@ class FoodOnFork(Node):
         if depth_img is not None:
             print(depth_img.dtype)
             num_pixels = self.food_on_fork_num_pixels(depth_img)
-            # print("num pixels: ", num_pixels)
+            if self.test:
+                self.get_logger().info("num pixels: " + str(num_pixels))
             prediction = self.predict_food_on_fork(num_pixels)
-            # print("prediction: ", prediction)
+            if self.test:
+                self.get_logger().info("Prediction Probability: " + str(prediction))
             float32msg = Float32()
             float32msg.data = prediction
             self.publisher_depth.publish(float32msg)
