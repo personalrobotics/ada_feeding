@@ -6,7 +6,7 @@ This directory contains all the ROS2 nodes that are used to test the web app. Th
 - [ROS2 Humble](https://docs.ros.org/en/humble/Installation.html)
 - Python dependencies:
 ```
-python3 -m pip install bson numpy pymongo shapely tornado
+python3 -m pip install numpy pymongo shapely tornado
 ```
 
 ## Usage
