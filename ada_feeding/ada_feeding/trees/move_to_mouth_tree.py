@@ -11,6 +11,7 @@ import operator
 from typing import List
 
 # Third-party imports
+from ada_feeding_msgs.msg import FaceDetection
 import py_trees
 from py_trees.blackboard import Blackboard
 import py_trees_ros
@@ -18,7 +19,7 @@ from rclpy.node import Node
 from std_srvs.srv import SetBool
 
 # Local imports
-from ada_feeding.behaviors import ComputeMoveToMouthPosition
+from ada_feeding.behaviors import ComputeMoveToMouthPosition, MoveCollisionObject
 from ada_feeding.helpers import (
     POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
 )
@@ -28,7 +29,6 @@ from ada_feeding.trees import (
     MoveToConfigurationWithPosePathConstraintsTree,
     MoveToPoseWithPosePathConstraintsTree,
 )
-from ada_feeding_msgs.msg import FaceDetection
 
 
 class MoveToMouthTree(MoveToTree):
@@ -47,6 +47,7 @@ class MoveToMouthTree(MoveToTree):
         planner_id: str = "RRTstarkConfigDefault",
         toggle_face_detection_service_name: str = "/toggle_face_detection",
         face_detection_topic_name: str = "/face_detection",
+        head_object_id: str = "head",
     ):
         """
         Initializes tree-specific parameters.
@@ -71,6 +72,8 @@ class MoveToMouthTree(MoveToTree):
             face detection on and off.
         face_detection_topic_name: The name of the topic that publishes the
             face detection results.
+        head_object_id: The ID of the head collision object in the MoveIt2
+            planning scene.
         """
         # Initialize MoveToTree
         super().__init__(action_type_class_str)
@@ -86,6 +89,7 @@ class MoveToMouthTree(MoveToTree):
         self.planner_id = planner_id
         self.toggle_face_detection_service_name = toggle_face_detection_service_name
         self.face_detection_topic_name = face_detection_topic_name
+        self.head_object_id = head_object_id
 
     def create_move_to_tree(
         self,
@@ -133,9 +137,9 @@ class MoveToMouthTree(MoveToTree):
             service_name=self.toggle_face_detection_service_name,
             key_request=None,
             request=SetBool.Request(data=True),
-            key_response=turn_face_detection_on_name,
+            key_response=turn_face_detection_on_key_response,
             response_check=py_trees.common.ComparisonExpression(
-                variable=turn_face_detection_on_name + ".success",
+                variable=turn_face_detection_on_key_response + ".success",
                 value=True,
                 operator=operator.eq,
             ),
@@ -206,24 +210,56 @@ class MoveToMouthTree(MoveToTree):
         compute_target_position_name = Blackboard.separator.join(
             [name, compute_target_position_prefix]
         )
+        target_position_output_key = "/" + Blackboard.separator.join(
+            [
+                name,
+                move_to_target_pose_prefix,
+                POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
+                "position",
+            ]
+        )
+        # The target position is 5cm away from the mouth
+        target_position_offset = (0.0, -0.05, 0.0)
         compute_target_position = ComputeMoveToMouthPosition(
             name=compute_target_position_name,
             node=node,
             face_detection_input_key="/face_detection",
-            target_position_output_key="/"
-            + Blackboard.separator.join(
-                [
-                    name,
-                    move_to_target_pose_prefix,
-                    POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
-                    "position",
-                ]
-            ),
+            target_position_output_key=target_position_output_key,
             target_position_frame_id="j2n6s200_link_base",
-            # The target position is 5cm away from the mouth
-            target_position_offset=(0.0, -0.05, 0.0),
+            target_position_offset=target_position_offset,
         )
         compute_target_position.logger = logger
+
+        # Create the behavior to move the head in the collision scene to the mouth
+        # position. For now, assume the head is always perpendicular to the back
+        # of the wheelchair.
+        move_head_prefix = "move_head"
+        move_head = MoveCollisionObject(
+            name=Blackboard.separator.join([name, move_head_prefix]),
+            node=node,
+            collision_object_id=self.head_object_id,
+            collision_object_position_input_key=target_position_output_key,
+            collision_object_orientation_input_key="quat_xyzw",
+            reverse_position_offset=target_position_offset,
+        )
+        move_head.logger = logger
+        # The frame_id for the position outputted by the ComputeMoveToMouthPosition
+        # behaviour is the base frame of the robot.
+        frame_id_key = Blackboard.separator.join([move_head_prefix, "frame_id"])
+        self.blackboard.register_key(
+            key=frame_id_key,
+            access=py_trees.common.Access.WRITE,
+        )
+        self.blackboard.set(frame_id_key, "j2n6s200_link_base")
+        # Hardcode head orientation to be perpendiculaf to the back of the wheelchair.
+        quat_xyzw_key = Blackboard.separator.join([move_head_prefix, "quat_xyzw"])
+        self.blackboard.register_key(
+            key=quat_xyzw_key,
+            access=py_trees.common.Access.WRITE,
+        )
+        self.blackboard.set(
+            quat_xyzw_key, (-0.0616284, -0.0616284, -0.704416, 0.704416)
+        )
 
         # Create the behaviour to move the robot to the target pose
         # We want to add a position goal, but it should come from the
@@ -290,6 +326,7 @@ class MoveToMouthTree(MoveToTree):
                 move_to_staging_configuration,
                 detect_face,
                 compute_target_position,
+                move_head,
                 move_to_target_pose,
                 turn_face_detection_off,
             ],
