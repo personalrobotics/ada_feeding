@@ -45,6 +45,8 @@ class MoveToMouthTree(MoveToTree):
         orientation_constraint_quaternion: List[float] = None,
         orientation_constraint_tolerances: List[float] = None,
         planner_id: str = "RRTstarkConfigDefault",
+        allowed_planning_time_to_staging_configuration: float = 0.5,
+        allowed_planning_time_to_mouth: float = 0.5,
         toggle_face_detection_service_name: str = "/toggle_face_detection",
         face_detection_topic_name: str = "/face_detection",
         head_object_id: str = "head",
@@ -68,6 +70,10 @@ class MoveToMouthTree(MoveToTree):
             constraint, as a 3D rotation vector. If None, the orientation
             constraint is not used.
         planner_id: The planner ID to use for the MoveIt2 motion planning.
+        allowed_planning_time_to_staging_configuration: The allowed planning
+            time for the MoveIt2 motion planner to move to the staging config.
+        allowed_planning_time_to_mouth: The allowed planning time for the MoveIt2
+            motion planner to move to the user's mouth.
         toggle_face_detection_service_name: The name of the service to toggle
             face detection on and off.
         face_detection_topic_name: The name of the topic that publishes the
@@ -87,6 +93,8 @@ class MoveToMouthTree(MoveToTree):
         self.orientation_constraint_quaternion = orientation_constraint_quaternion
         self.orientation_constraint_tolerances = orientation_constraint_tolerances
         self.planner_id = planner_id
+        self.allowed_planning_time_to_staging_configuration = allowed_planning_time_to_staging_configuration
+        self.allowed_planning_time_to_mouth = allowed_planning_time_to_mouth
         self.toggle_face_detection_service_name = toggle_face_detection_service_name
         self.face_detection_topic_name = face_detection_topic_name
         self.head_object_id = head_object_id
@@ -156,6 +164,7 @@ class MoveToMouthTree(MoveToTree):
                 joint_positions_goal=self.staging_configuration,
                 tolerance_joint_goal=self.staging_configuration_tolerance,
                 planner_id=self.planner_id,
+                allowed_planning_time=self.allowed_planning_time_to_staging_configuration,
                 quat_xyzw_path=self.orientation_constraint_quaternion,
                 tolerance_orientation_path=self.orientation_constraint_tolerances,
                 parameterization_orientation_path=1,  # Rotation vector
@@ -282,6 +291,7 @@ class MoveToMouthTree(MoveToTree):
                 parameterization_orientation_goal=1,  # Rotation vector
                 cartesian=False,
                 planner_id=self.planner_id,
+                allowed_planning_time=self.allowed_planning_time_to_mouth,
                 quat_xyzw_path=self.orientation_constraint_quaternion,
                 tolerance_orientation_path=self.orientation_constraint_tolerances,
                 parameterization_orientation_path=1,  # Rotation vector

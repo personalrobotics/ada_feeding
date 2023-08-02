@@ -74,7 +74,7 @@ ada_feeding_action_servers:
         - staging_configuration
         - orientation_constraint_quaternion
         - orientation_constraint_tolerances
-        - allowed_planning_time
+        - allowed_planning_time_to_staging_configuration
       tree_kwargs: # optional
         staging_configuration:
           -  2.74709 # j2n6s200_joint_1
@@ -92,7 +92,7 @@ ada_feeding_action_servers:
           - 0.6 # x, rad
           - 3.14159 # y, rad
           - 0.5 # z, rad
-        allowed_planning_time: 1.0 # secs
+        allowed_planning_time_to_staging_configuration: 1.0 # secs
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToStowLocation action

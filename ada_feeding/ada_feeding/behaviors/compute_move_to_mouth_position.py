@@ -125,7 +125,7 @@ class ComputeMoveToMouthPosition(py_trees.behaviour.Behaviour):
                     face_detection.detected_mouth_center,
                     self.target_position_frame_id,
                 )
-        except Exception as e:
+        except tf2.ExtrapolationException as e:
             self.logger.error(
                 "%s [ComputeMoveToMouthPosition::update()] "
                 "Failed to transform face detection result to base frame: %s: %s"
