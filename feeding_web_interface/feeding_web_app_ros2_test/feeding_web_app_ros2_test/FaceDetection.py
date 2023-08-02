@@ -166,13 +166,13 @@ class FaceDetectionNode(Node):
                 face_detection_msg.detected_mouth_center = PointStamped()
                 face_detection_msg.detected_mouth_center.header = msg.header
                 face_detection_msg.detected_mouth_center.point.x = (
-                    0.049 + (np.random.rand() - 0.5) / 10
+                    0.044 + (np.random.rand() - 0.5) / 10
                 )
                 face_detection_msg.detected_mouth_center.point.y = (
-                    -0.177 + (np.random.rand() - 0.5) / 10
+                    -0.130 + (np.random.rand() - 0.5) / 10
                 )
                 face_detection_msg.detected_mouth_center.point.z = (
-                    0.642 + (np.random.rand() - 0.5) / 10
+                    0.654 + (np.random.rand() - 0.5) / 10
                 )
             else:
                 annotated_img = msg
