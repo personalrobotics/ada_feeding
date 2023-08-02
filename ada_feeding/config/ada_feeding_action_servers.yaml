@@ -81,6 +81,7 @@ ada_feeding_action_servers:
         - tolerance_orientation_path
         - parameterization_orientation_path
         - weight_orientation_path
+        - allowed_planning_time
       tree_kwargs: # optional
         action_type_class_str: ada_feeding_msgs.action.MoveTo # required
         joint_positions_goal:
@@ -102,6 +103,7 @@ ada_feeding_action_servers:
           - 0.5 # z, rad
         parameterization_orientation_path: 1 # 0: Euler, 1: Rotation Vector
         weight_orientation_path: 1.0
+        allowed_planning_time: 1.0 # secs
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToStowLocation action

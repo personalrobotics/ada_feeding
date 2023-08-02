@@ -83,6 +83,10 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.move_to_blackboard.register_key(
             key="planner_id", access=py_trees.common.Access.READ
         )
+        # Add the ability to set an allowed planning time
+        self.move_to_blackboard.register_key(
+            key="allowed_planning_time", access=py_trees.common.Access.READ
+        )
         # Initialize the blackboard to read from the parent behavior tree
         self.tree_blackboard = self.attach_blackboard_client(
             name=name + " MoveTo", namespace=tree_name
@@ -144,6 +148,11 @@ class MoveTo(py_trees.behaviour.Behaviour):
             get_from_blackboard_with_default(
                 self.move_to_blackboard, "planner_id", "RRTstarkConfigDefault"
             )
+        )
+
+        # Set the allowed planning time
+        self.moveit2.allowed_planning_time = get_from_blackboard_with_default(
+            self.move_to_blackboard, "allowed_planning_time", 0.5
         )
 
         # Reset local state variables
