@@ -10,20 +10,20 @@ ada_planning_scene:
     # orientation relative to the robot's base frame.
     wheelchair: # the wheelchair mesh
       filename: wheelchair.stl
-      position: [0.02, -0.04, 0.0]
+      position: [0.02, -0.02, -0.05]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
     # an expanded mesh around the wheelchair to account for a user sitting in it
     wheelchair_collision: 
       filename: wheelchair_collision.stl
-      position: [0.02, -0.04, 0.0] # should match the wheelchair position
+      position: [0.02, -0.02, -0.05] # should match the wheelchair position
       quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
     table: # the table mesh
       filename: table.stl
-      position: [0.08, -0.52, -0.45]
+      position: [0.08, -0.5, -0.45]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
     head: # the head mesh
       filename: tom.stl
       # This is an initial guess of head position; it will be updated as the
       # robot perceives the face.
-      position: [0.29, 0.35, 0.9]
+      position: [0.29, 0.35, 0.85]
       quat_xyzw: [-0.0616284, -0.0616284, -0.704416, 0.704416]
