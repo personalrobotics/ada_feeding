@@ -124,9 +124,7 @@ class MoveToConfigurationTree(MoveToTree):
         self.blackboard.set(tolerance_key, self.tolerance)
         self.blackboard.set(weight_key, self.weight)
         self.blackboard.set(planner_id_key, self.planner_id)
-        self.blackboard.set(
-            allowed_planning_time_key, self.allowed_planning_time
-        )
+        self.blackboard.set(allowed_planning_time_key, self.allowed_planning_time)
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])
