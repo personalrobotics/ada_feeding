@@ -1,14 +1,18 @@
 <launch>
 
   <!-- What nodes to run -->
-  <arg name="run_perception" default="true" description="Whether to run the dummy perception nodes" />
+  <arg name="run_web_bridge" default="true"  description="Whether to run rosbridge and web_video_server" />
+  <arg name="run_food_detection" default="true" description="Whether to run the dummy food detectoion node" />
+  <arg name="run_face_detection" default="true" description="Whether to run the dummy face detection node" />
   <arg name="run_real_sense" default="true" description="Whether to run the dummy RealSense node" />
   <arg name="run_motion" default="true"  description="Whether to run the dummy motion nodes" />
 
-  <!-- The ROSBridge Node -->
-  <include file="$(find-pkg-share rosbridge_server)/launch/rosbridge_websocket_launch.xml"/>
-  <!-- The ROS web_video_server -->
-  <node pkg="web_video_server" exec="web_video_server" name="web_video_server"/>
+  <group if="$(var run_web_bridge)">
+    <!-- The ROSBridge Node -->
+    <include file="$(find-pkg-share rosbridge_server)/launch/rosbridge_websocket_launch.xml"/>
+    <!-- The ROS web_video_server -->
+    <node pkg="web_video_server" exec="web_video_server" name="web_video_server"/>
+  </group>
 
   <!-- The dummy nodes -->
 
@@ -17,9 +21,14 @@
     <node pkg="feeding_web_app_ros2_test" exec="DummyRealSense" name="DummyRealSense"/>
   </group>
 
-  <group if="$(var run_perception)">
+  <group if="$(var run_food_detection)">
     <!-- Perception: The SegmentFromPoint node -->
     <node pkg="feeding_web_app_ros2_test" exec="SegmentFromPoint" name="SegmentFromPoint"/>
+  </group>
+
+  <group if="$(var run_face_detection)">
+    <!-- Perception: The FaceDetection node -->
+    <node pkg="feeding_web_app_ros2_test" exec="FaceDetection" name="FaceDetection"/>
   </group>
   
   <group if="$(var run_motion)">

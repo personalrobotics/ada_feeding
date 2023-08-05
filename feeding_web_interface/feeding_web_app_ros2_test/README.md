@@ -15,7 +15,8 @@ To launch the dummy nodes, rosbridge, and web_video_server, run `source install/
 
 You can also toggle off certain combinations of dummy nodes with arguments:
 - **Don't run motion nodes**: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false`
-- **Don't run perception nodes**: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_perception:=false`
-- **Don't run the RealSense nodes**: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_real_sense:=false`
+- **Don't run the face detection node**: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml :run_face_detection=false`
+- **Don't run the food detection node**: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml :run_food_detection=false`
+- **Don't run the RealSense node**: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_real_sense:=false`
 
 You can also combine any of the above arguments.
