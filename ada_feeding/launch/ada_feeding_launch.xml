@@ -15,7 +15,7 @@
   </node>
 
   <!-- Launch the action servers necessary to move the robot -->
-  <node pkg="ada_feeding" exec="create_action_servers.py" name="ada_feeding_action_servers">
+  <node pkg="ada_feeding" exec="create_action_servers.py" name="ada_feeding_action_servers" respawn="true">
     <param from="$(find-pkg-share ada_feeding)/config/ada_feeding_action_servers.yaml"/>
     <remap from="~/watchdog" to="/ada_watchdog/watchdog" />
     <remap from="~/toggle_watchdog_listener" to="/ada_watchdog_listener/toggle_watchdog_listener" />
