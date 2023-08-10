@@ -16,6 +16,8 @@ uint8 status
 
 # The header for the image that the masks corresponds to
 std_msgs/Header header
+# The camera intrinsics
+sensor_msgs/CameraInfo camera_info
 # Contender masks that contain seed_point
 ada_feeding_msgs/Mask[] detected_items
 ---

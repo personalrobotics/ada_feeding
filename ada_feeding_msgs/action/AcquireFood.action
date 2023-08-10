@@ -5,6 +5,8 @@
 
 # The header for the image that the mask corresponds to
 std_msgs/Header header
+# The camera intrinsics
+sensor_msgs/CameraInfo camera_info
 # The mask for the food item the robot should acquire
 ada_feeding_msgs/Mask detected_food
 ---

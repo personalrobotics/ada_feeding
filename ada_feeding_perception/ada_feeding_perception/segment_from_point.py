@@ -21,7 +21,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from segment_anything import sam_model_registry, SamPredictor
-from sensor_msgs.msg import CompressedImage, Image, RegionOfInterest
+from sensor_msgs.msg import CameraInfo, CompressedImage, Image, RegionOfInterest
 import torch
 
 # Local imports
@@ -78,7 +78,28 @@ class SegmentFromPointNode(Node):
         self.active_goal_request_lock = threading.Lock()
         self.active_goal_request = None
 
-        # Subscribe to the image topic, to store the latest image
+        # Subscribe to the camera info topic, to get the camera intrinsics
+        self.camera_info_subscriber = self.create_subscription(
+            CameraInfo,
+            "/camera/color/camera_info",
+            self.camera_info_callback,
+            1,
+        )
+        self.camera_info = None
+        self.camera_info_lock = threading.Lock()
+
+        # Subscribe to the aligned depth image topic, to store the latest depth image
+        # NOTE: We assume this is in the same frame as the RGB image
+        self.depth_image_subscriber = self.create_subscription(
+            Image,
+            "/camera/aligned_depth_to_color/image_raw",
+            self.depth_image_callback,
+            1,
+        )
+        self.latest_depth_img_msg = None
+        self.latest_depth_img_msg_lock = threading.Lock()
+
+        # Subscribe to the RGB image topic, to store the latest image
         self.image_subscriber = self.create_subscription(
             Image,
             "/camera/color/image_raw",
@@ -191,6 +212,28 @@ class SegmentFromPointNode(Node):
         )
         self.get_logger().info("...Done!")
 
+    def camera_info_callback(self, msg: CameraInfo) -> None:
+        """
+        Store the latest camera info message.
+
+        Parameters
+        ----------
+        msg: The camera info message.
+        """
+        with self.camera_info_lock:
+            self.camera_info = msg
+
+    def depth_image_callback(self, msg: Image) -> None:
+        """
+        Store the latest depth image message.
+
+        Parameters
+        ----------
+        msg: The depth image message.
+        """
+        with self.latest_depth_img_msg_lock:
+            self.latest_depth_img_msg = msg
+
     def image_callback(self, msg: Image) -> None:
         """
         Store the latest image message.
@@ -260,10 +303,21 @@ class SegmentFromPointNode(Node):
         # Create the result
         result = SegmentFromPoint.Result()
         result.header = image_msg.header
+        with self.camera_info_lock:
+            result.camera_info = self.camera_info
+
+        # Get the latest depth image
+        with self.latest_depth_img_msg_lock:
+            depth_img_msg = self.latest_depth_img_msg
 
         # Convert the image to OpenCV format
         image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # Convert the depth image to OpenCV format
+        depth_img = self.bridge.imgmsg_to_cv2(
+            depth_img_msg, desired_encoding="passthrough"
+        )
 
         # Segment the image
         input_point = np.array([seed_point])
@@ -287,6 +341,10 @@ class SegmentFromPointNode(Node):
             # the seed point
             # TODO: Thorughly test this, in case we need to add more mask cleaning!
             cleaned_mask = get_connected_component(mask, seed_point)
+            # Get the average depth over the mask
+            average_depth_mm = sum(
+                np.where(cleaned_mask, depth_img, 0).astype(np.uint8)
+            ) / np.sum(cleaned_mask)
             # Compute the bounding box
             bbox = bbox_from_mask(cleaned_mask)
             # Crop the image and the mask
@@ -309,6 +367,7 @@ class SegmentFromPointNode(Node):
                 format="jpeg",
                 data=cv2.imencode(".jpg", mask_img)[1].tostring(),
             )
+            mask_msg.average_depth = average_depth_mm / 1000.0
             mask_msg.item_id = "food_id_%d" % (mask_num)
             mask_msg.confidence = score.item()
             result.detected_items.append(mask_msg)
