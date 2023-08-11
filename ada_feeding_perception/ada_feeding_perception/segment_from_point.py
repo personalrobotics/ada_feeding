@@ -263,6 +263,10 @@ class SegmentFromPointNode(Node):
         goal_request: The goal request message.
         """
         self.get_logger().info("Received goal request")
+        with self.latest_depth_img_msg_lock:
+            if self.latest_depth_img_msg is None:
+                self.get_logger().info("Rejecting goal request since no depth image recv")
+                return GoalResponse.REJECT
         with self.active_goal_request_lock:
             if self.active_goal_request is None:
                 self.get_logger().info("Accepting goal request")
@@ -342,8 +346,8 @@ class SegmentFromPointNode(Node):
             # TODO: Thorughly test this, in case we need to add more mask cleaning!
             cleaned_mask = get_connected_component(mask, seed_point)
             # Get the average depth over the mask
-            average_depth_mm = sum(
-                np.where(cleaned_mask, depth_img, 0).astype(np.uint8)
+            average_depth_mm = np.sum(
+                np.where(cleaned_mask, depth_img, 0)
             ) / np.sum(cleaned_mask)
             # Compute the bounding box
             bbox = bbox_from_mask(cleaned_mask)
