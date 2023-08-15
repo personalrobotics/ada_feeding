@@ -91,6 +91,9 @@ class SegmentFromPointNode(Node):
         self.camera_info = None
         self.camera_info_lock = threading.Lock()
 
+        # Initialize Segment Anything
+        self.initialize_food_segmentation()
+
         # Subscribe to the aligned depth image topic, to store the latest depth image
         # NOTE: We assume this is in the same frame as the RGB image
         aligned_depth_topic = "/aligned_depth"
@@ -248,10 +251,6 @@ class SegmentFromPointNode(Node):
         msg: The image message.
         """
         with self.latest_img_msg_lock:
-            # Only create the action server after we have received at least one
-            # image
-            if self.latest_img_msg is None:
-                self.initialize_food_segmentation()
             self.latest_img_msg = msg
 
     def goal_callback(self, goal_request: SegmentFromPoint.Goal) -> GoalResponse:
@@ -268,10 +267,16 @@ class SegmentFromPointNode(Node):
         goal_request: The goal request message.
         """
         self.get_logger().info("Received goal request")
+        with self.latest_img_msg_lock:
+            if self.latest_img_msg is None:
+                self.get_logger().info(
+                    "Rejecting goal request since no color image received"
+                )
+                return GoalResponse.REJECT
         with self.latest_depth_img_msg_lock:
             if self.latest_depth_img_msg is None:
                 self.get_logger().info(
-                    "Rejecting goal request since no depth image recv"
+                    "Rejecting goal request since no depth image received"
                 )
                 return GoalResponse.REJECT
         with self.active_goal_request_lock:
@@ -279,7 +284,9 @@ class SegmentFromPointNode(Node):
                 self.get_logger().info("Accepting goal request")
                 self.active_goal_request = goal_request
                 return GoalResponse.ACCEPT
-            self.get_logger().info("Rejecting goal request")
+            self.get_logger().info(
+                "Rejecting goal request since there is already an active one"
+            )
             return GoalResponse.REJECT
 
     def cancel_callback(self, _: ServerGoalHandle) -> CancelResponse:
