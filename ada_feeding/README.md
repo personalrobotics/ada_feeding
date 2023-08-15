@@ -6,7 +6,7 @@ The `ada_feeding` package contains the overarching code to run the robot-assiste
 
 This code has been developed and tested with the Kinova JACO Gen2 Arm, on computers running Ubuntu 22.04. To get started:
 - Install [ROS2 Humble](https://docs.ros.org/en/humble/Installation.html)
-- Install Python dependencies: `python3 -m pip install pyyaml py_trees bson pymongo tornado trimesh`
+- Install Python dependencies: `python3 -m pip install pyyaml py_trees pymongo tornado trimesh`
 - Install the code to command the real robot ([instructions here](https://github.com/personalrobotics/ada_ros2/blob/main/README.md))
 - Install the web app into your workspace ([instructions here](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp)).
 
