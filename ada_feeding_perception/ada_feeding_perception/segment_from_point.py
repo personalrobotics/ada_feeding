@@ -325,7 +325,8 @@ class SegmentFromPointNode(Node):
         image = ros_msg_to_cv2_image(image_msg, self.bridge)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        # Convert the depth image to OpenCV format
+        # Convert the depth image to OpenCV format. The depth image is a
+        # 16-bit image with depth in mm.
         depth_img = ros_msg_to_cv2_image(depth_img_msg, self.bridge)
 
         # Segment the image
@@ -349,6 +350,7 @@ class SegmentFromPointNode(Node):
             # Clean the mask to only contain the connected component containing
             # the seed point
             # TODO: Thorughly test this, in case we need to add more mask cleaning!
+            # Erosion/dilation could be useful if more mask cleaning is necessary.
             cleaned_mask = get_connected_component(mask, seed_point)
             # Get the average depth over the mask
             average_depth_mm = np.sum(np.where(cleaned_mask, depth_img, 0)) / np.sum(

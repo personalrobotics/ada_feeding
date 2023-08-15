@@ -17,10 +17,11 @@ For testing, be sure to unzip `test/food_img.zip`.
 2. Source your workspace: `source install/setup.bash`
 3. Run the action servers: `ros2 launch ada_feeding_perception ada_feeding_perception_launch.xml`
 4. Launch the motion nodes:
-    1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_real_sense:=false run_perception:=false`
+    1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_real_sense:=false run_face_detection:=false run_food_detection:=false`
     2. Real nodes: `ros2 launch ada_feeding ada_feeding_launch.xml`
 5. Launch the RealSense node:
-    1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false run_perception:=false`
+    1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false run_face_detection:=false run_food_detection:=false`
+        1. NOTE: SegmentFromPoint will no longer work with only the dummy RealSense node, since the dummy RealSense only publishes a color image, whereas SegmentFromPoint also expects a depth image.
     2. Real nodes:
         1. SSH into the `nano` user of `nano`: On a pre-configured lab computer, this should be `ssh nano`. Else, look here for [the IP address of nano](https://github.com/personalrobotics/pr_docs/wiki/Networking-and-SSH-Information).
         2. On `nano`:
