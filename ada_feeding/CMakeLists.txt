@@ -33,6 +33,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   scripts/create_action_servers.py
   scripts/ada_watchdog.py
+  scripts/ada_planning_scene.py
   scripts/dummy_ft_sensor.py
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -46,6 +47,12 @@ install(DIRECTORY
 # Install config files.
 install(DIRECTORY
   config
+  DESTINATION share/${PROJECT_NAME}/
+)
+
+# Install assets.
+install(DIRECTORY
+  assets
   DESTINATION share/${PROJECT_NAME}/
 )
 

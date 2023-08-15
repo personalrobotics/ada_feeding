@@ -40,6 +40,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         weight_orientation_goal: float = 1.0,
         cartesian: bool = False,
         planner_id: str = "RRTstarkConfigDefault",
+        allowed_planning_time: float = 0.5,
         # Optional parameters for the pose path constraint
         position_path: Tuple[float, float, float] = None,
         quat_xyzw_path: Tuple[float, float, float, float] = None,
@@ -72,7 +73,9 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         weight_position_goal: the weight for the position goal.
         weight_orientation_goal: the weight for the orientation goal.
         cartesian: whether to use cartesian path planning.
-        planner_id: the planner ID to use for the MoveIt2 motion planning.
+        planner_id: the planner ID to use for MoveIt2 motion planning.
+        allowed_planning_time: the allowed planning time for the MoveIt2 motion
+            planner..
         position_path: the target position relative to frame_id for path constraints.
         quat_xyzw_path: the target orientation relative to frame_id for path constraints.
         frame_id_path: the frame id of the target pose for path constraints. If None,
@@ -102,6 +105,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         self.weight_orientation_goal = weight_orientation_goal
         self.cartesian = cartesian
         self.planner_id = planner_id
+        self.allowed_planning_time = allowed_planning_time
 
         # Store the parameters for the pose path constraint
         self.position_path = position_path
@@ -150,6 +154,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
                 weight_orientation=self.weight_orientation_goal,
                 cartesian=self.cartesian,
                 planner_id=self.planner_id,
+                allowed_planning_time=self.allowed_planning_time,
             )
             .create_tree(name, logger, node)
             .root

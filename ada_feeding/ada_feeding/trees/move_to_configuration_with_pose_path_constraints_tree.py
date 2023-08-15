@@ -34,6 +34,7 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         tolerance_joint_goal: float = 0.001,
         weight_joint_goal: float = 1.0,
         planner_id: str = "RRTstarkConfigDefault",
+        allowed_planning_time: float = 0.5,
         # Optional parameters for the pose path constraint
         position_path: Tuple[float, float, float] = None,
         quat_xyzw_path: Tuple[float, float, float, float] = None,
@@ -57,7 +58,9 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         joint_positions_goal: The joint positions for the goal constraint.
         tolerance_joint_goal: The tolerance for the joint goal constraint.
         weight_joint_goal: The weight for the joint goal constraint.
-        planner_id: The planner ID to use for the MoveIt2 motion planning.
+        planner_id: The planner ID to use for MoveIt2 motion planning.
+        allowed_planning_time: The allowed planning time for the MoveIt2 motion
+            planner.
         position_path: the position for the path constraint.
         quat_xyzw_path: the orientation for the path constraint.
         frame_id: the frame id of the target pose, for the pose path constraint.
@@ -84,6 +87,7 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         self.tolerance_joint_goal = tolerance_joint_goal
         self.weight_joint_goal = weight_joint_goal
         self.planner_id = planner_id
+        self.allowed_planning_time = allowed_planning_time
 
         # Store the parameters for the pose path constraint
         self.position_path = position_path
@@ -125,6 +129,7 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
                 tolerance=self.tolerance_joint_goal,
                 weight=self.weight_joint_goal,
                 planner_id=self.planner_id,
+                allowed_planning_time=self.allowed_planning_time,
             )
             .create_tree(name, logger, node)
             .root

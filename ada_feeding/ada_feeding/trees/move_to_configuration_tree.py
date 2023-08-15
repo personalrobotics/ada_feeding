@@ -32,6 +32,7 @@ class MoveToConfigurationTree(MoveToTree):
         tolerance: float = 0.001,
         weight: float = 1.0,
         planner_id: str = "RRTstarkConfigDefault",
+        allowed_planning_time: float = 0.5,
     ):
         """
         Initializes tree-specific parameters.
@@ -46,6 +47,8 @@ class MoveToConfigurationTree(MoveToTree):
         tolerance: The tolerance for the joint positions.
         weight: The weight for the joint goal constraint.
         planner_id: The planner ID to use for the MoveIt2 motion planning.
+        allowed_planning_time: The allowed planning time for the MoveIt2 motion
+            planner.
         """
         # Initialize MoveToTree
         super().__init__(action_type_class_str)
@@ -56,6 +59,7 @@ class MoveToConfigurationTree(MoveToTree):
         self.tolerance = tolerance
         self.weight = weight
         self.planner_id = planner_id
+        self.allowed_planning_time = allowed_planning_time
 
     def create_move_to_tree(
         self,
@@ -108,12 +112,19 @@ class MoveToConfigurationTree(MoveToTree):
         self.blackboard.register_key(
             key=planner_id_key, access=py_trees.common.Access.WRITE
         )
+        allowed_planning_time_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "allowed_planning_time"]
+        )
+        self.blackboard.register_key(
+            key=allowed_planning_time_key, access=py_trees.common.Access.WRITE
+        )
 
         # Write the inputs to MoveToConfiguration to blackboard
         self.blackboard.set(joint_positions_key, self.joint_positions)
         self.blackboard.set(tolerance_key, self.tolerance)
         self.blackboard.set(weight_key, self.weight)
         self.blackboard.set(planner_id_key, self.planner_id)
+        self.blackboard.set(allowed_planning_time_key, self.allowed_planning_time)
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])

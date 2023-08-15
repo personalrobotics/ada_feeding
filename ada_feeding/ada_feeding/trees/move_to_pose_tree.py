@@ -42,6 +42,7 @@ class MoveToPoseTree(MoveToTree):
         weight_orientation: float = 1.0,
         cartesian: bool = False,
         planner_id: str = "RRTstarkConfigDefault",
+        allowed_planning_time: float = 0.5,
     ):
         """
         Initializes tree-specific parameters.
@@ -65,6 +66,7 @@ class MoveToPoseTree(MoveToTree):
         weight_orientation: the weight for the end effector orientation.
         cartesian: whether to use cartesian path planning.
         planner_id: the planner to use for path planning.
+        allowed_planning_time: the allowed planning time for path planning.
         """
         # Initialize MoveTo
         super().__init__(action_type_class_str)
@@ -81,6 +83,7 @@ class MoveToPoseTree(MoveToTree):
         self.weight_orientation = weight_orientation
         self.cartesian = cartesian
         self.planner_id = planner_id
+        self.allowed_planning_time = allowed_planning_time
 
     def create_move_to_tree(
         self,
@@ -190,6 +193,12 @@ class MoveToPoseTree(MoveToTree):
         self.blackboard.register_key(
             key=planner_id_key, access=py_trees.common.Access.WRITE
         )
+        allowed_planning_time_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "allowed_planning_time"]
+        )
+        self.blackboard.register_key(
+            key=allowed_planning_time_key, access=py_trees.common.Access.WRITE
+        )
 
         # Write the inputs to MoveToPose to blackboard
         self.blackboard.set(position_key, self.position)
@@ -205,6 +214,7 @@ class MoveToPoseTree(MoveToTree):
         self.blackboard.set(orientation_weight_key, self.weight_orientation)
         self.blackboard.set(cartesian_key, self.cartesian)
         self.blackboard.set(planner_id_key, self.planner_id)
+        self.blackboard.set(allowed_planning_time_key, self.allowed_planning_time)
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])
