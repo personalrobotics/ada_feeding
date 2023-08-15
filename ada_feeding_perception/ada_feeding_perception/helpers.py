@@ -12,6 +12,7 @@ from urllib.request import urlretrieve
 import cv2
 from cv_bridge import CvBridge
 import numpy as np
+import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage, Image
 from skimage.morphology import flood_fill
@@ -42,7 +43,7 @@ def ros_msg_to_cv2_image(
             bridge = CvBridge()
         return bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
     if isinstance(msg, CompressedImage):
-        return cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_ANYDEPTH)
+        return cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_UNCHANGED)
     raise ValueError("msg must be a ROS Image or CompressedImage")
 
 
@@ -93,6 +94,9 @@ def get_img_msg_type(topic: str, node: Node) -> type:
     -------
     the type of the image message on the given topic, either Image or CompressedImage
     """
+    # Spin the node once to get the publishers list
+    rclpy.spin_once(node)
+
     # Resolve the topic name (e.g., handle remappings)
     final_topic = node.resolve_topic_name(topic)
 
@@ -107,7 +111,7 @@ def get_img_msg_type(topic: str, node: Node) -> type:
         if endpoint.topic_type == "sensor_msgs/msg/Image":
             return Image
     raise ValueError(
-        "Topic %s has non-image type. Endpoints: %s"
+        "No publisher found with img type for topic %s. Publishers: %s"
         % (final_topic, [str(endpoint) for endpoint in topic_endpoints])
     )
 
