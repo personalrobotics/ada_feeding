@@ -54,7 +54,7 @@ function Home(props) {
    * the action input changes (even on re-renders).
    */
   const moveAbovePlateActionInput = useMemo(() => ({}), [])
-  const biteAcquisitionActionInput = useMemo(() => ({ detected_food: desiredFoodItem }), [desiredFoodItem])
+  const biteAcquisitionActionInput = useMemo(() => desiredFoodItem, [desiredFoodItem])
   const moveToRestingPositionActionInput = useMemo(() => ({}), [])
   const moveToMouthActionInput = useMemo(() => ({}), [])
   const moveToStowPositionActionInput = useMemo(() => ({}), [])

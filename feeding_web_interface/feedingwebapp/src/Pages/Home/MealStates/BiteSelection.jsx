@@ -120,7 +120,11 @@ const BiteSelection = (props) => {
   const foodItemClicked = useCallback(
     (event) => {
       let food_i = Number(event.target.value)
-      setDesiredFoodItem(actionResult.detected_items[food_i])
+      setDesiredFoodItem({
+        header: actionResult.header,
+        camera_info: actionResult.camera_info,
+        detected_food: actionResult.detected_items[food_i]
+      })
       setMealState(MEAL_STATE.R_BiteAcquisition)
     },
     [actionResult, setDesiredFoodItem, setMealState]
