@@ -81,7 +81,7 @@ class SegmentFromPointNode(Node):
         # Subscribe to the camera info topic, to get the camera intrinsics
         self.camera_info_subscriber = self.create_subscription(
             CameraInfo,
-            "/camera/color/camera_info",
+            "/camera_info",
             self.camera_info_callback,
             1,
         )
@@ -92,7 +92,7 @@ class SegmentFromPointNode(Node):
         # NOTE: We assume this is in the same frame as the RGB image
         self.depth_image_subscriber = self.create_subscription(
             Image,
-            "/camera/aligned_depth_to_color/image_raw",
+            "/aligned_depth",
             self.depth_image_callback,
             1,
         )
@@ -102,7 +102,7 @@ class SegmentFromPointNode(Node):
         # Subscribe to the RGB image topic, to store the latest image
         self.image_subscriber = self.create_subscription(
             Image,
-            "/camera/color/image_raw",
+            "/image",
             self.image_callback,
             1,
         )
