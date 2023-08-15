@@ -7,7 +7,7 @@ point using Segment Anything, and returns the top n contender masks.
 # Standard imports
 import os
 import threading
-from typing import Tuple
+from typing import Tuple, Union
 
 # Third-party imports
 import cv2
@@ -30,8 +30,11 @@ from ada_feeding_msgs.msg import Mask
 from ada_feeding_perception.helpers import (
     bbox_from_mask,
     crop_image_mask_and_point,
+    cv2_image_to_ros_msg,
     download_checkpoint,
     get_connected_component,
+    get_img_msg_type,
+    ros_msg_to_cv2_image,
 )
 
 
@@ -90,9 +93,10 @@ class SegmentFromPointNode(Node):
 
         # Subscribe to the aligned depth image topic, to store the latest depth image
         # NOTE: We assume this is in the same frame as the RGB image
+        aligned_depth_topic = "/aligned_depth"
         self.depth_image_subscriber = self.create_subscription(
-            Image,
-            "/aligned_depth",
+            get_img_msg_type(aligned_depth_topic, self),
+            aligned_depth_topic,
             self.depth_image_callback,
             1,
         )
@@ -100,9 +104,10 @@ class SegmentFromPointNode(Node):
         self.latest_depth_img_msg_lock = threading.Lock()
 
         # Subscribe to the RGB image topic, to store the latest image
+        image_topic = "/image"
         self.image_subscriber = self.create_subscription(
-            Image,
-            "/image",
+            get_img_msg_type(image_topic, self),
+            image_topic,
             self.image_callback,
             1,
         )
@@ -223,7 +228,7 @@ class SegmentFromPointNode(Node):
         with self.camera_info_lock:
             self.camera_info = msg
 
-    def depth_image_callback(self, msg: Image) -> None:
+    def depth_image_callback(self, msg: Union[Image, CompressedImage]) -> None:
         """
         Store the latest depth image message.
 
@@ -234,7 +239,7 @@ class SegmentFromPointNode(Node):
         with self.latest_depth_img_msg_lock:
             self.latest_depth_img_msg = msg
 
-    def image_callback(self, msg: Image) -> None:
+    def image_callback(self, msg: Union[Image, CompressedImage]) -> None:
         """
         Store the latest image message.
 
@@ -265,7 +270,9 @@ class SegmentFromPointNode(Node):
         self.get_logger().info("Received goal request")
         with self.latest_depth_img_msg_lock:
             if self.latest_depth_img_msg is None:
-                self.get_logger().info("Rejecting goal request since no depth image recv")
+                self.get_logger().info(
+                    "Rejecting goal request since no depth image recv"
+                )
                 return GoalResponse.REJECT
         with self.active_goal_request_lock:
             if self.active_goal_request is None:
@@ -315,13 +322,11 @@ class SegmentFromPointNode(Node):
             depth_img_msg = self.latest_depth_img_msg
 
         # Convert the image to OpenCV format
-        image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")
+        image = ros_msg_to_cv2_image(image_msg, self.bridge)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         # Convert the depth image to OpenCV format
-        depth_img = self.bridge.imgmsg_to_cv2(
-            depth_img_msg, desired_encoding="passthrough"
-        )
+        depth_img = ros_msg_to_cv2_image(depth_img_msg, self.bridge)
 
         # Segment the image
         input_point = np.array([seed_point])
@@ -346,9 +351,9 @@ class SegmentFromPointNode(Node):
             # TODO: Thorughly test this, in case we need to add more mask cleaning!
             cleaned_mask = get_connected_component(mask, seed_point)
             # Get the average depth over the mask
-            average_depth_mm = np.sum(
-                np.where(cleaned_mask, depth_img, 0)
-            ) / np.sum(cleaned_mask)
+            average_depth_mm = np.sum(np.where(cleaned_mask, depth_img, 0)) / np.sum(
+                cleaned_mask
+            )
             # Compute the bounding box
             bbox = bbox_from_mask(cleaned_mask)
             # Crop the image and the mask
@@ -367,10 +372,7 @@ class SegmentFromPointNode(Node):
                 width=int(bbox.xmax - bbox.xmin),
                 do_rectify=False,
             )
-            mask_msg.mask = CompressedImage(
-                format="jpeg",
-                data=cv2.imencode(".jpg", mask_img)[1].tostring(),
-            )
+            mask_msg.mask = cv2_image_to_ros_msg(mask_img, compress=True)
             mask_msg.average_depth = average_depth_mm / 1000.0
             mask_msg.item_id = "food_id_%d" % (mask_num)
             mask_msg.confidence = score.item()
