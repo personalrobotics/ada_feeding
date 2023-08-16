@@ -350,7 +350,9 @@ class CreateActionServers(Node):
         # Initialize the ActionServerBT object once
         tree_action_server = self._tree_classes[tree_class](**tree_kwargs)
         # Create the tree once
-        tree = tree_action_server.create_tree(server_name, action_type, self.get_logger(), self)
+        tree = tree_action_server.create_tree(
+            server_name, action_type, self.get_logger(), self
+        )
 
         async def execute_callback(goal_handle: ServerGoalHandle) -> Awaitable:
             """

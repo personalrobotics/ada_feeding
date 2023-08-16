@@ -50,7 +50,7 @@ class MoveToTree(ActionServerBT, ABC):
         Parameters
         ----------
         name: The name of the behavior tree.
-        action_type: full name of a Python class for the associated action, 
+        action_type: full name of a Python class for the associated action,
             can be converted to a type object with `import_from_string` in
             helpers.py
         logger: The logger to use for the behavior tree.
@@ -62,7 +62,7 @@ class MoveToTree(ActionServerBT, ABC):
         tree: The behavior tree that moves the robot above the plate.
         """
         self.create_blackboard(name)
-        
+
         # Import the action type
         self.action_type_class = import_from_string(action_type_class_str)
         self.action_type_class_str = action_type_class_str

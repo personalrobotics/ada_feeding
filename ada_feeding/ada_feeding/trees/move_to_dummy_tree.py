@@ -64,7 +64,7 @@ class MoveToDummyTree(ActionServerBT):
         Parameters
         ----------
         name: The name of the behavior tree.
-        action_type: full name of a Python class for the associated action, 
+        action_type: full name of a Python class for the associated action,
             can be converted to a type object with `import_from_string` in
             helpers.py
         logger: The logger to use for the behavior tree.
