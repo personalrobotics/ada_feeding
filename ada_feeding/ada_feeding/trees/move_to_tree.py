@@ -32,10 +32,10 @@ class MoveToTree(ActionServerBT, ABC):
     def __init__(
         self,
     ) -> None:
-        # Uninitialized attributes
-        self.action_type_class = None
-        self.action_type_class_str = ""
-        self.blackboard = None
+        """
+        Initializes tree-specific parameters.
+        """
+        pass
 
     def create_tree(
         self,

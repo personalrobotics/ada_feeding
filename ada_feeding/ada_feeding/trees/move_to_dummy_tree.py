@@ -37,8 +37,7 @@ class MoveToDummyTree(ActionServerBT):
         dummy_plan_time: How many seconds this dummy node should spend in planning.
         dummy_motion_time: How many seconds this dummy node should spend in motion.
         """
-        self.action_type_class = None
-
+        
         # Set the dummy motion parameters
         self.dummy_plan_time = dummy_plan_time
         self.dummy_motion_time = dummy_motion_time
