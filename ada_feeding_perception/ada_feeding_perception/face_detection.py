@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 """
-This file defines the FaceDetection class, which publishes a 3d PointStamped location
-of a detected mouth with respect to camera_depth_optical_frame.
+This file defines the FaceDetection class, which publishes a list of 3d PointStamped locations
+of detected mouths with respect to camera_depth_optical_frame.
 """
 from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding_msgs.srv import ToggleFaceDetection
@@ -26,12 +26,16 @@ from ada_feeding_perception.helpers import (
 
 
 class FaceDetectionNode(Node):
+    """
+    This node publishes a list of 3d PointStamped locations
+    of detected mouths with respect to camera_depth_optical_frame.
+    """
     def __init__(
         self,
     ):
         """
-        Initializes the FaceDetection node. This node exposes a ToggleFaceDetection
-        service that can be used to toggle the face detection on or off and
+        Initializes the FaceDetection node. This node exposes a toggle_face_detection
+        service that can be used to toggle the face detection on or off and 
         publishes information about detected faces to the /face_detection
         topic when face detection is on.
         """
@@ -78,12 +82,12 @@ class FaceDetectionNode(Node):
                 % os.path.join(model_dir.value, self.landmark_model_name)
             )
 
-        # Convert between ROS and CV images
-        self.bridge = CvBridge()
-
         # Keeps track of whether face detection is on or not
-        self.is_on = False
+
+        #CHANGE BEFORE PUSHING
+        self.is_on = True
         self.is_on_lock = Lock()
+        self.bridge = CvBridge()
 
         # Keeps track of the detected mouth center
         self.img_mouth_center = []
@@ -92,7 +96,7 @@ class FaceDetectionNode(Node):
         # Create the service
         self.srv = self.create_service(
             ToggleFaceDetection,
-            "ToggleFaceDetection",
+            "toggle_face_detection",
             self.toggle_face_detection_callback,
         )
 
@@ -100,13 +104,11 @@ class FaceDetectionNode(Node):
         self.img_subscription = self.create_subscription(
             Image, "camera/color/image_raw", self.camera_callback, 1
         )
-        self.img_subscription  # prevent unused variable warning
 
         # Subscribe to the depth image
         self.depth_subscription = self.create_subscription(
             Image, "/camera/depth/image_rect_raw", self.depth_callback, 1
         )
-        self.depth_subscription  # prevent unused variable warning
 
         # Create the publishers
         self.publisher_results = self.create_publisher(
@@ -184,76 +186,68 @@ class FaceDetectionNode(Node):
             ],
         )
 
-    def toggle_face_detection_callback(self, request, response):
+    def toggle_face_detection_callback(self, request: ToggleFaceDetection.Request, response: ToggleFaceDetection.Response) -> ToggleFaceDetection.Response:
         """
-        Callback function for the ToggleFaceDetection service. Safely toggles
+        Callback function for the toggle_face_detection service. Safely toggles
         the face detection on or off depending on the request.
         """
         self.get_logger().info(
             "Incoming service request. turn_on: %s" % (request.turn_on)
         )
-        if request.turn_on:
-            # Turn on face detection
-            self.is_on_lock.acquire()
-            self.is_on = True
-            self.is_on_lock.release()
-            response.face_detection_is_on = True
-        else:
-            self.is_on_lock.acquire()
-            self.is_on = False
-            self.is_on_lock.release()
-            response.face_detection_is_on = False
+        with self.is_on_lock:
+            self.is_on = request.turn_on
+        response.face_detection_is_on = request.turn_on
         return response
 
-    def depth_callback(self, msg):
+    def depth_callback(self, msg: Image):
         """
-        Callback function for depth images. If a face has been detected in the
-        most recent rgb image, this function publishes the 3d location of the
-        mouth on the /face_detection topic in the camera_depth_optical_frame
+        Callback function for depth images. If face_detection is on, this 
+        function publishes the 3d location of the mouth on the /face_detection 
+        topic in the camera_depth_optical_frame
         """
-        self.is_on_lock.acquire()
-        is_on = self.is_on
-        self.is_on_lock.release()
+
+        with self.is_on_lock:
+            is_on = self.is_on
 
         # Check if face detection is on and a face has been detected
-        if is_on and self.is_face_detected:
-            # Retrieve the 2d location of the mouth center
-            u = int(self.img_mouth_center[0])
-            v = int(self.img_mouth_center[1])
+        if is_on:
+            face_detection_msg = FaceDetection()
+            if self.is_face_detected:
+                # Retrieve the 2d location of the mouth center
+                u = int(self.img_mouth_center[0])
+                v = int(self.img_mouth_center[1])
 
-            # Retrieve the depth value for this 2d coordinate
-            width = msg.width
-            depth = msg.data[(u % width) + (v * width)]
+                # Retrieve the depth value for this 2d coordinate
+                width = msg.width
+                depth = msg.data[(u) + (v * width)]
 
-            # Create target 3d point
-            mouth_location = PointStamped()
-            mouth_location.header = msg.header
-            mouth_location.point.x = float(u)
-            mouth_location.point.y = float(v)
-            mouth_location.point.z = float(depth)
+                # Create target 3d point, with mm measurements converted to m
+                mouth_location = PointStamped()
+                mouth_location.header = msg.header
+                mouth_location.point.x = float(u)/1000.0
+                mouth_location.point.y = float(v)/1000.0
+                mouth_location.point.z = float(depth)/1000.0
+
+                face_detection_msg.detected_mouth_center = mouth_location
 
             # Publish 3d point
-            face_detection_msg = FaceDetection()
             face_detection_msg.is_face_detected = self.is_face_detected
-            face_detection_msg.detected_mouth_center = mouth_location
             self.publisher_results.publish(face_detection_msg)
 
-    def camera_callback(self, msg):
+    def camera_callback(self, msg: Image):
         """
         Callback function for the camera feed. If face detection is on, this
-        function will detect faces in the image and publish information about
-        them to the /face_detection topic.
+        function will detect faces in the image and store the location of
+        all detected mouths.
         """
-        self.is_on_lock.acquire()
-        is_on = self.is_on
-        self.is_on_lock.release()
+        with self.is_on_lock:
+            is_on = self.is_on
+
         if is_on:
             self.is_face_detected = False
-            image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
-            # Convert image to RGB colour
-            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image_rgb = self.bridge.imgmsg_to_cv2(msg, "rgb8")#cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_COLOR)
             # Convert image to Grayscale
-            image_gray = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2GRAY)
+            image_gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
 
             # Create an instance of the Face Detection Cascade Classifier
             detector = cv2.CascadeClassifier(self.face_model_path)
@@ -269,35 +263,34 @@ class FaceDetectionNode(Node):
                 landmark_detector = cv2.face.createFacemarkLBF()
                 landmark_detector.loadModel(self.landmark_model_path)
 
-                # Detect landmarks on image
+                # Detect landmarks (a 3d list) on image
+                # Relevant dimensions are 1: faces and 3: individual landmarks 0-68
                 _, landmarks = landmark_detector.fit(image_gray, faces)
-                for landmark in landmarks:
-                    count = 0
-                    # Add a dummy face marker to the image
-                    cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-                    for face in faces:
-                        # Draw a white coloured rectangle around each face
-                        (x, y, w, d) = face
-                        cv2.rectangle(
-                            cv_image, (x, y), (x + w, y + d), (255, 255, 255), 2
-                        )
 
-                # Display mouth landmarks (landmarks 48-67 are mouth landmarks, and the length of landmark[0] is 68)
-                for i in range(48, len(landmark[0])):
-                    x, y = landmark[0][i]
-                    cv2.circle(cv_image, (int(x), int(y)), 1, (0, 255, 0), 5)
+                # Add face markers to the image
+                for i in range(len(faces)):
+                    # Draw a white rectangle around each face
+                    (x, y, w, d) = faces[i]
+                    cv2.rectangle(
+                        image_rgb, (x, y), (x + w, y + d), (255, 255, 255), 2
+                    )
+                    # Display mouth landmarks (48-67, as explained in the below link)
+                    # https://pyimagesearch.com/2017/04/03/facial-landmarks-dlib-opencv-python/
+                    for j in range(48, 67):
+                        x, y = landmarks[i][0][j]
+                        cv2.circle(image_rgb, (int(x), int(y)), 1, (0, 255, 0), 5)
 
-                annotated_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
-                annotated_img = annotated_msg
+                #cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_COLOR)
+                annotated_msg = self.bridge.cv2_to_imgmsg(image_rgb, "rgb8")
 
                 # Find stomion (mouth center) in image
-                self.img_mouth_center = landmark[0][66]
+                self.img_mouth_center = landmarks[0][0][66]
 
             else:
-                annotated_img = msg
+                annotated_msg = msg
 
             # Publish annotated image with face and mouth landmarks
-            self.publisher_image.publish(annotated_img)
+            self.publisher_image.publish(annotated_msg)
 
 
 def main(args=None):
