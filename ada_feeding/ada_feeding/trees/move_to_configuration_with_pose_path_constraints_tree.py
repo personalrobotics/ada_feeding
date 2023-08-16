@@ -27,7 +27,6 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
 
     def __init__(
         self,
-        action_type_class_str: str,
         # Required parameters for moving to a configuration
         joint_positions_goal: List[float],
         # Optional parameters for moving to a configuration
@@ -51,10 +50,6 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
 
         Parameters
         ----------
-        action_type_class_str: The type of action that this tree is implementing,
-            e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
-            type can be anything, but the Feedback and Result must at a minimum
-            include the fields of ada_feeding_msgs.action.MoveTo
         joint_positions_goal: The joint positions for the goal constraint.
         tolerance_joint_goal: The tolerance for the joint goal constraint.
         weight_joint_goal: The weight for the joint goal constraint.
@@ -78,8 +73,7 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         weight_orientation_path: the weight for the end effector orientation path constraint.
         """
         # Initialize MoveToTree
-        self.action_type_class_str = action_type_class_str
-        super().__init__(action_type_class_str)
+        super().__init__()
 
         # Store the parameters for the joint goal constraint
         self.joint_positions_goal = joint_positions_goal
@@ -124,14 +118,13 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         # namespace as this tree
         move_to_configuration_root = (
             MoveToConfigurationTree(
-                action_type_class_str=self.action_type_class_str,
                 joint_positions=self.joint_positions_goal,
                 tolerance=self.tolerance_joint_goal,
                 weight=self.weight_joint_goal,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time,
             )
-            .create_tree(name, logger, node)
+            .create_tree(name, self.action_type_class_str, logger, node)
             .root
         )
 

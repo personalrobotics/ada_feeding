@@ -64,7 +64,10 @@ class ADAPlanningScene(Node):
             descriptor=ParameterDescriptor(
                 name="assets_dir",
                 type=ParameterType.PARAMETER_STRING,
-                description="The absolute path to the directory to find the assets (e.g., STL mesh files).",
+                description=(
+                    "The absolute path to the directory to find the assets "
+                    "(e.g., STL mesh files)."
+                ),
                 read_only=True,
             ),
         )
@@ -84,32 +87,32 @@ class ADAPlanningScene(Node):
         # Read the object parameters
         for object_id in object_ids.value:
             filename = self.declare_parameter(
-                "%s.filename" % object_id,
+                f"{object_id}.filename",
                 descriptor=ParameterDescriptor(
                     name="filename",
                     type=ParameterType.PARAMETER_STRING,
-                    description="The filename of the mesh for the '%s' object."
-                    % object_id,
+                    description=f"The filename of the mesh for the '{object_id}' object.",
                     read_only=True,
                 ),
             )
             position = self.declare_parameter(
-                "%s.position" % object_id,
+                f"{object_id}.position",
                 descriptor=ParameterDescriptor(
                     name="position",
                     type=ParameterType.PARAMETER_DOUBLE_ARRAY,
-                    description="The position of the '%s' object in the planning scene."
-                    % object_id,
+                    description=f"The position of the '{object_id}' object in the planning scene.",
                     read_only=True,
                 ),
             )
             quat_xyzw = self.declare_parameter(
-                "%s.quat_xyzw" % object_id,
+                f"{object_id}.quat_xyzw",
                 descriptor=ParameterDescriptor(
                     name="quat_xyzw",
                     type=ParameterType.PARAMETER_DOUBLE_ARRAY,
-                    description="The orientation of the '%s' object in the planning scene."
-                    % object_id,
+                    description=(
+                        f"The orientation of the '{object_id}'"
+                        " object in the planning scene."
+                    ),
                     read_only=True,
                 ),
             )

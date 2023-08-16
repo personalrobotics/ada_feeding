@@ -26,7 +26,6 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
 
     def __init__(
         self,
-        action_type_class_str: str,
         # Required parameters for moving to a pose
         position_goal: Tuple[float, float, float],
         quat_xyzw_goal: Tuple[float, float, float, float],
@@ -57,10 +56,6 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
 
         Parameters
         ----------
-        action_type_class_str: The type of action that this tree is implementing,
-            e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
-            type can be anything, but the Feedback and Result must at a minimum
-            include the fields of ada_feeding_msgs.action.MoveTo
         position_goal: the target position relative to frame_id.
         quat_xyzw_goal: the target orientation relative to frame_id.
         frame_id_goal: the frame id of the target pose. If None, the base link is used.
@@ -90,8 +85,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         weight_orientation_path: the weight for the orientation path.
         """
         # Initialize MoveToTree
-        self.action_type_class_str = action_type_class_str
-        super().__init__(action_type_class_str)
+        super().__init__()
 
         # Store the parameters for the move to pose behavior
         self.position_goal = position_goal
@@ -142,7 +136,6 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         # namespace as this tree
         move_to_pose_root = (
             MoveToPoseTree(
-                action_type_class_str=self.action_type_class_str,
                 position=self.position_goal,
                 quat_xyzw=self.quat_xyzw_goal,
                 frame_id=self.frame_id_goal,
@@ -156,7 +149,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time,
             )
-            .create_tree(name, logger, node)
+            .create_tree(name, self.action_type_class_str, logger, node)
             .root
         )
 

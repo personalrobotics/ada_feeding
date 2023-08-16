@@ -117,8 +117,11 @@ class ADAWatchdog(Node):
     """
     A watchdog node for the ADA robot. This node monitors the state of the
     force-torque sensor and the physical e-stop button (TODO), and publishes its
-    output to the /ada_watchdog topic.
+    output to the watchdog topic.
     """
+
+    # pylint: disable=too-many-instance-attributes
+    # Eleven is fine in this case.
 
     def __init__(self) -> None:
         """
@@ -132,7 +135,7 @@ class ADAWatchdog(Node):
         # Create a watchdog publisher
         self.watchdog_publisher = self.create_publisher(
             DiagnosticArray,
-            self.watchdog_topic.value,
+            "~/watchdog",
             1,
         )
 
@@ -143,21 +146,21 @@ class ADAWatchdog(Node):
         self.recv_first_ft_msg = False
         self.ft_sensor_condition_lock = Lock()
         ft_sensor_ok_message = (
-            "Over the last %f sec, the force-torque sensor has published data with nonzero variance"
-            % self.ft_timeout_sec.value
+            f"Over the last {self.ft_timeout_sec.value} sec, "
+            "the force-torque sensor has published data with nonzero variance"
         )
         self.ft_ok_status = DiagnosticStatus(
             level=DiagnosticStatus.OK,
-            name=self.ft_topic.value,
+            name="~/ft_topic",
             message=ft_sensor_ok_message,
         )
         ft_sensor_error_message = (
-            "Over the last %f sec, the force-torque sensor has either not published data or its data is zero-variance"
-            % self.ft_timeout_sec.value
+            f"Over the last {self.ft_timeout_sec.value} sec, the force-torque sensor"
+            "has either not published data or its data is zero-variance"
         )
         self.ft_error_status = DiagnosticStatus(
             level=DiagnosticStatus.ERROR,
-            name=self.ft_topic.value,
+            name="~/ft_topic",
             message=ft_sensor_error_message,
         )
 
@@ -167,7 +170,7 @@ class ADAWatchdog(Node):
         # Subscribe to the force-torque sensor topic
         self.ft_sensor_subscription = self.create_subscription(
             WrenchStamped,
-            self.ft_topic.value,
+            "~/ft_topic",
             self.ft_sensor_callback,
             rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value,
         )
@@ -182,33 +185,17 @@ class ADAWatchdog(Node):
         """
         Load parameters from the parameter server.
         """
-        self.ft_topic = self.declare_parameter(
-            "ft_topic",
-            "/wireless_ft/ftSensor1",
-            ParameterDescriptor(
-                name="ft_topic",
-                type=ParameterType.PARAMETER_STRING,
-                description="The name of topic that the force-torque sensor is publishing on",
-                read_only=True,
-            ),
-        )
         self.ft_timeout_sec = self.declare_parameter(
             "ft_timeout_sec",
             0.5,
             ParameterDescriptor(
                 name="ft_timeout_sec",
                 type=ParameterType.PARAMETER_DOUBLE,
-                description="The number of seconds within which the force-torque sensor must have: (a) published messages; and (b) had them be nonzero-variance",
-                read_only=True,
-            ),
-        )
-        self.watchdog_topic = self.declare_parameter(
-            "watchdog_topic",
-            "/ada_watchdog",
-            ParameterDescriptor(
-                name="watchdog_topic",
-                type=ParameterType.PARAMETER_STRING,
-                description="The name of the topic for the watchdog to publish on",
+                description=(
+                    "The number of seconds within which the force-torque"
+                    "sensor must have: (a) published messages; and (b) had"
+                    "them be nonzero-variance"
+                ),
                 read_only=True,
             ),
         )

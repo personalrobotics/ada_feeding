@@ -31,24 +31,16 @@ class MoveToTree(ActionServerBT, ABC):
 
     def __init__(
         self,
-        action_type_class_str: str,
     ) -> None:
         """
         Initializes tree-specific parameters.
-
-        Parameters
-        ----------
-        action_type_class_str: The type of action that this tree is implementing,
-            e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
-            type can be anything, but the Feedback and Result must at a minimum
-            include the fields of ada_feeding_msgs.action.MoveTo
         """
-        # Import the action type
-        self.action_type_class = import_from_string(action_type_class_str)
+        pass
 
     def create_tree(
         self,
         name: str,
+        action_type: str,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -58,6 +50,9 @@ class MoveToTree(ActionServerBT, ABC):
         Parameters
         ----------
         name: The name of the behavior tree.
+        action_type: full name of a Python class for the associated action,
+            can be converted to a type object with `import_from_string` in
+            helpers.py
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
@@ -67,7 +62,12 @@ class MoveToTree(ActionServerBT, ABC):
         tree: The behavior tree that moves the robot above the plate.
         """
         self.create_blackboard(name)
-        return self.create_move_to_tree(name, logger, node)
+
+        # Import the action type
+        self.action_type_class = import_from_string(action_type_class_str)
+        self.action_type_class_str = action_type_class_str
+
+        return self.create_move_to_tree(name, action_type_class_str, logger, node)
 
     def create_blackboard(self, name: str) -> None:
         """

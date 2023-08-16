@@ -1,9 +1,8 @@
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 ada_feeding_action_servers:
   ros__parameters:
-    # Parameters to specify the watchdog topic and timeout
-    watchdog_topic: /ada_watchdog
-    watchdog_timeout_sec: 0.5 # If we haven't received a message from the watchdog in this time, stop all robot motions
+    # If we haven't received a message from the watchdog in this time, stop all robot motions
+    watchdog_timeout_sec: 0.5
 
     # A list of the names of the action servers to create. Each one must have
     # it's own parameters (below) specifying action_type and tree_class.
@@ -21,10 +20,8 @@ ada_feeding_action_servers:
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveToConfigurationTree # required
       tree_kws: # optional
-        - action_type_class_str
         - joint_positions
       tree_kwargs: # optional
-        action_type_class_str: ada_feeding_msgs.action.MoveTo # required
         joint_positions: # required
           - -2.11666 # j2n6s200_joint_1
           -  3.34967 # j2n6s200_joint_2
@@ -39,11 +36,9 @@ ada_feeding_action_servers:
       action_type: ada_feeding_msgs.action.AcquireFood # required
       tree_class: ada_feeding.trees.MoveToDummyTree # required
       tree_kws: # optional
-        - action_type_class_str
         - dummy_plan_time
         - dummy_motion_time
       tree_kwargs: # optional
-        action_type_class_str: ada_feeding_msgs.action.AcquireFood # required
         dummy_plan_time: 1.0 # secs
         dummy_motion_time: 10.0 # secs
       tick_rate: 10 # Hz, optional, default: 30
@@ -53,10 +48,8 @@ ada_feeding_action_servers:
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveToConfigurationTree # required
       tree_kws: # optional
-        - action_type_class_str
         - joint_positions
       tree_kwargs: # optional
-        action_type_class_str: ada_feeding_msgs.action.MoveTo # required
         joint_positions: # required
           - -1.94672 # j2n6s200_joint_1
           -  2.51268 # j2n6s200_joint_2
@@ -74,7 +67,6 @@ ada_feeding_action_servers:
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveToConfigurationWithPosePathConstraintsTree # required
       tree_kws: # optional
-        - action_type_class_str
         - joint_positions_goal
         - weight_joint_goal
         - quat_xyzw_path
@@ -83,7 +75,6 @@ ada_feeding_action_servers:
         - weight_orientation_path
         - allowed_planning_time
       tree_kwargs: # optional
-        action_type_class_str: ada_feeding_msgs.action.MoveTo # required
         joint_positions_goal:
           -  2.74709 # j2n6s200_joint_1
           -  2.01400 # j2n6s200_joint_2
@@ -113,10 +104,8 @@ ada_feeding_action_servers:
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveToConfigurationTree # required
       tree_kws: # optional
-        - action_type_class_str
         - joint_positions
       tree_kwargs: # optional
-        action_type_class_str: ada_feeding_msgs.action.MoveTo # required
         joint_positions: # required
           - -1.52101 # j2n6s200_joint_1
           -  2.60098 # j2n6s200_joint_2
@@ -131,11 +120,9 @@ ada_feeding_action_servers:
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveToPoseTree # required
       tree_kws: # optional
-        - action_type_class_str
         - position
         - quat_xyzw
       tree_kwargs: # optional
-        action_type_class_str: ada_feeding_msgs.action.MoveTo # required
         position:
           -  0.27971 # x
           -  0.07175 # y
@@ -152,7 +139,6 @@ ada_feeding_action_servers:
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveToPoseWithPosePathConstraintsTree # required
       tree_kws: # optional
-        - action_type_class_str
         - position_goal
         - quat_xyzw_goal
         - quat_xyzw_path
@@ -160,7 +146,6 @@ ada_feeding_action_servers:
         - parameterization_orientation_path
         - weight_orientation_path
       tree_kwargs: # optional
-        action_type_class_str: ada_feeding_msgs.action.MoveTo # required
         position_goal:
           - -0.00070 # x
           -  0.15619 # y

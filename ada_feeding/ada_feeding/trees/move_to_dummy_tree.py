@@ -26,7 +26,6 @@ class MoveToDummyTree(ActionServerBT):
 
     def __init__(
         self,
-        action_type_class_str: str,
         dummy_plan_time: float = 2.5,
         dummy_motion_time: float = 7.5,
     ) -> None:
@@ -35,16 +34,10 @@ class MoveToDummyTree(ActionServerBT):
 
         Parameters
         ----------
-        action_type_class_str: The type of action that this tree is implementing,
-            e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
-            type can be anything, but the Feedback and Result must at a minimum
-            include the fields of ada_feeding_msgs.action.MoveTo
         dummy_plan_time: How many seconds this dummy node should spend in planning.
         dummy_motion_time: How many seconds this dummy node should spend in motion.
         """
-        # Import the action type
-        self.action_type_class = import_from_string(action_type_class_str)
-
+        
         # Set the dummy motion parameters
         self.dummy_plan_time = dummy_plan_time
         self.dummy_motion_time = dummy_motion_time
@@ -56,6 +49,7 @@ class MoveToDummyTree(ActionServerBT):
     def create_tree(
         self,
         name: str,
+        action_type: str,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -69,6 +63,9 @@ class MoveToDummyTree(ActionServerBT):
         Parameters
         ----------
         name: The name of the behavior tree.
+        action_type: full name of a Python class for the associated action,
+            can be converted to a type object with `import_from_string` in
+            helpers.py
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
@@ -77,6 +74,9 @@ class MoveToDummyTree(ActionServerBT):
         -------
         tree: The behavior tree that moves the robot above the plate.
         """
+        # Import the action type
+        self.action_type_class = import_from_string(action_type_class_str)
+
         # Create the behaviors in the tree
         if self.tree is None:
             root = MoveToDummy(name, self.dummy_plan_time, self.dummy_motion_time)
