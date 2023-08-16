@@ -11,8 +11,10 @@ Usage:
 - Run the node: `ros2 run ada_feeding dummy_ft_sensor`
 - Subscribe to the sensor data: `ros2 topic echo /wireless_ft/ftSensor1`
 - Turn the sensor off: `ros2 param set /dummy_ft_sensor is_on False`
-- Start publishing zero-variance data: `ros2 param set /dummy_ft_sensor std [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]`
-- Start publishing data where one dimension is zero-variance: `ros2 param set /dummy_ft_sensor std [0.0, 0.1, 0.1, 0.1, 0.1, 0.1]`
+- Start publishing zero-variance data: 
+    `ros2 param set /dummy_ft_sensor std [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]`
+- Start publishing data where one dimension is zero-variance:
+    `ros2 param set /dummy_ft_sensor std [0.0, 0.1, 0.1, 0.1, 0.1, 0.1]`
 """
 
 # Third-party imports

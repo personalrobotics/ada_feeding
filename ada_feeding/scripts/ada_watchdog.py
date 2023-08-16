@@ -120,6 +120,9 @@ class ADAWatchdog(Node):
     output to the watchdog topic.
     """
 
+    # pylint: disable=too-many-instance-attributes
+    # Eleven is fine in this case.
+
     def __init__(self) -> None:
         """
         Initialize the watchdog node.
@@ -143,8 +146,8 @@ class ADAWatchdog(Node):
         self.recv_first_ft_msg = False
         self.ft_sensor_condition_lock = Lock()
         ft_sensor_ok_message = (
-            "Over the last %f sec, the force-torque sensor has published data with nonzero variance"
-            % self.ft_timeout_sec.value
+            f"Over the last {self.ft_timeout_sec.value} sec, "
+            "the force-torque sensor has published data with nonzero variance"
         )
         self.ft_ok_status = DiagnosticStatus(
             level=DiagnosticStatus.OK,
@@ -152,8 +155,8 @@ class ADAWatchdog(Node):
             message=ft_sensor_ok_message,
         )
         ft_sensor_error_message = (
-            "Over the last %f sec, the force-torque sensor has either not published data or its data is zero-variance"
-            % self.ft_timeout_sec.value
+            f"Over the last {self.ft_timeout_sec.value} sec, the force-torque sensor"
+            "has either not published data or its data is zero-variance"
         )
         self.ft_error_status = DiagnosticStatus(
             level=DiagnosticStatus.ERROR,
@@ -188,7 +191,11 @@ class ADAWatchdog(Node):
             ParameterDescriptor(
                 name="ft_timeout_sec",
                 type=ParameterType.PARAMETER_DOUBLE,
-                description="The number of seconds within which the force-torque sensor must have: (a) published messages; and (b) had them be nonzero-variance",
+                description=(
+                    "The number of seconds within which the force-torque"
+                    "sensor must have: (a) published messages; and (b) had"
+                    "them be nonzero-variance"
+                ),
                 read_only=True,
             ),
         )
