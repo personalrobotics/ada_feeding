@@ -76,7 +76,7 @@ class CreateActionServers(Node):
         super().__init__("create_action_servers")
 
         # Read the parameters that specify what action servers to create.
-        watchdog_topic, watchdog_timeout, action_server_params = self.read_params()
+        watchdog_timeout, action_server_params = self.read_params()
 
         # Subscribe to the watchdog topic
         self.watchdog_failed = (
@@ -85,7 +85,7 @@ class CreateActionServers(Node):
         self.last_watchdog_msg_time = None
         self.watchdog_sub = self.create_subscription(
             DiagnosticArray,
-            watchdog_topic.value,
+            "~/watchdog",
             self.watchdog_callback,
             1,
         )
@@ -106,17 +106,7 @@ class CreateActionServers(Node):
         -------
         action_server_params: A list of ActionServerParams objects.
         """
-        # Read the watchdog parameters
-        watchdog_topic = self.declare_parameter(
-            "watchdog_topic",
-            "/ada_watchdog",
-            ParameterDescriptor(
-                name="watchdog_topic",
-                type=ParameterType.PARAMETER_STRING,
-                description="The topic on which the watchdog publishes.",
-                read_only=True,
-            ),
-        )
+        # Read the watchdog timeout
         watchdog_timeout = self.declare_parameter(
             "watchdog_timeout",
             0.5,
@@ -220,7 +210,7 @@ class CreateActionServers(Node):
                 )
             )
 
-        return watchdog_topic, watchdog_timeout, action_server_params
+        return watchdog_timeout, action_server_params
 
     def watchdog_callback(self, msg: DiagnosticArray) -> None:
         """
@@ -360,7 +350,7 @@ class CreateActionServers(Node):
         # Initialize the ActionServerBT object once
         tree_action_server = self._tree_classes[tree_class](**tree_kwargs)
         # Create the tree once
-        tree = tree_action_server.create_tree(server_name, self.get_logger(), self)
+        tree = tree_action_server.create_tree(server_name, action_type, self.get_logger(), self)
 
         async def execute_callback(goal_handle: ServerGoalHandle) -> Awaitable:
             """

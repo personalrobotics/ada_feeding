@@ -30,7 +30,6 @@ class MoveToPoseTree(MoveToTree):
 
     def __init__(
         self,
-        action_type_class_str: str,
         position: Tuple[float, float, float],
         quat_xyzw: Tuple[float, float, float, float],
         frame_id: Optional[str] = None,
@@ -49,10 +48,6 @@ class MoveToPoseTree(MoveToTree):
 
         Parameters
         ----------
-        action_type_class_str: The type of action that this tree is implementing,
-            e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
-            type can be anything, but the Feedback and Result must at a minimum
-            include the fields of ada_feeding_msgs.action.MoveTo
         position: the target end effector position relative to the base link.
         quat_xyzw: the target end effector orientation relative to the base link.
         frame_id: the frame id of the target pose. If None, the base link is used.
@@ -69,7 +64,7 @@ class MoveToPoseTree(MoveToTree):
         allowed_planning_time: the allowed planning time for path planning.
         """
         # Initialize MoveTo
-        super().__init__(action_type_class_str)
+        super().__init__()
 
         # Store the parameters for the move to pose behavior
         self.position = position

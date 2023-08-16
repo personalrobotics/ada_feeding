@@ -27,7 +27,6 @@ class MoveToConfigurationTree(MoveToTree):
 
     def __init__(
         self,
-        action_type_class_str: str,
         joint_positions: List[float],
         tolerance: float = 0.001,
         weight: float = 1.0,
@@ -39,10 +38,6 @@ class MoveToConfigurationTree(MoveToTree):
 
         Parameters
         ----------
-        action_type_class_str: The type of action that this tree is implementing,
-            e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
-            type can be anything, but the Feedback and Result must at a minimum
-            include the fields of ada_feeding_msgs.action.MoveTo
         joint_positions: The joint positions to move the robot arm to.
         tolerance: The tolerance for the joint positions.
         weight: The weight for the joint goal constraint.

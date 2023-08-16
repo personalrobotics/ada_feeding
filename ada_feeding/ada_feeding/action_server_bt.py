@@ -24,6 +24,7 @@ class ActionServerBT(ABC):
     def create_tree(
         self,
         name: str,
+        action_type: str,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -35,6 +36,9 @@ class ActionServerBT(ABC):
         Parameters
         ----------
         name: The name of the behavior tree.
+        action_type: full name of a Python class for the associated action, 
+            can be converted to a type object with `import_from_string` in
+            helpers.py
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
