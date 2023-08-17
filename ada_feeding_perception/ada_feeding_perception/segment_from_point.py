@@ -84,7 +84,7 @@ class SegmentFromPointNode(Node):
         # Subscribe to the camera info topic, to get the camera intrinsics
         self.camera_info_subscriber = self.create_subscription(
             CameraInfo,
-            "/camera_info",
+            "~/camera_info",
             self.camera_info_callback,
             1,
         )
@@ -96,7 +96,7 @@ class SegmentFromPointNode(Node):
 
         # Subscribe to the aligned depth image topic, to store the latest depth image
         # NOTE: We assume this is in the same frame as the RGB image
-        aligned_depth_topic = "/aligned_depth"
+        aligned_depth_topic = "~/aligned_depth"
         self.depth_image_subscriber = self.create_subscription(
             get_img_msg_type(aligned_depth_topic, self),
             aligned_depth_topic,
@@ -107,7 +107,7 @@ class SegmentFromPointNode(Node):
         self.latest_depth_img_msg_lock = threading.Lock()
 
         # Subscribe to the RGB image topic, to store the latest image
-        image_topic = "/image"
+        image_topic = "~/image"
         self.image_subscriber = self.create_subscription(
             get_img_msg_type(image_topic, self),
             image_topic,
