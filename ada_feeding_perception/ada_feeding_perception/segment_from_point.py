@@ -13,6 +13,7 @@ from typing import Tuple, Union
 import cv2
 from cv_bridge import CvBridge
 import numpy as np
+import numpy.typing as npt
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
@@ -45,10 +46,16 @@ class SegmentFromPointNode(Node):
     returns the top n contender masks.
     """
 
+    # pylint: disable=too-many-instance-attributes
+    # Having more than 7 instance attributes is unavoidable here, since for
+    # every subscription we need to store the subscription, mutex, and data,
+    # and we have 3 subscriptions.
+
     def __init__(self) -> None:
         """
         Initialize the SegmentFromPointNode.
         """
+
         super().__init__("segment_from_point")
 
         # Check if cuda is available
@@ -61,20 +68,15 @@ class SegmentFromPointNode(Node):
             model_name,
             model_base_url,
             model_dir,
-            n_contender_masks,
+            self.n_contender_masks,
         ) = self.read_params()
-        self.model_name = model_name.value
-        self.n_contender_masks = n_contender_masks.value
 
         # Download the checkpoint if it doesn't exist
-        self.model_path = os.path.join(model_dir.value, self.model_name)
-        if not os.path.isfile(self.model_path):
+        model_path = os.path.join(model_dir, model_name)
+        if not os.path.isfile(model_path):
             self.get_logger().info("Model checkpoint does not exist. Downloading...")
-            download_checkpoint(self.model_name, model_dir.value, model_base_url.value)
-            self.get_logger().info(
-                "Model checkpoint downloaded %s."
-                % os.path.join(model_dir.value, self.model_name)
-            )
+            download_checkpoint(model_name, model_dir, model_base_url)
+            self.get_logger().info(f"Model checkpoint downloaded {model_path}.")
 
         # Create the shared resource to ensure that the action server rejects all
         # goals while a goal is currently active.
@@ -92,7 +94,7 @@ class SegmentFromPointNode(Node):
         self.camera_info_lock = threading.Lock()
 
         # Initialize Segment Anything
-        self.initialize_food_segmentation()
+        self.initialize_food_segmentation(model_name, model_path)
 
         # Subscribe to the aligned depth image topic, to store the latest depth image
         # NOTE: We assume this is in the same frame as the RGB image
@@ -126,11 +128,17 @@ class SegmentFromPointNode(Node):
         Returns
         -------
         model_name: The name of the Segment Anything model checkpoint to use
-        model_base_url: The URL to download the model checkpoint from if it is not already downloaded
+        model_base_url: The URL to download the model checkpoint from if it is
+            not already downloaded
         model_dir: The location of the directory where the model checkpoint is / should be stored
         n_contender_masks: The number of contender masks to return per point.
         """
-        return self.declare_parameters(
+        (
+            model_name,
+            model_base_url,
+            model_dir,
+            n_contender_masks,
+        ) = self.declare_parameters(
             "",
             [
                 (
@@ -149,7 +157,10 @@ class SegmentFromPointNode(Node):
                     ParameterDescriptor(
                         name="model_base_url",
                         type=ParameterType.PARAMETER_STRING,
-                        description="The URL to download the model checkpoint from if it is not already downloaded",
+                        description=(
+                            "The URL to download the model checkpoint from if "
+                            "it is not already downloaded"
+                        ),
                         read_only=True,
                     ),
                 ),
@@ -159,7 +170,10 @@ class SegmentFromPointNode(Node):
                     ParameterDescriptor(
                         name="model_dir",
                         type=ParameterType.PARAMETER_STRING,
-                        description="The location of the directory where the model checkpoint is / should be stored",
+                        description=(
+                            "The location of the directory where the model "
+                            "checkpoint is / should be stored"
+                        ),
                         read_only=True,
                     ),
                 ),
@@ -175,8 +189,14 @@ class SegmentFromPointNode(Node):
                 ),
             ],
         )
+        return (
+            model_name.value,
+            model_base_url.value,
+            model_dir.value,
+            n_contender_masks.value,
+        )
 
-    def initialize_food_segmentation(self) -> None:
+    def initialize_food_segmentation(self, model_name: str, model_path: str) -> None:
         """
         Initialize all attributes needed for food segmentation.
 
@@ -184,21 +204,26 @@ class SegmentFromPointNode(Node):
         server, and more. Note that we are guarenteed the model exists since
         it was downloaded in the __init__ function of this class.
 
+        Parameters
+        ----------
+        model_name: The name of the model to load.
+        model_path: The path to the model checkpoint to load.
+
         Raises
         ------
         ValueError if the model name does not contain vit_h, vit_l, or vit_b
         """
         self.get_logger().info("Initializing food segmentation...")
         # Load the model and move it to the specified device
-        if "vit_b" in self.model_name:  # base model
+        if "vit_b" in model_name:  # base model
             model_type = "vit_b"
-        elif "vit_l" in self.model_name:  # large model
+        elif "vit_l" in model_name:  # large model
             model_type = "vit_l"
-        elif "vit_h" in self.model_name:  # huge model
+        elif "vit_h" in model_name:  # huge model
             model_type = "vit_h"
         else:
-            raise ValueError("Unknown model type %s" % self.model_name)
-        sam = sam_model_registry[model_type](checkpoint=self.model_path)
+            raise ValueError(f"Unknown model type {model_name}")
+        sam = sam_model_registry[model_type](checkpoint=model_path)
         sam.to(device=self.device)
 
         # Create the predictor
@@ -337,58 +362,87 @@ class SegmentFromPointNode(Node):
         depth_img = ros_msg_to_cv2_image(depth_img_msg, self.bridge)
 
         # Segment the image
-        input_point = np.array([seed_point])
-        input_label = np.array([1])
         self.predictor.set_image(image)
         masks, scores, _ = self.predictor.predict(
-            point_coords=input_point,
-            point_labels=input_label,
+            point_coords=np.array([seed_point]),
+            point_labels=np.array([1]),
             multimask_output=True,
         )
 
         # Sort the masks from highest to lowest score
-        scored_masks = list(zip(scores, masks))
-        scored_masks_sorted = sorted(scored_masks, key=lambda x: x[0], reverse=True)
+        scored_masks_sorted = sorted(
+            zip(scores, masks), key=lambda x: x[0], reverse=True
+        )
 
-        # After getting the masks
-        mask_num = -1
-        for score, mask in scored_masks_sorted[: self.n_contender_masks]:
-            mask_num += 1
-            # Clean the mask to only contain the connected component containing
-            # the seed point
-            # TODO: Thorughly test this, in case we need to add more mask cleaning!
-            # Erosion/dilation could be useful if more mask cleaning is necessary.
-            cleaned_mask = get_connected_component(mask, seed_point)
-            # Get the average depth over the mask
-            average_depth_mm = np.sum(np.where(cleaned_mask, depth_img, 0)) / np.sum(
-                cleaned_mask
+        # Convert the top `self.n_contender_masks` masks to ROS messages
+        for mask_num in range(min(len(scored_masks_sorted), self.n_contender_masks)):
+            score, mask = scored_masks_sorted[mask_num]
+            item_id = f"food_id_{mask_num:d}"
+            mask_msg = self.generate_mask_msg(
+                item_id, score.item(), mask, image, depth_img, seed_point
             )
-            # Compute the bounding box
-            bbox = bbox_from_mask(cleaned_mask)
-            # Crop the image and the mask
-            _, cropped_mask, _ = crop_image_mask_and_point(
-                image, cleaned_mask, seed_point, bbox
-            )
-            # Convert the mask to an image
-            mask_img = np.where(cropped_mask, 255, 0).astype(np.uint8)
-
-            # Create the message
-            mask_msg = Mask()
-            mask_msg.roi = RegionOfInterest(
-                x_offset=int(bbox.xmin),
-                y_offset=int(bbox.ymin),
-                height=int(bbox.ymax - bbox.ymin),
-                width=int(bbox.xmax - bbox.xmin),
-                do_rectify=False,
-            )
-            mask_msg.mask = cv2_image_to_ros_msg(mask_img, compress=True)
-            mask_msg.average_depth = average_depth_mm / 1000.0
-            mask_msg.item_id = "food_id_%d" % (mask_num)
-            mask_msg.confidence = score.item()
             result.detected_items.append(mask_msg)
 
         # Return the result message
         return result
+
+    # pylint: disable=too-many-arguments
+    # More arguments is fine here, since the purpose of this function is to consolidate
+    # multiple pieces of data into a single message.
+    def generate_mask_msg(
+        self,
+        item_id: str,
+        score: float,
+        mask: npt.NDArray[bool],
+        image: npt.NDArray,
+        depth_img: npt.NDArray,
+        seed_point: Tuple[int, int],
+    ) -> Mask:
+        """
+        Convert a mask detected by SegmentAnything to a ROS Mask msg.
+
+        Parameters
+        ----------
+        item_id: The ID of the mask to include in the message.
+        score: The score (confidence) SegmentAnything outputted for the mask.
+        mask: The mask.
+        image: The image the mask was detected in.
+        depth_img: The most recent depth image.
+        seed_point: The seed point used to segment the image.
+        """
+        # Clean the mask to only contain the connected component containing
+        # the seed point
+        # TODO: Thoroughly test this, in case we need to add more mask cleaning!
+        #       Erosion/dilation could be useful here.
+        cleaned_mask = get_connected_component(mask, seed_point)
+        # Get the average depth over the mask
+        average_depth_mm = np.sum(np.where(cleaned_mask, depth_img, 0)) / np.sum(
+            cleaned_mask
+        )
+        # Compute the bounding box
+        bbox = bbox_from_mask(cleaned_mask)
+        # Crop the image and the mask
+        _, cropped_mask, _ = crop_image_mask_and_point(
+            image, cleaned_mask, seed_point, bbox
+        )
+        # Convert the mask to an image
+        mask_img = np.where(cropped_mask, 255, 0).astype(np.uint8)
+
+        # Create the message
+        mask_msg = Mask()
+        mask_msg.roi = RegionOfInterest(
+            x_offset=int(bbox.xmin),
+            y_offset=int(bbox.ymin),
+            height=int(bbox.ymax - bbox.ymin),
+            width=int(bbox.xmax - bbox.xmin),
+            do_rectify=False,
+        )
+        mask_msg.mask = cv2_image_to_ros_msg(mask_img, compress=True)
+        mask_msg.average_depth = average_depth_mm / 1000.0
+        mask_msg.item_id = item_id
+        mask_msg.confidence = score
+
+        return mask_msg
 
     async def execute_callback(
         self, goal_handle: ServerGoalHandle
@@ -410,7 +464,7 @@ class SegmentFromPointNode(Node):
         -------
         result: The result message containing the contender masks.
         """
-        self.get_logger().info("Executing goal...%s" % (goal_handle,))
+        self.get_logger().info(f"Executing goal...{goal_handle}")
 
         # Get the latest image
         latest_img_msg = None
