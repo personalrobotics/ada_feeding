@@ -17,12 +17,21 @@ from rclpy.node import Node
 from ada_feeding.idioms import add_pose_path_constraints
 from ada_feeding.trees import MoveToTree, MoveToPoseTree
 
+# pylint: disable=duplicate-code
+# move_to_pose_with_pose_path_constraints_tree.py has similar code to
+# move_to_configuration_with_pose_path_constraints_tree.py when calling `add_pose_path_constraints`.
+# This is not a problem.
+
 
 class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
     """
     A behavior tree that moves the robot to a specified end effector pose, while
     honoring pose path constraints.
     """
+
+    # pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-locals
+    # Many arguments is fine for this class since it has to be able to configure all parameters
+    # of its constraints.
 
     def __init__(
         self,
@@ -149,7 +158,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time,
             )
-            .create_tree(name, self.action_type_class_str, logger, node)
+            .create_tree(name, self.action_type, logger, node)
             .root
         )
 

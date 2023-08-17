@@ -34,6 +34,8 @@ class ADAPlanningScene(Node):
     In practice, this node is used to add the wheelchair, table, and user's face.
     """
 
+    # pylint: disable=duplicate-code
+    # The MoveIt2 object will have similar code in any file it is created.
     def __init__(self) -> None:
         """
         Initialize the planning scene.

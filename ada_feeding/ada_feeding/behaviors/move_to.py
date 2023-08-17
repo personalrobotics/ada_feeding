@@ -35,6 +35,12 @@ class MoveTo(py_trees.behaviour.Behaviour):
     adding decorators on top of this class.
     """
 
+    # pylint: disable=too-many-instance-attributes, too-many-arguments
+    # This behavior needs to keep track of lots of information across ticks,
+    # so the number of attributes is reasonable. It is also intended to be generic,
+    # so the number of arguments is reasonable.
+    # pylint: disable=duplicate-code
+    # The MoveIt2 object will have similar code in any file it is created.
     def __init__(
         self,
         name: str,
@@ -135,13 +141,17 @@ class MoveTo(py_trees.behaviour.Behaviour):
         """
         Create the MoveIt interface.
         """
-        self.logger.info("%s [MoveTo::setup()]" % self.name)
+        self.logger.info(f"{self.name} [MoveTo::setup()]")
 
+    # pylint: disable=attribute-defined-outside-init
+    # For attributes that are only used during the execution of the tree
+    # and get reset before the next execution, it is reasonable to define
+    # them in `initialise`.
     def initialise(self) -> None:
         """
         Reset the blackboard and configure all parameters for motion.
         """
-        self.logger.info("%s [MoveTo::initialise()]" % self.name)
+        self.logger.info(f"{self.name} [MoveTo::initialise()]")
 
         # Set the planner_id
         self.moveit2.set_planner_id(
@@ -178,6 +188,9 @@ class MoveTo(py_trees.behaviour.Behaviour):
         # Set the joint names
         self.distance_to_goal.set_joint_names(self.joint_names)
 
+    # pylint: disable=too-many-branches, too-many-return-statements
+    # This is the heart of the MoveTo behavior, so the number of branches
+    # and return statements is reasonable.
     def update(self) -> py_trees.common.Status:
         """
         Monitor the progress of moving the robot. This includes:
@@ -186,7 +199,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
             - Checking if motion is complete
             - Updating feedback in the blackboard
         """
-        self.logger.info("%s [MoveTo::update()]" % self.name)
+        self.logger.info(f"{self.name} [MoveTo::update()]")
 
         # Check the state of MoveIt
         if self.tree_blackboard.is_planning:  # Is planning
@@ -198,14 +211,15 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 # Check if we have timed out waiting for the planning service
                 if self.tree_blackboard.planning_time > self.planning_service_timeout_s:
                     self.logger.error(
-                        "%s [MoveTo::update()] Planning timed out!" % self.name
+                        f"{self.name} [MoveTo::update()] Planning timed out!"
                     )
                     return py_trees.common.Status.FAILURE
                 # Initiate an asynchronous planning call
                 self.planning_future = self.moveit2.plan_async(cartesian=self.cartesian)
                 return py_trees.common.Status.RUNNING
 
-            if self.planning_future.done():  # Finished planning
+            # Check if planning is complete
+            if self.planning_future.done():
                 # Transition from planning to motion
                 self.tree_blackboard.is_planning = False
                 self.motion_start_time = time.time()
@@ -214,11 +228,10 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 traj = self.moveit2.get_trajectory(
                     self.planning_future, cartesian=self.cartesian
                 )
-                self.logger.info("Trajectory: %s | type %s" % (traj, type(traj)))
+                self.logger.info(f"Trajectory: {traj} | type {type(traj)}")
                 if traj is None:
                     self.logger.error(
-                        "%s [MoveTo::update()] Failed to get trajectory from MoveIt!"
-                        % self.name
+                        f"{self.name} [MoveTo::update()] Failed to get trajectory from MoveIt!"
                     )
                     return py_trees.common.Status.FAILURE
 
@@ -234,48 +247,46 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 self.moveit2.execute(traj)
                 return py_trees.common.Status.RUNNING
 
-            else:  # Still planning
+            # Still planning
+            return py_trees.common.Status.RUNNING
+
+        # Is moving
+        self.tree_blackboard.motion_time = time.time() - self.motion_start_time
+        if self.motion_future is None:
+            if self.moveit2.query_state() == MoveIt2State.REQUESTING:
+                # The goal has been sent to the action server, but not yet accepted
                 return py_trees.common.Status.RUNNING
-        else:  # Is moving
-            self.tree_blackboard.motion_time = time.time() - self.motion_start_time
-            if self.motion_future is None:
-                if self.moveit2.query_state() == MoveIt2State.REQUESTING:
-                    # The goal has been sent to the action server, but not yet accepted
-                    return py_trees.common.Status.RUNNING
-                elif self.moveit2.query_state() == MoveIt2State.EXECUTING:
-                    # The goal has been accepted and is executing. In this case
-                    # don't return a status since we drop down into the below
-                    # for when the robot is in motion.
-                    self.motion_future = self.moveit2.get_execution_future()
-                elif self.moveit2.query_state() == MoveIt2State.IDLE:
-                    # If we get here (i.e., self.moveit2 returned to IDLE without executing)
-                    # then something went wrong (e.g., controller is already executing a
-                    # trajectory, action server not available, goal was rejected, etc.)
+            if self.moveit2.query_state() == MoveIt2State.EXECUTING:
+                # The goal has been accepted and is executing. In this case
+                # don't return a status since we drop down into the below
+                # for when the robot is in motion.
+                self.motion_future = self.moveit2.get_execution_future()
+            elif self.moveit2.query_state() == MoveIt2State.IDLE:
+                # If we get here (i.e., self.moveit2 returned to IDLE without executing)
+                # then something went wrong (e.g., controller is already executing a
+                # trajectory, action server not available, goal was rejected, etc.)
+                return py_trees.common.Status.FAILURE
+        if self.motion_future is not None:
+            self.tree_blackboard.motion_curr_distance = (
+                self.distance_to_goal.get_distance()
+            )
+            if self.motion_future.done():
+                # The goal has finished executing
+                if self.motion_future.result().status == GoalStatus.STATUS_SUCCEEDED:
+                    error_code = self.motion_future.result().result.error_code
+                    if error_code.val == MoveItErrorCodes.SUCCESS:
+                        # The goal succeeded
+                        self.tree_blackboard.motion_curr_distance = 0.0
+                        return py_trees.common.Status.SUCCESS
+
+                    # The goal failed
                     return py_trees.common.Status.FAILURE
-            if self.motion_future is not None:
-                self.tree_blackboard.motion_curr_distance = (
-                    self.distance_to_goal.get_distance()
-                )
-                if self.motion_future.done():
-                    # The goal has finished executing
-                    if (
-                        self.motion_future.result().status
-                        == GoalStatus.STATUS_SUCCEEDED
-                    ):
-                        error_code = self.motion_future.result().result.error_code
-                        if error_code.val == MoveItErrorCodes.SUCCESS:
-                            # The goal succeeded
-                            self.tree_blackboard.motion_curr_distance = 0.0
-                            return py_trees.common.Status.SUCCESS
-                        else:
-                            # The goal failed
-                            return py_trees.common.Status.FAILURE
-                    else:
-                        # The goal failed
-                        return py_trees.common.Status.FAILURE
-                else:
-                    # The goal is still executing
-                    return py_trees.common.Status.RUNNING
+
+                # The goal failed
+                return py_trees.common.Status.FAILURE
+
+        # The goal is still executing
+        return py_trees.common.Status.RUNNING
 
     def terminate(self, new_status: py_trees.common.Status) -> None:
         """
@@ -285,7 +296,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
         server to complete the termination.
         """
         self.logger.info(
-            "%s [MoveTo::terminate()][%s->%s]" % (self.name, self.status, new_status)
+            f"{self.name} [MoveTo::terminate()][{self.status}->{new_status}]"
         )
 
         # Cancel execution of any active goals
@@ -305,7 +316,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
             # Check for terminate timeout
             if time.time() - terminate_requested_time > self.terminate_timeout_s:
                 self.logger.error(
-                    "%s [MoveTo::terminate()] Terminate timed out!" % self.name
+                    f"{self.name} [MoveTo::terminate()] Terminate timed out!"
                 )
                 break
 
@@ -315,7 +326,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
         """
         Shutdown infrastructure created in setup().
         """
-        self.logger.info("%s [MoveTo::shutdown()]" % self.name)
+        self.logger.info(f"{self.name} [MoveTo::shutdown()]")
 
 
 class DistanceToGoal:
@@ -337,6 +348,8 @@ class DistanceToGoal:
         self.aligned_joint_indices = None
 
         self.trajectory = None
+        self.curr_joint_state_i = 0
+        self.curr_joint_state = None
 
     def set_joint_names(self, joint_names: List[str]) -> None:
         """
@@ -381,12 +394,12 @@ class DistanceToGoal:
                     )
 
     @staticmethod
-    def joint_position_dist(p1: float, p2: float) -> float:
+    def joint_position_dist(point1: float, point2: float) -> float:
         """
         Given two joint positions in radians, this function computes the
         distance between then, accounting for rotational symmetry.
         """
-        abs_dist = abs(p1 - p2) % (2 * math.pi)
+        abs_dist = abs(point1 - point2) % (2 * math.pi)
         return min(abs_dist, 2 * math.pi - abs_dist)
 
     def get_distance(self) -> Optional[float]:
@@ -404,8 +417,7 @@ class DistanceToGoal:
         if self.aligned_joint_indices is None:
             if self.trajectory is None:
                 return None
-            else:
-                return float(len(self.trajectory.points) - self.curr_joint_state_i)
+            return float(len(self.trajectory.points) - self.curr_joint_state_i)
 
         # Else, determine how much remaining the robot has of the trajectory
         prev_dist = None
@@ -414,13 +426,11 @@ class DistanceToGoal:
             # ujoint state at index i.
             traj_joint_state = self.trajectory.points[i]
             dist = sum(
-                [
-                    DistanceToGoal.joint_position_dist(
-                        self.curr_joint_state.position[joint_state_i],
-                        traj_joint_state.positions[joint_traj_i],
-                    )
-                    for (_, joint_state_i, joint_traj_i) in self.aligned_joint_indices
-                ]
+                DistanceToGoal.joint_position_dist(
+                    self.curr_joint_state.position[joint_state_i],
+                    traj_joint_state.positions[joint_traj_i],
+                )
+                for (_, joint_state_i, joint_traj_i) in self.aligned_joint_indices
             )
 
             # If the distance is increasing, we've found the local min.

@@ -11,6 +11,10 @@ import py_trees
 from ada_feeding.decorators import MoveToConstraint
 from ada_feeding.helpers import get_from_blackboard_with_default
 
+# pylint: disable=duplicate-code
+# All the constraints have similar code when registering and setting blackboard
+# keys, since the parameters for constraints are similar. This is not a problem.
+
 
 class SetJointPathConstraint(MoveToConstraint):
     """
@@ -53,7 +57,7 @@ class SetJointPathConstraint(MoveToConstraint):
         """
         Sets the joint path constraint.
         """
-        self.logger.info("%s [SetJointPathConstraint::set_constraint()]" % self.name)
+        self.logger.info(f"{self.name} [SetJointPathConstraint::set_constraint()]")
 
         # Get all parameters for planning, resorting to default values if unset.
         joint_positions = self.blackboard.joint_positions  # required

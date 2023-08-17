@@ -24,7 +24,7 @@ class ActionServerBT(ABC):
     def create_tree(
         self,
         name: str,
-        action_type: str,
+        action_type: type,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -36,9 +36,7 @@ class ActionServerBT(ABC):
         Parameters
         ----------
         name: The name of the behavior tree.
-        action_type: full name of a Python class for the associated action,
-            can be converted to a type object with `import_from_string` in
-            helpers.py
+        action_type: the type for the action, as a class
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
@@ -79,13 +77,13 @@ class ActionServerBT(ABC):
         -------
         success: Whether the goal was successfully preempted.
         """
+        # pylint: disable=broad-exception-caught
+        # All exceptions need printing when stopping a tree
         try:
             tree.root.stop(py_trees.common.Status.INVALID)
             return True
         except Exception:
-            tree.root.logger.warn(
-                "Failed to preempt goal \n%s" % traceback.format_exc()
-            )
+            tree.root.logger.warn(f"Failed to preempt goal \n{traceback.format_exc()}")
             return False
 
     @abstractmethod
