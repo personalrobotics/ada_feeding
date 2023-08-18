@@ -6,3 +6,4 @@ This package contains code that links the ROS2 action server to py_trees.
 """
 
 from .action_server_bt import ActionServerBT
+from .ada_watchdog_listener import ADAWatchdogListener
