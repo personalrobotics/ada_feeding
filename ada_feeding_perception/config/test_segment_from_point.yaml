@@ -12,10 +12,6 @@ test_segment_from_point:
     # The name of the action server to call
     action_server_name: /SegmentFromPoint
     
-    # The name of the image topic to subscribe to (online) or publish to (offline)
-    # This must be the same image topic the action server is reading from.
-    image_topic: /camera/color/image_raw
-    
     # Note that all directories are relative to the `base_dir` parameter, passed
     # in by the launchfile.
     offline: # Params for offline mode

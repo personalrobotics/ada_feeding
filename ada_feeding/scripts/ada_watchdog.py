@@ -155,7 +155,7 @@ class ADAWatchdog(Node):
             message=ft_sensor_ok_message,
         )
         ft_sensor_error_message = (
-            f"Over the last {self.ft_timeout_sec.value} sec, the force-torque sensor"
+            f"Over the last {self.ft_timeout_sec.value} sec, the force-torque sensor "
             "has either not published data or its data is zero-variance"
         )
         self.ft_error_status = DiagnosticStatus(

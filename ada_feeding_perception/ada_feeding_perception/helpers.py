@@ -166,7 +166,7 @@ class BoundingBox:
         self.ymax = ymax
 
 
-def bbox_from_mask(mask: npt.NDArray[bool]) -> BoundingBox:
+def bbox_from_mask(mask: npt.NDArray[np.bool_]) -> BoundingBox:
     """
     Takes in a binary mask and returns the smallest axis-aligned bounding box
     that contains all the True pixels in the mask.
@@ -190,10 +190,10 @@ def bbox_from_mask(mask: npt.NDArray[bool]) -> BoundingBox:
 
 def crop_image_mask_and_point(
     image: npt.NDArray,
-    mask: npt.NDArray[bool],
+    mask: npt.NDArray[np.bool_],
     point: Tuple[int, int],
     bbox: BoundingBox,
-) -> Tuple[npt.NDArray, npt.NDArray[bool], Tuple[int, int]]:
+) -> Tuple[npt.NDArray, npt.NDArray[np.bool_], Tuple[int, int]]:
     """
     Crop the image and mask to the bounding box.
 
@@ -221,7 +221,7 @@ def crop_image_mask_and_point(
 
 def overlay_mask_on_image(
     image: npt.NDArray,
-    mask: npt.NDArray[bool],
+    mask: npt.NDArray[np.bool_],
     alpha: float = 0.5,
     color: Tuple[int, int, int] = (0, 255, 0),
 ):
@@ -249,8 +249,8 @@ def overlay_mask_on_image(
 
 
 def get_connected_component(
-    mask: npt.NDArray[bool], point: Tuple[int, int]
-) -> npt.NDArray[bool]:
+    mask: npt.NDArray[np.bool_], point: Tuple[int, int]
+) -> npt.NDArray[np.bool_]:
     """
     Takes in a binary mask and returns a new mask that has only the connected
     component that contains the given point.

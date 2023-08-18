@@ -393,7 +393,7 @@ class SegmentFromPointNode(Node):
         self,
         item_id: str,
         score: float,
-        mask: npt.NDArray[bool],
+        mask: npt.NDArray[np.bool_],
         image: npt.NDArray,
         depth_img: npt.NDArray,
         seed_point: Tuple[int, int],

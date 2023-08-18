@@ -109,13 +109,13 @@ class TestSegmentFromPoint(Node):
             self.latest_img_msg = None
             self.create_subscription(
                 Image,
-                self.image_topic.value,
+                "~/image",
                 self.image_callback,
                 1,
             )
         else:  # Configure offline mode
             # Create a publisher to publish the images to
-            self.image_pub = self.create_publisher(Image, self.image_topic.value, 1)
+            self.image_pub = self.create_publisher(Image, "~/image", 1)
 
             # Make the directory to save the segmented images in
             os.makedirs(
@@ -128,7 +128,7 @@ class TestSegmentFromPoint(Node):
         each parameter for more information.
         """
         # Get the required parameters, mode and action_server_name
-        self.mode, self.action_server_name, self.image_topic = self.declare_parameters(
+        self.mode, self.action_server_name = self.declare_parameters(
             "",
             [
                 (
@@ -151,16 +151,6 @@ class TestSegmentFromPoint(Node):
                         name="action_server_name",
                         type=ParameterType.PARAMETER_STRING,
                         description="The name of the action server to connect to.",
-                        read_only=True,
-                    ),
-                ),
-                (
-                    "image_topic",
-                    None,
-                    ParameterDescriptor(
-                        name="image_topic",
-                        type=ParameterType.PARAMETER_STRING,
-                        description="The topic to subscribe/publish to for images.",
                         read_only=True,
                     ),
                 ),
@@ -247,7 +237,7 @@ class TestSegmentFromPoint(Node):
                     ),
                 ],
             )
-        else:
+        elif self.mode.value != "online":
             raise ValueError(
                 "Invalid mode parameter. Must be either 'online' or 'offline'"
             )

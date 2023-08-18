@@ -59,15 +59,17 @@ See `config/test_segment_from_point.yaml` for other sample images and points. No
 
 We have provided a ROS node that displays the live image stream from a topic, let's users click on it, and sends that point click to the SegmentFromPoint action server.
 
-Run this script with: `ros2 launch ada_feeding_perception test_segment_from_point_launch.xml`
+Run this script with: `ros2 launch ada_feeding_perception test_food_segmentation_launch.xml`
 
 Note that because we are rendering a live image stream in matplotlib, this script can be very resource intensive. As an example, on one non-GPU machine it **slowed SegmentAnything down by 10x** (since so many resources were going to rendering the video's live stream).
 
 #### Option C: Testing the ROS Action Server on Saved Images
 
+Option C is now **DEPRECATED** because SegmentFromPoint requires aligned depth images, and we don't have aligned depth images for any of the offline images. The below instructions are kept only for legacy purposes.
+
 To facilitate the testing of a large number of stored images, we have provided a script that reads in a list of images and points and sends then to the SegmentFromPoint action server one-at-a-time, saving the results.
 
-To run this script, change the `mode` parameter in `config/test_segment_from_point.yaml` to `offline`. Then run `ros2 launch ada_feeding_perception test_segment_from_point_launch.xml`.
+To run this script, change the `mode` parameter in `config/test_segment_from_point.yaml` to `offline`. Then run `ros2 launch ada_feeding_perception test_food_segmentation_launch.xml`.
 
 This script should save the output images in `<path/to/your/workspace>/install/ada_feeding_perception/share/ada_feeding_perception/test_img/output`.
 
