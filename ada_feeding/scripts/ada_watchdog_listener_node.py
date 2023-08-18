@@ -19,6 +19,7 @@ from rclpy.executors import MultiThreadedExecutor
 # Local imports
 from ada_feeding import ADAWatchdogListener
 
+
 def main(args: List = None) -> None:
     """
     Create the ROS2 node to listen to the watchdog.
