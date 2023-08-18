@@ -47,10 +47,10 @@ class ADAWatchdogListener:
         self.watchdog_timeout = Duration(seconds=watchdog_timeout.value)
 
         # Subscribe to the watchdog topic
-        self.watchdog_failed = (
-            True  # until we get a message from the watchdog, assume it has failed
-        )
-        self.last_watchdog_msg_time = None
+        # Initializing `watchdog_failed` to False lets the node wait up to `watchdog_timeout`
+        # sec to receive the first message
+        self.watchdog_failed = False
+        self.last_watchdog_msg_time = self.node.get_clock().now()
         self.watchdog_sub = self.node.create_subscription(
             DiagnosticArray,
             "~/watchdog",
@@ -86,7 +86,6 @@ class ADAWatchdogListener:
         """
         return (
             (not self.watchdog_failed)
-            and (self.last_watchdog_msg_time is not None)
             and (
                 (self.node.get_clock().now() - self.last_watchdog_msg_time)
                 < self.watchdog_timeout
