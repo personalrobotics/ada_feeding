@@ -60,8 +60,6 @@ def main(args: List = None) -> None:
 
     # As long as ROS2 is running, keep checking the watchdog
     while rclpy.ok():
-        node.get_logger().info("Checking watchdog...")
-
         # Check if the watchdog has failed
         if not ada_watchdog_listener.ok():
             # If so, kill the node
