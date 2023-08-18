@@ -1,7 +1,18 @@
 <launch>
+  <!-- Launch segment_from_point -->
+  <node pkg="ada_feeding_perception" exec="segment_from_point" name="segment_from_point">
+    <param from="$(find-pkg-share ada_feeding_perception)/config/segment_from_point.yaml"/>
+    <param name="model_dir" value="$(find-pkg-share ada_feeding_perception)/model/"/>
+    <remap from="/image" to="/camera/color/image_raw/compressed"/>
+    <remap from="/camera_info" to="/camera/color/camera_info"/>
+    <remap from="/aligned_depth" to="/camera/aligned_depth_to_color/image_raw"/>
+  </node>
   <!-- Launch face_detection -->
   <node pkg="ada_feeding_perception" exec="face_detection" name="face_detection">
     <param from="$(find-pkg-share ada_feeding_perception)/config/face_detection.yaml"/>
     <param name="model_dir" value="$(find-pkg-share ada_feeding_perception)/model/"/>
+    <remap from="~/image" to="/camera/color/image_raw/compressed"/>
+    <remap from="~/camera_info" to="/camera/color/camera_info"/>
+    <remap from="~/aligned_depth" to="/camera/aligned_depth_to_color/image_raw"/>
   </node>
 </launch>

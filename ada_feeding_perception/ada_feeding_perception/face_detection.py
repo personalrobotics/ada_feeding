@@ -19,11 +19,13 @@ from threading import Lock
 from typing import Tuple
 from rclpy.parameter import Parameter
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
+from rclpy.executors import MultiThreadedExecutor
 import collections
 
 
 from ada_feeding_perception.helpers import (
     download_checkpoint,
+    get_img_msg_type
 )
 
 
@@ -109,18 +111,20 @@ class FaceDetectionNode(Node):
         )
 
         # Subscribe to the camera feed
+        image_topic = "~/image"
         self.img_subscription = self.create_subscription(
-            CompressedImage, "camera/color/image_raw/compressed", self.camera_callback, 1
+            get_img_msg_type(image_topic, self), image_topic, self.camera_callback, 1
         )
 
+        aligned_depth_topic = "~/aligned_depth"
         # Subscribe to the depth image
         self.depth_subscription = self.create_subscription(
-            Image, "/camera/depth/image_rect_raw", self.depth_callback, 1
+            get_img_msg_type(aligned_depth_topic, self), aligned_depth_topic, self.depth_callback, 1
         )
 
         # Subscribe to the camera info
         self.camera_info_subscription = self.create_subscription(
-            CameraInfo, "/camera/color/camera_info", self.camera_info_callback, 1
+            CameraInfo, "~/camera_info", self.camera_info_callback, 1
         )
 
         # Create the publishers
@@ -226,7 +230,8 @@ class FaceDetectionNode(Node):
         topic in the camera_depth_optical_frame
         """
 
-        # Collect last ten depth images
+        
+        # Collect last ten depth images (depth_buffer is a collections.deque of max length 10)
         self.depth_buffer.append(msg)
         with self.is_on_lock:
             is_on = self.is_on
@@ -245,23 +250,20 @@ class FaceDetectionNode(Node):
                     depth_time = depth_img.header.stamp.sec + (depth_img.header.stamp.nanosec/(10**9))
                     img_time = self.img_timestamp.sec + (self.img_timestamp.nanosec/(10**9))
                     difference_array = np.append(difference_array, abs(depth_time - img_time))
-
                 closest_index = difference_array.argmin()
+                closest_depth = self.bridge.imgmsg_to_cv2(self.depth_buffer[closest_index], desired_encoding='passthrough')
 
-                closest_depth = self.depth_buffer[closest_index]
-                
                 # Retrieve the depth value averaged over all mouth coordinates 
-                width = msg.width
                 depth_sum = 0
                 for point in self.img_mouth_points:
-                    depth_sum += closest_depth.data[(int(point[0])) + (int(point[1]) * width)]
+                    depth_sum += closest_depth[int(point[1])][int(point[0])]
                 depth = depth_sum/float(len(self.img_mouth_points))
 
                 # Create target 3d point, with mm measurements converted to m
                 mouth_location = PointStamped()
                 mouth_location.header = msg.header
-                mouth_location.point.x = (float(depth)*(float(u)-self.camera_matrix[2]))/(1000*self.camera_matrix[0])
-                mouth_location.point.y = (float(depth)*(float(v)-self.camera_matrix[5]))/(1000*self.camera_matrix[4])
+                mouth_location.point.x = (float(depth)*(float(u)-self.camera_matrix[2]))/(1000.0*self.camera_matrix[0])
+                mouth_location.point.y = (float(depth)*(float(v)-self.camera_matrix[5]))/(1000.0*self.camera_matrix[4])
                 mouth_location.point.z = float(depth)/1000.0
 
                 face_detection_msg.detected_mouth_center = mouth_location
@@ -311,18 +313,23 @@ class FaceDetectionNode(Node):
                 for i in range(len(faces)):
                     # Draw a white rectangle around each face
                     (x, y, w, d) = faces[i]
-                    largest_face = max(largest_face, w*d)
-                    largest_face_index = i
                     cv2.rectangle(
                         image_rgb, (x, y), (x + w, y + d), (255, 255, 255), 2
                     )
+
+                    largest_face = max(largest_face, w*d)
+                    largest_face_index = i
                     # Display mouth landmarks (48-67, as explained in the below link)
                     # https://pyimagesearch.com/2017/04/03/facial-landmarks-dlib-opencv-python/
                     for j in range(48, 67):
                         x, y = landmarks[i][0][j]
                         cv2.circle(image_rgb, (int(x), int(y)), 1, (0, 255, 0), 5)
 
-            
+                # Draw a red rectangle around largest face
+                (x, y, w, d) = faces[largest_face_index]
+                cv2.rectangle(
+                    image_rgb, (x, y), (x + w, y + d), (255, 0, 0), 2
+                )            
 
 
                 # Find stomion (mouth center) in image
@@ -343,8 +350,9 @@ def main(args=None):
     rclpy.init(args=args)
 
     face_detection = FaceDetectionNode()
+    executor = MultiThreadedExecutor()
 
-    rclpy.spin(face_detection)
+    rclpy.spin(face_detection, executor)
 
     rclpy.shutdown()
 
