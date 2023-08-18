@@ -19,4 +19,9 @@
     <remap from="~/face_detection_img" to="/face_detection_img"/>
     <remap from="~/toggle_face_detection" to="/toggle_face_detection"/>
   </node>
+
+  <!-- Launch the republisher -->
+  <node pkg="ada_feeding_perception" exec="republisher" name="republisher">
+    <param from="$(find-pkg-share ada_feeding_perception)/config/republisher.yaml"/>
+  </node>
 </launch>

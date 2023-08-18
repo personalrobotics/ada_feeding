@@ -41,6 +41,7 @@ setup(
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
+            "republisher = ada_feeding_perception.republisher:main",
             "segment_from_point = ada_feeding_perception.segment_from_point:main",
             "test_segment_from_point = ada_feeding_perception.test_segment_from_point:main",
             "face_detection = ada_feeding_perception.face_detection:main",
