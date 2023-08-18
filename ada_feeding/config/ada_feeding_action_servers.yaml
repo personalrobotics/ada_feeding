@@ -2,7 +2,7 @@
 ada_feeding_action_servers:
   ros__parameters:
     # If we haven't received a message from the watchdog in this time, stop all robot motions
-    watchdog_timeout_sec: 0.5
+    watchdog_timeout: 0.5
 
     # A list of the names of the action servers to create. Each one must have
     # it's own parameters (below) specifying action_type and tree_class.
