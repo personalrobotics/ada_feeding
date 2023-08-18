@@ -1,13 +1,9 @@
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 ada_watchdog:
   ros__parameters:
-    # The topic to subscribe to for force-torque messages, of type geometry_msgs/WrenchStamped
-    ft_topic: /wireless_ft/ftSensor1
     # If the force_torque sensor has not published a message in this amount of time,
     # or any of its dimensions are zero-variance in this amount of time, the watchdog 
     # will trigger a fault.
     ft_timeout_sec: 0.5
-    # The topic to publish to for the watchdog, of type diagnostic_msgs/DiagnosticStatus
-    watchdog_topc: /ada_watchdog
     # The rate at which to publish the watchdog message
     publish_rate_hz: 60.0

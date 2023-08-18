@@ -1,0 +1,29 @@
+# NOTE: You have to change this node name if you change the node name in the launchfile.
+ada_planning_scene:
+  ros__parameters:
+    object_ids: # list of objects to add to the planning scene
+      - wheelchair
+      - wheelchair_collision
+      - table
+      - head
+    # For each object, specify the filename of the mesh, and the position and
+    # orientation relative to the robot's base frame.
+    wheelchair: # the wheelchair mesh
+      filename: wheelchair.stl
+      position: [0.02, -0.02, -0.05]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    # an expanded mesh around the wheelchair to account for a user sitting in it
+    wheelchair_collision: 
+      filename: wheelchair_collision.stl
+      position: [0.02, -0.02, -0.05] # should match the wheelchair position
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
+    table: # the table mesh
+      filename: table.stl
+      position: [0.08, -0.5, -0.45]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    head: # the head mesh
+      filename: tom.stl
+      # This is an initial guess of head position; it will be updated as the
+      # robot perceives the face.
+      position: [0.29, 0.35, 0.85]
+      quat_xyzw: [-0.0616284, -0.0616284, -0.704416, 0.704416]

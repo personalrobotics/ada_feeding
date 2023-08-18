@@ -4,15 +4,117 @@ This file contains helper functions for the ada_feeding_perception package.
 # Standard imports
 import os
 import pprint
-from typing import Tuple
+from typing import Optional, Tuple, Union
 from urllib.parse import urljoin
 from urllib.request import urlretrieve
 
 # Third-party imports
 import cv2
+from cv_bridge import CvBridge
 import numpy as np
 import numpy.typing as npt
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import CompressedImage, Image
 from skimage.morphology import flood_fill
+
+
+def ros_msg_to_cv2_image(
+    msg: Union[Image, CompressedImage], bridge: Optional[CvBridge] = None
+) -> np.ndarray:
+    """
+    Convert a ROS Image or CompressedImage message to a cv2 image. By default,
+    this will maintain the depth of the image (e.g., 16-bit depth for depth
+    images) and maintain the format. Any conversions should be done outside
+    of this function.
+
+    NOTE: This has been tested with color messages that are Image and CompressedImage
+    and depth messages that are Image. It has not been tested with depth messages
+    that are CompressedImage.
+
+    Parameters
+    ----------
+    msg: the ROS Image or CompressedImage message to convert
+    bridge: the CvBridge to use for the conversion. This is only used if `msg`
+        is a ROS Image message. If `bridge` is None, a new CvBridge will be
+        created.
+    """
+    if isinstance(msg, Image):
+        if bridge is None:
+            bridge = CvBridge()
+        return bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
+    if isinstance(msg, CompressedImage):
+        return cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_UNCHANGED)
+    raise ValueError("msg must be a ROS Image or CompressedImage")
+
+
+def cv2_image_to_ros_msg(
+    image: np.ndarray, compress: bool, bridge: Optional[CvBridge] = None
+) -> Union[Image, CompressedImage]:
+    """
+    Convert a cv2 image to a ROS Image or CompressedImage message. Note that this
+    does not set the header of the message; that must be done outside of this
+    function.
+
+    NOTE: This has been tested with converting an 8-bit greyscale image to a
+    CompressedImage message. It has not been tested in any other circumstance.
+
+    Parameters
+    ----------
+    image: the cv2 image to convert
+    compress: whether or not to compress the image. If True, a CompressedImage
+        message will be returned. If False, an Image message will be returned.
+    bridge: the CvBridge to use for the conversion. This is only used if `msg`
+        is a ROS Image message. If `bridge` is None, a new CvBridge will be
+        created.
+    """
+    if bridge is None:
+        bridge = CvBridge()
+    if compress:
+        success, compressed_image = cv2.imencode(".jpg", image)
+        if success:
+            return CompressedImage(
+                format="jpeg",
+                data=compressed_image.tostring(),
+            )
+        raise RuntimeError("Failed to compress image")
+    # If we get here, we're not compressing the image
+    return bridge.cv2_to_imgmsg(image, encoding="passthrough")
+
+
+def get_img_msg_type(topic: str, node: Node) -> type:
+    """
+    Get the type of the image message on the given topic.
+
+    Parameters
+    ----------
+    topic: the topic to get the image message type for
+    node: the node to use to get the topic type
+
+    Returns
+    -------
+    the type of the image message on the given topic, either Image or CompressedImage
+    """
+    # Spin the node once to get the publishers list
+    rclpy.spin_once(node)
+
+    # Resolve the topic name (e.g., handle remappings)
+    final_topic = node.resolve_topic_name(topic)
+
+    # Get the publishers on the topic
+    topic_endpoints = node.get_publishers_info_by_topic(final_topic)
+
+    # Return the type of the first publisher on this topic that publishes
+    # an image message
+    for endpoint in topic_endpoints:
+        if endpoint.topic_type == "sensor_msgs/msg/CompressedImage":
+            return CompressedImage
+        if endpoint.topic_type == "sensor_msgs/msg/Image":
+            return Image
+    raise ValueError(
+        "No publisher found with img type for topic %s. Publishers: %s"
+        % (final_topic, [str(endpoint) for endpoint in topic_endpoints])
+    )
 
 
 def download_checkpoint(

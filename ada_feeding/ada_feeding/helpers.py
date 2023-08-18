@@ -6,6 +6,31 @@ Ada Feeding project.
 # Standard imports
 from typing import Any
 
+# Third-party imports
+import py_trees
+
+
+def get_from_blackboard_with_default(
+    blackboard: py_trees.blackboard.Client, key: str, default: Any
+) -> Any:
+    """
+    Gets a value from the blackboard, returning a default value if the key is not set.
+
+    Parameters
+    ----------
+    blackboard: The blackboard client.
+    key: The key to get.
+    default: The default value to return if the key is not set.
+
+    Returns
+    -------
+    value: The value of the key if it is set, otherwise the default value.
+    """
+    try:
+        return getattr(blackboard, key)
+    except KeyError:
+        return default
+
 
 def import_from_string(import_string: str) -> Any:
     """

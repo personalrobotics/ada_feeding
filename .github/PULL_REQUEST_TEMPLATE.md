@@ -8,7 +8,7 @@
 
 # Before opening a pull request
 - [ ] Format your code using [black formatter](https://black.readthedocs.io/en/stable/) `python3 -m black .`
-- [ ] Run your code through [pylint](https://pylint.readthedocs.io/en/latest/) and address (most) warnings/errors: `pylint --recursive=y .`
+- [ ] Run your code through [pylint](https://pylint.readthedocs.io/en/latest/) and address all warnings/errors. The only warnings that are acceptable to not address is TODOs that should be addressed in a future PR. From the top-level `ada_feeding` directory, run: `pylint --recursive=y --rcfile=.pylintrc .`.
 
 # Before Merging
 - [ ] `Squash & Merge`
