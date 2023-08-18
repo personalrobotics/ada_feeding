@@ -4,28 +4,32 @@
 This file defines the FaceDetection class, which publishes the 3d PointStamped locations
 of the largest detected mouth with respect to camera_depth_optical_frame.
 """
-from ada_feeding_msgs.msg import FaceDetection
-from std_srvs.srv import SetBool
-import cv2
-from cv_bridge import CvBridge
-import numpy as np
-from geometry_msgs.msg import PointStamped
-from geometry_msgs.msg import Point
-import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import Image, CompressedImage, CameraInfo
+
+# Standard Imports
+import collections
 import os
 from threading import Lock
 from typing import Tuple
+
+# Third-party imports
+import cv2
+from cv_bridge import CvBridge
+from geometry_msgs.msg import PointStamped
+import numpy as np
+import rclpy
+from rclpy.node import Node
 from rclpy.parameter import Parameter
-from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from rclpy.executors import MultiThreadedExecutor
-import collections
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType
+from sensor_msgs.msg import CompressedImage, CameraInfo
+from std_srvs.srv import SetBool
 
-
+# Local imports
+from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding_perception.helpers import (
     download_checkpoint,
-    get_img_msg_type
+    get_img_msg_type,
+    cv2_image_to_ros_msg,
 )
 
 
@@ -34,12 +38,15 @@ class FaceDetectionNode(Node):
     This node publishes a 3d PointStamped location
     of the largest detected mouth with respect to camera_depth_optical_frame.
     """
+
+    # pylint: disable=too-many-instance-attributes
+    # Needed for multiple model loads, publisher, subscribers, and shared variables
     def __init__(
         self,
     ):
         """
         Initializes the FaceDetection node. This node exposes a toggle_face_detection
-        service that can be used to toggle the face detection on or off and 
+        service that can be used to toggle the face detection on or off and
         publishes information about detected faces to the /face_detection
         topic when face detection is on.
         """
@@ -68,8 +75,7 @@ class FaceDetectionNode(Node):
                 self.face_model_name, model_dir.value, face_model_base_url.value
             )
             self.get_logger().info(
-                "Model checkpoint downloaded %s."
-                % os.path.join(model_dir.value, self.face_model_name)
+                f"Model checkpoint downloaded {self.face_model_path}."
             )
         self.landmark_model_path = os.path.join(
             model_dir.value, self.landmark_model_name
@@ -82,16 +88,15 @@ class FaceDetectionNode(Node):
                 self.landmark_model_name, model_dir.value, landmark_model_base_url.value
             )
             self.get_logger().info(
-                "Model checkpoint downloaded %s."
-                % os.path.join(model_dir.value, self.landmark_model_name)
+                f"Model checkpoint downloaded {self.landmark_model_path}."
             )
 
         # Keeps track of whether face detection is on or not
 
-     
         self.is_on = False
         self.is_on_lock = Lock()
         self.bridge = CvBridge()
+
         self.is_face_detected = False
         self.depth_buffer = collections.deque(maxlen=10)
         self.img_timestamp = None
@@ -106,8 +111,16 @@ class FaceDetectionNode(Node):
         # Create the service
         self.srv = self.create_service(
             SetBool,
-            "toggle_face_detection",
+            "~/toggle_face_detection",
             self.toggle_face_detection_callback,
+        )
+
+        # Create the publishers
+        self.publisher_results = self.create_publisher(
+            FaceDetection, "~/face_detection", 1
+        )
+        self.publisher_image = self.create_publisher(
+            CompressedImage, "~/face_detection_img/compressed", 1
         )
 
         # Subscribe to the camera feed
@@ -119,19 +132,16 @@ class FaceDetectionNode(Node):
         aligned_depth_topic = "~/aligned_depth"
         # Subscribe to the depth image
         self.depth_subscription = self.create_subscription(
-            get_img_msg_type(aligned_depth_topic, self), aligned_depth_topic, self.depth_callback, 1
+            get_img_msg_type(aligned_depth_topic, self),
+            aligned_depth_topic,
+            self.depth_callback,
+            1,
         )
 
         # Subscribe to the camera info
         self.camera_info_subscription = self.create_subscription(
             CameraInfo, "~/camera_info", self.camera_info_callback, 1
         )
-
-        # Create the publishers
-        self.publisher_results = self.create_publisher(
-            FaceDetection, "face_detection", 1
-        )
-        self.publisher_image = self.create_publisher(Image, "face_detection_img", 1)
 
     def read_params(
         self,
@@ -142,9 +152,11 @@ class FaceDetectionNode(Node):
         Returns
         -------
         face_model_name: The name of the face detection model checkpoint to use
-        face_model_base_url: The URL to download the model checkpoint from if it is not already downloaded
+        face_model_base_url: The URL to download the model checkpoint from if it is not
+        already downloaded
         landmark_model_name: The name of the facial landmark detection model checkpoint to use
-        landmark_model_base_url: The URL to download the model checkpoint from if it is not already downloaded
+        landmark_model_base_url: The URL to download the model checkpoint from if it is not
+        already downloaded
         model_dir: The location of the directory where the model checkpoint is / should be stored
         """
         return self.declare_parameters(
@@ -166,7 +178,10 @@ class FaceDetectionNode(Node):
                     ParameterDescriptor(
                         name="face_model_base_url",
                         type=ParameterType.PARAMETER_STRING,
-                        description="The URL to download the model checkpoint from if it is not already downloaded",
+                        description=(
+                            "The URL to download the model checkpoint from "
+                            "if it is not already downloaded"
+                        ),
                         read_only=True,
                     ),
                 ),
@@ -186,7 +201,10 @@ class FaceDetectionNode(Node):
                     ParameterDescriptor(
                         name="landmark_model_base_url",
                         type=ParameterType.PARAMETER_STRING,
-                        description="The URL to download the model checkpoint from if it is not already downloaded",
+                        description=(
+                            "The URL to download the model checkpoint from "
+                            "if it is not already downloaded"
+                        ),
                         read_only=True,
                     ),
                 ),
@@ -196,26 +214,29 @@ class FaceDetectionNode(Node):
                     ParameterDescriptor(
                         name="model_dir",
                         type=ParameterType.PARAMETER_STRING,
-                        description="The location of the directory where the model checkpoint is / should be stored",
+                        description=(
+                            "The location of the directory where the model "
+                            "checkpoint is / should be stored"
+                        ),
                         read_only=True,
                     ),
                 ),
             ],
         )
 
-    def toggle_face_detection_callback(self, request: SetBool.Request, response: SetBool.Response) -> SetBool.Response:
+    def toggle_face_detection_callback(
+        self, request: SetBool.Request, response: SetBool.Response
+    ) -> SetBool.Response:
         """
         Callback function for the toggle_face_detection service. Safely toggles
         the face detection on or off depending on the request.
         """
-        self.get_logger().info(
-            "Incoming service request. data: %s" % (request.data)
-        )
+        self.get_logger().info(f"Incoming service request. data: {request.data}")
         with self.is_on_lock:
             self.is_on = request.data
         response.success = request.data
         return response
-    
+
     def camera_info_callback(self, msg: CameraInfo):
         """
         Callback function for the toggle_face_detection service. Safely toggles
@@ -225,12 +246,11 @@ class FaceDetectionNode(Node):
 
     def depth_callback(self, msg: CompressedImage):
         """
-        Callback function for depth images. If face_detection is on, this 
-        function publishes the 3d location of the mouth on the /face_detection 
+        Callback function for depth images. If face_detection is on, this
+        function publishes the 3d location of the mouth on the /face_detection
         topic in the camera_depth_optical_frame
         """
 
-        
         # Collect last ten depth images (depth_buffer is a collections.deque of max length 10)
         self.depth_buffer.append(msg)
         with self.is_on_lock:
@@ -247,24 +267,36 @@ class FaceDetectionNode(Node):
                 # Find depth image closest in time to saved color image
                 difference_array = np.array([])
                 for depth_img in self.depth_buffer:
-                    depth_time = depth_img.header.stamp.sec + (depth_img.header.stamp.nanosec/(10**9))
-                    img_time = self.img_timestamp.sec + (self.img_timestamp.nanosec/(10**9))
-                    difference_array = np.append(difference_array, abs(depth_time - img_time))
-                closest_index = difference_array.argmin()
-                closest_depth = self.bridge.imgmsg_to_cv2(self.depth_buffer[closest_index], desired_encoding='passthrough')
+                    depth_time = depth_img.header.stamp.sec + (
+                        depth_img.header.stamp.nanosec / (10**9)
+                    )
+                    img_time = self.img_timestamp.sec + (
+                        self.img_timestamp.nanosec / (10**9)
+                    )
+                    difference_array = np.append(
+                        difference_array, abs(depth_time - img_time)
+                    )
+                closest_depth = self.bridge.imgmsg_to_cv2(
+                    self.depth_buffer[difference_array.argmin()],
+                    desired_encoding="passthrough",
+                )
 
-                # Retrieve the depth value averaged over all mouth coordinates 
+                # Retrieve the depth value averaged over all mouth coordinates
                 depth_sum = 0
                 for point in self.img_mouth_points:
                     depth_sum += closest_depth[int(point[1])][int(point[0])]
-                depth = depth_sum/float(len(self.img_mouth_points))
+                depth = depth_sum / float(len(self.img_mouth_points))
 
                 # Create target 3d point, with mm measurements converted to m
                 mouth_location = PointStamped()
                 mouth_location.header = msg.header
-                mouth_location.point.x = (float(depth)*(float(u)-self.camera_matrix[2]))/(1000.0*self.camera_matrix[0])
-                mouth_location.point.y = (float(depth)*(float(v)-self.camera_matrix[5]))/(1000.0*self.camera_matrix[4])
-                mouth_location.point.z = float(depth)/1000.0
+                mouth_location.point.x = (
+                    float(depth) * (float(u) - self.camera_matrix[2])
+                ) / (1000.0 * self.camera_matrix[0])
+                mouth_location.point.y = (
+                    float(depth) * (float(v) - self.camera_matrix[5])
+                ) / (1000.0 * self.camera_matrix[4])
+                mouth_location.point.z = float(depth) / 1000.0
 
                 face_detection_msg.detected_mouth_center = mouth_location
 
@@ -278,13 +310,15 @@ class FaceDetectionNode(Node):
         function will detect faces in the image and store the location of
         the largest detected face/mouth.
         """
+        # pylint: disable=too-many-locals
+        # Two variables over the limit is fine, needed to find both faces and mouths
         image_rgb = cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_COLOR)
         with self.is_on_lock:
             is_on = self.is_on
 
         if is_on:
             self.is_face_detected = False
-            
+
             # Convert image to Grayscale
             image_gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
 
@@ -297,7 +331,6 @@ class FaceDetectionNode(Node):
             if len(faces) > 0:
                 self.is_face_detected = True
 
-
             if self.is_face_detected:
                 # Create an instance of the Facial landmark Detector with the model
                 landmark_detector = cv2.face.createFacemarkLBF()
@@ -308,17 +341,13 @@ class FaceDetectionNode(Node):
                 _, landmarks = landmark_detector.fit(image_gray, faces)
 
                 # Add face markers to the image and find largest face
-                largest_face = 0
-                largest_face_index = 0
-                for i in range(len(faces)):
+                largest_face = [0, 0]
+                for i, face in enumerate(faces):
                     # Draw a white rectangle around each face
-                    (x, y, w, d) = faces[i]
-                    cv2.rectangle(
-                        image_rgb, (x, y), (x + w, y + d), (255, 255, 255), 2
-                    )
+                    (x, y, w, h) = face
+                    cv2.rectangle(image_rgb, (x, y), (x + w, y + h), (255, 255, 255), 2)
 
-                    largest_face = max(largest_face, w*d)
-                    largest_face_index = i
+                    largest_face = [max(largest_face[0], w * h), i]
                     # Display mouth landmarks (48-67, as explained in the below link)
                     # https://pyimagesearch.com/2017/04/03/facial-landmarks-dlib-opencv-python/
                     for j in range(48, 67):
@@ -326,27 +355,25 @@ class FaceDetectionNode(Node):
                         cv2.circle(image_rgb, (int(x), int(y)), 1, (0, 255, 0), 5)
 
                 # Draw a red rectangle around largest face
-                (x, y, w, d) = faces[largest_face_index]
-                cv2.rectangle(
-                    image_rgb, (x, y), (x + w, y + d), (255, 0, 0), 2
-                )            
-
+                (x, y, w, h) = faces[largest_face[1]]
+                cv2.rectangle(image_rgb, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
                 # Find stomion (mouth center) in image
-                self.img_mouth_center = landmarks[largest_face_index][0][66]
-                self.img_mouth_points = landmarks[largest_face_index][0][48:67]
+                self.img_mouth_center = landmarks[largest_face[1]][0][66]
+                self.img_mouth_points = landmarks[largest_face[1]][0][48:67]
 
                 self.img_timestamp = msg.header.stamp
 
-
-            annotated_msg = self.bridge.cv2_to_imgmsg(image_rgb, "rgb8")
-
+            annotated_msg = cv2_image_to_ros_msg(image_rgb, compress=True)
 
             # Publish annotated image with face and mouth landmarks
             self.publisher_image.publish(annotated_msg)
 
 
 def main(args=None):
+    """
+    Launch the ROS node and spin.
+    """
     rclpy.init(args=args)
 
     face_detection = FaceDetectionNode()
