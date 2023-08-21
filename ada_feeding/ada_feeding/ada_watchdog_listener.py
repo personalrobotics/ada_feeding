@@ -87,7 +87,11 @@ class ADAWatchdogListener:
         if self.watchdog_failed:
             self.node.get_logger().error("Watchdog failed!")
             return False
-        if (self.node.get_clock().now() - self.last_watchdog_msg_time) > self.watchdog_timeout:
-            self.node.get_logger().error(f"Did not receive a watchdog message for > {self.watchdog_timeout}!")
+        if (
+            self.node.get_clock().now() - self.last_watchdog_msg_time
+        ) > self.watchdog_timeout:
+            self.node.get_logger().error(
+                f"Did not receive a watchdog message for > {self.watchdog_timeout}!"
+            )
             return False
         return True

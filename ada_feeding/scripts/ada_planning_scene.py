@@ -151,7 +151,12 @@ class ADAPlanningScene(Node):
         """
         rate = self.create_rate(self.wait_for_moveit_hz)
         while rclpy.ok():
-            if self.moveit2._MoveIt2__collision_object_publisher.get_subscription_count() > 0:
+            # pylint: disable=protected-access
+            # This is necessary. Ideally, the publisher would not be protected.
+            if (
+                self.moveit2._MoveIt2__collision_object_publisher.get_subscription_count()
+                > 0
+            ):
                 break
             rate.sleep()
 
