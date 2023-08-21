@@ -15,9 +15,81 @@ from typing import List
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
+from std_srvs.srv import SetBool
 
 # Local imports
 from ada_feeding import ADAWatchdogListener
+
+
+class ADAWatchdogListenerNode(Node):
+    """
+    A ROS2 node that listens to the watchdog topic and kills itself
+    if the watchdog fails.
+    """
+
+    def __init__(self) -> None:
+        """
+        Initialize the node.
+        """
+        super().__init__("ada_watchdog_listener")
+
+        # Read the parameter for the rate at which to check the watchdog
+        watchdog_check_hz = self.declare_parameter(
+            "watchdog_check_hz",
+            60.0,  # default value
+            ParameterDescriptor(
+                name="watchdog_check_hz",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The rate (Hz) at which to check the whether the watchdog has failed."
+                ),
+                read_only=True,
+            ),
+        )
+
+        # Create a service to toggle this node on-and-off
+        self.toggle_service = self.create_service(
+            SetBool,
+            "~/toggle_watchdog_listener",
+            self.toggle_callback,
+        )
+        self.is_on = False
+        self.is_on_lock = threading.Lock()
+
+        # Create the watchdog listener
+        self.ada_watchdog_listener = ADAWatchdogListener(self)
+
+        # Check the watchdog at the specified rate
+        timer_period = 1.0 / watchdog_check_hz.value  # seconds
+        self.timer = self.create_timer(timer_period, self.check_watchdog)
+
+    def toggle_callback(self, request: SetBool.Request, response: SetBool.Response):
+        """
+        Callback for the toggle service.
+        """
+        response.success = False
+        response.message = f"Failed to set is_on to {request.data}"
+        with self.is_on_lock:
+            self.is_on = request.data
+            response.success = True
+            response.message = f"Successfully set is_on to {request.data}"
+        return response
+
+    def check_watchdog(self):
+        """
+        If the watchdog listener is on and the watchdog fails, kill this node.
+        """
+        # Check if the node is on
+        with self.is_on_lock:
+            is_on = self.is_on
+
+        # If it's on, check if the watchdog has failed
+        if is_on and not self.ada_watchdog_listener.ok():
+            # If the watchdog has failed, kill this node
+            self.get_logger().error("Watchdog failed. Killing node.")
+            self.destroy_node()
+            rclpy.shutdown()
 
 
 def main(args: List = None) -> None:
@@ -26,61 +98,9 @@ def main(args: List = None) -> None:
     """
     rclpy.init(args=args)
 
-    # Create a node
-    node = rclpy.create_node("ada_watchdog_listener")
-
-    # Read the parameter for the rate at which to check the watchdog
-    watchdog_check_hz = node.declare_parameter(
-        "watchdog_check_hz",
-        60.0,  # default value
-        ParameterDescriptor(
-            name="watchdog_check_hz",
-            type=ParameterType.PARAMETER_DOUBLE,
-            description=(
-                "The rate (Hz) at which to check the whether the watchdog has failed."
-            ),
-            read_only=True,
-        ),
-    )
-    rate = node.create_rate(watchdog_check_hz.value)
-
-    # Create the watchdog listener
-    ada_watchdog_listener = ADAWatchdogListener(node)
-
-    # Use a MultiThreadedExecutor
+    ada_watchdog_listener_node = ADAWatchdogListenerNode()
     executor = MultiThreadedExecutor()
-
-    # Spin in the background so that messages and rates get processed
-    spin_thread = threading.Thread(
-        target=rclpy.spin,
-        args=(node,),
-        kwargs={"executor": executor},
-        daemon=True,
-    )
-    spin_thread.start()
-
-    # As long as ROS2 is running, keep checking the watchdog
-    while rclpy.ok():
-        # Check if the watchdog has failed
-        if not ada_watchdog_listener.ok():
-            # If so, kill the node
-            node.get_logger().error("Watchdog failed. Killing node.")
-            node.destroy_node()
-            rclpy.shutdown()
-            # Join the spin thread
-            spin_thread.join()
-            return
-
-        # Sleep for the specified amount of time
-        rate.sleep()
-
-    # Destroy the node explicitly
-    # (optional - otherwise it will be done automatically
-    # when the garbage collector destroys the node object)
-    node.destroy_node()
-    rclpy.shutdown()
-    # Join the spin thread
-    spin_thread.join()
+    rclpy.spin(ada_watchdog_listener_node, executor=executor)
 
 
 if __name__ == "__main__":
