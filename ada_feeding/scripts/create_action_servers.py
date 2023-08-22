@@ -45,6 +45,14 @@ class ActionServerParams:
     ) -> None:
         """
         Initialize the ActionServerParams class.
+
+        Parameters
+        ----------
+        server_name: The name of the action server.
+        action_type: The type of the action as a str, e.g., ada_feeding_msgs.action.MoveTo.
+        tree_class: The class of the behavior tree, e.g., ada_feeding.trees.MoveToConfigurationTree.
+        tree_kwargs: The keyword arguments to pass to the behavior tree class.
+        tick_rate: The rate at which to tick the behavior tree.
         """
         self.server_name = server_name
         self.action_type = action_type
@@ -315,7 +323,7 @@ class CreateActionServers(Node):
                 params.server_name,
                 self.get_execute_callback(
                     params.server_name,
-                    params.action_type,
+                    self._action_types[params.action_type],
                     params.tree_class,
                     params.tree_kwargs,
                     params.tick_rate,
@@ -363,7 +371,7 @@ class CreateActionServers(Node):
     def get_execute_callback(
         self,
         server_name: str,
-        action_type: str,
+        action_type: type,
         tree_class: str,
         tree_kwargs: Dict,
         tick_rate: int,
@@ -373,6 +381,18 @@ class CreateActionServers(Node):
         server and returns a callback function that can be used for that server.
         This is necessary because the callback function must return a Result and
         Feedback consisitent with the action type.
+
+        Parameters
+        ----------
+        server_name: The name of the action server.
+        action_type: The type of the action, as a class.
+        tree_class: The class of the behavior tree, e.g., ada_feeding.trees.MoveToConfigurationTree.
+        tree_kwargs: The keyword arguments to pass to the behavior tree class.
+        tick_rate: The rate at which to tick the behavior tree.
+
+        Returns
+        -------
+        execute_callback: The callback function for the action server.
         """
         # Initialize the ActionServerBT object once
         tree_action_server = self._tree_classes[tree_class](**tree_kwargs)
@@ -458,7 +478,7 @@ class CreateActionServers(Node):
             # went wrong. Abort the goal.
             if result is None:
                 goal_handle.abort()
-                result = self._action_types[action_type].Result()
+                result = action_type.Result()
 
             # Shutdown the tree
             # pylint: disable=broad-exception-caught

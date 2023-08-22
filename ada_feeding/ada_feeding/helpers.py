@@ -54,16 +54,16 @@ def import_from_string(import_string: str) -> Any:
         import_package, import_module, import_class = import_string.split(".", 3)
     except Exception as exc:
         raise NameError(
-            'Invalid import string %s. Except "package.module.class" e.g., "ada_feeding_msgs.action.MoveTo"'
-            % import_string
+            f'Invalid import string {import_string}. Except "package.module.class" '
+            'e.g., "ada_feeding_msgs.action.MoveTo"'
         ) from exc
     try:
         return getattr(
             getattr(
-                __import__("%s.%s" % (import_package, import_module)),
+                __import__(f"{import_package}.{import_module}"),
                 import_module,
             ),
             import_class,
         )
     except Exception as exc:
-        raise ImportError("Error importing %s" % (import_string)) from exc
+        raise ImportError(f"Error importing {import_string}") from exc

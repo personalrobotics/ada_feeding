@@ -12,6 +12,7 @@ from urllib.request import urlretrieve
 import cv2
 from cv_bridge import CvBridge
 import numpy as np
+import numpy.typing as npt
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage, Image
@@ -20,7 +21,7 @@ from skimage.morphology import flood_fill
 
 def ros_msg_to_cv2_image(
     msg: Union[Image, CompressedImage], bridge: Optional[CvBridge] = None
-) -> np.ndarray:
+) -> npt.NDArray:
     """
     Convert a ROS Image or CompressedImage message to a cv2 image. By default,
     this will maintain the depth of the image (e.g., 16-bit depth for depth
@@ -48,7 +49,7 @@ def ros_msg_to_cv2_image(
 
 
 def cv2_image_to_ros_msg(
-    image: np.ndarray, compress: bool, bridge: Optional[CvBridge] = None
+    image: npt.NDArray, compress: bool, bridge: Optional[CvBridge] = None
 ) -> Union[Image, CompressedImage]:
     """
     Convert a cv2 image to a ROS Image or CompressedImage message. Note that this
@@ -111,8 +112,8 @@ def get_img_msg_type(topic: str, node: Node) -> type:
         if endpoint.topic_type == "sensor_msgs/msg/Image":
             return Image
     raise ValueError(
-        "No publisher found with img type for topic %s. Publishers: %s"
-        % (final_topic, [str(endpoint) for endpoint in topic_endpoints])
+        f"No publisher found with img type for topic {final_topic}. "
+        "Publishers: {[str(endpoint) for endpoint in topic_endpoints]}"
     )
 
 
@@ -147,6 +148,9 @@ class BoundingBox:
     A class representing a bounding box on an image
     """
 
+    # pylint: disable=too-few-public-methods
+    # This is a data class
+
     def __init__(self, xmin: int, ymin: int, xmax: int, ymax: int):
         """
         Parameters
@@ -162,7 +166,7 @@ class BoundingBox:
         self.ymax = ymax
 
 
-def bbox_from_mask(mask: np.ndarray[bool]) -> BoundingBox:
+def bbox_from_mask(mask: npt.NDArray[np.bool_]) -> BoundingBox:
     """
     Takes in a binary mask and returns the smallest axis-aligned bounding box
     that contains all the True pixels in the mask.
@@ -185,8 +189,11 @@ def bbox_from_mask(mask: np.ndarray[bool]) -> BoundingBox:
 
 
 def crop_image_mask_and_point(
-    image: np.ndarray, mask: np.ndarray[bool], point: Tuple[int, int], bbox: BoundingBox
-) -> Tuple[np.ndarray, np.ndarray[bool], Tuple[int, int]]:
+    image: npt.NDArray,
+    mask: npt.NDArray[np.bool_],
+    point: Tuple[int, int],
+    bbox: BoundingBox,
+) -> Tuple[npt.NDArray, npt.NDArray[np.bool_], Tuple[int, int]]:
     """
     Crop the image and mask to the bounding box.
 
@@ -213,8 +220,8 @@ def crop_image_mask_and_point(
 
 
 def overlay_mask_on_image(
-    image: np.ndarray,
-    mask: np.ndarray[bool],
+    image: npt.NDArray,
+    mask: npt.NDArray[np.bool_],
     alpha: float = 0.5,
     color: Tuple[int, int, int] = (0, 255, 0),
 ):
@@ -242,8 +249,8 @@ def overlay_mask_on_image(
 
 
 def get_connected_component(
-    mask: np.ndarray[bool], point: Tuple[int, int]
-) -> np.ndarray[bool]:
+    mask: npt.NDArray[np.bool_], point: Tuple[int, int]
+) -> npt.NDArray[np.bool_]:
     """
     Takes in a binary mask and returns a new mask that has only the connected
     component that contains the given point.
@@ -268,16 +275,14 @@ def get_connected_component(
     """
     # Check that the point and mask satisfy the constraints
     if len(mask.shape) != 2:
-        raise ValueError(
-            "Mask must be a 2D array, it instead has shape {}".format(mask.shape)
-        )
+        raise ValueError(f"Mask must be a 2D array, it instead has shape {mask.shape}")
     if (
         point[1] < 0
         or point[1] >= mask.shape[0]
         or point[0] < 0
         or point[0] >= mask.shape[1]
     ):
-        raise IndexError("Point %s is not in mask of shape %s" % (point, mask.shape))
+        raise IndexError(f"Point {point} is not in mask of shape {mask.shape}")
     # Convert mask to uint8
     mask_uint = mask.astype(np.uint8)
     # Flood fill the mask with 3. Swap x and y because flood_fill expects
