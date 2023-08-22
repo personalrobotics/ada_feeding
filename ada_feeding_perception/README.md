@@ -3,10 +3,14 @@ This code performs image segmentation using the [Segment Anything](https://githu
 
 ## Installation
 1. Clone this directory into the `src` folder of your ROS2 workspace.
-2. Install the dependencies:
+2. Install the Python dependencies:
 ```
 chmod +x install.sh
 ./install.sh
+```
+3. Install the system dependencies:
+```
+sudo apt install ros-humble-image-transport ros-humble-compressed-image-transport
 ```
 
 For testing, be sure to unzip `test/food_img.zip`.

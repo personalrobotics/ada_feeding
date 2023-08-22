@@ -15,7 +15,7 @@
     <remap from="~/camera_info" to="/camera/color/camera_info"/>
     <remap from="~/aligned_depth" to="/camera/aligned_depth_to_color/image_raw"/>
     <remap from="~/face_detection" to="/face_detection"/>
-    <remap from="~/face_detection_img/compressed" to="/face_detection_img/compressed"/>
+    <remap from="~/face_detection_img" to="/face_detection_img"/>
     <remap from="~/toggle_face_detection" to="/toggle_face_detection"/>
   </node>
 </launch>

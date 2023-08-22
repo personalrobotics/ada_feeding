@@ -21,7 +21,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.executors import MultiThreadedExecutor
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
-from sensor_msgs.msg import CompressedImage, CameraInfo
+from sensor_msgs.msg import CompressedImage, CameraInfo, Image
 from std_msgs.msg import Header
 from std_srvs.srv import SetBool
 
@@ -108,9 +108,10 @@ class FaceDetectionNode(Node):
         self.publisher_results = self.create_publisher(
             FaceDetection, "~/face_detection", 1
         )
-        self.publisher_image = self.create_publisher(
-            CompressedImage, "~/face_detection_img/compressed", 1
-        )
+        # Currently, RVIZ2 doesn't support visualization of CompressedImage
+        # (other than as part of a Camera). Hence, for vizualization purposes
+        # this must be an Image. https://github.com/ros2/rviz/issues/738
+        self.publisher_image = self.create_publisher(Image, "~/face_detection_img", 1)
 
         # Create an instance of the Face Detection Cascade Classifier
         self.detector = cv2.CascadeClassifier(self.face_model_path)
@@ -404,13 +405,15 @@ class FaceDetectionNode(Node):
 
                 color_img_timestamp = msg.header.stamp
 
-            annotated_msg = cv2_image_to_ros_msg(image_rgb, compress=True)
+            annotated_msg = cv2_image_to_ros_msg(image_rgb, compress=False)
 
             with self.mouth_detection_lock:
                 self.is_face_detected = is_face_detected
-                self.img_mouth_center = img_mouth_center
-                self.img_mouth_points = img_mouth_points
-                self.color_img_timestamp = color_img_timestamp
+                # The below variables are only accessed if is_face_detected is True
+                if is_face_detected:
+                    self.img_mouth_center = img_mouth_center
+                    self.img_mouth_points = img_mouth_points
+                    self.color_img_timestamp = color_img_timestamp
 
             # Publish annotated image with face and mouth landmarks
             self.publisher_image.publish(annotated_msg)
