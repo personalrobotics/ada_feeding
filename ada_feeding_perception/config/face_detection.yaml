@@ -9,6 +9,5 @@ face_detection:
     landmark_model_name: lbfmodel.yaml
     # The URL to download the facial landmark detection model checkpoint from if it is not already downloaded
     landmark_model_base_url: "https://raw.githubusercontent.com/kurnianggoro/GSOC2017/master/data/"
-
-
-  
+    # The desired length of the depth image buffer
+    depth_buffer_size: 10
