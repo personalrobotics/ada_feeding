@@ -18,7 +18,6 @@ import py_trees
 from rclpy.node import Node
 
 # Local imports
-from ada_feeding.helpers import import_from_string
 from ada_feeding import ActionServerBT
 
 
@@ -29,18 +28,13 @@ class MoveToTree(ActionServerBT, ABC):
     ada_feeding_msgs.action.AcquireFood.
     """
 
-    def __init__(
-        self,
-    ) -> None:
-        """
-        Initializes tree-specific parameters.
-        """
-        pass
-
+    # pylint: disable=attribute-defined-outside-init
+    # It is reasonable for attributes that are tree-specific, or only relevant
+    # after the tree is created, to be defined in `create_tree`.
     def create_tree(
         self,
         name: str,
-        action_type: str,
+        action_type: type,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -50,9 +44,7 @@ class MoveToTree(ActionServerBT, ABC):
         Parameters
         ----------
         name: The name of the behavior tree.
-        action_type: full name of a Python class for the associated action,
-            can be converted to a type object with `import_from_string` in
-            helpers.py
+        action_type: the type for the action, as a class.
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
@@ -64,10 +56,9 @@ class MoveToTree(ActionServerBT, ABC):
         self.create_blackboard(name)
 
         # Import the action type
-        self.action_type_class = import_from_string(action_type_class_str)
-        self.action_type_class_str = action_type_class_str
+        self.action_type = action_type
 
-        return self.create_move_to_tree(name, action_type_class_str, logger, node)
+        return self.create_move_to_tree(name, logger, node)
 
     def create_blackboard(self, name: str) -> None:
         """
@@ -161,7 +152,7 @@ class MoveToTree(ActionServerBT, ABC):
         -------
         feedback: The ROS feedback message to be sent to the action client.
         """
-        feedback_msg = self.action_type_class.Feedback()
+        feedback_msg = self.action_type.Feedback()
         if self.blackboard.exists("is_planning"):
             feedback_msg.is_planning = self.blackboard.is_planning
             planning_time = self.blackboard.planning_time
@@ -195,7 +186,7 @@ class MoveToTree(ActionServerBT, ABC):
         -------
         result: The ROS result message to be sent to the action client.
         """
-        result = self.action_type_class.Result()
+        result = self.action_type.Result()
         # If the tree succeeded, return success
         if tree.root.status == py_trees.common.Status.SUCCESS:
             result.status = result.STATUS_SUCCESS
@@ -215,7 +206,7 @@ class MoveToTree(ActionServerBT, ABC):
         # indicative of an error. Return unknown error.
         else:
             tree.root.logger.warn(
-                "Called get_result with status RUNNING: %s" % tree.root.status
+                f"Called get_result with status RUNNING: {tree.root.status}"
             )
             result.status = result.STATUS_UNKNOWN
 

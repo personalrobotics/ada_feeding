@@ -28,6 +28,8 @@ ROSACTION_GOAL_ABORTED = "goal_aborted"
 ROSACTION_GOAL_PREEMPTED = "goal_preempted"
 
 
+# pylint: disable=too-many-branches
+# 13 branches is reasonable for this function
 def _move_group_dummy(
     dummy_plan_time_s: float,
     dummy_motion_time_s: float,
@@ -101,6 +103,9 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
     action.
     """
 
+    # pylint: disable=too-many-instance-attributes
+    # 11 attributes is fine for this class.
+
     def __init__(
         self,
         name: str,
@@ -156,13 +161,16 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
             key="motion_curr_distance", access=py_trees.common.Access.EXCLUSIVE_WRITE
         )
 
+    # pylint: disable=attribute-defined-outside-init
+    # It is reasonable to define attributes in setup, since that will be run once
+    # to initialize the behavior.
     def setup(self, **kwargs) -> None:
         """
         Start the MoveGroup dummy action server.
 
         Note that in the actual scenario, this action would already be running.
         """
-        self.logger.info("%s [MoveToDummy::setup()]" % self.name)
+        self.logger.info(f"{self.name} [MoveToDummy::setup()]")
         # Create the pipe to communicate between processes
         self.parent_connection, self.child_connection = multiprocessing.Pipe()
         # Start the move group process
@@ -181,7 +189,7 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         Send a new goal to the MoveGroup dummy action server and reset the
         blackboard.
         """
-        self.logger.info("%s [MoveToDummy::initialise()]" % self.name)
+        self.logger.info(f"{self.name} [MoveToDummy::initialise()]")
 
         # Reset local state variables
         self.prev_response = None
@@ -202,12 +210,12 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         """
         Check if the MoveGroup dummy action server has finished.
         """
-        self.logger.info("%s [MoveToDummy::update()]" % self.name)
+        self.logger.info(f"{self.name} [MoveToDummy::update()]")
 
         # Check if the process has died
         if not self.move_group.is_alive():
             self.logger.error(
-                "%s [MoveToDummy::update()] MoveGroup dummy process died!" % self.name
+                f"{self.name} [MoveToDummy::update()] MoveGroup dummy process died!"
             )
             return py_trees.common.Status.FAILURE
 
@@ -238,9 +246,6 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
                         time.time() - self.planning_start_time
                     )
                     self.motion_start_time = time.time()
-                    # TODO: On the actual robot, `motion_initial_distance` and
-                    #       `motion_curr_distance` should determine the distance
-                    #       to the goal.
                     self.blackboard.motion_initial_distance = self.dummy_motion_time_s
                 self.blackboard.motion_time = time.time() - self.motion_start_time
                 self.blackboard.motion_curr_distance = (
@@ -258,8 +263,7 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
         server to complete the preemption.
         """
         self.logger.info(
-            "%s [MoveToDummy::terminate()][%s->%s]"
-            % (self.name, self.status, new_status)
+            f"{self.name} [MoveToDummy::terminate()][{self.status}->{new_status}]"
         )
 
         # Cancel any active goal
@@ -273,7 +277,7 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
                     response = self.parent_connection.recv().pop()
                     if response == ROSACTION_GOAL_PREEMPTED:
                         break
-        self.logger.info("%s [MoveToDummy::terminate()] completed" % self.name)
+        self.logger.info(f"{self.name} [MoveToDummy::terminate()] completed")
 
     def shutdown(self) -> None:
         """
@@ -281,7 +285,7 @@ class MoveToDummy(py_trees.behaviour.Behaviour):
 
         In this case, terminate the MoveGroup dummy action server.
         """
-        self.logger.info("%s [MoveToDummy::shutdown()]" % self.name)
+        self.logger.info(f"{self.name} [MoveToDummy::shutdown()]")
         # Terminate the MoveGroup dummy action server
         self.parent_connection.send([ROSACTION_SHUTDOWN])
         self.move_group.join()

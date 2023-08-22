@@ -14,8 +14,11 @@ from rclpy.node import Node
 
 # Local imports
 from ada_feeding.behaviors import MoveToDummy
-from ada_feeding.helpers import import_from_string
 from ada_feeding import ActionServerBT
+
+# pylint: disable=duplicate-code
+# Since this is a dummy node, it will by design have lots of overlap with the
+# real node.
 
 
 class MoveToDummyTree(ActionServerBT):
@@ -37,7 +40,7 @@ class MoveToDummyTree(ActionServerBT):
         dummy_plan_time: How many seconds this dummy node should spend in planning.
         dummy_motion_time: How many seconds this dummy node should spend in motion.
         """
-        
+
         # Set the dummy motion parameters
         self.dummy_plan_time = dummy_plan_time
         self.dummy_motion_time = dummy_motion_time
@@ -46,10 +49,13 @@ class MoveToDummyTree(ActionServerBT):
         self.tree = None
         self.blackboard = None
 
+    # pylint: disable=attribute-defined-outside-init
+    # It is reasonable for attributes that are tree-specific, or only relevant
+    # after the tree is created, to be defined in `create_tree`.
     def create_tree(
         self,
         name: str,
-        action_type: str,
+        action_type: type,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -63,9 +69,7 @@ class MoveToDummyTree(ActionServerBT):
         Parameters
         ----------
         name: The name of the behavior tree.
-        action_type: full name of a Python class for the associated action,
-            can be converted to a type object with `import_from_string` in
-            helpers.py
+        action_type: the type for the action, as a class.
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
@@ -74,8 +78,8 @@ class MoveToDummyTree(ActionServerBT):
         -------
         tree: The behavior tree that moves the robot above the plate.
         """
-        # Import the action type
-        self.action_type_class = import_from_string(action_type_class_str)
+        # Store the action type
+        self.action_type = action_type
 
         # Create the behaviors in the tree
         if self.tree is None:
@@ -141,7 +145,7 @@ class MoveToDummyTree(ActionServerBT):
         -------
         feedback: The ROS feedback message to be sent to the action client.
         """
-        feedback_msg = self.action_type_class.Feedback()
+        feedback_msg = self.action_type.Feedback()
         if self.blackboard.exists("is_planning"):
             feedback_msg.is_planning = self.blackboard.is_planning
             planning_time = self.blackboard.planning_time
@@ -175,7 +179,7 @@ class MoveToDummyTree(ActionServerBT):
         -------
         result: The ROS result message to be sent to the action client.
         """
-        result = self.action_type_class.Result()
+        result = self.action_type.Result()
         # If the tree succeeded, return success
         if tree.root.status == py_trees.common.Status.SUCCESS:
             result.status = result.STATUS_SUCCESS
@@ -195,7 +199,7 @@ class MoveToDummyTree(ActionServerBT):
         # indicative of an error. Return unknown error.
         else:
             tree.root.logger.warn(
-                "Called get_result with status RUNNING: %s" % tree.root.status
+                f"Called get_result with status RUNNING: {tree.root.status}"
             )
             result.status = result.STATUS_UNKNOWN
 

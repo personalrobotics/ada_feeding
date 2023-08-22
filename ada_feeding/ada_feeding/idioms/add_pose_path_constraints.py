@@ -21,6 +21,11 @@ from ada_feeding.decorators import (
 )
 
 
+# pylint: disable=too-many-arguments, too-many-locals, too-many-statements
+# Unfortunately, all these arguments/locals/statements are necessary to add
+# pose path constraints to a behavior tree -- the point of putting them
+# into one function is to reduce the number of arguments/locals/statements
+# needed in other functions.
 def add_pose_path_constraints(
     child: py_trees.behaviour.Behaviour,
     name: str,

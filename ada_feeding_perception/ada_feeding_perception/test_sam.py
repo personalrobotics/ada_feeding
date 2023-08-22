@@ -39,27 +39,29 @@ args = parser.parse_args()
 image_path = args.input_image
 input_point = np.array(json.loads(args.input_point))
 
-# Model parameters
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model_type = "vit_b"
-model_name = "sam_vit_b_01ec64.pth"
-checkpoint_base_url = "https://dl.fbaipublicfiles.com/segment_anything/"
+# Constant model parameters
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+MODEL_TYPE = "vit_b"
+MODEL_NAME = "sam_vit_b_01ec64.pth"
+CHECKPOINT_BASE_URL = "https://dl.fbaipublicfiles.com/segment_anything/"
+
+# Download the model
 model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../", "model"))
-sam_checkpoint = os.path.join(model_dir, model_name)
+sam_checkpoint = os.path.join(model_dir, MODEL_NAME)
 # if the model can't be found download it
 if not os.path.isfile(sam_checkpoint):
     print("SAM model checkpoint not found. Downloading...")
-    download_checkpoint(model_name, model_dir, checkpoint_base_url)
-    print("Download complete! Model saved at {}".format(sam_checkpoint))
+    download_checkpoint(MODEL_NAME, model_dir, CHECKPOINT_BASE_URL)
+    print(f"Download complete! Model saved at {sam_checkpoint}")
 
 # Read the image
 image = cv2.imread(image_path)
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-print("Image shape: {}".format(image.shape))
+print(f"Image shape: {image.shape}")
 
 # Load the model
-sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-sam.to(device=device)
+sam = sam_model_registry[MODEL_TYPE](checkpoint=sam_checkpoint)
+sam.to(device=DEVICE)
 predictor = SamPredictor(sam)
 predictor.set_image(image)
 
@@ -101,10 +103,10 @@ def show_points(coords, labels, ax, marker_size=128):
         )
 
 
-number_output = 3
+NUMBER_OUTPUT = 3
 # After getting the masks
 for i, (score, mask) in enumerate(scored_masks_sorted):
-    if i >= number_output:
+    if i >= NUMBER_OUTPUT:
         break
     # Clean the mask to only contain the connected component containing
     # the seed point
@@ -141,12 +143,12 @@ for i, (score, mask) in enumerate(scored_masks_sorted):
     # Show the cropped image
     axes[0].imshow(cropped_image)
     axes[0].axis("off")
-    axes[0].set_title("Cropped Image {}".format(i))
+    axes[0].set_title(f"Cropped Image {i}")
 
     # Show the overlaid image
     axes[1].imshow(overlaid_image)
     axes[1].axis("off")
-    axes[1].set_title("Cropped Image {} with Mask, Conf {:.3f}".format(i, score))
+    axes[1].set_title(f"Cropped Image {i} with Mask, Conf {score:.3f}")
 
     plt.tight_layout()
     plt.show()

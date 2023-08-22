@@ -22,11 +22,20 @@ from ada_feeding.decorators import (
 )
 from ada_feeding.trees import MoveToTree
 
+# pylint: disable=duplicate-code
+# move_to_pose.py has similar code to move_to_configuration_tree.py when defining
+# blackboard variables that are necessary for all movements (e.g., planner_id).
+# This is not a problem.
+
 
 class MoveToPoseTree(MoveToTree):
     """
     A behavior tree that consists of a single behavior, MoveToPose.
     """
+
+    # pylint: disable=too-many-instance-attributes, too-many-arguments
+    # Many arguments is fine for this class since it has to be able to configure all parameters
+    # of its constraints.
 
     def __init__(
         self,
@@ -80,6 +89,9 @@ class MoveToPoseTree(MoveToTree):
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
 
+    # pylint: disable=too-many-locals, too-many-statements
+    # Unfortunately, many locals/statements are required here to isolate the keys
+    # of similar constraints in the blackboard.
     def create_move_to_tree(
         self,
         name: str,

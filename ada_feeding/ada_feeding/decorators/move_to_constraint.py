@@ -40,8 +40,8 @@ class MoveToConstraint(py_trees.decorators.Decorator, ABC):
         # Check the child behavior type
         if not isinstance(child, (MoveTo, MoveToConstraint)):
             raise TypeError(
-                "%s [MoveToConstraint::__init__()] Child must be of type MoveTo or MoveToConstraint!"
-                % name
+                f"{name} [MoveToConstraint::__init__()] Child must be of "
+                "type MoveTo or MoveToConstraint!"
             )
 
         # Initiatilize the decorator
@@ -58,7 +58,7 @@ class MoveToConstraint(py_trees.decorators.Decorator, ABC):
         """
         Set the constraints before the child behavior starts executing.
         """
-        self.logger.info("%s [MoveToConstraint::initialise()]" % self.name)
+        self.logger.info(f"{self.name} [MoveToConstraint::initialise()]")
 
         # Set the constraint
         self.set_constraint()
@@ -84,8 +84,7 @@ class MoveToConstraint(py_trees.decorators.Decorator, ABC):
         Clear the constraints.
         """
         self.logger.info(
-            "%s [MoveToConstraint::terminate()][%s->%s]"
-            % (self.name, self.status, new_status)
+            f"{self.name} [MoveToConstraint::terminate()][{self.status}->{new_status}]"
         )
 
         # Clear the constraints

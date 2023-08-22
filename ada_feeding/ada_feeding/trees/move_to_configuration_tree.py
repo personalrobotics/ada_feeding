@@ -19,11 +19,20 @@ from ada_feeding.behaviors import MoveTo
 from ada_feeding.decorators import SetJointGoalConstraint
 from ada_feeding.trees import MoveToTree
 
+# pylint: disable=duplicate-code
+# move_to_configuration_tree.py has similar code to move_to_pose.py when defining
+# blackboard variables that are necessary for all movements (e.g., planner_id).
+# This is not a problem.
+
 
 class MoveToConfigurationTree(MoveToTree):
     """
     A behavior tree that moves the robot to a specified configuration.
     """
+
+    # pylint: disable=too-many-instance-attributes, too-many-arguments
+    # Many arguments is fine for this class since it has to be able to configure all parameters
+    # of its constraints.
 
     def __init__(
         self,
@@ -46,7 +55,7 @@ class MoveToConfigurationTree(MoveToTree):
             planner.
         """
         # Initialize MoveToTree
-        super().__init__(action_type_class_str)
+        super().__init__()
 
         # Store the parameters
         self.joint_positions = joint_positions
@@ -56,6 +65,9 @@ class MoveToConfigurationTree(MoveToTree):
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
 
+    # pylint: disable=too-many-locals
+    # Unfortunately, many local variables are required here to isolate the keys
+    # of similar constraints in the blackboard.
     def create_move_to_tree(
         self,
         name: str,
