@@ -1,0 +1,26 @@
+# The interface for a service that takes in food visual information
+# and returns a list of possible acquisition actions.
+
+# Food Bounding Box
+# And any visual context
+ada_feeding_msgs/Mask food_context
+
+---
+
+# List of Possible Actions
+# Empty on Failure
+ada_feeding_msgs/AcquisitionSchema[] actions
+
+# Action Confidence
+# Can represent a stochastic policy P(take action)
+# Or an estimated probability of success for each
+# Size == 0 or len(actions)
+float64[] probabilities
+
+# Status Message
+string status
+
+# Selection ID
+# Used in AquisitionReport
+# Valid for the server node lifetime
+string id
