@@ -34,6 +34,9 @@ class EStopCondition(WatchdogCondition):
     Note that clicking the e-stop is defined as TODO.
     """
 
+    # pylint: disable=too-many-instance-attributes
+    # We need so many because we allow users to configure the audio stream parameters.
+
     def __init__(self, node: Node) -> None:
         """
         Initialize the EStopCondition class.
@@ -47,7 +50,7 @@ class EStopCondition(WatchdogCondition):
         self._node = node
 
         # Load the parameters
-        self._load_parameters()
+        self.__load_parameters()
 
         # Initialize the accumulators
         self.start_time = None
@@ -74,7 +77,7 @@ class EStopCondition(WatchdogCondition):
             stream_callback=self.__audio_callback,
         )
 
-    def _load_parameters(self) -> None:
+    def __load_parameters(self) -> None:
         """
         Load the parameters for this watchdog condition.
         """
@@ -148,8 +151,9 @@ class EStopCondition(WatchdogCondition):
                 type=ParameterType.PARAMETER_STRING,
                 description=(
                     "The name of the ACPI event that is triggered when the e-stop "
-                    "button is (un)plugged. Exclude the word ` plug` or ` unplug` "
-                    "from the end of the event name."
+                    "button is (un)plugged. Get this value by running `acpi_listener` "
+                    "in the terminal and unplugging the e-stop button. Exclude the word "
+                    "` plug` or ` unplug` from the end of the event name."
                 ),
                 read_only=True,
             ),
@@ -183,7 +187,11 @@ class EStopCondition(WatchdogCondition):
                         with self.is_mic_unplugged_lock:
                             self.is_mic_unplugged = False
 
-    def __audio_callback(self, data, frame_count, time_info, status):
+    # pylint: disable=unused-argument
+    # The audio callback function must have this signature
+    def __audio_callback(
+        self, data: bytes, frame_count: int, time_info: dict, status: int
+    ) -> Tuple[bytes, int]:
         """
         Callback function for the audio stream. This function is called whenever
         the audio stream has new data. This function checks if the e-stop button
@@ -199,9 +207,6 @@ class EStopCondition(WatchdogCondition):
         MIN_THRESHOLD = -10000
         MAX_THRESHOLD = 10000
 
-        self._node.get_logger().info(
-            f"Audio callback types {type(data)} {type(frame_count)} {type(time_info)} {type(status)}"
-        )
         # Skip the first few seconds of data, to avoid initial noise
         if self.start_time is None:
             self.start_time = self._node.get_clock().now()

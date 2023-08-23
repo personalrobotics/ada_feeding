@@ -18,6 +18,7 @@
   <node pkg="ada_feeding" exec="create_action_servers.py" name="ada_feeding_action_servers">
     <param from="$(find-pkg-share ada_feeding)/config/ada_feeding_action_servers.yaml"/>
     <remap from="~/watchdog" to="/ada_watchdog/watchdog" />
+    <remap from="~/ft_topic" to="/wireless_ft/ftSensor1" />
   </node>
 
   <!-- Populate the planning scene -->

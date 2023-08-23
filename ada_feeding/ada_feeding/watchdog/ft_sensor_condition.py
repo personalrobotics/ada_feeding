@@ -70,11 +70,11 @@ class FTSensorCondition(WatchdogCondition):
         self.ft_sensor_subscription = self._node.create_subscription(
             WrenchStamped,
             self.ft_sensor_topic,
-            self.ft_sensor_callback,
+            self.__ft_sensor_callback,
             rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value,
         )
 
-    def ft_sensor_callback(self, msg: WrenchStamped) -> None:
+    def __ft_sensor_callback(self, msg: WrenchStamped) -> None:
         """
         Callback function for the force-torque sensor topic.
 
