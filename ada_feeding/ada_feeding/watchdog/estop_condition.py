@@ -217,9 +217,26 @@ class EStopCondition(WatchdogCondition):
         data_arr = np.frombuffer(data, dtype=np.int16)
 
         # Check if the e-stop button has been pressed
+        self._node.get_logger().info(f"Audio data: {list(data_arr)}, {data_arr.shape}")
+        self._node.get_logger().info(f"Audio data num beyond threshold: {np.sum(np.logical_or(data_arr < MIN_THRESHOLD, data_arr > MAX_THRESHOLD))}")
+        did_cross_max_threshold_increasing = False
+        if np.any(data_arr > MAX_THRESHOLD):
+            first_index_above_max_threshold = np.argmax(data_arr > MAX_THRESHOLD)
+            did_cross_max_threshold_increasing = np.any(data_arr[:first_index_above_max_threshold] < MAX_THRESHOLD)
+        self._node.get_logger().info(
+            f"Audio did cross max threshold increasing: {did_cross_max_threshold_increasing}"
+        )
+        did_cross_min_threshold_decreasing = False
+        if np.any(data_arr < MIN_THRESHOLD):
+            first_index_below_min_threshold = np.argmax(data_arr < MIN_THRESHOLD)
+            did_cross_min_threshold_decreasing = np.any(data_arr[:first_index_below_min_threshold] > MIN_THRESHOLD)
+        self._node.get_logger().info(
+            f"Audio did cross min threshold decreasing: {did_cross_min_threshold_decreasing}"
+        )
         if np.any(np.logical_or(data_arr < MIN_THRESHOLD, data_arr > MAX_THRESHOLD)):
             with self.num_clicks_lock:
                 self.num_clicks += 1
+        self._node.get_logger().info(f"Num clicks: {self.num_clicks}")
 
         # Return the data
         return (data, pyaudio.paContinue)
