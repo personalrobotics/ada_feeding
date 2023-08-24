@@ -34,6 +34,7 @@ install(PROGRAMS
   scripts/create_action_servers.py
   scripts/ada_watchdog.py
   scripts/dummy_ft_sensor.py
+  scripts/gripper_tf2_listener.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
