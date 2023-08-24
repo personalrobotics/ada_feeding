@@ -248,6 +248,12 @@ class EStopCondition(WatchdogCondition):
         point in `curr_data_arr` that is greater than `threshold` and the previous
         point is less than `threshold`.
 
+        Although this method of detecting a rising edge is suceptible to noise
+        (since it only requires two points to determine an edge), in practice
+        the e-stop button's signal has little noise. If noise is an issue
+        moving forward, we can add a filter to smoothen the signal, and then
+        continue using this detector.
+
         Parameters
         ----------
         curr_data_arr: npt.NDArray
