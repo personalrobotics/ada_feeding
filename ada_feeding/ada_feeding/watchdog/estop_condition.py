@@ -8,15 +8,17 @@ e-stop button either being clicked or being unplugged and fails if so.
 # Standard imports
 import socket
 from threading import Lock, Thread
-from typing import List, Tuple
+from typing import List, Optional, Tuple, Union
 
 # Third party imports
 import numpy as np
+import numpy.typing as npt
 import pyaudio
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.time import Time
 
 # Local imports
 from ada_feeding.watchdog import WatchdogCondition
@@ -54,6 +56,8 @@ class EStopCondition(WatchdogCondition):
 
         # Initialize the accumulators
         self.start_time = None
+        self.prev_data_arr = None
+        self.prev_button_click_start_time = Time(seconds=0)
         self.num_clicks = 0
         self.num_clicks_lock = Lock()
         self.is_mic_unplugged = False
@@ -160,14 +164,60 @@ class EStopCondition(WatchdogCondition):
         )
         self.acpi_event_name = acpi_event_name.value
 
+        min_threshold = self._node.declare_parameter(
+            "min_threshold",
+            -10000,
+            ParameterDescriptor(
+                name="min_threshold",
+                type=ParameterType.PARAMETER_INTEGER,
+                description=(
+                    "A falling edge must go below this threshold to be considered "
+                    "a button click"
+                ),
+                read_only=True,
+            ),
+        )
+        self.min_threshold = min_threshold.value
+
+        max_threshold = self._node.declare_parameter(
+            "max_threshold",
+            10000,
+            ParameterDescriptor(
+                name="max_threshold",
+                type=ParameterType.PARAMETER_INTEGER,
+                description=(
+                    "A rising edge must go above this threshold to be considered "
+                    "a button click"
+                ),
+                read_only=True,
+            ),
+        )
+        self.max_threshold = max_threshold.value
+
+        time_per_click_sec = self._node.declare_parameter(
+            "time_per_click_sec",
+            0.5,
+            ParameterDescriptor(
+                name="time_per_click_sec",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "After the first rising/falling edge is detected, any future "
+                    "rising/falling edges detected within these many seconds "
+                    "will be considered part of the same button click."
+                ),
+                read_only=True,
+            ),
+        )
+        self.time_per_click_duration = Duration(seconds=time_per_click_sec.value)
+
     def __acpi_listener(self) -> None:
         """
         Listens for ACPI events. If the e-stop button is unplugged, sets the
         `is_mic_unplugged` flag to True.
         """
-        CHUNK = 4096
-        PLUG_KEYWORD = "plug"
-        UNPLUG_KEYWORD = "unplug"
+        chunk = 4096
+        plug_keyword = "plug"
+        unplug_keyword = "unplug"
 
         # Open a socket to listen for ACPI events
         stream = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -175,17 +225,93 @@ class EStopCondition(WatchdogCondition):
 
         # Listen for ACPI events
         while rclpy.ok():
-            data_bytes = stream.recv(CHUNK)
+            data_bytes = stream.recv(chunk)
             data = data_bytes.decode("utf-8")
             for event in data.split("\n"):
                 if self.acpi_event_name in event:
                     keyword = event.split(" ")[-1]
-                    if UNPLUG_KEYWORD == keyword:
+                    if unplug_keyword == keyword:
                         with self.is_mic_unplugged_lock:
                             self.is_mic_unplugged = True
-                    elif PLUG_KEYWORD == keyword:
+                    elif plug_keyword == keyword:
                         with self.is_mic_unplugged_lock:
                             self.is_mic_unplugged = False
+
+    @staticmethod
+    def rising_edge_detector(
+        curr_data_arr: npt.NDArray,
+        prev_data_arr: Optional[npt.NDArray],
+        threshold: Union[int, float],
+    ) -> bool:
+        """
+        Detects whether there is a rising edge in `curr_data_arr` that exceeds
+        `threshold`. In other words, this function returns True if there is a
+        point in `curr_data_arr` that is greater than `threshold` and the previous
+        point is less than `threshold`.
+
+        Parameters
+        ----------
+        curr_data_arr: npt.NDArray
+            The current data array
+        prev_data_arr: Optional[npt.NDArray]
+            The previous data array
+        threshold: Union[int, float]
+            The threshold that the data must cross to be considered a rising edge
+
+        Returns
+        -------
+        is_rising_edge: bool
+            True if a rising edge was detected, False otherwise
+        """
+        is_above_threshold = curr_data_arr > threshold
+        if np.any(is_above_threshold):
+            first_index_above_threshold = np.argmax(is_above_threshold)
+            # Get the previous value
+            if first_index_above_threshold == 0:
+                if prev_data_arr is None:
+                    # If the first datapoint is above the threshold, it's not a
+                    # rising edge
+                    return False
+                prev_value = prev_data_arr[-1]
+            else:
+                prev_value = curr_data_arr[first_index_above_threshold - 1]
+            # If the previous value is less than the threshold, it is a rising edge
+            return prev_value < threshold
+        # If no point is above the threshold, there is no rising edge
+        return False
+
+    @staticmethod
+    def falling_edge_detector(
+        curr_data_arr: npt.NDArray,
+        prev_data_arr: Optional[npt.NDArray],
+        threshold: Union[int, float],
+    ) -> bool:
+        """
+        Detects whether there is a falling edge in `curr_data_arr` that exceeds
+        `threshold`. In other words, this function returns True if there is a
+        point in `curr_data_arr` that is less than `threshold` and the previous
+        point is greater than `threshold`.
+
+        Parameters
+        ----------
+        curr_data_arr: npt.NDArray
+            The current data array
+        prev_data_arr: Optional[npt.NDArray]
+            The previous data array
+        threshold: Union[int, float]
+            The threshold that the data must cross to be considered a falling edge
+
+        Returns
+        -------
+        is_falling_edge: bool
+            True if a falling edge was detected, False otherwise
+        """
+        # Flip all signs and call the rising edge detector
+        return EStopCondition.rising_edge_detector(
+            -curr_data_arr,
+            None if prev_data_arr is None else -prev_data_arr,
+            -threshold,
+        )
 
     # pylint: disable=unused-argument
     # The audio callback function must have this signature
@@ -197,6 +323,14 @@ class EStopCondition(WatchdogCondition):
         the audio stream has new data. This function checks if the e-stop button
         has been pressed, and if so, increments the number of clicks.
 
+        This function detects a button press if the signal has either a rising
+        edge that goes above `self.max_threshold` or a falling edge that goes
+        below `self.min_threshold`. If the signal crosses the threshold multiple
+        times within the same `self.time_per_click_duration`, it is considered
+        part of the same button click. A rising edge is defined as two consecutive
+        points that increase, and a falling edge is defined as two consecutive
+        points that decrease.
+
         Parameters
         ----------
         data: the audio data, as a byte string
@@ -204,9 +338,6 @@ class EStopCondition(WatchdogCondition):
         time_info: the time info
         status: the status
         """
-        MIN_THRESHOLD = -10000
-        MAX_THRESHOLD = 10000
-
         # Skip the first few seconds of data, to avoid initial noise
         if self.start_time is None:
             self.start_time = self._node.get_clock().now()
@@ -217,28 +348,27 @@ class EStopCondition(WatchdogCondition):
         data_arr = np.frombuffer(data, dtype=np.int16)
 
         # Check if the e-stop button has been pressed
-        self._node.get_logger().info(f"Audio data: {list(data_arr)}, {data_arr.shape}")
-        self._node.get_logger().info(f"Audio data num beyond threshold: {np.sum(np.logical_or(data_arr < MIN_THRESHOLD, data_arr > MAX_THRESHOLD))}")
-        did_cross_max_threshold_increasing = False
-        if np.any(data_arr > MAX_THRESHOLD):
-            first_index_above_max_threshold = np.argmax(data_arr > MAX_THRESHOLD)
-            did_cross_max_threshold_increasing = np.any(data_arr[:first_index_above_max_threshold] < MAX_THRESHOLD)
-        self._node.get_logger().info(
-            f"Audio did cross max threshold increasing: {did_cross_max_threshold_increasing}"
-        )
-        did_cross_min_threshold_decreasing = False
-        if np.any(data_arr < MIN_THRESHOLD):
-            first_index_below_min_threshold = np.argmax(data_arr < MIN_THRESHOLD)
-            did_cross_min_threshold_decreasing = np.any(data_arr[:first_index_below_min_threshold] > MIN_THRESHOLD)
-        self._node.get_logger().info(
-            f"Audio did cross min threshold decreasing: {did_cross_min_threshold_decreasing}"
-        )
-        if np.any(np.logical_or(data_arr < MIN_THRESHOLD, data_arr > MAX_THRESHOLD)):
-            with self.num_clicks_lock:
-                self.num_clicks += 1
-        self._node.get_logger().info(f"Num clicks: {self.num_clicks}")
+        if EStopCondition.rising_edge_detector(
+            data_arr,
+            self.prev_data_arr,
+            self.max_threshold,
+        ) or EStopCondition.falling_edge_detector(
+            data_arr,
+            self.prev_data_arr,
+            self.min_threshold,
+        ):
+            # If it has been more than `self.time_per_click_duration`, since the
+            # last button click, it is a new button click
+            if (
+                self._node.get_clock().now() - self.prev_button_click_start_time
+                > self.time_per_click_duration
+            ):
+                self.prev_button_click_start_time = self._node.get_clock().now()
+                with self.num_clicks_lock:
+                    self.num_clicks += 1
 
         # Return the data
+        self.prev_data_arr = data_arr
         return (data, pyaudio.paContinue)
 
     def check_startup(self) -> List[Tuple[bool, str]]:
