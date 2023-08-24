@@ -18,7 +18,6 @@ from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
-from rclpy.time import Time
 
 # Local imports
 from ada_feeding.watchdog import WatchdogCondition
@@ -57,7 +56,7 @@ class EStopCondition(WatchdogCondition):
         # Initialize the accumulators
         self.start_time = None
         self.prev_data_arr = None
-        self.prev_button_click_start_time = Time(seconds=0)
+        self.prev_button_click_start_time = None
         self.num_clicks = 0
         self.num_clicks_lock = Lock()
         self.is_mic_unplugged = False
@@ -359,8 +358,8 @@ class EStopCondition(WatchdogCondition):
         ):
             # If it has been more than `self.time_per_click_duration`, since the
             # last button click, it is a new button click
-            if (
-                self._node.get_clock().now() - self.prev_button_click_start_time
+            if (self.prev_button_click_start_time is None) or (
+                (self._node.get_clock().now() - self.prev_button_click_start_time)
                 > self.time_per_click_duration
             ):
                 self.prev_button_click_start_time = self._node.get_clock().now()

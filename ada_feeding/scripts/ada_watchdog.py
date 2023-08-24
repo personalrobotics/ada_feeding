@@ -18,6 +18,7 @@ from typing import List
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from std_msgs.msg import Header
 
@@ -178,8 +179,18 @@ def main(args=None):
     """
     rclpy.init(args=args)
 
+    # Use a MultiThreadedExecutor to enable processing topics concurrently
+    executor = MultiThreadedExecutor()
+
+    # Create and spin the node
     ada_watchdog = ADAWatchdog()
-    rclpy.spin(ada_watchdog)
+    rclpy.spin(ada_watchdog, executor=executor)
+
+    # Destroy the node explicitly
+    # (optional - otherwise it will be done automatically
+    # when the garbage collector destroys the node object)
+    ada_watchdog.destroy_node()
+    rclpy.shutdown()
 
 
 if __name__ == "__main__":
