@@ -169,17 +169,12 @@ class MoveToTree(ActionServerBT, ABC):
         -------
         feedback: The ROS feedback message to be sent to the action client.
         """
-<<<<<<< HEAD
         feedback_msg = self.action_type.Feedback()
         if self.blackboard.exists("is_planning"):
             feedback_msg.is_planning = self.blackboard.is_planning
             planning_time = self.blackboard.planning_time
-=======
-        feedback_msg = self.action_type_class.Feedback()
-        if self.blackboard_tree_root.exists("is_planning"):
             feedback_msg.is_planning = self.blackboard_tree_root.is_planning
             planning_time = self.blackboard_tree_root.planning_time
->>>>>>> 679292a ([WIP] MoveToMouth mostly done)
             feedback_msg.planning_time.sec = int(planning_time)
             feedback_msg.planning_time.nanosec = int(
                 (planning_time - int(planning_time)) * 1e9

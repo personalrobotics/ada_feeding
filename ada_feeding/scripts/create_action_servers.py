@@ -363,7 +363,7 @@ class CreateActionServers(Node):
             # All exceptions need printing at shutdown
             try:
                 # Setup the behavior tree class
-                tree.setup()  # TODO: consider adding a timeout here
+                tree.setup(node=self)  # TODO: consider adding a timeout here
 
                 # Send the goal to the behavior tree
                 tree_action_server.send_goal(tree, goal_handle.request)
