@@ -39,7 +39,7 @@ class ADAWatchdogListenerNode(Node):
             "~/toggle_watchdog_listener",
             self.toggle_callback,
         )
-        self.is_on = False
+        self.is_on = True
         self.is_on_lock = threading.Lock()
 
         # Create the watchdog listener
