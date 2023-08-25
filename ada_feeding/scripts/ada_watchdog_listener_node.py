@@ -12,7 +12,6 @@ import threading
 from typing import List
 
 # Third-party imports
-from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -34,20 +33,6 @@ class ADAWatchdogListenerNode(Node):
         """
         super().__init__("ada_watchdog_listener")
 
-        # Read the parameter for the rate at which to check the watchdog
-        watchdog_check_hz = self.declare_parameter(
-            "watchdog_check_hz",
-            60.0,  # default value
-            ParameterDescriptor(
-                name="watchdog_check_hz",
-                type=ParameterType.PARAMETER_DOUBLE,
-                description=(
-                    "The rate (Hz) at which to check the whether the watchdog has failed."
-                ),
-                read_only=True,
-            ),
-        )
-
         # Create a service to toggle this node on-and-off
         self.toggle_service = self.create_service(
             SetBool,
@@ -58,11 +43,11 @@ class ADAWatchdogListenerNode(Node):
         self.is_on_lock = threading.Lock()
 
         # Create the watchdog listener
-        self.ada_watchdog_listener = ADAWatchdogListener(self)
+        self.ada_watchdog_listener = ADAWatchdogListener(
+            self, callback_fn=self.watchdog_status_callback
+        )
 
-        # Check the watchdog at the specified rate
-        timer_period = 1.0 / watchdog_check_hz.value  # seconds
-        self.timer = self.create_timer(timer_period, self.check_watchdog)
+        self.get_logger().info("Initialized!")
 
     def toggle_callback(self, request: SetBool.Request, response: SetBool.Response):
         """
@@ -74,22 +59,28 @@ class ADAWatchdogListenerNode(Node):
             self.is_on = request.data
             response.success = True
             response.message = f"Successfully set is_on to {request.data}"
+            self.get_logger().info(f"Successfully set `is_on` to {request.data}")
         return response
 
-    def check_watchdog(self):
+    def watchdog_status_callback(self, new_status: bool) -> None:
         """
-        If the watchdog listener is on and the watchdog fails, kill this node.
-        """
-        # Check if the node is on
-        with self.is_on_lock:
-            is_on = self.is_on
+        Callback for when the watchdog's status changes. If this node `is_on`
+        and the watchdog status changes to false, kill this node.
 
-        # If it's on, check if the watchdog has failed
-        if is_on and not self.ada_watchdog_listener.ok():
-            # If the watchdog has failed, kill this node
-            self.get_logger().error("Watchdog failed. Killing node.")
-            self.destroy_node()
-            rclpy.shutdown()
+        Parameters
+        ----------
+        new_status: bool
+            The new status of the watchdog.
+        """
+        # If the watchdog failed
+        if not new_status:
+            # If the node is on, kill the node.
+            with self.is_on_lock:
+                is_on = self.is_on
+            if is_on:
+                self.get_logger().error("Watchdog failed. Killing node.")
+                self.destroy_node()
+                rclpy.shutdown()
 
 
 def main(args: List = None) -> None:

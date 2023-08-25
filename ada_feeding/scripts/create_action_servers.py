@@ -92,7 +92,7 @@ class CreateActionServers(Node):
         action_server_params = self.read_params()
 
         # Create the watchdog listener. Note that this watchdog listener
-        # adds an additional parameter, `watchdog_timeout`, and another
+        # adds an additional parameter, `watchdog_timeout_sec`, and another
         # subscription to `~/watchdog`.
         self.watchdog_listener = ADAWatchdogListener(self)
 

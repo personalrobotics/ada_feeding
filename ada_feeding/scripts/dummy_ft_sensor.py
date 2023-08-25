@@ -105,6 +105,8 @@ class DummyForceTorqueSensor(Node):
         timer_period = 1.0 / rate_hz  # seconds
         self.timer = self.create_timer(timer_period, self.publish_msg)
 
+        self.get_logger().info("Initialized!")
+
     def set_bias_callback(self, request: SetBool.Request, response: SetBool.Response):
         """
         Callback for the set_bias service. In order to mimic the actual service,
@@ -113,7 +115,10 @@ class DummyForceTorqueSensor(Node):
         re-tare the sensor.
         """
         response.success = True
-        response.message = "Successfully set the bias"
+        if request.data:
+            response.message = "Successfully set the bias"
+        else:
+            response.message = "Successfully unset the bias"
         with self.set_bias_request_time_lock:
             self.set_bias_request_time = self.get_clock().now()
         return response
