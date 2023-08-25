@@ -27,7 +27,17 @@ from rcl_interfaces.srv import SetParameters
 from std_srvs.srv import SetBool
 
 # Local imports
-from ada_feeding.idioms import retry_call_ros_service
+from .retry_call_ros_service import retry_call_ros_service
+
+
+def set_parameter_response_all_success(
+    blackboard_value: SetParameters.Response,
+    _: SetParameters.Request,
+) -> bool:
+    """
+    Checks that all the parameters were successfully set.
+    """
+    return all(result.successful for result in blackboard_value.results)
 
 
 def pre_moveto_config(
@@ -170,15 +180,14 @@ def pre_moveto_config(
         ("ty", t_y),
         ("tz", t_z),
     ]:
-        if val != 0.0:
-            parameters.append(
-                Parameter(
-                    name=f"wrench_threshold.{key}",
-                    value=ParameterValue(
-                        type=ParameterType.PARAMETER_DOUBLE, double_value=[val]
-                    ),
-                )
+        parameters.append(
+            Parameter(
+                name=f"wrench_threshold.{key}",
+                value=ParameterValue(
+                    type=ParameterType.PARAMETER_DOUBLE, double_value=val
+                ),
             )
+        )
     ft_threshold_request = SetParameters.Request(parameters=parameters)
     set_force_torque_thresholds_name = Blackboard.separator.join(
         [name, set_force_torque_thresholds_prefix]
@@ -195,9 +204,9 @@ def pre_moveto_config(
         key_response=set_force_torque_thresholds_key_response,
         response_checks=[
             py_trees.common.ComparisonExpression(
-                variable=set_force_torque_thresholds_key_response + f"[{i}].successful",
-                value=True,
-                operator=operator.eq,
+                variable=set_force_torque_thresholds_key_response,
+                value=SetParameters.Response(),  # Unused
+                operator=set_parameter_response_all_success,
             )
             for i in range(len(ft_threshold_request.parameters))
         ],
@@ -209,5 +218,4 @@ def pre_moveto_config(
     root = py_trees.composites.Sequence(name=name, memory=True, children=children)
     root.logger = logger
 
-    tree = py_trees.trees.BehaviourTree(root)
-    return tree
+    return root

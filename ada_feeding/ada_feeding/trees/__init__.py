@@ -10,6 +10,9 @@ to be wrapped in a ROS action server.
 
 from .move_to_tree import MoveToTree
 from .move_to_configuration_tree import MoveToConfigurationTree
+from .move_to_configuration_with_ft_thresholds_tree import (
+    MoveToConfigurationWithFTThresholdsTree,
+)
 from .move_to_configuration_with_pose_path_constraints_tree import (
     MoveToConfigurationWithPosePathConstraintsTree,
 )
