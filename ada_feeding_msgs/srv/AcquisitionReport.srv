@@ -2,7 +2,7 @@
 # success/failure and updates the AcquisitonSelect policy.
 
 # ID of AcquisitionSelect Call
-string id
+string hash
 
 # Arbitrary Post Hoc Context
 # Example: First 50ms of Haptics during Grasp
