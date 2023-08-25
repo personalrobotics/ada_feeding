@@ -72,6 +72,10 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         t_y: The magnitude of the y component of the torque threshold. No threshold if 0.0.
         t_z: The magnitude of the z component of the torque threshold. No threshold if 0.0.
         """
+
+        # pylint: disable=too-many-locals
+        # One over is okay
+
         # Initialize MoveToTree
         super().__init__()
 
