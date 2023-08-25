@@ -16,10 +16,10 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
 3. Launch the force-torque sensor:
     1. Dummy node: `ros2 run ada_feeding dummy_ft_sensor.py`
     2. Real node: Follow the instructions in the [`forque_sensor_hardware` README](https://github.com/personalrobotics/forque_sensor_hardware/blob/main/README.md). Note that this is in the _main_ branch, which may not be the default branch.
-4. Launch MoveIt2:
-    1. RVIZ: `ros2 launch ada_moveit demo.launch.py sim:=mock`
-    2. Real Robot: `ros2 launch ada_moveit demo.launch.py`
-5. Run the action servers: `ros2 launch ada_feeding ada_feeding_launch.xml`
+4. Run the action servers: `ros2 launch ada_feeding ada_feeding_launch.xml`
+5. Launch MoveIt2:
+    1. RVIZ: `ros2 launch ada_moveit demo_feeding.launch.py sim:=mock`
+    2. Real Robot: `ros2 launch ada_moveit demo_feeding.launch.py`
 6. Test it:
     1. Test the individual actions with the command line interface:
         1. `ros2 action send_goal /MoveAbovePlate ada_feeding_msgs/action/MoveTo "{}" --feedback`

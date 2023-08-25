@@ -7,6 +7,7 @@
     <remap from="~/camera_info" to="/camera/color/camera_info"/>
     <remap from="~/aligned_depth" to="/camera/aligned_depth_to_color/image_raw"/>
   </node>
+  
   <!-- Launch face_detection -->
   <node pkg="ada_feeding_perception" exec="face_detection" name="face_detection">
     <param from="$(find-pkg-share ada_feeding_perception)/config/face_detection.yaml"/>
