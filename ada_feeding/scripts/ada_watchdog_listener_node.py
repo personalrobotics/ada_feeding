@@ -59,7 +59,17 @@ class ADAWatchdogListenerNode(Node):
             self.is_on = request.data
             response.success = True
             response.message = f"Successfully set is_on to {request.data}"
-            self.get_logger().info(f"Successfully set `is_on` to {request.data}")
+            if request.data:
+                self.get_logger().info("Succesfully turned the watchdog listener on.")
+            else:
+                self.get_logger().warn(
+                    "WARNING: You have turned the watchdog listener off. "
+                    "This can be dangerous, because typically the launchfile "
+                    "that creates the controllers will terminate if this node "
+                    "dies, thereby terminating all robot motion. With this node "
+                    "off, there is no guard to stop robot motion if the watchdog "
+                    "fails."
+                )
         return response
 
     def watchdog_status_callback(self, new_status: bool) -> None:
