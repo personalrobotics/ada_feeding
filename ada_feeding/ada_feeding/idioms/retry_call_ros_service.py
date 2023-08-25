@@ -8,7 +8,7 @@ number of times if there is a failure.
 
 # Standard imports
 import logging
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 # Third-party imports
 import py_trees
@@ -23,7 +23,7 @@ def retry_call_ros_service(
     key_request: Optional[str] = None,
     request: Optional[Any] = None,
     key_response: Optional[str] = None,
-    response_check: Optional[py_trees.common.ComparisonExpression] = None,
+    response_checks: Optional[List[py_trees.common.ComparisonExpression]] = None,
     max_retries: int = 3,
     wait_for_server_timeout_sec: float = 3.0,
     logger: Optional[logging.Logger] = None,
@@ -47,7 +47,7 @@ def retry_call_ros_service(
         `key_request` and `request` must be None.
     key_response: The key to write the response to the blackboard. If None, the
         response is not written to the blackboard.
-    response_check: A comparison expression to check the response against. If
+    response_checks: A list of comparison expression to check the response against. If
         None, the response is not checked. Note that if `key_response` is None,
         this must be None.
     max_retries: The maximum number of retries.
@@ -55,13 +55,17 @@ def retry_call_ros_service(
         available.
     logger: The logger for the tree that this behavior is in.
     """
+
+    # pylint: disable=too-many-arguments, too-many-locals
+    # Idioms tend to be hefty, in order to prevent other functions from being hefty.
+
     # Check the inputs
     if (key_request is None and request is None) or (
         key_request is not None and request is not None
     ):
         raise ValueError("Exactly one of `key_request` and `request` must be None.")
-    if key_response is None and response_check is not None:
-        raise ValueError("If `key_response` is None, `response_check` must be None.")
+    if key_response is None and response_checks is not None:
+        raise ValueError("If `key_response` is None, `response_checks` must be None.")
 
     # Separate namespaces for child behaviours
     call_ros_service_namespace_prefix = "call_ros_service"
@@ -92,22 +96,26 @@ def retry_call_ros_service(
         call_ros_service_behavior.logger = logger
 
     # Create the check response behavior
-    if response_check is not None:
-        check_response_behavior_name = Blackboard.separator.join(
-            [name, check_response_namespace_prefix]
-        )
-        check_response_behavior = py_trees.behaviours.CheckBlackboardVariableValue(
-            name=check_response_behavior_name,
-            check=response_check,
-        )
-        if logger is not None:
-            check_response_behavior.logger = logger
+    if response_checks is not None:
+        # Add all the response checks
+        children = [call_ros_service_behavior]
+        for i, response_check in enumerate(response_checks):
+            check_response_behavior_name = Blackboard.separator.join(
+                [name, check_response_namespace_prefix + str(i)]
+            )
+            check_response_behavior = py_trees.behaviours.CheckBlackboardVariableValue(
+                name=check_response_behavior_name,
+                check=response_check,
+            )
+            if logger is not None:
+                check_response_behavior.logger = logger
+            children.append(check_response_behavior)
 
         # Chain the behaviours together in a sequence
         child = py_trees.composites.Sequence(
             name=name,
             memory=True,
-            children=[call_ros_service_behavior, check_response_behavior],
+            children=children,
         )
         if logger is not None:
             child.logger = logger

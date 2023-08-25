@@ -22,7 +22,8 @@ from typing import Optional
 # Third-part_y imports
 import py_trees
 from py_trees.blackboard import Blackboard
-from rclpy.node import Node
+from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
+from rcl_interfaces.srv import SetParameters
 from std_srvs.srv import SetBool
 
 # Local imports
@@ -30,7 +31,6 @@ from ada_feeding.idioms import retry_call_ros_service
 
 
 def pre_moveto_config(
-    node: Node,
     name: str,
     re_tare: bool = True,
     f_mag: float = 0.0,
@@ -57,7 +57,6 @@ def pre_moveto_config(
 
     Parameters
     ----------
-    node: The ROS node to associate all service calls with.
     name: The name to associate with this behavior.
     re_tare: Whether to re-tare the force-torque sensor.
     f_mag: The magnitude of the overall force threshold. No threshold if 0.0.
@@ -70,6 +69,10 @@ def pre_moveto_config(
     t_z: The magnitude of the z component of the torque threshold. No threshold if 0.0.
     logger: The logger for the tree that this behavior is in.
     """
+
+    # pylint: disable=too-many-arguments, too-many-locals
+    # Idioms tend to be hefty, in order to prevent other functions from being hefty.
+
     # All the children of the sequence
     children = []
 
@@ -94,11 +97,13 @@ def pre_moveto_config(
             key_request=None,
             request=SetBool.Request(data=False),
             key_response=turn_watchdog_listener_off_key_response,
-            response_check=py_trees.common.ComparisonExpression(
-                variable=turn_watchdog_listener_off_key_response + ".success",
-                value=True,
-                operator=operator.eq,
-            ),
+            response_checks=[
+                py_trees.common.ComparisonExpression(
+                    variable=turn_watchdog_listener_off_key_response + ".success",
+                    value=True,
+                    operator=operator.eq,
+                )
+            ],
             logger=logger,
         )
         children.append(turn_watchdog_listener_off)
@@ -117,11 +122,13 @@ def pre_moveto_config(
             key_request=None,
             request=SetBool.Request(data=True),
             key_response=re_tare_ft_sensor_key_response,
-            response_check=py_trees.common.ComparisonExpression(
-                variable=re_tare_ft_sensor_key_response + ".success",
-                value=True,
-                operator=operator.eq,
-            ),
+            response_checks=[
+                py_trees.common.ComparisonExpression(
+                    variable=re_tare_ft_sensor_key_response + ".success",
+                    value=True,
+                    operator=operator.eq,
+                )
+            ],
             logger=logger,
         )
         children.append(re_tare_ft_sensor)
@@ -140,16 +147,63 @@ def pre_moveto_config(
             key_request=None,
             request=SetBool.Request(data=True),
             key_response=turn_watchdog_listener_on_key_response,
-            response_check=py_trees.common.ComparisonExpression(
-                variable=turn_watchdog_listener_on_key_response + ".success",
-                value=True,
-                operator=operator.eq,
-            ),
+            response_checks=[
+                py_trees.common.ComparisonExpression(
+                    variable=turn_watchdog_listener_on_key_response + ".success",
+                    value=True,
+                    operator=operator.eq,
+                )
+            ],
             logger=logger,
         )
         children.append(turn_watchdog_listener_on)
 
-    # TODO: Set FT Thresholds
+    # Set FT Thresholds
+    parameters = []
+    for key, val in [
+        ("fMag", f_mag),
+        ("fx", f_x),
+        ("fy", f_y),
+        ("fz", f_z),
+        ("tMag", t_mag),
+        ("tx", t_x),
+        ("ty", t_y),
+        ("tz", t_z),
+    ]:
+        if val != 0.0:
+            parameters.append(
+                Parameter(
+                    name=f"wrench_threshold.{key}",
+                    value=ParameterValue(
+                        type=ParameterType.PARAMETER_DOUBLE, double_value=[val]
+                    ),
+                )
+            )
+    ft_threshold_request = SetParameters.Request(parameters=parameters)
+    set_force_torque_thresholds_name = Blackboard.separator.join(
+        [name, set_force_torque_thresholds_prefix]
+    )
+    set_force_torque_thresholds_key_response = Blackboard.separator.join(
+        [set_force_torque_thresholds_name, "response"]
+    )
+    set_force_torque_thresholds = retry_call_ros_service(
+        name=set_force_torque_thresholds_name,
+        service_type=SetParameters,
+        service_name="~/set_force_gate_controller_parameters",
+        key_request=None,
+        request=ft_threshold_request,
+        key_response=set_force_torque_thresholds_key_response,
+        response_checks=[
+            py_trees.common.ComparisonExpression(
+                variable=set_force_torque_thresholds_key_response + f"[{i}].successful",
+                value=True,
+                operator=operator.eq,
+            )
+            for i in range(len(ft_threshold_request.parameters))
+        ],
+        logger=logger,
+    )
+    children.append(set_force_torque_thresholds)
 
     # Link all the behaviours together in a sequence with memory
     root = py_trees.composites.Sequence(name=name, memory=True, children=children)
