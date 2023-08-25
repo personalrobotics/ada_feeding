@@ -20,8 +20,9 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 
 # Local imports
-from ada_feeding import ActionServerBT, ADAWatchdogListener
+from ada_feeding import ActionServerBT
 from ada_feeding.helpers import import_from_string
+from ada_watchdog_listener import ADAWatchdogListener
 
 
 class ActionServerParams:
