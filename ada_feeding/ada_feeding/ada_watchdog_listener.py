@@ -76,11 +76,32 @@ class ADAWatchdogListener:
             ),
         )
 
+        # Read the initial_wait_time_sec parameter
+        initial_wait_time_sec = self._node.declare_parameter(
+            "initial_wait_time_sec",
+            0.0,  # default value
+            ParameterDescriptor(
+                name="initial_wait_time_sec",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "Additional time to add to `watchdog_timeout_sec` for the first "
+                    "watchdog message only. This is because even after the watchdog "
+                    "subscriber is created, it takes some time to actually start "
+                    "receiving messages."
+                ),
+                read_only=True,
+            ),
+        )
+
         # Subscribe to the watchdog topic
         # Initializing `watchdog_failed` to False lets the node wait up to `watchdog_timeout_sec`
         # sec to receive the first message
         self.watchdog_failed = False
-        self.last_watchdog_msg_time = self._node.get_clock().now()
+        # Add a grace period of `initial_wait_time_sec` sec for receiving the
+        # first watchdog message
+        self.last_watchdog_msg_time = self._node.get_clock().now() + Duration(
+            seconds=initial_wait_time_sec.value
+        )
         self.watchdog_sub = self._node.create_subscription(
             DiagnosticArray,
             "~/watchdog",
@@ -129,7 +150,8 @@ class ADAWatchdogListener:
             self._node.get_clock().now() - self.last_watchdog_msg_time
         ) > self.watchdog_timeout_sec:
             self._node.get_logger().error(
-                f"Did not receive a watchdog message for > {self.watchdog_timeout_sec}!",
+                "Did not receive a watchdog message for > "
+                f"{self.watchdog_timeout_sec.nanoseconds / 10.0**9} seconds!",
                 throttle_duration_sec=1,
             )
             return False
@@ -143,7 +165,7 @@ class ADAWatchdogListener:
         curr_status = self.ok()
 
         # Check if the watchdog status has changed since the last time this function was called
-        if self._prev_status is not None and curr_status != self._prev_status:
+        if self._prev_status is None or curr_status != self._prev_status:
             # If it has, call the callback function
             self._node.get_logger().debug(
                 f"Watchdog status (whether it is ok) changed to {curr_status}"

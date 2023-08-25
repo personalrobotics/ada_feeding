@@ -92,8 +92,8 @@ class CreateActionServers(Node):
         action_server_params = self.read_params()
 
         # Create the watchdog listener. Note that this watchdog listener
-        # adds an additional parameter, `watchdog_timeout_sec`, and another
-        # subscription to `~/watchdog`.
+        # adds additional parameters -- `watchdog_timeout_sec` and
+        # `initial_wait_time_sec` -- and another subscription to `~/watchdog`.
         self.watchdog_listener = ADAWatchdogListener(self)
 
         # Track the active goal request.
