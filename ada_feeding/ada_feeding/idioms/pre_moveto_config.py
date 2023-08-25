@@ -43,6 +43,7 @@ def set_parameter_response_all_success(
 def pre_moveto_config(
     name: str,
     re_tare: bool = True,
+    toggle_watchdog_listener: bool = True,
     f_mag: float = 0.0,
     f_x: float = 0.0,
     f_y: float = 0.0,
@@ -69,6 +70,8 @@ def pre_moveto_config(
     ----------
     name: The name to associate with this behavior.
     re_tare: Whether to re-tare the force-torque sensor.
+    toggle_watchdog_listener: Whether to toggle the watchdog listener on and off.
+        In practice, if the watchdog listener is on, you should toggle it.
     f_mag: The magnitude of the overall force threshold. No threshold if 0.0.
     f_x: The magnitude of the x component of the force threshold. No threshold if 0.0.
     f_y: The magnitude of the y component of the force threshold. No threshold if 0.0.
@@ -94,29 +97,30 @@ def pre_moveto_config(
 
     if re_tare:
         # Toggle the Watchdog Listener off
-        turn_watchdog_listener_off_name = Blackboard.separator.join(
-            [name, turn_watchdog_listener_off_prefix]
-        )
-        turn_watchdog_listener_off_key_response = Blackboard.separator.join(
-            [turn_watchdog_listener_off_name, "response"]
-        )
-        turn_watchdog_listener_off = retry_call_ros_service(
-            name=turn_watchdog_listener_off_name,
-            service_type=SetBool,
-            service_name="~/toggle_watchdog_listener",
-            key_request=None,
-            request=SetBool.Request(data=False),
-            key_response=turn_watchdog_listener_off_key_response,
-            response_checks=[
-                py_trees.common.ComparisonExpression(
-                    variable=turn_watchdog_listener_off_key_response + ".success",
-                    value=True,
-                    operator=operator.eq,
-                )
-            ],
-            logger=logger,
-        )
-        children.append(turn_watchdog_listener_off)
+        if toggle_watchdog_listener:
+            turn_watchdog_listener_off_name = Blackboard.separator.join(
+                [name, turn_watchdog_listener_off_prefix]
+            )
+            turn_watchdog_listener_off_key_response = Blackboard.separator.join(
+                [turn_watchdog_listener_off_name, "response"]
+            )
+            turn_watchdog_listener_off = retry_call_ros_service(
+                name=turn_watchdog_listener_off_name,
+                service_type=SetBool,
+                service_name="~/toggle_watchdog_listener",
+                key_request=None,
+                request=SetBool.Request(data=False),
+                key_response=turn_watchdog_listener_off_key_response,
+                response_checks=[
+                    py_trees.common.ComparisonExpression(
+                        variable=turn_watchdog_listener_off_key_response + ".success",
+                        value=True,
+                        operator=operator.eq,
+                    )
+                ],
+                logger=logger,
+            )
+            children.append(turn_watchdog_listener_off)
 
         # Re-tare the force-torque sensor
         re_tare_ft_sensor_name = Blackboard.separator.join(
@@ -144,29 +148,30 @@ def pre_moveto_config(
         children.append(re_tare_ft_sensor)
 
         # Toggle the Watchdog Listener on
-        turn_watchdog_listener_on_name = Blackboard.separator.join(
-            [name, turn_watchdog_listener_on_prefix]
-        )
-        turn_watchdog_listener_on_key_response = Blackboard.separator.join(
-            [turn_watchdog_listener_on_name, "response"]
-        )
-        turn_watchdog_listener_on = retry_call_ros_service(
-            name=turn_watchdog_listener_on_name,
-            service_type=SetBool,
-            service_name="~/toggle_watchdog_listener",
-            key_request=None,
-            request=SetBool.Request(data=True),
-            key_response=turn_watchdog_listener_on_key_response,
-            response_checks=[
-                py_trees.common.ComparisonExpression(
-                    variable=turn_watchdog_listener_on_key_response + ".success",
-                    value=True,
-                    operator=operator.eq,
-                )
-            ],
-            logger=logger,
-        )
-        children.append(turn_watchdog_listener_on)
+        if toggle_watchdog_listener:
+            turn_watchdog_listener_on_name = Blackboard.separator.join(
+                [name, turn_watchdog_listener_on_prefix]
+            )
+            turn_watchdog_listener_on_key_response = Blackboard.separator.join(
+                [turn_watchdog_listener_on_name, "response"]
+            )
+            turn_watchdog_listener_on = retry_call_ros_service(
+                name=turn_watchdog_listener_on_name,
+                service_type=SetBool,
+                service_name="~/toggle_watchdog_listener",
+                key_request=None,
+                request=SetBool.Request(data=True),
+                key_response=turn_watchdog_listener_on_key_response,
+                response_checks=[
+                    py_trees.common.ComparisonExpression(
+                        variable=turn_watchdog_listener_on_key_response + ".success",
+                        value=True,
+                        operator=operator.eq,
+                    )
+                ],
+                logger=logger,
+            )
+            children.append(turn_watchdog_listener_on)
 
     # Set FT Thresholds
     parameters = []

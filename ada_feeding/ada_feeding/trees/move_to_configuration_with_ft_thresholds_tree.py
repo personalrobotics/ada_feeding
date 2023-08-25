@@ -39,6 +39,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         allowed_planning_time: float = 0.5,
         # Optional parameters for the FT thresholds
         re_tare: bool = True,
+        toggle_watchdog_listener: bool = True,
         f_mag: float = 0.0,
         f_x: float = 0.0,
         f_y: float = 0.0,
@@ -60,6 +61,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         allowed_planning_time: The allowed planning time for the MoveIt2 motion
             planner.
         re_tare: Whether to re-tare the force-torque sensor.
+        toggle_watchdog_listener: Whether to toggle the watchdog listener on and off.
+            In practice, if the watchdog listener is on, you should toggle it.
         f_mag: The magnitude of the overall force threshold. No threshold if 0.0.
         f_x: The magnitude of the x component of the force threshold. No threshold if 0.0.
         f_y: The magnitude of the y component of the force threshold. No threshold if 0.0.
@@ -82,6 +85,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
 
         # Store the parameters for the FT threshold
         self.re_tare = re_tare
+        self.toggle_watchdog_listener = toggle_watchdog_listener
         self.f_mag = f_mag
         self.f_x = f_x
         self.f_y = f_y
@@ -129,6 +133,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         pre_moveto_behavior = pre_moveto_config(
             name=name,
             re_tare=self.re_tare,
+            toggle_watchdog_listener=self.toggle_watchdog_listener,
             f_mag=self.f_mag,
             f_x=self.f_x,
             f_y=self.f_y,
