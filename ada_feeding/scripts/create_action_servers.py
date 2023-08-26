@@ -436,7 +436,7 @@ class CreateActionServers(Node):
                     f"Error running tree: \n{traceback.format_exc()}\n{exc}"
                 )
                 goal_handle.abort()
-                result = self._action_types[action_type].Result()
+                result = action_type.Result()
 
             # Unset the goal and return the result
             with self.active_goal_request_lock:

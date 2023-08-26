@@ -46,8 +46,6 @@ class MoveToMouthTree(MoveToTree):
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time_to_staging_configuration: float = 0.5,
         allowed_planning_time_to_mouth: float = 0.5,
-        toggle_face_detection_service_name: str = "/toggle_face_detection",
-        face_detection_topic_name: str = "/face_detection",
         head_object_id: str = "head",
         force_threshold: float = 4.0,
         torque_threshold: float = 4.0,
@@ -71,10 +69,6 @@ class MoveToMouthTree(MoveToTree):
             time for the MoveIt2 motion planner to move to the staging config.
         allowed_planning_time_to_mouth: The allowed planning time for the MoveIt2
             motion planner to move to the user's mouth.
-        toggle_face_detection_service_name: The name of the service to toggle
-            face detection on and off.
-        face_detection_topic_name: The name of the topic that publishes the
-            face detection results.
         head_object_id: The ID of the head collision object in the MoveIt2
             planning scene.
         force_threshold: The force threshold (N) for the ForceGateController.
@@ -99,8 +93,6 @@ class MoveToMouthTree(MoveToTree):
             allowed_planning_time_to_staging_configuration
         )
         self.allowed_planning_time_to_mouth = allowed_planning_time_to_mouth
-        self.toggle_face_detection_service_name = toggle_face_detection_service_name
-        self.face_detection_topic_name = face_detection_topic_name
         self.head_object_id = head_object_id
         self.force_threshold = force_threshold
         self.torque_threshold = torque_threshold
@@ -149,7 +141,7 @@ class MoveToMouthTree(MoveToTree):
         turn_face_detection_on = retry_call_ros_service(
             name=turn_face_detection_on_name,
             service_type=SetBool,
-            service_name=self.toggle_face_detection_service_name,
+            service_name="~/toggle_face_detection",
             key_request=None,
             request=SetBool.Request(data=True),
             key_response=turn_face_detection_on_key_response,
@@ -203,7 +195,7 @@ class MoveToMouthTree(MoveToTree):
         get_face_name = Blackboard.separator.join([name, get_face_prefix])
         get_face = py_trees_ros.subscribers.ToBlackboard(
             name=get_face_name,
-            topic_name=self.face_detection_topic_name,
+            topic_name="~/face_detection",
             topic_type=FaceDetection,
             qos_profile=py_trees_ros.utilities.qos_profile_unlatched(),
             blackboard_variables={
@@ -339,7 +331,7 @@ class MoveToMouthTree(MoveToTree):
         turn_face_detection_off = retry_call_ros_service(
             name=turn_face_detection_off_name,
             service_type=SetBool,
-            service_name=self.toggle_face_detection_service_name,
+            service_name="~/toggle_face_detection",
             key_request=None,
             request=SetBool.Request(data=False),
             key_response=turn_face_detection_off_key_response,

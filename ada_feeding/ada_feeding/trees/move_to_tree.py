@@ -174,9 +174,9 @@ class MoveToTree(ActionServerBT, ABC):
         feedback: The ROS feedback message to be sent to the action client.
         """
         feedback_msg = self.action_type.Feedback()
-        if self.blackboard.exists("is_planning"):
-            feedback_msg.is_planning = self.blackboard.is_planning
-            planning_time = self.blackboard.planning_time
+        if self.blackboard_tree_root.exists("is_planning"):
+            feedback_msg.is_planning = self.blackboard_tree_root.is_planning
+            planning_time = self.blackboard_tree_root.planning_time
             feedback_msg.is_planning = self.blackboard_tree_root.is_planning
             planning_time = self.blackboard_tree_root.planning_time
             feedback_msg.planning_time.sec = int(planning_time)
