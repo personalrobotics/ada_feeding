@@ -23,7 +23,7 @@ from ada_feeding.behaviors import ComputeMoveToMouthPosition, MoveCollisionObjec
 from ada_feeding.helpers import (
     POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
 )
-from ada_feeding.idioms import retry_call_ros_service
+from ada_feeding.idioms import pre_moveto_config, retry_call_ros_service
 from ada_feeding.trees import (
     MoveToTree,
     MoveToConfigurationWithPosePathConstraintsTree,
@@ -38,7 +38,6 @@ class MoveToMouthTree(MoveToTree):
 
     def __init__(
         self,
-        action_type_class_str: str,
         staging_configuration: List[float],
         staging_configuration_tolerance: float = 0.001,
         mouth_pose_tolerance: float = 0.001,
@@ -50,16 +49,14 @@ class MoveToMouthTree(MoveToTree):
         toggle_face_detection_service_name: str = "/toggle_face_detection",
         face_detection_topic_name: str = "/face_detection",
         head_object_id: str = "head",
+        force_threshold: float = 4.0,
+        torque_threshold: float = 4.0,
     ):
         """
         Initializes tree-specific parameters.
 
         Parameters
         ----------
-        action_type_class_str: The type of action that this tree is implementing,
-            e.g., "ada_feeding_msgs.action.MoveTo". The input of this action
-            type can be anything, but the Feedback and Result must at a minimum
-            include the fields of ada_feeding_msgs.action.MoveTo
         staging_configuration: The joint positions to move the robot arm to.
             The user's face should be visible in this configuration.
         staging_configuration_tolerance: The tolerance for the joint positions.
@@ -80,12 +77,17 @@ class MoveToMouthTree(MoveToTree):
             face detection results.
         head_object_id: The ID of the head collision object in the MoveIt2
             planning scene.
+        force_threshold: The force threshold (N) for the ForceGateController.
+            For now, the same threshold is used to move to the staging location
+            and to the mouth.
+        torque_threshold: The torque threshold (N*m) for the ForceGateController.
+            For now, the same threshold is used to move to the staging location
+            and to the mouth.
         """
         # Initialize MoveToTree
-        super().__init__(action_type_class_str)
+        super().__init__()
 
         # Store the parameters
-        self.action_type_class_str = action_type_class_str
         self.staging_configuration = staging_configuration
         assert len(self.staging_configuration) == 6, "Must provide 6 joint positions"
         self.staging_configuration_tolerance = staging_configuration_tolerance
@@ -93,11 +95,15 @@ class MoveToMouthTree(MoveToTree):
         self.orientation_constraint_quaternion = orientation_constraint_quaternion
         self.orientation_constraint_tolerances = orientation_constraint_tolerances
         self.planner_id = planner_id
-        self.allowed_planning_time_to_staging_configuration = allowed_planning_time_to_staging_configuration
+        self.allowed_planning_time_to_staging_configuration = (
+            allowed_planning_time_to_staging_configuration
+        )
         self.allowed_planning_time_to_mouth = allowed_planning_time_to_mouth
         self.toggle_face_detection_service_name = toggle_face_detection_service_name
         self.face_detection_topic_name = face_detection_topic_name
         self.head_object_id = head_object_id
+        self.force_threshold = force_threshold
+        self.torque_threshold = torque_threshold
 
     def create_move_to_tree(
         self,
@@ -125,6 +131,7 @@ class MoveToMouthTree(MoveToTree):
         """
         # Separate the namespace of each sub-behavior
         turn_face_detection_on_prefix = "turn_face_detection_on"
+        pre_moveto_config_prefix = "pre_moveto_config"
         move_to_staging_configuration_prefix = "move_to_staging_configuration"
         get_face_prefix = "get_face"
         check_face_prefix = "check_face"
@@ -154,13 +161,23 @@ class MoveToMouthTree(MoveToTree):
             logger=logger,
         )
 
+        # Configure the force-torque sensor and thresholds before moving
+        pre_moveto_config_name = Blackboard.separator.join(
+            [name, pre_moveto_config_prefix]
+        )
+        pre_moveto_config = pre_moveto_config(
+            name=pre_moveto_config_name,
+            f_mag=self.force_threshold,
+            t_mag=self.torque_threshold,
+            logger=logger,
+        )
+
         # Create the behaviour to move the robot to the staging configuration
         move_to_staging_configuration_name = Blackboard.separator.join(
             [name, move_to_staging_configuration_prefix]
         )
         move_to_staging_configuration = (
             MoveToConfigurationWithPosePathConstraintsTree(
-                action_type_class_str=self.action_type_class_str,
                 joint_positions_goal=self.staging_configuration,
                 tolerance_joint_goal=self.staging_configuration_tolerance,
                 planner_id=self.planner_id,
@@ -170,7 +187,11 @@ class MoveToMouthTree(MoveToTree):
                 parameterization_orientation_path=1,  # Rotation vector
             )
             .create_tree(
-                move_to_staging_configuration_name, tree_root_name, logger, node
+                move_to_staging_configuration_name,
+                self.action_type,
+                tree_root_name,
+                logger,
+                node,
             )
             .root
         )
@@ -283,7 +304,6 @@ class MoveToMouthTree(MoveToTree):
         )
         move_to_target_pose = (
             MoveToPoseWithPosePathConstraintsTree(
-                action_type_class_str=self.action_type_class_str,
                 position_goal=(0.0, 0.0, 0.0),
                 quat_xyzw_goal=(0.0, 0.7071068, 0.7071068, 0.0),
                 tolerance_position_goal=self.mouth_pose_tolerance,
@@ -301,7 +321,9 @@ class MoveToMouthTree(MoveToTree):
                     ),
                 },
             )
-            .create_tree(move_to_target_pose_name, tree_root_name, logger, node)
+            .create_tree(
+                move_to_target_pose_name, self.action_type, tree_root_name, logger, node
+            )
             .root
         )
 
@@ -333,6 +355,9 @@ class MoveToMouthTree(MoveToTree):
             memory=True,
             children=[
                 turn_face_detection_on,
+                # For now, we only re-tare the F/T sensor once, since no large forces
+                # are expected during transfer.
+                pre_moveto_config,
                 move_to_staging_configuration,
                 detect_face,
                 compute_target_position,
