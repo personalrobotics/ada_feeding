@@ -14,7 +14,6 @@ import py_trees
 from rclpy.node import Node
 from rclpy.time import Time
 import tf2_py as tf2
-from tf2_geometry_msgs import PointStamped
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 
@@ -28,6 +27,9 @@ class ComputeMoveToMouthPosition(py_trees.behaviour.Behaviour):
     detected mouth center from the camera frame to the requested frame and then
     adds an offset.
     """
+
+    # pylint: disable=too-many-instance-attributes, too-many-arguments
+    # A few over is fine. All are necessary.
 
     def __init__(
         self,
@@ -48,7 +50,8 @@ class ComputeMoveToMouthPosition(py_trees.behaviour.Behaviour):
         face_detection_input_key: The key for the face detection input on the blackboard.
         target_position_output_key: The key for the target position output on the blackboard.
         target_position_frame_id: The frame ID for the target position.
-        target_position_offset: The offset to add to the target position, in `target_position_frame_id`
+        target_position_offset: The offset to add to the target position, in
+            `target_position_frame_id`
         """
         # Initiatilize the behavior
         super().__init__(name=name)
@@ -73,11 +76,14 @@ class ComputeMoveToMouthPosition(py_trees.behaviour.Behaviour):
             key=self.target_position_output_key, access=py_trees.common.Access.WRITE
         )
 
+    # pylint: disable=attribute-defined-outside-init
+    # It is reasonable to define attributes in setup, since that will be run once
+    # to initialize the behavior.
     def setup(self, **kwargs) -> None:
         """
         Subscribe to tf2 transforms.
         """
-        self.logger.info("%s [ComputeMoveToMouthPosition::setup()]" % self.name)
+        self.logger.info(f"{self.name} [ComputeMoveToMouthPosition::setup()]")
         # Initialize the tf2 buffer and listener
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self.node)
@@ -89,15 +95,15 @@ class ComputeMoveToMouthPosition(py_trees.behaviour.Behaviour):
         center from the camera frame to the requested frame and then adds an offset.
         It immediately returns either SUCCESS or FAILURE, and never returns RUNNING.
         """
-        self.logger.info("%s [ComputeMoveToMouthPosition::update()]" % self.name)
+        self.logger.info(f"{self.name} [ComputeMoveToMouthPosition::update()]")
         # Get the face detection message from the blackboard. If it doesn't
         # exist, then return failure.
         try:
             face_detection = self.blackboard.get(self.face_detection_input_key)
         except KeyError:
             self.logger.error(
-                "%s [ComputeMoveToMouthPosition::update()] "
-                "Face detection message not found in blackboard" % self.name
+                f"{self.name} [ComputeMoveToMouthPosition::update()] "
+                "Face detection message not found in blackboard"
             )
             return py_trees.common.Status.FAILURE
 
@@ -109,27 +115,27 @@ class ComputeMoveToMouthPosition(py_trees.behaviour.Behaviour):
                     face_detection.detected_mouth_center, self.target_position_frame_id
                 )
                 self.logger.info(
-                    "%s [ComputeMoveToMouthPosition::update()] face_detection.detected_mouth_center %s target_position %s "
-                    % (self.name, face_detection.detected_mouth_center, target_position)
+                    f"{self.name} [ComputeMoveToMouthPosition::update()] "
+                    f"face_detection.detected_mouth_center {face_detection.detected_mouth_center} "
+                    f"target_position {target_position}"
                 )
-            except tf2.ExtrapolationException as e:
+            except tf2.ExtrapolationException as exc:
                 # If the transform failed at the timestamp in the message, retry
                 # with the latest transform
                 self.logger.warning(
-                    "%s [ComputeMoveToMouthPosition::update()] "
-                    "Transform failed at timestamp in message: %s: %s. "
-                    "Retrying with latest transform." % (self.name, type(e), e)
+                    f"{self.name} [ComputeMoveToMouthPosition::update()] "
+                    f"Transform failed at timestamp in message: {type(exc)}: {exc}. "
+                    "Retrying with latest transform."
                 )
                 face_detection.detected_mouth_center.header.stamp = Time().to_msg()
                 target_position = self.tf_buffer.transform(
                     face_detection.detected_mouth_center,
                     self.target_position_frame_id,
                 )
-        except tf2.ExtrapolationException as e:
+        except tf2.ExtrapolationException as exc:
             self.logger.error(
-                "%s [ComputeMoveToMouthPosition::update()] "
-                "Failed to transform face detection result to base frame: %s: %s"
-                % (self.name, type(e), e)
+                f"%{self.name} [ComputeMoveToMouthPosition::update()] "
+                f"Failed to transform face detection result to base frame: {type(exc)}: {exc}"
             )
             return py_trees.common.Status.FAILURE
 

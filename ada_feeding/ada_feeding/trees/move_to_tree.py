@@ -57,6 +57,10 @@ class MoveToTree(ActionServerBT, ABC):
         -------
         tree: The behavior tree that moves the robot above the plate.
         """
+
+        # pylint: disable=too-many-arguments
+        # One over is fine for this function.
+
         self.create_blackboard(name, tree_root_name)
 
         # Import the action type

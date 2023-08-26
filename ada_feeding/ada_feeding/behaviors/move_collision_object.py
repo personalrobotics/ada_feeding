@@ -24,6 +24,9 @@ class MoveCollisionObject(py_trees.behaviour.Behaviour):
     consists of a single mesh.
     """
 
+    # pylint: disable=too-many-instance-attributes, too-many-arguments
+    # A few over is fine. All are necessary.
+
     def __init__(
         self,
         name: str,
@@ -43,8 +46,10 @@ class MoveCollisionObject(py_trees.behaviour.Behaviour):
         name: The name of the behavior.
         node: The ROS node to associate the publishes with.
         collision_object_id: The ID for the collision object in the MoveIt planning scene.
-        collision_object_position_input_key: The key for the collision object pose input on the blackboard.
-        collision_object_orientation_input_key: The key for the collision object orientation input on the blackboard.
+        collision_object_position_input_key: The key for the collision object pose input
+            on the blackboard.
+        collision_object_orientation_input_key: The key for the collision object orientation
+            input on the blackboard.
         reverse_position_offset: The offset to *subtract from* to the collision object position.
         """
         # Initiatilize the behavior

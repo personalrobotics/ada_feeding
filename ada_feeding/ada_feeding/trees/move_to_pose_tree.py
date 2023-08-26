@@ -24,6 +24,7 @@ from ada_feeding.helpers import (
     POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
     ORIENTATION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
     MOVE_TO_NAMESPACE_PREFIX,
+    set_to_blackboard,
 )
 from ada_feeding.trees import MoveToTree
 
@@ -41,7 +42,8 @@ class MoveToPoseTree(MoveToTree):
     # pylint: disable=too-many-instance-attributes, too-many-arguments
     # Many arguments is fine for this class since it has to be able to configure all parameters
     # of its constraints.
-
+    # pylint: disable=dangerous-default-value
+    # A mutable default value is okay since we don't change it in this function.
     def __init__(
         self,
         position: Optional[Tuple[float, float, float]] = None,
@@ -233,42 +235,91 @@ class MoveToPoseTree(MoveToTree):
 
         # Write the inputs to MoveToPose to blackboard
         if self.position is not None:
-            if position_key not in self.keys_to_not_write_to_blackboard:
-                self.blackboard.set(position_key, self.position)
-            if position_frame_id_key not in self.keys_to_not_write_to_blackboard:
-                self.blackboard.set(position_frame_id_key, self.frame_id)
-            if position_target_link_key not in self.keys_to_not_write_to_blackboard:
-                self.blackboard.set(position_target_link_key, self.target_link)
-            if position_tolerance_key not in self.keys_to_not_write_to_blackboard:
-                self.blackboard.set(position_tolerance_key, self.tolerance_position)
-            if position_weight_key not in self.keys_to_not_write_to_blackboard:
-                self.blackboard.set(position_weight_key, self.weight_position)
+            set_to_blackboard(
+                self.blackboard,
+                position_key,
+                self.position,
+                self.keys_to_not_write_to_blackboard,
+            )
+            set_to_blackboard(
+                self.blackboard,
+                position_frame_id_key,
+                self.frame_id,
+                self.keys_to_not_write_to_blackboard,
+            )
+            set_to_blackboard(
+                self.blackboard,
+                position_target_link_key,
+                self.target_link,
+                self.keys_to_not_write_to_blackboard,
+            )
+            set_to_blackboard(
+                self.blackboard,
+                position_tolerance_key,
+                self.tolerance_position,
+                self.keys_to_not_write_to_blackboard,
+            )
+            set_to_blackboard(
+                self.blackboard,
+                position_weight_key,
+                self.weight_position,
+                self.keys_to_not_write_to_blackboard,
+            )
         if self.quat_xyzw is not None:
-            if orientation_key not in self.keys_to_not_write_to_blackboard:
-                self.blackboard.set(orientation_key, self.quat_xyzw)
-            if orientation_frame_id_key not in self.keys_to_not_write_to_blackboard:
-                self.blackboard.set(orientation_frame_id_key, self.frame_id)
-            if orientation_target_link_key not in self.keys_to_not_write_to_blackboard:
-                self.blackboard.set(orientation_target_link_key, self.target_link)
-            if orientation_tolerance_key not in self.keys_to_not_write_to_blackboard:
-                self.blackboard.set(
-                    orientation_tolerance_key, self.tolerance_orientation
-                )
-            if (
-                orientation_parameterization_key
-                not in self.keys_to_not_write_to_blackboard
-            ):
-                self.blackboard.set(
-                    orientation_parameterization_key, self.parameterization
-                )
-            if orientation_weight_key not in self.keys_to_not_write_to_blackboard:
-                self.blackboard.set(orientation_weight_key, self.weight_orientation)
-        if cartesian_key not in self.keys_to_not_write_to_blackboard:
-            self.blackboard.set(cartesian_key, self.cartesian)
-        if planner_id_key not in self.keys_to_not_write_to_blackboard:
-            self.blackboard.set(planner_id_key, self.planner_id)
-        if allowed_planning_time_key not in self.keys_to_not_write_to_blackboard:
-            self.blackboard.set(allowed_planning_time_key, self.allowed_planning_time)
+            set_to_blackboard(
+                self.blackboard,
+                orientation_key,
+                self.quat_xyzw,
+                self.keys_to_not_write_to_blackboard,
+            )
+            set_to_blackboard(
+                self.blackboard,
+                orientation_frame_id_key,
+                self.frame_id,
+                self.keys_to_not_write_to_blackboard,
+            )
+            set_to_blackboard(
+                self.blackboard,
+                orientation_target_link_key,
+                self.target_link,
+                self.keys_to_not_write_to_blackboard,
+            )
+            set_to_blackboard(
+                self.blackboard,
+                orientation_tolerance_key,
+                self.tolerance_orientation,
+                self.keys_to_not_write_to_blackboard,
+            )
+            set_to_blackboard(
+                self.blackboard,
+                orientation_parameterization_key,
+                self.parameterization,
+                self.keys_to_not_write_to_blackboard,
+            )
+            set_to_blackboard(
+                self.blackboard,
+                orientation_weight_key,
+                self.weight_orientation,
+                self.keys_to_not_write_to_blackboard,
+            )
+        set_to_blackboard(
+            self.blackboard,
+            cartesian_key,
+            self.cartesian,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            planner_id_key,
+            self.planner_id,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            allowed_planning_time_key,
+            self.allowed_planning_time,
+            self.keys_to_not_write_to_blackboard,
+        )
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])

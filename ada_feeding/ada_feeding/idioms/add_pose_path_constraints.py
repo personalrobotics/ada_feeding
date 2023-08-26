@@ -22,6 +22,7 @@ from ada_feeding.decorators import (
 from ada_feeding.helpers import (
     POSITION_PATH_CONSTRAINT_NAMESPACE_PREFIX,
     ORIENTATION_PATH_CONSTRAINT_NAMESPACE_PREFIX,
+    set_to_blackboard,
 )
 
 
@@ -30,6 +31,8 @@ from ada_feeding.helpers import (
 # pose path constraints to a behavior tree -- the point of putting them
 # into one function is to reduce the number of arguments/locals/statements
 # needed in other functions.
+# pylint: disable=dangerous-default-value
+# A mutable default value is okay since we don't change it in this function.
 def add_pose_path_constraints(
     child: py_trees.behaviour.Behaviour,
     name: str,
@@ -159,31 +162,67 @@ def add_pose_path_constraints(
 
     # Write the inputs to the pose path constraints to blackboard
     if position_path is not None:
-        if position_key not in keys_to_not_write_to_blackboard:
-            blackboard.set(position_key, position_path)
-        if position_frame_id_key not in keys_to_not_write_to_blackboard:
-            blackboard.set(position_frame_id_key, frame_id_path)
-        if position_target_link_key not in keys_to_not_write_to_blackboard:
-            blackboard.set(position_target_link_key, target_link_path)
-        if position_tolerance_key not in keys_to_not_write_to_blackboard:
-            blackboard.set(position_tolerance_key, tolerance_position_path)
-        if position_weight_key not in keys_to_not_write_to_blackboard:
-            blackboard.set(position_weight_key, weight_position_path)
+        set_to_blackboard(
+            blackboard, position_key, position_path, keys_to_not_write_to_blackboard
+        )
+        set_to_blackboard(
+            blackboard,
+            position_frame_id_key,
+            frame_id_path,
+            keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            blackboard,
+            position_target_link_key,
+            target_link_path,
+            keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            blackboard,
+            position_tolerance_key,
+            tolerance_position_path,
+            keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            blackboard,
+            position_weight_key,
+            weight_position_path,
+            keys_to_not_write_to_blackboard,
+        )
     if quat_xyzw_path is not None:
-        if orientation_key not in keys_to_not_write_to_blackboard:
-            blackboard.set(orientation_key, quat_xyzw_path)
-        if orientation_frame_id_key not in keys_to_not_write_to_blackboard:
-            blackboard.set(orientation_frame_id_key, frame_id_path)
-        if orientation_target_link_key not in keys_to_not_write_to_blackboard:
-            blackboard.set(orientation_target_link_key, target_link_path)
-        if orientation_tolerance_key not in keys_to_not_write_to_blackboard:
-            blackboard.set(orientation_tolerance_key, tolerance_orientation_path)
-        if orientation_parameterization_key not in keys_to_not_write_to_blackboard:
-            blackboard.set(
-                orientation_parameterization_key, parameterization_orientation_path
-            )
-        if orientation_weight_key not in keys_to_not_write_to_blackboard:
-            blackboard.set(orientation_weight_key, weight_orientation_path)
+        set_to_blackboard(
+            blackboard, orientation_key, quat_xyzw_path, keys_to_not_write_to_blackboard
+        )
+        set_to_blackboard(
+            blackboard,
+            orientation_frame_id_key,
+            frame_id_path,
+            keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            blackboard,
+            orientation_target_link_key,
+            target_link_path,
+            keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            blackboard,
+            orientation_tolerance_key,
+            tolerance_orientation_path,
+            keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            blackboard,
+            orientation_parameterization_key,
+            parameterization_orientation_path,
+            keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            blackboard,
+            orientation_weight_key,
+            weight_orientation_path,
+            keys_to_not_write_to_blackboard,
+        )
 
     # Add the position path constraint to the child behavior
     if position_path is not None:

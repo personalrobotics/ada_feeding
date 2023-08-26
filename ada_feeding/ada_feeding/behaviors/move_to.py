@@ -268,15 +268,14 @@ class MoveTo(py_trees.behaviour.Behaviour):
                     # is already executing a trajectory, action server not
                     # available, goal was rejected, etc.)
                     self.logger.error(
-                        "%s [MoveTo::update()] Failed to execute trajectory before goal was accepted!"
-                        % self.name
+                        f"{self.name} [MoveTo::update()] Failed to execute trajectory before goal "
+                        "was accepted!"
                     )
                     return py_trees.common.Status.FAILURE
-                else:
-                    # If we get here, the goal finished executing within the
-                    # last tick.
-                    self.tree_blackboard.motion_curr_distance = 0.0
-                    return py_trees.common.Status.SUCCESS
+                # If we get here, the goal finished executing within the
+                # last tick.
+                self.tree_blackboard.motion_curr_distance = 0.0
+                return py_trees.common.Status.SUCCESS
         if self.motion_future is not None:
             self.tree_blackboard.motion_curr_distance = (
                 self.distance_to_goal.get_distance()

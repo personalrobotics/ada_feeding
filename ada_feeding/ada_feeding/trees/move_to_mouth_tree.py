@@ -11,7 +11,6 @@ import operator
 from typing import List
 
 # Third-party imports
-from ada_feeding_msgs.msg import FaceDetection
 import py_trees
 from py_trees.blackboard import Blackboard
 import py_trees_ros
@@ -19,6 +18,7 @@ from rclpy.node import Node
 from std_srvs.srv import SetBool
 
 # Local imports
+from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding.behaviors import ComputeMoveToMouthPosition, MoveCollisionObject
 from ada_feeding.helpers import (
     POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
@@ -153,11 +153,13 @@ class MoveToMouthTree(MoveToTree):
             key_request=None,
             request=SetBool.Request(data=True),
             key_response=turn_face_detection_on_key_response,
-            response_check=py_trees.common.ComparisonExpression(
-                variable=turn_face_detection_on_key_response + ".success",
-                value=True,
-                operator=operator.eq,
-            ),
+            response_checks=[
+                py_trees.common.ComparisonExpression(
+                    variable=turn_face_detection_on_key_response + ".success",
+                    value=True,
+                    operator=operator.eq,
+                )
+            ],
             logger=logger,
         )
 
@@ -165,7 +167,7 @@ class MoveToMouthTree(MoveToTree):
         pre_moveto_config_name = Blackboard.separator.join(
             [name, pre_moveto_config_prefix]
         )
-        pre_moveto_config = pre_moveto_config(
+        pre_moveto_config_behavior = pre_moveto_config(
             name=pre_moveto_config_name,
             f_mag=self.force_threshold,
             t_mag=self.torque_threshold,
@@ -341,11 +343,13 @@ class MoveToMouthTree(MoveToTree):
             key_request=None,
             request=SetBool.Request(data=False),
             key_response=turn_face_detection_off_key_response,
-            response_check=py_trees.common.ComparisonExpression(
-                variable=turn_face_detection_off_key_response + ".success",
-                value=True,
-                operator=operator.eq,
-            ),
+            response_checks=[
+                py_trees.common.ComparisonExpression(
+                    variable=turn_face_detection_off_key_response + ".success",
+                    value=True,
+                    operator=operator.eq,
+                )
+            ],
             logger=logger,
         )
 
@@ -357,7 +361,7 @@ class MoveToMouthTree(MoveToTree):
                 turn_face_detection_on,
                 # For now, we only re-tare the F/T sensor once, since no large forces
                 # are expected during transfer.
-                pre_moveto_config,
+                pre_moveto_config_behavior,
                 move_to_staging_configuration,
                 detect_face,
                 compute_target_position,

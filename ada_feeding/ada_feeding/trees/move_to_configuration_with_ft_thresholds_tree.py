@@ -27,7 +27,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
     # pylint: disable=too-many-instance-attributes, too-many-arguments
     # Many arguments is fine for this class since it has to be able to configure all parameters
     # of its constraints.
-
+    # pylint: disable=dangerous-default-value
+    # A mutable default value is okay since we don't change it in this function.
     def __init__(
         self,
         # Required parameters for moving to a configuration

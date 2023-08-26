@@ -82,6 +82,10 @@ class MoveToDummyTree(ActionServerBT):
         -------
         tree: The behavior tree that moves the robot above the plate.
         """
+
+        # pylint: disable=too-many-arguments
+        # One over is fine.
+
         # Store the action type
         self.action_type = action_type
 

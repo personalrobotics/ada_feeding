@@ -20,6 +20,9 @@ class ActionServerBT(ABC):
     `create_action_server.py`
     """
 
+    # pylint: disable=too-many-arguments
+    # One over is fine.
+
     @abstractmethod
     def create_tree(
         self,

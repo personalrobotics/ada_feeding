@@ -4,7 +4,7 @@ Ada Feeding project.
 """
 
 # Standard imports
-from typing import Any
+from typing import Any, Set
 
 # Third-party imports
 import py_trees
@@ -48,6 +48,31 @@ def get_from_blackboard_with_default(
         return getattr(blackboard, key)
     except KeyError:
         return default
+
+
+# pylint: disable=dangerous-default-value
+# A mutable default value is okay since we don't change it in this function.
+def set_to_blackboard(
+    blackboard: py_trees.blackboard.Client,
+    key: str,
+    value: Any,
+    keys_to_not_write_to_blackboard: Set[str] = set(),
+) -> None:
+    """
+    Sets a value to the blackboard.
+
+    Parameters
+    ----------
+    blackboard: The blackboard client.
+    key: The key to set.
+    value: The value to set.
+    keys_to_not_write_to_blackboard: A set of keys that should not be written
+        to the blackboard. Note that the keys need to be exact e.g., "move_to.cartesian,"
+        "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
+        etc.
+    """
+    if key not in keys_to_not_write_to_blackboard:
+        blackboard.set(key, value)
 
 
 def import_from_string(import_string: str) -> Any:

@@ -17,6 +17,7 @@ from rclpy.node import Node
 # Local imports
 from ada_feeding.behaviors import MoveTo
 from ada_feeding.decorators import SetJointGoalConstraint
+from ada_feeding.helpers import set_to_blackboard
 from ada_feeding.trees import MoveToTree
 
 # pylint: disable=duplicate-code
@@ -33,7 +34,8 @@ class MoveToConfigurationTree(MoveToTree):
     # pylint: disable=too-many-instance-attributes, too-many-arguments
     # Many arguments is fine for this class since it has to be able to configure all parameters
     # of its constraints.
-
+    # pylint: disable=dangerous-default-value
+    # A mutable default value is okay since we don't change it in this function.
     def __init__(
         self,
         joint_positions: List[float],
@@ -137,18 +139,36 @@ class MoveToConfigurationTree(MoveToTree):
         )
 
         # Write the inputs to MoveToConfiguration to blackboard
-        if joint_positions_key not in self.keys_to_not_write_to_blackboard:
-            self.blackboard.set(joint_positions_key, self.joint_positions)
-        if tolerance_key not in self.keys_to_not_write_to_blackboard:
-            self.blackboard.set(tolerance_key, self.tolerance)
-        if weight_key not in self.keys_to_not_write_to_blackboard:
-            self.blackboard.set(weight_key, self.weight)
-        if planner_id_key not in self.keys_to_not_write_to_blackboard:
-            self.blackboard.set(planner_id_key, self.planner_id)
-        if allowed_planning_time_key not in self.keys_to_not_write_to_blackboard:
-            self.blackboard.set(
-                allowed_planning_time_key, self.allowed_planning_time
-            )
+        set_to_blackboard(
+            self.blackboard,
+            joint_positions_key,
+            self.joint_positions,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            tolerance_key,
+            self.tolerance,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            weight_key,
+            self.weight,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            planner_id_key,
+            self.planner_id,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            allowed_planning_time_key,
+            self.allowed_planning_time,
+            self.keys_to_not_write_to_blackboard,
+        )
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])
