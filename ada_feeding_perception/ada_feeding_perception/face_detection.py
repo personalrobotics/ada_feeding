@@ -22,7 +22,6 @@ from rclpy.parameter import Parameter
 from rclpy.executors import MultiThreadedExecutor
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from sensor_msgs.msg import CompressedImage, CameraInfo, Image
-from std_msgs.msg import Header
 from std_srvs.srv import SetBool
 
 # Local imports
@@ -129,8 +128,8 @@ class FaceDetectionNode(Node):
         self.img_mouth_points = []
         self.is_face_detected = False
 
-        # The timestamp of the latest color image with a detected face/mouth
-        self.color_img_timestamp = None
+        # The header of the latest color image with a detected face/mouth
+        self.color_img_header = None
 
         self.mouth_detection_lock = Lock()
 
@@ -295,7 +294,7 @@ class FaceDetectionNode(Node):
             is_face_detected = self.is_face_detected
             img_mouth_center = self.img_mouth_center
             img_mouth_points = self.img_mouth_points
-            color_img_timestamp = self.color_img_timestamp
+            color_img_header = self.color_img_header
 
         with self.camera_info_lock:
             camera_matrix = self.camera_matrix
@@ -314,8 +313,8 @@ class FaceDetectionNode(Node):
                     depth_time = depth_img.header.stamp.sec + (
                         depth_img.header.stamp.nanosec / (10**9)
                     )
-                    img_time = color_img_timestamp.sec + (
-                        color_img_timestamp.nanosec / (10**9)
+                    img_time = color_img_header.stamp.sec + (
+                        color_img_header.stamp.nanosec / (10**9)
                     )
                     difference_array[i] = abs(depth_time - img_time)
                 closest_depth = self.bridge.imgmsg_to_cv2(
@@ -332,7 +331,7 @@ class FaceDetectionNode(Node):
                 # Create target 3d point, with mm measurements converted to m
                 # Equations and explanation can be found at https://youtu.be/qByYk6JggQU
                 mouth_location = PointStamped()
-                mouth_location.header = Header(stamp=color_img_timestamp)
+                mouth_location.header = color_img_header
                 mouth_location.point.x = (
                     float(depth) * (float(u) - camera_matrix[2])
                 ) / (1000.0 * camera_matrix[0])
@@ -403,7 +402,7 @@ class FaceDetectionNode(Node):
                 img_mouth_center = landmarks[largest_face[1]][0][66]
                 img_mouth_points = landmarks[largest_face[1]][0][48:68]
 
-                color_img_timestamp = msg.header.stamp
+                color_img_header = msg.header
 
             annotated_msg = cv2_image_to_ros_msg(image_rgb, compress=False)
 
@@ -413,7 +412,7 @@ class FaceDetectionNode(Node):
                 if is_face_detected:
                     self.img_mouth_center = img_mouth_center
                     self.img_mouth_points = img_mouth_points
-                    self.color_img_timestamp = color_img_timestamp
+                    self.color_img_header = color_img_header
 
             # Publish annotated image with face and mouth landmarks
             self.publisher_image.publish(annotated_msg)
