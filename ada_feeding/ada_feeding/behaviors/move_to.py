@@ -137,12 +137,6 @@ class MoveTo(py_trees.behaviour.Behaviour):
             qos_profile=QoSPresetProfiles.SENSOR_DATA.value,
         )
 
-    def setup(self, **kwargs) -> None:
-        """
-        Create the MoveIt interface.
-        """
-        self.logger.info(f"{self.name} [MoveTo::setup()]")
-
     # pylint: disable=attribute-defined-outside-init
     # For attributes that are only used during the execution of the tree
     # and get reset before the next execution, it is reasonable to define

@@ -101,6 +101,7 @@ class MoveCollisionObject(py_trees.behaviour.Behaviour):
         Note that this behavior asusmes that the collision object to be moved
         consists of a single mesh.
         """
+        self.logger.info(f"{self.name} [MoveCollisionObject::update()]")
         # Get the pose to move the collision object to
         try:
             collision_object_position = self.blackboard.get(

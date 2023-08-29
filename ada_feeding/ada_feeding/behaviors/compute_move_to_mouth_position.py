@@ -13,7 +13,7 @@ from typing import Tuple
 import py_trees
 from rclpy.node import Node
 from rclpy.time import Time
-from tf2_geometry_msgs import PointStamped # pylint: disable=unused-import
+from tf2_geometry_msgs import PointStamped  # pylint: disable=unused-import
 import tf2_py as tf2
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
