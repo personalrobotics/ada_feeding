@@ -51,9 +51,10 @@ class ADAWatchdog(Node):
 
         # Create the conditions
         self.conditions = [
-            EStopCondition(self),
             FTSensorCondition(self),
         ]
+        if self.use_estop.value:
+            self.conditions.insert(0, EStopCondition(self))
         self.has_passed_startup_conditions = False
 
         # Create a watchdog publisher
@@ -78,6 +79,20 @@ class ADAWatchdog(Node):
                 name="publish_rate_hz",
                 type=ParameterType.PARAMETER_DOUBLE,
                 description="The target rate (Hz) for the watchdog to publish its output",
+                read_only=True,
+            ),
+        )
+        self.use_estop = self.declare_parameter(
+            "use_estop",
+            True,
+            ParameterDescriptor(
+                name="use_estop",
+                type=ParameterType.PARAMETER_BOOL,
+                description=(
+                    "Whether to check the state of the physical e-stop button. "
+                    "This should only be set False in sim, since we currently "
+                    "have no way of simulating the e-stop button."
+                ),
                 read_only=True,
             ),
         )

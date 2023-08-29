@@ -6,6 +6,9 @@ ada_watchdog:
     ############################################################################
     # The rate at which to publish the watchdog message
     publish_rate_hz: 60.0
+    # Whether or not to use the estop button. This should only be set false in
+    # sim, because we currently have no way of simulating the estop button.
+    use_estop: true
 
     ############################################################################
     # Parameters for the FTSensorCondition of the watchdog
