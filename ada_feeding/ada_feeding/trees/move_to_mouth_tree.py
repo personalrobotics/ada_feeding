@@ -19,7 +19,11 @@ from std_srvs.srv import SetBool
 
 # Local imports
 from ada_feeding_msgs.msg import FaceDetection
-from ada_feeding.behaviors import ComputeMoveToMouthPosition, MoveCollisionObject
+from ada_feeding.behaviors import (
+    ComputeMoveToMouthPosition,
+    MoveCollisionObject,
+    ToggleCollisionObject,
+)
 from ada_feeding.helpers import (
     POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
 )
@@ -47,6 +51,7 @@ class MoveToMouthTree(MoveToTree):
         allowed_planning_time_to_staging_configuration: float = 0.5,
         allowed_planning_time_to_mouth: float = 0.5,
         head_object_id: str = "head",
+        wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 4.0,
         torque_threshold: float = 4.0,
     ):
@@ -71,6 +76,8 @@ class MoveToMouthTree(MoveToTree):
             motion planner to move to the user's mouth.
         head_object_id: The ID of the head collision object in the MoveIt2
             planning scene.
+        wheelchair_collision_object_id: The ID of the wheelchair collision object
+            in the MoveIt2 planning scene.
         force_threshold: The force threshold (N) for the ForceGateController.
             For now, the same threshold is used to move to the staging location
             and to the mouth.
@@ -94,6 +101,7 @@ class MoveToMouthTree(MoveToTree):
         )
         self.allowed_planning_time_to_mouth = allowed_planning_time_to_mouth
         self.head_object_id = head_object_id
+        self.wheelchair_collision_object_id = wheelchair_collision_object_id
         self.force_threshold = force_threshold
         self.torque_threshold = torque_threshold
 
@@ -285,6 +293,20 @@ class MoveToMouthTree(MoveToTree):
             quat_xyzw_key, (-0.0616284, -0.0616284, -0.704416, 0.704416)
         )
 
+        # Create the behavior to allow collisions between the robot and the
+        # wheelchair collision object. The wheelchair collision object is
+        # intentionally expanded to nsure the robot gets nowhere close to the
+        # user during acquisition, but during transfer the robot must get close
+        # to the user so the wheelchair collision object must be allowed.
+        allow_wheelchair_collision_prefix = "allow_wheelchair_collision"
+        allow_wheelchair_collision = ToggleCollisionObject(
+            name=Blackboard.separator.join([name, allow_wheelchair_collision_prefix]),
+            node=node,
+            collision_object_id=self.wheelchair_collision_object_id,
+            allow=True,
+        )
+        allow_wheelchair_collision.logger = logger
+
         # Create the behaviour to move the robot to the target pose
         # We want to add a position goal, but it should come from the
         # blackboard instead of being hardcoded. For now the orientation goal
@@ -320,6 +342,27 @@ class MoveToMouthTree(MoveToTree):
             )
             .root
         )
+
+        # # NOTE: The below is commented out for the time being, because if
+        # # we disallow collisions between the robot and the wheelchair
+        # # collision object, then the robot will not be able to do any motions
+        # # after this (since it is in collision with the wheelchair collision
+        # # object at the end of transfer).
+        # #
+        # # The right solution is to create a separate `MoveAwayFromMouth` tree
+        # # that moves the robot back to the staging location, and then disallows
+        # # this collision before moving back to the staging location.
+
+        # # Create the behavior to disallow collisions between the robot and the
+        # # wheelchair collision object.
+        # disallow_wheelchair_collision_prefix = "disallow_wheelchair_collision"
+        # disallow_wheelchair_collision = ToggleCollisionObject(
+        #     name=Blackboard.separator.join([name, disallow_wheelchair_collision_prefix]),
+        #     node=node,
+        #     collision_object_id=self.wheelchair_collision_object_id,
+        #     allow=False,
+        # )
+        # disallow_wheelchair_collision.logger = logger
 
         # Create the behaviour to turn face detection off
         turn_face_detection_off_name = Blackboard.separator.join(
@@ -358,7 +401,9 @@ class MoveToMouthTree(MoveToTree):
                 detect_face,
                 compute_target_position,
                 move_head,
+                allow_wheelchair_collision,
                 move_to_target_pose,
+                # disallow_wheelchair_collision,
                 turn_face_detection_off,
             ],
         )
