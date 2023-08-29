@@ -133,9 +133,9 @@ class MoveToMouthTree(MoveToTree):
         -------
         tree: The behaviour tree that moves the robot above the plate.
         """
-        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-locals, too-many-statements
         # This function creates all the behaviors of the tree, which is why
-        # it has so many locals.
+        # it has so many locals/statements.
         # TODO: consider separating each behavior into its own function to simplify this.
 
         # Separate the namespace of each sub-behavior
@@ -427,7 +427,9 @@ class MoveToMouthTree(MoveToTree):
                 move_to_mouth,
                 # Even though we are cleaning up the tree, it should still
                 # pass the failure up.
-                py_trees.decorators.SuccessIsFailure(name+" Cleanup", turn_face_detection_off),
+                py_trees.decorators.SuccessIsFailure(
+                    name + " Cleanup", turn_face_detection_off
+                ),
             ],
         )
         root.logger = logger
