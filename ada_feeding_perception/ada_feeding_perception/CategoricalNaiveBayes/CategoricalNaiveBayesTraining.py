@@ -59,7 +59,7 @@ if "__main__" == __name__:
     max_dist = 370
 
     # Variable to decide whether or not to use the entire dataset for training
-    use_entire_dataset = True
+    use_entire_dataset = False
 
     # unzip the files into a temporary folder
     temp_dir = tempfile.mkdtemp()
@@ -128,11 +128,19 @@ if "__main__" == __name__:
     # Get the predictions on the train set
     print("X_train", X_train.shape)
     y_pred_train = clf.predict(X_train)
+    print(clf.class_log_prior_, np.exp(clf.class_log_prior_))
+    feature_given_fof = np.array([feature[1, :] for feature in clf.feature_log_prob_])
+    print(feature_given_fof, feature_given_fof.min(), feature_given_fof.max(), feature_given_fof.mean(), feature_given_fof.sum())
+    print(list(np.exp(feature_given_fof)))
+    y_pred_train_proba = clf.predict_log_proba(X_train)
+    print(y_pred_train_proba)
 
     # Get the predictions on the test set
     if not use_entire_dataset:
         print("X_test", X_test.shape)
         y_pred_test = clf.predict(X_test)
+        y_pred_test_proba = clf.predict_log_proba(X_test)
+        print(y_pred_test_proba)
 
     # Get the train accuracy
     acc_train = accuracy_score(y_train, y_pred_train)
