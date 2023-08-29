@@ -40,6 +40,10 @@ class MoveToMouthTree(MoveToTree):
     A behaviour tree that moves the robot to a specified configuration.
     """
 
+    # pylint: disable=too-many-instance-attributes, too-many-arguments
+    # Bite transfer is a big part of the robot's behavior, so it makes
+    # sense that it has lots of attributes/arguments.
+
     def __init__(
         self,
         staging_configuration: List[float],
@@ -129,6 +133,11 @@ class MoveToMouthTree(MoveToTree):
         -------
         tree: The behaviour tree that moves the robot above the plate.
         """
+        # pylint: disable=too-many-locals
+        # This function creates all the behaviors of the tree, which is why
+        # it has so many locals.
+        # TODO: consider separating each behavior into its own function to simplify this.
+
         # Separate the namespace of each sub-behavior
         turn_face_detection_on_prefix = "turn_face_detection_on"
         pre_moveto_config_prefix = "pre_moveto_config"
