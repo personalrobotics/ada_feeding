@@ -398,8 +398,8 @@ class MoveToMouthTree(MoveToTree):
         )
 
         # Link all the behaviours together in a sequence with memory
-        root = py_trees.composites.Sequence(
-            name=name,
+        move_to_mouth = py_trees.composites.Sequence(
+            name=name + " Main",
             memory=True,
             children=[
                 turn_face_detection_on,
@@ -414,6 +414,20 @@ class MoveToMouthTree(MoveToTree):
                 move_to_target_pose,
                 # disallow_wheelchair_collision,
                 turn_face_detection_off,
+            ],
+        )
+        move_to_mouth.logger = logger
+
+        # If move_to_mouth fails, we still want to do some cleanup (e.g., turn
+        # face detection off).
+        root = py_trees.composites.Selector(
+            name=name,
+            memory=True,
+            children=[
+                move_to_mouth,
+                # Even though we are cleaning up the tree, it should still
+                # pass the failure up.
+                py_trees.decorators.SuccessIsFailure(name+" Cleanup", turn_face_detection_off),
             ],
         )
         root.logger = logger
