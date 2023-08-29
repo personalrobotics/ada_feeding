@@ -11,9 +11,11 @@ from typing import List, Set
 
 # Third-party imports
 import py_trees
+from py_trees.blackboard import Blackboard
 from rclpy.node import Node
 
 # Local imports
+from ada_feeding.behaviors import ToggleCollisionObject
 from ada_feeding.idioms import pre_moveto_config
 from ada_feeding.trees import MoveToTree, MoveToConfigurationTree
 
@@ -21,7 +23,11 @@ from ada_feeding.trees import MoveToTree, MoveToConfigurationTree
 class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
     """
     A behavior tree that moves the robot to a specified configuration, after
-    re-taring the FT sensor and setting specific FT thresholds.
+    re-taring the FT sensor and setting specific FT thresholds. This tree also
+    provides the option to specify a list of collision object IDs that should
+    be ignored during the motion (e.g., collisions between the robot and those
+    objects will be allowed before the motion begins and disallowed after the
+    motion ends or if it fails).
     """
 
     # pylint: disable=too-many-instance-attributes, too-many-arguments
@@ -49,6 +55,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         t_x: float = 0.0,
         t_y: float = 0.0,
         t_z: float = 0.0,
+        collision_object_ids: List[str] = [],
         keys_to_not_write_to_blackboard: Set[str] = set(),
     ):
         """
@@ -73,6 +80,10 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         t_x: The magnitude of the x component of the torque threshold. No threshold if 0.0.
         t_y: The magnitude of the y component of the torque threshold. No threshold if 0.0.
         t_z: The magnitude of the z component of the torque threshold. No threshold if 0.0.
+        collision_object_ids: The collision object IDs to ignore during the motion.
+            Collisions between the robot and these objects will be allowed in the
+            planning scene before the robot moves, and disallowed after the robot
+            stops moving or if the motion failed.
         keys_to_not_write_to_blackboard: the keys to not write to the blackboard.
             Note that the keys need to be exact e.g., "move_to.cartesian,"
             "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
@@ -105,6 +116,9 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self.t_y = t_y
         self.t_z = t_z
 
+        # Optional parameter to ignore collisions with certain objects
+        self.collision_object_ids = collision_object_ids
+
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
 
     def create_move_to_tree(
@@ -128,22 +142,15 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         -------
         tree: The behavior tree that moves the robot above the plate.
         """
-        # First, create the MoveToConfiguration behavior tree, in the same
-        # namespace as this tree
-        move_to_configuration_root = (
-            MoveToConfigurationTree(
-                joint_positions=self.joint_positions,
-                tolerance=self.tolerance_joint,
-                weight=self.weight_joint,
-                planner_id=self.planner_id,
-                allowed_planning_time=self.allowed_planning_time,
-                keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
-            )
-            .create_tree(name, self.action_type, tree_root_name, logger, node)
-            .root
-        )
 
-        # Add the re-taring and FT thresholds
+        # pylint: disable=too-many-locals
+        # Unfortunately, many local variables are required here since this tree
+        # is exposing many different options.
+
+        children = []
+
+        # Create the re-taring and setting FT threshold behaviors that should
+        # run before the MoveTo action
         pre_moveto_behavior = pre_moveto_config(
             name=name,
             re_tare=self.re_tare,
@@ -158,13 +165,85 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             t_z=self.t_z,
             logger=logger,
         )
+        children.append(pre_moveto_behavior)
+
+        # Create the behavior to allow collisions with certain objects
+        if len(self.collision_object_ids) > 0:
+            for collision_object_id in self.collision_object_ids:
+                allow_collision_prefix = f"allow_collision_with_{collision_object_id}"
+                allow_collision = ToggleCollisionObject(
+                    name=Blackboard.separator.join([name, allow_collision_prefix]),
+                    node=node,
+                    collision_object_id=collision_object_id,
+                    allow=True,
+                )
+                allow_collision.logger = logger
+                children.append(allow_collision)
+
+        # Create the MoveToConfiguration behavior tree, in the same
+        # namespace as this tree
+        move_to_configuration_root = (
+            MoveToConfigurationTree(
+                joint_positions=self.joint_positions,
+                tolerance=self.tolerance_joint,
+                weight=self.weight_joint,
+                planner_id=self.planner_id,
+                allowed_planning_time=self.allowed_planning_time,
+                keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
+            )
+            .create_tree(name, self.action_type, tree_root_name, logger, node)
+            .root
+        )
+        children.append(move_to_configuration_root)
+
+        # Create the behavior to disallow collisions with certain objects
+        disallow_collision_children = []
+        if len(self.collision_object_ids) > 0:
+            for collision_object_id in self.collision_object_ids:
+                disallow_collision_prefix = (
+                    f"disallow_collision_with_{collision_object_id}"
+                )
+                disallow_collision = ToggleCollisionObject(
+                    name=Blackboard.separator.join([name, disallow_collision_prefix]),
+                    node=node,
+                    collision_object_id=collision_object_id,
+                    allow=False,
+                )
+                disallow_collision.logger = logger
+                children.append(disallow_collision)
+                disallow_collision_children.append(disallow_collision)
 
         # Combine them in a sequence with memory
-        root = py_trees.composites.Sequence(
+        main_behavior = py_trees.composites.Sequence(
             name=name,
             memory=True,
-            children=[pre_moveto_behavior, move_to_configuration_root],
+            children=children,
         )
+        main_behavior.logger = logger
+
+        # If any part of the main behavior fails, we need to clean it up by still
+        # allowing the collision.
+        if len(self.collision_object_ids) > 0:
+            root = py_trees.composites.Selector(
+                name=name,
+                memory=True,
+                children=[
+                    main_behavior,
+                    # Even though we are cleaning up the tree, it should still
+                    # pass the failure up.
+                    py_trees.decorators.SuccessIsFailure(
+                        name + " Cleanup",
+                        py_trees.composites.Sequence(
+                            name=name,
+                            memory=True,
+                            children=disallow_collision_children,
+                        ),
+                    ),
+                ],
+            )
+            root.logger = logger
+        else:
+            root = main_behavior
 
         tree = py_trees.trees.BehaviourTree(root)
         return tree
