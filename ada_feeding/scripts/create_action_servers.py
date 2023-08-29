@@ -387,7 +387,7 @@ class CreateActionServers(Node):
 
                         # Check if the watchdog has failed
                         if not self.watchdog_listener.ok():
-                            self.get_logger().info("Watchdog failed, aborting goal")
+                            self.get_logger().warn("Watchdog failed, aborting goal")
                             tree_action_server.preempt_goal(
                                 tree
                             )  # blocks until the preempt succeeds
@@ -399,7 +399,7 @@ class CreateActionServers(Node):
                         tree.tick()
                         feedback_msg = tree_action_server.get_feedback(tree)
                         goal_handle.publish_feedback(feedback_msg)
-                        self.get_logger().info(f"Publishing feedback {feedback_msg}")
+                        self.get_logger().debug(f"Publishing feedback {feedback_msg}")
 
                         # Check the tree status
                         if tree.root.status == py_trees.common.Status.SUCCESS:
