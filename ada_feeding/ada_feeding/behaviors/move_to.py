@@ -313,6 +313,10 @@ class MoveTo(py_trees.behaviour.Behaviour):
         rate = self.node.create_rate(self.terminate_rate_hz)
         # A termination request has not succeeded until the MoveIt2 action server is IDLE
         while self.moveit2.query_state() != MoveIt2State.IDLE:
+            self.node.get_logger().info(
+                f"MoveTo Update MoveIt2State not Idle {time.time()} {terminate_requested_time} "
+                f"{self.terminate_timeout_s}"
+            )
             # If the goal is executing, cancel it
             if self.moveit2.query_state() == MoveIt2State.EXECUTING:
                 self.moveit2.cancel_execution()
