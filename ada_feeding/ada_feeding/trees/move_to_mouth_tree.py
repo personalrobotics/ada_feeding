@@ -58,6 +58,7 @@ class MoveToMouthTree(MoveToTree):
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 4.0,
         torque_threshold: float = 4.0,
+        allowed_face_distance: float = 1.5,
     ):
         """
         Initializes tree-specific parameters.
@@ -88,6 +89,8 @@ class MoveToMouthTree(MoveToTree):
         torque_threshold: The torque threshold (N*m) for the ForceGateController.
             For now, the same threshold is used to move to the staging location
             and to the mouth.
+        allowed_face_distance: The maximum distance (m) between a face and the
+            **camera's optical frame** for the robot to move towards the face.
         """
         # Initialize MoveToTree
         super().__init__()
@@ -108,6 +111,37 @@ class MoveToMouthTree(MoveToTree):
         self.wheelchair_collision_object_id = wheelchair_collision_object_id
         self.force_threshold = force_threshold
         self.torque_threshold = torque_threshold
+        self.allowed_face_distance = allowed_face_distance
+
+    def check_face_msg(self, msg: FaceDetection, _: FaceDetection) -> bool:
+        """
+        Checks if a face is detected in the message and the face is within
+        the required distance from the camera optical frame.
+
+        Parameters
+        ----------
+        msg: The message that was written to the blackboard
+        _: The comparison message.
+
+        Returns
+        -------
+        True if a face is detected within the required distance, False otherwise.
+        """
+        if msg.is_face_detected:
+            # Check the distance between the face and the camera optical frame
+            # The face detection message is in the camera optical frame
+            # The camera optical frame is the parent frame of the face detection
+            # frame, so we can just use the translation of the face detection
+            # frame to get the distance between the face and the camera optical
+            # frame.
+            distance = (
+                msg.detected_mouth_center.point.x**2.0
+                + msg.detected_mouth_center.point.y**2.0
+                + msg.detected_mouth_center.point.z**2.0
+            ) ** 0.5
+            if distance <= self.allowed_face_distance:
+                return True
+        return False
 
     def create_move_to_tree(
         self,
@@ -229,9 +263,9 @@ class MoveToMouthTree(MoveToTree):
             child=py_trees.behaviours.CheckBlackboardVariableValue(
                 name=check_face_name,
                 check=py_trees.common.ComparisonExpression(
-                    variable="face_detection.is_face_detected",
-                    value=True,
-                    operator=operator.eq,
+                    variable="face_detection",
+                    value=FaceDetection(),
+                    operator=self.check_face_msg,
                 ),
             ),
         )
