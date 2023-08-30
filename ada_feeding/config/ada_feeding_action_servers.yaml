@@ -18,9 +18,10 @@ ada_feeding_action_servers:
     # Parameters for the MoveAbovePlate action
     MoveAbovePlate: # required
       action_type: ada_feeding_msgs.action.MoveTo # required
-      tree_class: ada_feeding.trees.MoveToConfigurationTree # required
+      tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
       tree_kws: # optional
         - joint_positions
+        - f_mag
       tree_kwargs: # optional
         joint_positions: # required
           - -2.11666 # j2n6s200_joint_1
@@ -29,6 +30,7 @@ ada_feeding_action_servers:
           - -2.30031 # j2n6s200_joint_4
           - -2.34026 # j2n6s200_joint_5
           -  2.95450 # j2n6s200_joint_6
+        f_mag: 4.0 # N
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the AcquireFood action
@@ -46,9 +48,10 @@ ada_feeding_action_servers:
    # Parameters for the MoveToRestingPosition action
     MoveToRestingPosition: # required
       action_type: ada_feeding_msgs.action.MoveTo # required
-      tree_class: ada_feeding.trees.MoveToConfigurationTree # required
+      tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
       tree_kws: # optional
         - joint_positions
+        - f_mag
       tree_kwargs: # optional
         joint_positions: # required
           - -1.94672 # j2n6s200_joint_1
@@ -57,6 +60,7 @@ ada_feeding_action_servers:
           - -4.76501 # j2n6s200_joint_4
           -  5.99991 # j2n6s200_joint_5
           -  4.99555 # j2n6s200_joint_6
+        f_mag: 4.0 # N
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToMouth action
@@ -65,36 +69,30 @@ ada_feeding_action_servers:
     # implemented.
     MoveToMouth: # required
       action_type: ada_feeding_msgs.action.MoveTo # required
-      tree_class: ada_feeding.trees.MoveToConfigurationWithPosePathConstraintsTree # required
+      tree_class: ada_feeding.trees.MoveToMouthTree # required
       tree_kws: # optional
-        - joint_positions_goal
-        - weight_joint_goal
-        - quat_xyzw_path
-        - tolerance_orientation_path
-        - parameterization_orientation_path
-        - weight_orientation_path
-        - allowed_planning_time
+        - staging_configuration
+        - orientation_constraint_quaternion
+        - orientation_constraint_tolerances
+        - allowed_planning_time_to_staging_configuration
       tree_kwargs: # optional
-        joint_positions_goal:
+        staging_configuration:
           -  2.74709 # j2n6s200_joint_1
           -  2.01400 # j2n6s200_joint_2
           -  1.85257 # j2n6s200_joint_3
           - -2.83523 # j2n6s200_joint_4
           - -1.61925 # j2n6s200_joint_5
           - -2.67325 # j2n6s200_joint_6
-        weight_joint_goal: 1.0
-        quat_xyzw_path: # perpendicular to the base link
+        orientation_constraint_quaternion: # perpendicular to the base link
           - 0.707168 # x
           - 0.0 # y
           - 0.0 # z
           - 0.707168 # w
-        tolerance_orientation_path: # Note that tolerances are w.r.t. the axes in quat_xyzw_path
+        orientation_constraint_tolerances: # Note that tolerances are w.r.t. the axes in quat_xyzw_path
           - 0.6 # x, rad
           - 3.14159 # y, rad
           - 0.5 # z, rad
-        parameterization_orientation_path: 1 # 0: Euler, 1: Rotation Vector
-        weight_orientation_path: 1.0
-        allowed_planning_time: 1.0 # secs
+        allowed_planning_time_to_staging_configuration: 1.0 # secs
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToStowLocation action
@@ -102,9 +100,10 @@ ada_feeding_action_servers:
     # tucks to the side of the user's wheelchair.
     MoveToStowLocation: # required
       action_type: ada_feeding_msgs.action.MoveTo # required
-      tree_class: ada_feeding.trees.MoveToConfigurationTree # required
+      tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
       tree_kws: # optional
         - joint_positions
+        - f_mag
       tree_kwargs: # optional
         joint_positions: # required
           - -1.52101 # j2n6s200_joint_1
@@ -113,6 +112,7 @@ ada_feeding_action_servers:
           - -4.00012 # j2n6s200_joint_4
           -  0.22831 # j2n6s200_joint_5
           -  3.87886 # j2n6s200_joint_6
+        f_mag: 4.0 # N
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the TestMoveToPose action. Moves to the staging location

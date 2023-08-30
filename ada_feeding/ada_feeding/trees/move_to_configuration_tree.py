@@ -7,7 +7,7 @@ wrap that behavior tree in a ROS2 action server.
 
 # Standard imports
 import logging
-from typing import List
+from typing import List, Set
 
 # Third-party imports
 import py_trees
@@ -17,6 +17,7 @@ from rclpy.node import Node
 # Local imports
 from ada_feeding.behaviors import MoveTo
 from ada_feeding.decorators import SetJointGoalConstraint
+from ada_feeding.helpers import set_to_blackboard
 from ada_feeding.trees import MoveToTree
 
 # pylint: disable=duplicate-code
@@ -33,7 +34,8 @@ class MoveToConfigurationTree(MoveToTree):
     # pylint: disable=too-many-instance-attributes, too-many-arguments
     # Many arguments is fine for this class since it has to be able to configure all parameters
     # of its constraints.
-
+    # pylint: disable=dangerous-default-value
+    # A mutable default value is okay since we don't change it in this function.
     def __init__(
         self,
         joint_positions: List[float],
@@ -41,6 +43,7 @@ class MoveToConfigurationTree(MoveToTree):
         weight: float = 1.0,
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
+        keys_to_not_write_to_blackboard: Set[str] = set(),
     ):
         """
         Initializes tree-specific parameters.
@@ -53,6 +56,10 @@ class MoveToConfigurationTree(MoveToTree):
         planner_id: The planner ID to use for the MoveIt2 motion planning.
         allowed_planning_time: The allowed planning time for the MoveIt2 motion
             planner.
+        keys_to_not_write_to_blackboard: A set of keys that should not be written
+            Note that the keys need to be exact e.g., "move_to.cartesian,"
+            "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
+            etc.
         """
         # Initialize MoveToTree
         super().__init__()
@@ -64,6 +71,7 @@ class MoveToConfigurationTree(MoveToTree):
         self.weight = weight
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
+        self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
 
     # pylint: disable=too-many-locals
     # Unfortunately, many local variables are required here to isolate the keys
@@ -71,6 +79,7 @@ class MoveToConfigurationTree(MoveToTree):
     def create_move_to_tree(
         self,
         name: str,
+        tree_root_name: str,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -80,6 +89,9 @@ class MoveToConfigurationTree(MoveToTree):
         Parameters
         ----------
         name: The name of the behavior tree.
+        tree_root_name: The name of the tree. This is necessary because sometimes
+            trees create subtrees, but still need to track the top-level tree
+            name to read/write the correct blackboard variables.
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
@@ -127,15 +139,40 @@ class MoveToConfigurationTree(MoveToTree):
         )
 
         # Write the inputs to MoveToConfiguration to blackboard
-        self.blackboard.set(joint_positions_key, self.joint_positions)
-        self.blackboard.set(tolerance_key, self.tolerance)
-        self.blackboard.set(weight_key, self.weight)
-        self.blackboard.set(planner_id_key, self.planner_id)
-        self.blackboard.set(allowed_planning_time_key, self.allowed_planning_time)
+        set_to_blackboard(
+            self.blackboard,
+            joint_positions_key,
+            self.joint_positions,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            tolerance_key,
+            self.tolerance,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            weight_key,
+            self.weight,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            planner_id_key,
+            self.planner_id,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            allowed_planning_time_key,
+            self.allowed_planning_time,
+            self.keys_to_not_write_to_blackboard,
+        )
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])
-        move_to = MoveTo(move_to_name, name, node)
+        move_to = MoveTo(move_to_name, tree_root_name, node)
         move_to.logger = logger
 
         # Add the joint goal constraint to the MoveTo behavior

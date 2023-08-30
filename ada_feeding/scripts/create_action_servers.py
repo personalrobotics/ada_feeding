@@ -10,6 +10,7 @@ import traceback
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 # Third-party imports
+from ada_watchdog_listener import ADAWatchdogListener
 import py_trees
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
@@ -22,7 +23,6 @@ from rclpy.parameter import Parameter
 # Local imports
 from ada_feeding import ActionServerBT
 from ada_feeding.helpers import import_from_string
-from ada_watchdog_listener import ADAWatchdogListener
 
 
 class ActionServerParams:
@@ -341,7 +341,7 @@ class CreateActionServers(Node):
         tree_action_server = self._tree_classes[tree_class](**tree_kwargs)
         # Create the tree once
         tree = tree_action_server.create_tree(
-            server_name, action_type, self.get_logger(), self
+            server_name, action_type, server_name, self.get_logger(), self
         )
 
         async def execute_callback(goal_handle: ServerGoalHandle) -> Awaitable:
@@ -359,79 +359,84 @@ class CreateActionServers(Node):
                 f"with request {goal_handle.request}"
             )
 
-            # Setup the behavior tree class
-            tree.setup()  # TODO: consider adding a timeout here
-
-            # Send the goal to the behavior tree
-            tree_action_server.send_goal(tree, goal_handle.request)
-
-            # Execute the behavior tree
-            rate = self.create_rate(tick_rate)
-            result = None
-            try:
-                while rclpy.ok():
-                    # Check if the goal has been canceled
-                    if goal_handle.is_cancel_requested:
-                        # Note that the body of this conditional may be called
-                        # multiple times until the preemption is complete.
-                        self.get_logger().info("Goal canceled")
-                        tree_action_server.preempt_goal(
-                            tree
-                        )  # blocks until the preempt succeeds
-                        goal_handle.canceled()
-                        result = tree_action_server.get_result(tree)
-                        break
-
-                    # Check if the watchdog has failed
-                    if not self.watchdog_listener.ok():
-                        self.get_logger().info("Watchdog failed, aborting goal")
-                        tree_action_server.preempt_goal(
-                            tree
-                        )  # blocks until the preempt succeeds
-                        goal_handle.abort()
-                        result = tree_action_server.get_result(tree)
-                        break
-
-                    # Tick the tree once and publish feedback
-                    tree.tick()
-                    feedback_msg = tree_action_server.get_feedback(tree)
-                    goal_handle.publish_feedback(feedback_msg)
-                    self.get_logger().info(f"Publishing feedback {feedback_msg}")
-
-                    # Check the tree status
-                    if tree.root.status == py_trees.common.Status.SUCCESS:
-                        self.get_logger().info("Goal succeeded")
-                        goal_handle.succeed()
-                        result = tree_action_server.get_result(tree)
-                        break
-                    if tree.root.status in set(
-                        (py_trees.common.Status.FAILURE, py_trees.common.Status.INVALID)
-                    ):
-                        self.get_logger().info("Goal failed")
-                        goal_handle.abort()
-                        result = tree_action_server.get_result(tree)
-                        break
-
-                    # Sleep
-                    rate.sleep()
-            except KeyboardInterrupt:
-                pass
-
-            # If we have gotten here without a result, that means something
-            # went wrong. Abort the goal.
-            if result is None:
-                goal_handle.abort()
-                result = action_type.Result()
-
-            # Shutdown the tree
             # pylint: disable=broad-exception-caught
             # All exceptions need printing at shutdown
             try:
+                # Setup the behavior tree class
+                tree.setup(node=self)  # TODO: consider adding a timeout here
+
+                # Send the goal to the behavior tree
+                tree_action_server.send_goal(tree, goal_handle.request)
+
+                # Execute the behavior tree
+                rate = self.create_rate(tick_rate)
+                result = None
+                try:
+                    while rclpy.ok():
+                        # Check if the goal has been canceled
+                        if goal_handle.is_cancel_requested:
+                            # Note that the body of this conditional may be called
+                            # multiple times until the preemption is complete.
+                            self.get_logger().info("Goal canceled")
+                            tree_action_server.preempt_goal(
+                                tree
+                            )  # blocks until the preempt succeeds
+                            goal_handle.canceled()
+                            result = tree_action_server.get_result(tree)
+                            break
+
+                        # Check if the watchdog has failed
+                        if not self.watchdog_listener.ok():
+                            self.get_logger().warn("Watchdog failed, aborting goal")
+                            tree_action_server.preempt_goal(
+                                tree
+                            )  # blocks until the preempt succeeds
+                            goal_handle.abort()
+                            result = tree_action_server.get_result(tree)
+                            break
+
+                        # Tick the tree once and publish feedback
+                        tree.tick()
+                        feedback_msg = tree_action_server.get_feedback(tree)
+                        goal_handle.publish_feedback(feedback_msg)
+                        self.get_logger().debug(f"Publishing feedback {feedback_msg}")
+
+                        # Check the tree status
+                        if tree.root.status == py_trees.common.Status.SUCCESS:
+                            self.get_logger().info("Goal succeeded")
+                            goal_handle.succeed()
+                            result = tree_action_server.get_result(tree)
+                            break
+                        if tree.root.status in set(
+                            (
+                                py_trees.common.Status.FAILURE,
+                                py_trees.common.Status.INVALID,
+                            )
+                        ):
+                            self.get_logger().info("Goal failed")
+                            goal_handle.abort()
+                            result = tree_action_server.get_result(tree)
+                            break
+
+                        # Sleep
+                        rate.sleep()
+                except KeyboardInterrupt:
+                    pass
+
+                # If we have gotten here without a result, that means something
+                # went wrong. Abort the goal.
+                if result is None:
+                    goal_handle.abort()
+                    result = action_type.Result()
+
+                # Shutdown the tree
                 tree.shutdown()
             except Exception as exc:
                 self.get_logger().error(
-                    f"Error shutting down tree: \n{traceback.format_exc()}\n{exc}"
+                    f"Error running tree: \n{traceback.format_exc()}\n{exc}"
                 )
+                goal_handle.abort()
+                result = action_type.Result()
 
             # Unset the goal and return the result
             with self.active_goal_request_lock:
