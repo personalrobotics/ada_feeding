@@ -10,6 +10,7 @@ import traceback
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 # Third-party imports
+from ada_watchdog_listener import ADAWatchdogListener
 import py_trees
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
@@ -22,7 +23,6 @@ from rclpy.parameter import Parameter
 # Local imports
 from ada_feeding import ActionServerBT
 from ada_feeding.helpers import import_from_string
-from ada_watchdog_listener import ADAWatchdogListener
 
 
 class ActionServerParams:
@@ -360,7 +360,7 @@ class CreateActionServers(Node):
             )
 
             # Setup the behavior tree class
-            tree.setup()  # TODO: consider adding a timeout here
+            tree.setup(node=self)  # TODO: consider adding a timeout here
 
             # Send the goal to the behavior tree
             tree_action_server.send_goal(tree, goal_handle.request)
