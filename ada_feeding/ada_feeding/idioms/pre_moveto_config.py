@@ -32,7 +32,7 @@ from .retry_call_ros_service import retry_call_ros_service
 
 def set_parameter_response_all_success(
     blackboard_value: SetParameters.Response,
-    _: SetParameters.Request,
+    _: SetParameters.Response,
 ) -> bool:
     """
     Checks that all the parameters were successfully set.
