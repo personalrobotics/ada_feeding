@@ -7,7 +7,7 @@ tree and provides functions to wrap that behavior tree in a ROS2 action server.
 
 # Standard imports
 import logging
-from typing import List
+from typing import List, Set
 
 # Third-party imports
 import py_trees
@@ -27,7 +27,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
     # pylint: disable=too-many-instance-attributes, too-many-arguments
     # Many arguments is fine for this class since it has to be able to configure all parameters
     # of its constraints.
-
+    # pylint: disable=dangerous-default-value
+    # A mutable default value is okay since we don't change it in this function.
     def __init__(
         self,
         # Required parameters for moving to a configuration
@@ -48,6 +49,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         t_x: float = 0.0,
         t_y: float = 0.0,
         t_z: float = 0.0,
+        keys_to_not_write_to_blackboard: Set[str] = set(),
     ):
         """
         Initializes tree-specific parameters.
@@ -71,6 +73,10 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         t_x: The magnitude of the x component of the torque threshold. No threshold if 0.0.
         t_y: The magnitude of the y component of the torque threshold. No threshold if 0.0.
         t_z: The magnitude of the z component of the torque threshold. No threshold if 0.0.
+        keys_to_not_write_to_blackboard: the keys to not write to the blackboard.
+            Note that the keys need to be exact e.g., "move_to.cartesian,"
+            "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
+            etc.
         """
 
         # pylint: disable=too-many-locals
@@ -99,9 +105,12 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self.t_y = t_y
         self.t_z = t_z
 
+        self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
+
     def create_move_to_tree(
         self,
         name: str,
+        tree_root_name: str,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -128,8 +137,9 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 weight=self.weight_joint,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time,
+                keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
             )
-            .create_tree(name, self.action_type, logger, node)
+            .create_tree(name, self.action_type, tree_root_name, logger, node)
             .root
         )
 

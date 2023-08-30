@@ -56,6 +56,7 @@ class MoveToDummyTree(ActionServerBT):
         self,
         name: str,
         action_type: type,
+        tree_root_name: str,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -70,6 +71,9 @@ class MoveToDummyTree(ActionServerBT):
         ----------
         name: The name of the behavior tree.
         action_type: the type for the action, as a class.
+        tree_root_name: The name of the tree. This is necessary because sometimes
+            trees create subtrees, but still need to track the top-level tree
+            name to read/write the correct blackboard variables.
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
@@ -78,6 +82,10 @@ class MoveToDummyTree(ActionServerBT):
         -------
         tree: The behavior tree that moves the robot above the plate.
         """
+
+        # pylint: disable=too-many-arguments
+        # One over is fine.
+
         # Store the action type
         self.action_type = action_type
 
@@ -89,7 +97,7 @@ class MoveToDummyTree(ActionServerBT):
             self.tree = py_trees.trees.BehaviourTree(root)
             # Create the blackboard
             self.blackboard = py_trees.blackboard.Client(
-                name=name + " Tree", namespace=name
+                name=name + " Tree", namespace=tree_root_name
             )
             self.blackboard.register_key(
                 key="goal", access=py_trees.common.Access.WRITE
