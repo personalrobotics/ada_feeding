@@ -255,6 +255,11 @@ class FaceDetectionNode(Node):
         Callback function for the toggle_face_detection service. Safely toggles
         the face detection on or off depending on the request.
         """
+
+        # pylint: disable=duplicate-code
+        # We follow similar logic in any service to toggle a node
+        # (e.g., face detection)
+
         self.get_logger().info(f"Incoming service request. data: {request.data}")
         response.success = False
         response.message = f"Failed to set is_on to {request.data}"
