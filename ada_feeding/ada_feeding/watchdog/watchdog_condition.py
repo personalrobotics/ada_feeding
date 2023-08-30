@@ -24,7 +24,7 @@ class WatchdogCondition(ABC):
     """
 
     @abstractmethod
-    def check_startup(self) -> List[Tuple[bool, str]]:
+    def check_startup(self) -> List[Tuple[bool, str, str]]:
         """
         Check whether the startup condition is True. Before this condition is
         True, the watchdog should not call `check_status`. After this condition
@@ -34,11 +34,12 @@ class WatchdogCondition(ABC):
         Returns
         -------
         startup_status: A list of tuples, where each tuple contains a boolean
-            status of a startup condition and a string describing the condition.
-            All conditions must be True for the startup condition to be considered
-            passed. For example, [(False, "Has received at least one message on
-            topic X")] means that the startup condition has not passed because
-            the node has not received any messages on topic X yet.
+            status of a startup condition, a string name describing the condition,
+            and a string detailing the status of the condition. All conditions
+            must be True for the startup condition to be considered passed.
+            For example, [(False, "Recieved Topic X Data", "Has not received at
+            least one message on topic X")] means that the startup condition has not
+            passed because the node has not received any messages on topic X yet.
         """
         raise NotImplementedError("check_startup not implemented")
 
@@ -53,10 +54,12 @@ class WatchdogCondition(ABC):
         Returns
         -------
         status: A list of tuples, where each tuple contains a boolean status
-            of a condition and a string describing the condition. All conditions
-            must be True for the status to be considered True. For example,
-            [(True, "Has received a message on topic X within the last Y secs"),
-            (False, "Messages on topic X over the last Y secs have non-zero variance")]
-            means that the status is False and the watchdog should fail.
+            of a condition, a string name describing the condition, and a string
+            detailing the status of the condition. All conditions must be True for
+            the status to be considered True. For example, [(True, "Received Topic
+            X Data", "Has received a message on topic X within the last Y secs"),
+            (False, "Non-Corruped Topic X Data", "Messages on topic X over the
+            last Y secs have zero variance")] means that the status is False and
+            the watchdog should fail.
         """
         raise NotImplementedError("check_status not implemented")

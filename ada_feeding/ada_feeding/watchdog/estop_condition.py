@@ -376,7 +376,7 @@ class EStopCondition(WatchdogCondition):
         self.prev_data_arr = data_arr
         return (data, pyaudio.paContinue)
 
-    def check_startup(self) -> List[Tuple[bool, str]]:
+    def check_startup(self) -> List[Tuple[bool, str, str]]:
         """
         Check if the e-stop button is plugged in. To do so, it checks whether
         the e-stop button has been clicked at least once.
@@ -384,19 +384,23 @@ class EStopCondition(WatchdogCondition):
         Returns
         -------
         startup_status: A list of tuples, where each tuple contains a boolean
-            status of a startup condition and a string describing the condition.
-            All conditions must be True for the startup condition to be considered
-            passed. For example, [(False, "Has received at least one message on
-            topic X")] means that the startup condition has not passed because
-            the node has not received any messages on topic X yet.
+            status of a startup condition, a string name describing the condition,
+            and a string detailing the status of the condition. All conditions
+            must be True for the startup condition to be considered passed.
+            For example, [(False, "Recieved Topic X Data", "Has not received at
+            least one message on topic X")] means that the startup condition has not
+            passed because the node has not received any messages on topic X yet.
         """
-        condition_1 = "E-stop button has been clicked at least once"
+        name_1 = "Startup: E-Stop Button Clicked"
         with self.num_clicks_lock:
             status_1 = self.num_clicks > 0
+        condition_1 = (
+            f"E-stop button has {'' if status_1 else 'not '}been clicked at least once"
+        )
 
-        return [(status_1, condition_1)]
+        return [(status_1, name_1, condition_1)]
 
-    def check_status(self) -> List[Tuple[bool, str]]:
+    def check_status(self) -> List[Tuple[bool, str, str]]:
         """
         Check if the e-stop button has been clicked again. If so, this condition
         fails.
@@ -404,18 +408,22 @@ class EStopCondition(WatchdogCondition):
         Returns
         -------
         status: A list of tuples, where each tuple contains a boolean status
-            of a condition and a string describing the condition. All conditions
-            must be True for the status to be considered True. For example,
-            [(True, "Has received a message on topic X within the last Y secs"),
-            (False, "Messages on topic X over the last Y secs have non-zero variance")]
-            means that the status is False and the watchdog should fail.
+            of a condition, a string name describing the condition, and a string
+            detailing the status of the condition. All conditions must be True for
+            the status to be considered True. For example, [(True, "Received Topic
+            X Data", "Has received a message on topic X within the last Y secs"),
+            (False, "Non-Corruped Topic X Data", "Messages on topic X over the
+            last Y secs have zero variance")] means that the status is False and
+            the watchdog should fail.
         """
-        condition_1 = "E-stop button has not been clicked more than once"
+        name_1 = "E-Stop Button Not Clicked"
         with self.num_clicks_lock:
             status_1 = self.num_clicks < 2
+        condition_1 = f"E-stop button has {'not ' if status_1 else ''}been clicked since the startup click"
 
-        condition_2 = "E-stop button has not been unplugged"
+        name_2 = "E-Stop Button Plugged in"
         with self.is_mic_unplugged_lock:
             status_2 = not self.is_mic_unplugged
+        condition_2 = f"E-stop button has {'not ' if status_1 else ''}been unplugged"
 
-        return [(status_1, condition_1), (status_2, condition_2)]
+        return [(status_1, name_1, condition_1), (status_2, name_2, condition_2)]

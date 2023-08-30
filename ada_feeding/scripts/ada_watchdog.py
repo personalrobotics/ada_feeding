@@ -98,7 +98,7 @@ class ADAWatchdog(Node):
         )
 
     def __generate_diagnostic_status(
-        self, status: bool, condition: WatchdogCondition, message: str, startup=False
+        self, status: bool, name: str, message: str
     ) -> DiagnosticStatus:
         """
         Generate a diagnostic status message.
@@ -107,12 +107,10 @@ class ADAWatchdog(Node):
         ----------
         status: bool
             The status of the condition.
-        condition: WatchdogCondition
-            The watchdog condition that was checked.
+        name: str
+            The name of the condition.
         message: str
             The message to include in the status.
-        startup: bool
-            Whether to append " Startup" to the name of the condition.
 
         Returns
         -------
@@ -121,7 +119,7 @@ class ADAWatchdog(Node):
         """
         return DiagnosticStatus(
             level=DiagnosticStatus.OK if status else DiagnosticStatus.ERROR,
-            name=condition.__class__.__name__ + (" Startup" if startup else ""),
+            name=name,
             message=message,
         )
 
@@ -159,12 +157,10 @@ class ADAWatchdog(Node):
             passed = True
             for condition in self.conditions:
                 condition_status = condition.check_startup()
-                for status, message in condition_status:
+                for status, name, message in condition_status:
                     passed = passed and status  # Fail as soon as one status is False
                     diagnostic_statuses.append(
-                        self.__generate_diagnostic_status(
-                            status, condition, message, startup=True
-                        )
+                        self.__generate_diagnostic_status(status, name, message)
                     )
             if not passed:  # At least one startup condition failed
                 watchdog_output = self.__generate_diagnostic_array(diagnostic_statuses)
@@ -178,10 +174,10 @@ class ADAWatchdog(Node):
             passed = True
             for condition in self.conditions:
                 condition_status = condition.check_status()
-                for status, message in condition_status:
+                for status, name, message in condition_status:
                     passed = passed and status
                     diagnostic_statuses.append(
-                        self.__generate_diagnostic_status(status, condition, message)
+                        self.__generate_diagnostic_status(status, name, message)
                     )
             # Publish the watchdog status
             watchdog_output = self.__generate_diagnostic_array(diagnostic_statuses)

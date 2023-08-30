@@ -125,29 +125,31 @@ class FTSensorCondition(WatchdogCondition):
             self.last_unique_values = last_unique_values
             self.last_unique_values_timestamp = last_unique_values_timestamp
 
-    def check_startup(self) -> List[Tuple[bool, str]]:
+    def check_startup(self) -> List[Tuple[bool, str, str]]:
         """
         Check whether at least one FT sensor message has been received.
 
         Returns
         -------
         startup_status: A list of tuples, where each tuple contains a boolean
-            status of a startup condition and a string describing the condition.
-            All conditions must be True for the startup condition to be considered
-            passed. For example, [(False, "Has received at least one message on
-            topic X")] means that the startup condition has not passed because
-            the node has not received any messages on topic X yet.
+            status of a startup condition, a string name describing the condition,
+            and a string detailing the status of the condition. All conditions
+            must be True for the startup condition to be considered passed.
+            For example, [(False, "Recieved Topic X Data", "Has not received at
+            least one message on topic X")] means that the startup condition has not
+            passed because the node has not received any messages on topic X yet.
         """
-
-        condition_1 = (
-            f"Has received at least one message on topic {self.ft_sensor_topic}"
-        )
+        name_1 = "Startup: Received Force/Torque Data"
         with self.last_unique_values_lock:
             status_1 = self.last_unique_values is not None
+        condition_1 = (
+            f"Has {'' if status_1 else 'not '}received at least one message on topic "
+            f"{self.ft_sensor_topic}"
+        )
 
-        return [(status_1, condition_1)]
+        return [(status_1, name_1, condition_1)]
 
-    def check_status(self) -> List[Tuple[bool, str]]:
+    def check_status(self) -> List[Tuple[bool, str, str]]:
         """
         Check if the force-torque sensor is still publishing and its data is not
         zero-variance.
@@ -161,20 +163,31 @@ class FTSensorCondition(WatchdogCondition):
         Returns
         -------
         status: A list of tuples, where each tuple contains a boolean status
-            of a condition and a string describing the condition. All conditions
-            must be True for the status to be considered True. For example,
-            [(True, "Has received a message on topic X within the last Y secs"),
-            (False, "Messages on topic X over the last Y secs have non-zero variance")]
-            means that the status is False and the watchdog should fail.
+            of a condition, a string name describing the condition, and a string
+            detailing the status of the condition. All conditions must be True for
+            the status to be considered True. For example, [(True, "Received Topic
+            X Data", "Has received a message on topic X within the last Y secs"),
+            (False, "Non-Corruped Topic X Data", "Messages on topic X over the
+            last Y secs have zero variance")] means that the status is False and
+            the watchdog should fail.
         """
-        condition_1 = (
-            "Every dimension of the F/T sensor data has received a new unique "
-            f"value in the last {self.ft_timeout.nanoseconds / 10.0**9} secs"
-        )
+        name_1 = "Receiving Force-Torque Data"
         now = self._node.get_clock().now()
         with self.last_unique_values_lock:
             status_1 = np.all(
                 (now - self.last_unique_values_timestamp) <= self.ft_timeout
             )
+        if status_1:
+            condition_1 = (
+                f"Over the last {self.ft_timeout.nanoseconds / 10.0**9} secs, "
+                "the F/T sensor has published data and every dimension of that "
+                "data has non-zero variance."
+            )
+        else:
+            condition_1 = (
+                f"Over the last {self.ft_timeout.nanoseconds / 10.0**9} secs, either "
+                "the F/T sensor has not published data, or at least one dimension of "
+                "that data has zero variance."
+            )
 
-        return [(status_1, condition_1)]
+        return [(status_1, name_1, condition_1)]
