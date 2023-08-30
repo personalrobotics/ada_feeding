@@ -133,7 +133,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             .root
         )
 
-        # Add the pose path constraints
+        # Add the re-taring and FT thresholds
         pre_moveto_behavior = pre_moveto_config(
             name=name,
             re_tare=self.re_tare,
