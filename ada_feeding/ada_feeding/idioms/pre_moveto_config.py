@@ -44,7 +44,7 @@ def pre_moveto_config(
     name: str,
     re_tare: bool = True,
     toggle_watchdog_listener: bool = True,
-    f_mag: float = 0.0,
+    f_mag: float = 4.0,
     f_x: float = 0.0,
     f_y: float = 0.0,
     f_z: float = 0.0,
