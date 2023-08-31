@@ -427,3 +427,12 @@ class EStopCondition(WatchdogCondition):
         condition_2 = f"E-stop button has {'not ' if status_1 else ''}been unplugged"
 
         return [(status_1, name_1, condition_1), (status_2, name_2, condition_2)]
+
+    def terminate(self) -> None:
+        """
+        Terminate the EStop condition. This cleanly closes the pyaudio connection.
+        """
+        # Close the audio stream
+        self.stream.stop_stream()
+        self.stream.close()
+        self.audio.terminate()
