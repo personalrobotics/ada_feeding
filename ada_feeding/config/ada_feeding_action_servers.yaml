@@ -22,6 +22,7 @@ ada_feeding_action_servers:
       tree_kws: # optional
         - joint_positions
         - f_mag
+        - max_velocity_scaling_factor
       tree_kwargs: # optional
         joint_positions: # required
           - -2.11666 # j2n6s200_joint_1
@@ -31,6 +32,7 @@ ada_feeding_action_servers:
           - -2.34026 # j2n6s200_joint_5
           -  2.95450 # j2n6s200_joint_6
         f_mag: 4.0 # N
+        max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the AcquireFood action
@@ -52,6 +54,7 @@ ada_feeding_action_servers:
       tree_kws: # optional
         - joint_positions
         - f_mag
+        - max_velocity_scaling_factor
       tree_kwargs: # optional
         joint_positions: # required
           - -1.94672 # j2n6s200_joint_1
@@ -61,6 +64,7 @@ ada_feeding_action_servers:
           -  5.99991 # j2n6s200_joint_5
           -  4.99555 # j2n6s200_joint_6
         f_mag: 4.0 # N
+        max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToMouth action
@@ -75,6 +79,8 @@ ada_feeding_action_servers:
         - orientation_constraint_quaternion
         - orientation_constraint_tolerances
         - allowed_planning_time_to_staging_configuration
+        - max_velocity_scaling_factor_to_staging_configuration
+        - max_velocity_scaling_factor_to_mouth
       tree_kwargs: # optional
         staging_configuration:
           -  2.74709 # j2n6s200_joint_1
@@ -93,6 +99,8 @@ ada_feeding_action_servers:
           - 3.14159 # y, rad
           - 0.5 # z, rad
         allowed_planning_time_to_staging_configuration: 1.0 # secs
+        max_velocity_scaling_factor_to_staging_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
+        max_velocity_scaling_factor_to_mouth: 0.4 # optional in (0.0, 1.0], default: 0.1
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToStowLocation action
@@ -104,6 +112,7 @@ ada_feeding_action_servers:
       tree_kws: # optional
         - joint_positions
         - f_mag
+        - max_velocity_scaling_factor
       tree_kwargs: # optional
         joint_positions: # required
           - -1.52101 # j2n6s200_joint_1
@@ -113,6 +122,7 @@ ada_feeding_action_servers:
           -  0.22831 # j2n6s200_joint_5
           -  3.87886 # j2n6s200_joint_6
         f_mag: 4.0 # N
+        max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the TestMoveToPose action. Moves to the staging location
@@ -122,6 +132,7 @@ ada_feeding_action_servers:
       tree_kws: # optional
         - position
         - quat_xyzw
+        - max_velocity_scaling_factor
       tree_kwargs: # optional
         position:
           -  0.27971 # x
@@ -132,6 +143,7 @@ ada_feeding_action_servers:
           -  0.70159 # y
           -  0.71255 # z
           - -0.00636 # w
+        max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the TestMoveToPoseWithPosePathConstraints action. Moves to the staging location
@@ -145,6 +157,7 @@ ada_feeding_action_servers:
         - tolerance_orientation_path
         - parameterization_orientation_path
         - weight_orientation_path
+        - max_velocity_scaling_factor
       tree_kwargs: # optional
         position_goal:
           - -0.00070 # x
@@ -166,4 +179,5 @@ ada_feeding_action_servers:
           - 0.5 # z, rad
         parameterization_orientation_path: 1 # 0: Euler, 1: Rotation Vector
         weight_orientation_path: 1.0
+        max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
       tick_rate: 10 # Hz, optional, default: 30
