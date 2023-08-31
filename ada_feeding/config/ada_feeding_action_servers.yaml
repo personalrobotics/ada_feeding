@@ -173,3 +173,27 @@ ada_feeding_action_servers:
         parameterization_orientation_path: 1 # 0: Euler, 1: Rotation Vector
         weight_orientation_path: 1.0
       tick_rate: 10 # Hz, optional, default: 30
+
+    # Parameters for the MoveToLeft action
+    MoveToLeft: # required
+      action_type: ada_feeding_msgs.action.MoveToOffset # required
+      tree_class: ada_feeding.trees.MoveToOffsetTree # required
+      tick_rate: 10 # Hz, optional, default: 30
+
+    # Parameters for the MoveToRight action
+    MoveToRight: # required
+      action_type: ada_feeding_msgs.action.MoveToOffset # required
+      tree_class: ada_feeding.trees.MoveToOffsetTree # required
+      tick_rate: 10 # Hz, optional, default: 30
+
+    # Parameters for the MoveToForward action
+    MoveToForward: # required
+      action_type: ada_feeding_msgs.action.MoveToOffset # required
+      tree_class: ada_feeding.trees.MoveToOffsetTree # required
+      tick_rate: 10 # Hz, optional, default: 30
+    
+    # Parameters for the MoveToBackward action
+    MoveToBackward: # required
+      action_type: ada_feeding_msgs.action.MoveToOffset # required
+      tree_class: ada_feeding.trees.MoveToOffsetTree # required
+      tick_rate: 10 # Hz, optional, default: 30
