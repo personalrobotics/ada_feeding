@@ -8,6 +8,8 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
 - Install [ROS2 Humble](https://docs.ros.org/en/humble/Installation.html)
 - Install Python dependencies: `python3 -m pip install pyyaml py_trees pymongo tornado trimesh`
 - Install the code to command the real robot ([instructions here](https://github.com/personalrobotics/ada_ros2/blob/main/README.md))
+- Git clone the [PRL fork of pymoveit (branch: `amaln/allowed_collision_matrix`)](https://github.com/personalrobotics/pymoveit2) and the [PRL fork of py_trees_ros (branch: `amaln/service_client`)](https://github.com/personalrobotics/py_trees_ros/tree/amaln/service_client) into your ROS2 workspace's `src` folder.
+- Install additional dependencies: `sudo apt install ros-humble-py-trees-ros-interfaces`.
 - Install the web app into your workspace ([instructions here](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp)).
 
 ## Usage
@@ -16,11 +18,14 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
 3. Launch the force-torque sensor:
     1. Dummy node: `ros2 run ada_feeding dummy_ft_sensor.py`
     2. Real node: Follow the instructions in the [`forque_sensor_hardware` README](https://github.com/personalrobotics/forque_sensor_hardware/blob/main/README.md). Note that this is in the _main_ branch, which may not be the default branch.
-4. Run the action servers: `ros2 launch ada_feeding ada_feeding_launch.xml`
-5. Launch MoveIt2:
-    1. RVIZ: `ros2 launch ada_moveit demo_feeding.launch.py sim:=mock`
+4. Launch the RealSense & Perception:
+    1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false run_web_bridge:=false`
+    2. Real nodes: Follow the instructions in the [`ada_feeding_perception` README](https://github.com/personalrobotics/ada_feeding/blob/ros2-devel/ada_feeding_perception/README.md#usage)
+5. Run the action servers: `ros2 launch ada_feeding ada_feeding_launch.xml`
+6. Launch MoveIt2:
+    1. Sim (RVIZ): `ros2 launch ada_moveit demo_feeding.launch.py sim:=mock`
     2. Real Robot: `ros2 launch ada_moveit demo_feeding.launch.py`
-6. Test it:
+7. Test it:
     1. Test the individual actions with the command line interface:
         1. `ros2 action send_goal /MoveAbovePlate ada_feeding_msgs/action/MoveTo "{}" --feedback`
         2. `ros2 action send_goal /AcquireFood ada_feeding_msgs/action/AcquireFood "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, detected_food: {roi: {x_offset: 0, y_offset: 0, height: 0, width: 0, do_rectify: false}, mask: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, format: '', data: []}, item_id: '', confidence: 0.0}}" --feedback`
@@ -28,10 +33,8 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
         4. `ros2 action send_goal /MoveToMouth ada_feeding_msgs/action/MoveTo "{}" --feedback`
         5. `ros2 action send_goal /MoveToStowLocation ada_feeding_msgs/action/MoveTo "{}" --feedback`
     2. Test the individual actions with the web app:
-        1. Launch the perception nodes:
-            1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false`
-            2. Real nodes: Follow the instructions in the [`ada_feeding_perception` README](https://github.com/personalrobotics/ada_feeding/blob/ros2-devel/ada_feeding_perception/README.md#usage)
-        2. Launch the web app ([instructions here](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp))
+        1. Launch the web app ([instructions here](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp))
+        2. Go through the web app, ensure the expected actions happen on the robot.
     3. Test the watchdog in isolation:
         1. Echo the watchdog topic: `ros2 topic echo /ada_watchdog`
         2. Induce errors in the force-torque sensor and verify the watchdog reacts appropiately. Errors could include:
