@@ -107,8 +107,8 @@ class EStopCondition(WatchdogCondition):
                 type=ParameterType.PARAMETER_DOUBLE,
                 description=(
                     "The number of audio samples to take at a time from the microphone "
-                    "(where the e-stop button is plugged in). If you get overflow errors, "
-                    "try increasing this value."
+                    "(where the e-stop button is plugged in). If you get overflow "
+                    "errors, try increasing this value."
                 ),
                 read_only=True,
             ),
@@ -419,7 +419,10 @@ class EStopCondition(WatchdogCondition):
         name_1 = "E-Stop Button Not Clicked"
         with self.num_clicks_lock:
             status_1 = self.num_clicks < 2
-        condition_1 = f"E-stop button has {'not ' if status_1 else ''}been clicked since the startup click"
+        condition_1 = (
+            f"E-stop button has {'not ' if status_1 else ''}been clicked since "
+            "the startup click"
+        )
 
         name_2 = "E-Stop Button Plugged in"
         with self.is_mic_unplugged_lock:

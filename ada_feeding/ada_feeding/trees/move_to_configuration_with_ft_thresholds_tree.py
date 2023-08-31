@@ -205,7 +205,9 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                         f"disallow_collision_with_{collision_object_id}"
                     )
                     disallow_collision = ToggleCollisionObject(
-                        name=Blackboard.separator.join([name, disallow_collision_prefix]),
+                        name=Blackboard.separator.join(
+                            [name, disallow_collision_prefix]
+                        ),
                         node=node,
                         collision_object_id=collision_object_id,
                         allow=False,
@@ -213,6 +215,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                     disallow_collision.logger = logger
                     disallow_collision_children.append(disallow_collision)
             return disallow_collision_children
+
         children.extend(gen_disallow_collision_children())
 
         # Combine them in a sequence with memory
@@ -226,6 +229,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         # If any part of the main behavior fails, we need to clean it up by still
         # allowing the collision.
         if len(self.collision_object_ids) > 0:
+            # pylint: disable=duplicate-code
+            # The cleanup across trees will look similar.
             root = py_trees.composites.Selector(
                 name=name,
                 memory=True,

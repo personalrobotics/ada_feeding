@@ -34,11 +34,12 @@ from ada_feeding.trees import (
     MoveToPoseWithPosePathConstraintsTree,
 )
 
+
 def get_toggle_face_detection_behavior(
-        tree_name: str,
-        behavior_name_prefix: str,
-        request_data: bool,
-        logger: logging.Logger,
+    tree_name: str,
+    behavior_name_prefix: str,
+    request_data: bool,
+    logger: logging.Logger,
 ) -> py_trees.behaviour.Behaviour:
     """
     Creates a behaviour that toggles face detection.
@@ -54,12 +55,8 @@ def get_toggle_face_detection_behavior(
     -------
     behavior: The behaviour that toggles face detection.
     """
-    behavior_name = Blackboard.separator.join(
-        [tree_name, behavior_name_prefix]
-    )
-    key_response = Blackboard.separator.join(
-        [behavior_name, "response"]
-    )
+    behavior_name = Blackboard.separator.join([tree_name, behavior_name_prefix])
+    key_response = Blackboard.separator.join([behavior_name, "response"])
     toggle_face_detection_behavior = retry_call_ros_service(
         name=behavior_name,
         service_type=SetBool,
@@ -78,13 +75,14 @@ def get_toggle_face_detection_behavior(
     )
     return toggle_face_detection_behavior
 
+
 def get_toggle_collision_object_behavior(
-        tree_name: str,
-        behavior_name_prefix: str,
-        node: Node,
-        collision_object_id: str,
-        allow: bool,
-        logger: logging.Logger,
+    tree_name: str,
+    behavior_name_prefix: str,
+    node: Node,
+    collision_object_id: str,
+    allow: bool,
+    logger: logging.Logger,
 ) -> py_trees.behaviour.Behaviour:
     """
     Creates a behaviour that toggles a collision object.
@@ -102,16 +100,20 @@ def get_toggle_collision_object_behavior(
     -------
     behavior: The behaviour that toggles the collision object.
     """
+
+    # pylint: disable=too-many-arguments
+    # This is acceptable, as these are the parameters necessary to create
+    # the behaviour.
+
     toggle_collision_object = ToggleCollisionObject(
-        name=Blackboard.separator.join(
-            [tree_name, behavior_name_prefix]
-        ),
+        name=Blackboard.separator.join([tree_name, behavior_name_prefix]),
         node=node,
         collision_object_id=collision_object_id,
         allow=allow,
     )
     toggle_collision_object.logger = logger
     return toggle_collision_object
+
 
 class MoveToMouthTree(MoveToTree):
     """
@@ -407,7 +409,7 @@ class MoveToMouthTree(MoveToTree):
         # to the user so the wheelchair collision object must be allowed.
         allow_wheelchair_collision = get_toggle_collision_object_behavior(
             name,
-            disallow_wheelchair_collision_prefix,
+            allow_wheelchair_collision_prefix,
             node,
             self.wheelchair_collision_object_id,
             True,
@@ -508,6 +510,8 @@ class MoveToMouthTree(MoveToTree):
             False,
             logger,
         )
+        # pylint: disable=duplicate-code
+        # The cleanup across trees will look similar.
         root = py_trees.composites.Selector(
             name=name,
             memory=True,
