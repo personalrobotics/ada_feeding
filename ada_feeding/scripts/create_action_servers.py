@@ -453,6 +453,9 @@ def main(args: List = None) -> None:
     rclpy.init(args=args)
 
     create_action_servers = CreateActionServers()
+    create_action_servers._default_callback_group = (
+        rclpy.callback_groups.ReentrantCallbackGroup()
+    )
 
     # Use a MultiThreadedExecutor to enable processing goals concurrently
     executor = MultiThreadedExecutor()

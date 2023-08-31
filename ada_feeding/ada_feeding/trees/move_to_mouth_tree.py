@@ -34,6 +34,84 @@ from ada_feeding.trees import (
     MoveToPoseWithPosePathConstraintsTree,
 )
 
+def get_toggle_face_detection_behavior(
+        tree_name: str,
+        behavior_name_prefix: str,
+        request_data: bool,
+        logger: logging.Logger,
+) -> py_trees.behaviour.Behaviour:
+    """
+    Creates a behaviour that toggles face detection.
+
+    Parameters
+    ----------
+    tree_name: The name of the tree that this behaviour belongs to.
+    behavior_name_prefix: The prefix for the name of the behaviour.
+    request_data: The request data to send to the toggle_face_detection service.
+    logger: The logger to use for the behaviour.
+
+    Returns
+    -------
+    behavior: The behaviour that toggles face detection.
+    """
+    behavior_name = Blackboard.separator.join(
+        [tree_name, behavior_name_prefix]
+    )
+    key_response = Blackboard.separator.join(
+        [behavior_name, "response"]
+    )
+    toggle_face_detection_behavior = retry_call_ros_service(
+        name=behavior_name,
+        service_type=SetBool,
+        service_name="~/toggle_face_detection",
+        key_request=None,
+        request=SetBool.Request(data=request_data),
+        key_response=key_response,
+        response_checks=[
+            py_trees.common.ComparisonExpression(
+                variable=key_response + ".success",
+                value=True,
+                operator=operator.eq,
+            )
+        ],
+        logger=logger,
+    )
+    return toggle_face_detection_behavior
+
+def get_toggle_collision_object_behavior(
+        tree_name: str,
+        behavior_name_prefix: str,
+        node: Node,
+        collision_object_id: str,
+        allow: bool,
+        logger: logging.Logger,
+) -> py_trees.behaviour.Behaviour:
+    """
+    Creates a behaviour that toggles a collision object.
+
+    Parameters
+    ----------
+    tree_name: The name of the tree that this behaviour belongs to.
+    behavior_name_prefix: The prefix for the name of the behaviour.
+    node: The ROS2 node that this behaviour belongs to.
+    collision_object_id: The ID of the collision object to toggle.
+    allow: Whether to allow or disallow the collision object.
+    logger: The logger to use for the behaviour.
+
+    Returns
+    -------
+    behavior: The behaviour that toggles the collision object.
+    """
+    toggle_collision_object = ToggleCollisionObject(
+        name=Blackboard.separator.join(
+            [tree_name, behavior_name_prefix]
+        ),
+        node=node,
+        collision_object_id=collision_object_id,
+        allow=allow,
+    )
+    toggle_collision_object.logger = logger
+    return toggle_collision_object
 
 class MoveToMouthTree(MoveToTree):
     """
@@ -179,31 +257,17 @@ class MoveToMouthTree(MoveToTree):
         get_face_prefix = "get_face"
         check_face_prefix = "check_face"
         compute_target_position_prefix = "compute_target_position"
+        allow_wheelchair_collision_prefix = "allow_wheelchair_collision"
         move_to_target_pose_prefix = "move_to_target_pose"
+        disallow_wheelchair_collision_prefix = "disallow_wheelchair_collision"
         turn_face_detection_off_prefix = "turn_face_detection_off"
 
         # Create the behaviour to turn face detection on
-        turn_face_detection_on_name = Blackboard.separator.join(
-            [name, turn_face_detection_on_prefix]
-        )
-        turn_face_detection_on_key_response = Blackboard.separator.join(
-            [turn_face_detection_on_name, "response"]
-        )
-        turn_face_detection_on = retry_call_ros_service(
-            name=turn_face_detection_on_name,
-            service_type=SetBool,
-            service_name="~/toggle_face_detection",
-            key_request=None,
-            request=SetBool.Request(data=True),
-            key_response=turn_face_detection_on_key_response,
-            response_checks=[
-                py_trees.common.ComparisonExpression(
-                    variable=turn_face_detection_on_key_response + ".success",
-                    value=True,
-                    operator=operator.eq,
-                )
-            ],
-            logger=logger,
+        turn_face_detection_on = get_toggle_face_detection_behavior(
+            name,
+            turn_face_detection_on_prefix,
+            True,
+            logger,
         )
 
         # Configure the force-torque sensor and thresholds before moving
@@ -341,14 +405,14 @@ class MoveToMouthTree(MoveToTree):
         # intentionally expanded to nsure the robot gets nowhere close to the
         # user during acquisition, but during transfer the robot must get close
         # to the user so the wheelchair collision object must be allowed.
-        allow_wheelchair_collision_prefix = "allow_wheelchair_collision"
-        allow_wheelchair_collision = ToggleCollisionObject(
-            name=Blackboard.separator.join([name, allow_wheelchair_collision_prefix]),
-            node=node,
-            collision_object_id=self.wheelchair_collision_object_id,
-            allow=True,
+        allow_wheelchair_collision = get_toggle_collision_object_behavior(
+            name,
+            disallow_wheelchair_collision_prefix,
+            node,
+            self.wheelchair_collision_object_id,
+            True,
+            logger,
         )
-        allow_wheelchair_collision.logger = logger
 
         # Create the behaviour to move the robot to the target pose
         # We want to add a position goal, but it should come from the
@@ -386,49 +450,23 @@ class MoveToMouthTree(MoveToTree):
             .root
         )
 
-        # # NOTE: The below is commented out for the time being, because if
-        # # we disallow collisions between the robot and the wheelchair
-        # # collision object, then the robot will not be able to do any motions
-        # # after this (since it is in collision with the wheelchair collision
-        # # object at the end of transfer).
-        # #
-        # # The right solution is to create a separate `MoveAwayFromMouth` tree
-        # # that moves the robot back to the staging location, and then disallows
-        # # this collision before moving back to the staging location.
-
-        # # Create the behavior to disallow collisions between the robot and the
-        # # wheelchair collision object.
-        # disallow_wheelchair_collision_prefix = "disallow_wheelchair_collision"
-        # disallow_wheelchair_collision = ToggleCollisionObject(
-        #     name=Blackboard.separator.join([name, disallow_wheelchair_collision_prefix]),
-        #     node=node,
-        #     collision_object_id=self.wheelchair_collision_object_id,
-        #     allow=False,
-        # )
-        # disallow_wheelchair_collision.logger = logger
+        # Create the behavior to disallow collisions between the robot and the
+        # wheelchair collision object.
+        disallow_wheelchair_collision = get_toggle_collision_object_behavior(
+            name,
+            disallow_wheelchair_collision_prefix,
+            node,
+            self.wheelchair_collision_object_id,
+            False,
+            logger,
+        )
 
         # Create the behaviour to turn face detection off
-        turn_face_detection_off_name = Blackboard.separator.join(
-            [name, turn_face_detection_off_prefix]
-        )
-        turn_face_detection_off_key_response = Blackboard.separator.join(
-            [turn_face_detection_off_name, "response"]
-        )
-        turn_face_detection_off = retry_call_ros_service(
-            name=turn_face_detection_off_name,
-            service_type=SetBool,
-            service_name="~/toggle_face_detection",
-            key_request=None,
-            request=SetBool.Request(data=False),
-            key_response=turn_face_detection_off_key_response,
-            response_checks=[
-                py_trees.common.ComparisonExpression(
-                    variable=turn_face_detection_off_key_response + ".success",
-                    value=True,
-                    operator=operator.eq,
-                )
-            ],
-            logger=logger,
+        turn_face_detection_off = get_toggle_face_detection_behavior(
+            name,
+            turn_face_detection_off_prefix,
+            False,
+            logger,
         )
 
         # Link all the behaviours together in a sequence with memory
@@ -446,14 +484,30 @@ class MoveToMouthTree(MoveToTree):
                 move_head,
                 allow_wheelchair_collision,
                 move_to_target_pose,
-                # disallow_wheelchair_collision,
+                disallow_wheelchair_collision,
                 turn_face_detection_off,
             ],
         )
         move_to_mouth.logger = logger
 
         # If move_to_mouth fails, we still want to do some cleanup (e.g., turn
-        # face detection off).
+        # face detection off, disallow the wheelchair_collision mesh).
+        # NOTE: Behaviors are only allowed to have one parent. Hence, we have
+        # to recreate these behaviors.
+        turn_face_detection_off_cleanup = get_toggle_face_detection_behavior(
+            name,
+            turn_face_detection_off_prefix,
+            True,
+            logger,
+        )
+        disallow_wheelchair_collision_cleanup = get_toggle_collision_object_behavior(
+            name,
+            disallow_wheelchair_collision_prefix,
+            node,
+            self.wheelchair_collision_object_id,
+            False,
+            logger,
+        )
         root = py_trees.composites.Selector(
             name=name,
             memory=True,
@@ -462,7 +516,15 @@ class MoveToMouthTree(MoveToTree):
                 # Even though we are cleaning up the tree, it should still
                 # pass the failure up.
                 py_trees.decorators.SuccessIsFailure(
-                    name + " Cleanup", turn_face_detection_off
+                    name + " Cleanup",
+                    py_trees.composites.Sequence(
+                        name=name,
+                        memory=True,
+                        children=[
+                            turn_face_detection_off_cleanup,
+                            disallow_wheelchair_collision_cleanup,
+                        ],
+                    ),
                 ),
             ],
         )

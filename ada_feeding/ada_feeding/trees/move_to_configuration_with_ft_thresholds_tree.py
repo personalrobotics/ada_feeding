@@ -197,21 +197,23 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         children.append(move_to_configuration_root)
 
         # Create the behavior to disallow collisions with certain objects
-        disallow_collision_children = []
-        if len(self.collision_object_ids) > 0:
-            for collision_object_id in self.collision_object_ids:
-                disallow_collision_prefix = (
-                    f"disallow_collision_with_{collision_object_id}"
-                )
-                disallow_collision = ToggleCollisionObject(
-                    name=Blackboard.separator.join([name, disallow_collision_prefix]),
-                    node=node,
-                    collision_object_id=collision_object_id,
-                    allow=False,
-                )
-                disallow_collision.logger = logger
-                children.append(disallow_collision)
-                disallow_collision_children.append(disallow_collision)
+        def gen_disallow_collision_children():
+            disallow_collision_children = []
+            if len(self.collision_object_ids) > 0:
+                for collision_object_id in self.collision_object_ids:
+                    disallow_collision_prefix = (
+                        f"disallow_collision_with_{collision_object_id}"
+                    )
+                    disallow_collision = ToggleCollisionObject(
+                        name=Blackboard.separator.join([name, disallow_collision_prefix]),
+                        node=node,
+                        collision_object_id=collision_object_id,
+                        allow=False,
+                    )
+                    disallow_collision.logger = logger
+                    disallow_collision_children.append(disallow_collision)
+            return disallow_collision_children
+        children.extend(gen_disallow_collision_children())
 
         # Combine them in a sequence with memory
         main_behavior = py_trees.composites.Sequence(
@@ -236,7 +238,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                         py_trees.composites.Sequence(
                             name=name,
                             memory=True,
-                            children=disallow_collision_children,
+                            children=gen_disallow_collision_children(),
                         ),
                     ),
                 ],

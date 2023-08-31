@@ -10,6 +10,8 @@ ada_feeding_action_servers:
       - MoveAbovePlate
       - AcquireFood
       - MoveToMouth
+      - MoveFromMouthToAbovePlate
+      - MoveFromMouthToRestingPosition
       - MoveToRestingPosition
       - MoveToStowLocation
       - TestMoveToPose
