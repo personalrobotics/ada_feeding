@@ -15,6 +15,7 @@ from rclpy.node import Node
 
 # Local imports
 from ada_feeding.idioms import pre_moveto_config
+from ada_feeding.idioms.bite_transfer import get_toggle_watchdog_listener_behavior
 from ada_feeding.trees import MoveToTree, MoveToConfigurationTree
 
 
@@ -137,6 +138,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         -------
         tree: The behavior tree that moves the robot above the plate.
         """
+        turn_watchdog_listener_on_prefix = "turn_watchdog_listener_on"
+
         # First, create the MoveToConfiguration behavior tree, in the same
         # namespace as this tree
         move_to_configuration_root = (
@@ -171,11 +174,41 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         )
 
         # Combine them in a sequence with memory
-        root = py_trees.composites.Sequence(
+        main_tree = py_trees.composites.Sequence(
             name=name,
             memory=True,
             children=[pre_moveto_behavior, move_to_configuration_root],
         )
+
+        # If there was a failure in the main tree, we want to ensure to turn
+        # the watchdog listener back on
+        # pylint: disable=duplicate-code
+        # This is similar to any other tree that needs to cleanup pre_moveto_config
+        turn_watchdog_listener_on = get_toggle_watchdog_listener_behavior(
+            name,
+            turn_watchdog_listener_on_prefix,
+            True,
+            logger,
+        )
+
+        # Create a cleanup branch for the behaviors that should get executed if
+        # the main tree has a failure
+        cleanup_tree = turn_watchdog_listener_on
+
+        # If main_tree fails, we still want to do some cleanup.
+        root = py_trees.composites.Selector(
+            name=name,
+            memory=True,
+            children=[
+                main_tree,
+                # Even though we are cleaning up the tree, it should still
+                # pass the failure up.
+                py_trees.decorators.SuccessIsFailure(
+                    name + " Cleanup Root", cleanup_tree
+                ),
+            ],
+        )
+        root.logger = logger
 
         tree = py_trees.trees.BehaviourTree(root)
         return tree
