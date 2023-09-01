@@ -43,6 +43,7 @@ class MoveToConfigurationTree(MoveToTree):
         weight: float = 1.0,
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
+        max_velocity_scaling_factor: float = 0.1,
         keys_to_not_write_to_blackboard: Set[str] = set(),
     ):
         """
@@ -56,6 +57,8 @@ class MoveToConfigurationTree(MoveToTree):
         planner_id: The planner ID to use for the MoveIt2 motion planning.
         allowed_planning_time: The allowed planning time for the MoveIt2 motion
             planner.
+        max_velocity_scaling_factor: The maximum velocity scaling factor for the
+            MoveIt2 motion planner.
         keys_to_not_write_to_blackboard: A set of keys that should not be written
             Note that the keys need to be exact e.g., "move_to.cartesian,"
             "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
@@ -71,6 +74,7 @@ class MoveToConfigurationTree(MoveToTree):
         self.weight = weight
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
+        self.max_velocity_scaling_factor = max_velocity_scaling_factor
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
 
     # pylint: disable=too-many-locals
@@ -137,6 +141,12 @@ class MoveToConfigurationTree(MoveToTree):
         self.blackboard.register_key(
             key=allowed_planning_time_key, access=py_trees.common.Access.WRITE
         )
+        max_velocity_scaling_factor_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "max_velocity_scaling_factor"]
+        )
+        self.blackboard.register_key(
+            key=max_velocity_scaling_factor_key, access=py_trees.common.Access.WRITE
+        )
 
         # Write the inputs to MoveToConfiguration to blackboard
         set_to_blackboard(
@@ -167,6 +177,12 @@ class MoveToConfigurationTree(MoveToTree):
             self.blackboard,
             allowed_planning_time_key,
             self.allowed_planning_time,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            max_velocity_scaling_factor_key,
+            self.max_velocity_scaling_factor,
             self.keys_to_not_write_to_blackboard,
         )
 

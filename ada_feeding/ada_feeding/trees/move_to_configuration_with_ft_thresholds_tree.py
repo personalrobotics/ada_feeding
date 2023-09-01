@@ -38,6 +38,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         weight_joint: float = 1.0,
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
+        max_velocity_scaling_factor: float = 0.1,
         # Optional parameters for the FT thresholds
         re_tare: bool = True,
         toggle_watchdog_listener: bool = True,
@@ -62,6 +63,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         planner_id: The planner ID to use for MoveIt2 motion planning.
         allowed_planning_time: The allowed planning time for the MoveIt2 motion
             planner.
+        max_velocity_scaling_factor: The maximum velocity scaling factor for the
+            MoveIt2 motion planner.
         re_tare: Whether to re-tare the force-torque sensor.
         toggle_watchdog_listener: Whether to toggle the watchdog listener on and off.
             In practice, if the watchdog listener is on, you should toggle it.
@@ -92,6 +95,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self.weight_joint = weight_joint
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
+        self.max_velocity_scaling_factor = max_velocity_scaling_factor
 
         # Store the parameters for the FT threshold
         self.re_tare = re_tare
@@ -137,6 +141,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 weight=self.weight_joint,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time,
+                max_velocity_scaling_factor=self.max_velocity_scaling_factor,
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
             )
             .create_tree(name, self.action_type, tree_root_name, logger, node)

@@ -58,6 +58,7 @@ class MoveToPoseTree(MoveToTree):
         cartesian: bool = False,
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
+        max_velocity_scaling_factor: float = 0.1,
         keys_to_not_write_to_blackboard: Set[str] = set(),
     ):
         """
@@ -79,6 +80,8 @@ class MoveToPoseTree(MoveToTree):
         cartesian: whether to use cartesian path planning.
         planner_id: the planner to use for path planning.
         allowed_planning_time: the allowed planning time for path planning.
+        max_velocity_scaling_factor: the maximum velocity scaling factor for path
+            planning.
         keys_to_not_write_to_blackboard: the keys to not write to the blackboard.
             Note that the keys need to be exact e.g., "move_to.cartesian,"
             "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
@@ -100,6 +103,7 @@ class MoveToPoseTree(MoveToTree):
         self.cartesian = cartesian
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
+        self.max_velocity_scaling_factor = max_velocity_scaling_factor
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
 
     # pylint: disable=too-many-locals, too-many-statements
@@ -232,6 +236,12 @@ class MoveToPoseTree(MoveToTree):
         self.blackboard.register_key(
             key=allowed_planning_time_key, access=py_trees.common.Access.WRITE
         )
+        max_velocity_scaling_factor_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "max_velocity_scaling_factor"]
+        )
+        self.blackboard.register_key(
+            key=max_velocity_scaling_factor_key, access=py_trees.common.Access.WRITE
+        )
 
         # Write the inputs to MoveToPose to blackboard
         if self.position is not None:
@@ -318,6 +328,12 @@ class MoveToPoseTree(MoveToTree):
             self.blackboard,
             allowed_planning_time_key,
             self.allowed_planning_time,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            max_velocity_scaling_factor_key,
+            self.max_velocity_scaling_factor,
             self.keys_to_not_write_to_blackboard,
         )
 

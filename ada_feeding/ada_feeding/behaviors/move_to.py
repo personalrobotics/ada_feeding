@@ -93,6 +93,10 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.move_to_blackboard.register_key(
             key="allowed_planning_time", access=py_trees.common.Access.READ
         )
+        # Add the ability to set velocity scaling
+        self.move_to_blackboard.register_key(
+            key="max_velocity_scaling_factor", access=py_trees.common.Access.READ
+        )
         # Initialize the blackboard to read from the parent behavior tree
         self.tree_blackboard = self.attach_blackboard_client(
             name=name + " MoveTo", namespace=tree_name
@@ -152,6 +156,11 @@ class MoveTo(py_trees.behaviour.Behaviour):
             get_from_blackboard_with_default(
                 self.move_to_blackboard, "planner_id", "RRTstarkConfigDefault"
             )
+        )
+
+        # Set the max velocity
+        self.moveit2.max_velocity = get_from_blackboard_with_default(
+            self.move_to_blackboard, "max_velocity_scaling_factor", 0.1
         )
 
         # Set the allowed planning time

@@ -54,6 +54,8 @@ class MoveToMouthTree(MoveToTree):
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time_to_staging_configuration: float = 0.5,
         allowed_planning_time_to_mouth: float = 0.5,
+        max_velocity_scaling_factor_to_staging_configuration: float = 0.1,
+        max_velocity_scaling_factor_to_mouth: float = 0.1,
         head_object_id: str = "head",
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 4.0,
@@ -79,6 +81,11 @@ class MoveToMouthTree(MoveToTree):
             time for the MoveIt2 motion planner to move to the staging config.
         allowed_planning_time_to_mouth: The allowed planning time for the MoveIt2
             motion planner to move to the user's mouth.
+        max_velocity_scaling_factor_to_staging_configuration: The maximum
+            velocity scaling factor for the MoveIt2 motion planner to move to
+            the staging config.
+        max_velocity_scaling_factor_to_mouth: The maximum velocity scaling
+            factor for the MoveIt2 motion planner to move to the user's mouth.
         head_object_id: The ID of the head collision object in the MoveIt2
             planning scene.
         wheelchair_collision_object_id: The ID of the wheelchair collision object
@@ -92,6 +99,10 @@ class MoveToMouthTree(MoveToTree):
         allowed_face_distance: The maximum distance (m) between a face and the
             **camera's optical frame** for the robot to move towards the face.
         """
+
+        # pylint: disable=too-many-locals
+        # These are all necessary due to all the behaviors MoveToMouth contains
+
         # Initialize MoveToTree
         super().__init__()
 
@@ -107,6 +118,10 @@ class MoveToMouthTree(MoveToTree):
             allowed_planning_time_to_staging_configuration
         )
         self.allowed_planning_time_to_mouth = allowed_planning_time_to_mouth
+        self.max_velocity_scaling_factor_to_staging_configuration = (
+            max_velocity_scaling_factor_to_staging_configuration
+        )
+        self.max_velocity_scaling_factor_to_mouth = max_velocity_scaling_factor_to_mouth
         self.head_object_id = head_object_id
         self.wheelchair_collision_object_id = wheelchair_collision_object_id
         self.force_threshold = force_threshold
@@ -227,6 +242,9 @@ class MoveToMouthTree(MoveToTree):
                 tolerance_joint_goal=self.staging_configuration_tolerance,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time_to_staging_configuration,
+                max_velocity_scaling_factor=(
+                    self.max_velocity_scaling_factor_to_staging_configuration
+                ),
                 quat_xyzw_path=self.orientation_constraint_quaternion,
                 tolerance_orientation_path=self.orientation_constraint_tolerances,
                 parameterization_orientation_path=1,  # Rotation vector
@@ -371,6 +389,7 @@ class MoveToMouthTree(MoveToTree):
                 cartesian=False,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time_to_mouth,
+                max_velocity_scaling_factor=self.max_velocity_scaling_factor_to_mouth,
                 quat_xyzw_path=self.orientation_constraint_quaternion,
                 tolerance_orientation_path=self.orientation_constraint_tolerances,
                 parameterization_orientation_path=1,  # Rotation vector

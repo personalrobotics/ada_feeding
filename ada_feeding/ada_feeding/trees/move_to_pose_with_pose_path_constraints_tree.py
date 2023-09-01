@@ -50,6 +50,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         cartesian: bool = False,
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
+        max_velocity_scaling_factor: float = 0.1,
         # Optional parameters for the pose path constraint
         position_path: Tuple[float, float, float] = None,
         quat_xyzw_path: Tuple[float, float, float, float] = None,
@@ -81,7 +82,9 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         cartesian: whether to use cartesian path planning.
         planner_id: the planner ID to use for MoveIt2 motion planning.
         allowed_planning_time: the allowed planning time for the MoveIt2 motion
-            planner..
+            planner.
+        max_velocity_scaling_factor: the maximum velocity scaling factor for
+            MoveIt2 motion planning.
         position_path: the target position relative to frame_id for path constraints.
         quat_xyzw_path: the target orientation relative to frame_id for path constraints.
         frame_id_path: the frame id of the target pose for path constraints. If None,
@@ -115,6 +118,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         self.cartesian = cartesian
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
+        self.max_velocity_scaling_factor = max_velocity_scaling_factor
 
         # Store the parameters for the pose path constraint
         self.position_path = position_path
@@ -169,6 +173,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
                 cartesian=self.cartesian,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time,
+                max_velocity_scaling_factor=self.max_velocity_scaling_factor,
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
             )
             .create_tree(name, self.action_type, tree_root_name, logger, node)
