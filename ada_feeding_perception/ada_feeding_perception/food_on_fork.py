@@ -4,6 +4,7 @@ This file defines the FoodOnFork node class, which listens to a topic, /camera/d
 and uses the depth image recieved there to calculate the probability of Food on Fork. It then launches
 a topic, /food_on_fork to which the probability of Food on Fork is published.
 """
+import time
 
 import rclpy
 from rclpy.node import Node
@@ -15,9 +16,11 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Float32
 
 from cv_bridge import CvBridge, CvBridgeError
+import cv2 as cv
 import numpy as np
 import joblib
 from typing import Tuple
+import csv
 
 
 class FoodOnFork(Node):
@@ -77,7 +80,7 @@ class FoodOnFork(Node):
         self.model = joblib.load(model_loc.value)
 
     def read_params(
-        self,
+            self,
     ) -> Tuple[
         Parameter,
         Parameter,
@@ -189,6 +192,11 @@ class FoodOnFork(Node):
             ],
         )
 
+    def normalize_to_uint8(self, img):
+        # Normalize the image to 0-255
+        img_normalized = ((img - img.min()) / (img.max() - img.min()) * 255).astype('uint8')
+        return img_normalized
+
     def listener_callback_depth(self, depth_img_msg: Image) -> None:
         """
         Calculates and publishes probability indicating whether the provided depth image has food on fork
@@ -204,20 +212,51 @@ class FoodOnFork(Node):
             print(e)
 
         if depth_img is not None:
-            print(depth_img.dtype)
-            num_pixels = self.food_on_fork_num_pixels(depth_img)
+            # VVVV---BELOW is the code when using single feature of only the NUMBER OF PIXELS---VVVV
+            # num_pixels = self.food_on_fork_num_pixels(depth_img)
+            # if self.test:
+            #     self.get_logger().info("num pixels: " + str(num_pixels))
+            # prediction = self.predict_food_on_fork(num_pixels)
+            # if self.test:
+            #     self.get_logger().info("Prediction Probability: " + str(prediction))
+            # ^^^^---ABOVE is the code when using single feature of only the NUMBER OF PIXELS---^^^^
+
+            # VVVV---BELOW is the code when using EACH PIXEL as a feature---VVVV
+            depth_img_copy = np.copy(depth_img)
+
+            # Crop the depth image to the specified dimensions
+            left_top_x, left_top_y = self.left_top_corner
+            right_bottom_x, right_bottom_y = self.right_bottom_corner
+            cropped_img = depth_img_copy[left_top_y:right_bottom_y, left_top_x:right_bottom_x]
+            # cv.imshow("cropped_img", self.normalize_to_uint8(cropped_img))
+
+            # Pre-process the image such that if the depth values are within the specified frustum, then those pixels
+            # are converted to be 1 and if they are not within the frustum, then those pixels are converted to be 0
+            img_converted = np.where(np.logical_or(cropped_img < self.min_dist, cropped_img > self.max_dist), 0,
+                                     1).astype('uint8')
+            cropped_img_np = np.array(img_converted)
+
+            # self.get_logger().info(str(cropped_img_np))
+            # self.get_logger().info(str(np.count_nonzero(cropped_img_np == 1)))
+            # cv.imshow("cropped", cropped_img_np * 255)
+            # cv.waitKey(40)
+            X_test = cropped_img_np.flatten()
+
+            # Get the prediction, which is a float value
+            prediction = self.predict_food_on_fork(X_test=X_test)
+            # self.get_logger().info(str(prediction))
             if self.test:
-                self.get_logger().info("num pixels: " + str(num_pixels))
-            prediction = self.predict_food_on_fork(num_pixels)
-            if self.test:
-                self.get_logger().info("Prediction Probability: " + str(prediction))
+                self.get_logger().info(str(prediction))
+            # ^^^^---ABOVE is the code when using EACH PIXEL as a feature---^^^^
+
             float32msg = Float32()
             float32msg.data = prediction
             self.publisher_depth.publish(float32msg)
 
     def food_on_fork_num_pixels(self, depth_img: np.ndarray) -> int:
         """
-        Calculates the number of pixels in the provided depth image (through a depth image message)
+        Calculates the number of pixels in the provided depth image (through a depth image message). This method is used
+        to calculate the number of pixels that is used for the Logistic Regression to output a confidence
 
         Parameters:
         ----------
@@ -251,28 +290,38 @@ class FoodOnFork(Node):
 
         return np.count_nonzero(mask_img)
 
-    def predict_food_on_fork(self, num_pixels: int) -> float:
+    def predict_food_on_fork(self, num_pixels: int = None, X_test: np.ndarray = None) -> float:
         """
-        Calculates the probability of the presence of food on fork
+        Calculates the probability of the presence of food on fork based on the provided parameters.
+        If num_pixels is None, then it predicts a probability based on the Categorical NB approach.
+        If
 
         Parameters:
         ----------
         num_pixels: number of pixels detected based on which the probability is output
+        X_test: Flattened array with whether each pixel is in the range
 
         Returns:
         ----------
         probability of the presence of food on fork
         """
-        print("num pixels in method: ", num_pixels)
-        num_pixels = np.array([[num_pixels]])
-        prediction_prob = self.model.predict_proba(num_pixels)
-        # print("Pred_prob", prediction_prob[0][1])
+        if num_pixels is not None:
+            # Logistic Regression Approach
+            print("num pixels in method: ", num_pixels)
+            num_pixels = np.array([[num_pixels]])
+            prediction_prob = self.model.predict_proba(num_pixels)
+            # print("Pred_prob", prediction_prob[0][1])
 
-        # prediction_prob is a matrix that looks like: [[percentage1, percentage2]]
-        # Note that percentage1 is the percent probability that the predicted value is 0 (no food on fork)
-        # and percentage2 is the percent probability that the predicted value is 1 (food on fork)
-        # we care about the probability that there is food on fork. As such, [0][1] makes sense!
-        return float(prediction_prob[0][1])
+            # prediction_prob is a matrix that looks like: [[percentage1, percentage2]]
+            # Note that percentage1 is the percent probability that the predicted value is 0 (no food on fork)
+            # and percentage2 is the percent probability that the predicted value is 1 (food on fork)
+            # we care about the probability that there is food on fork. As such, [0][1] makes sense!
+            return float(prediction_prob[0][1])
+        if X_test is not None:
+            # Categorical NB approach
+            X_test_reshape = X_test.reshape(1, -1)  # such that we have (num_images, num_features)
+            prediction_prob = self.model.predict_proba(X_test_reshape)
+            return float(prediction_prob[0][1])
 
 
 def main(args=None):
