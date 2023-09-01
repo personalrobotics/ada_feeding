@@ -191,3 +191,12 @@ class FTSensorCondition(WatchdogCondition):
             )
 
         return [(status_1, name_1, condition_1)]
+
+    def terminate(self) -> None:
+        """
+        Terminate the FT Sensor condition. In this case, no termination is
+        necessary, since the only state this watchdog condition maintains has
+        to do with ROS subscribers, which will be terminated when the watchdog
+        node terminates anyway.
+        """
+        return None

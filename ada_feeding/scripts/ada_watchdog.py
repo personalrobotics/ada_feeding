@@ -66,7 +66,7 @@ class ADAWatchdog(Node):
 
         # Publish at the specified rate
         timer_period = 1.0 / self.publish_rate_hz.value  # seconds
-        self.timer = self.create_timer(timer_period, self.check_conditions)
+        self.timer = self.create_timer(timer_period, self.__check_conditions)
 
     def __load_parameters(self) -> None:
         """
@@ -147,7 +147,7 @@ class ADAWatchdog(Node):
             status=diagnostic_statuses,
         )
 
-    def check_conditions(self) -> None:
+    def __check_conditions(self) -> None:
         """
         Checks the watchdog conditions and publishes its output.
         """
@@ -183,6 +183,13 @@ class ADAWatchdog(Node):
             watchdog_output = self.__generate_diagnostic_array(diagnostic_statuses)
             self.watchdog_publisher.publish(watchdog_output)
 
+    def terminate(self) -> None:
+        """
+        Terminate the watchdog node.
+        """
+        for condition in self.conditions:
+            condition.terminate()
+
 
 def main(args=None):
     """
@@ -200,6 +207,7 @@ def main(args=None):
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically
     # when the garbage collector destroys the node object)
+    ada_watchdog.terminate()
     ada_watchdog.destroy_node()
     rclpy.shutdown()
 

@@ -63,3 +63,11 @@ class WatchdogCondition(ABC):
             the watchdog should fail.
         """
         raise NotImplementedError("check_status not implemented")
+
+    @abstractmethod
+    def terminate(self) -> None:
+        """
+        Terminate the watchdog condition. This is called when the watchdog
+        terminates.
+        """
+        raise NotImplementedError("terminate not implemented")
