@@ -2,7 +2,7 @@
 ada_feeding_action_servers:
   ros__parameters:
     # If we haven't received a message from the watchdog in this time, stop all robot motions
-    watchdog_timeout_sec: 0.1 # sec
+    watchdog_timeout_sec: 0.5 # sec
 
     # A list of the names of the action servers to create. Each one must have
     # it's own parameters (below) specifying action_type and tree_class.
@@ -87,12 +87,20 @@ ada_feeding_action_servers:
         - max_velocity_scaling_factor_to_mouth
       tree_kwargs: # optional
         staging_configuration:
-          -  2.74709 # j2n6s200_joint_1
-          -  2.01400 # j2n6s200_joint_2
-          -  1.85257 # j2n6s200_joint_3
-          - -2.83523 # j2n6s200_joint_4
-          - -1.61925 # j2n6s200_joint_5
-          - -2.67325 # j2n6s200_joint_6
+          # # Side-staging configuration
+          # -  2.74709 # j2n6s200_joint_1
+          # -  2.01400 # j2n6s200_joint_2
+          # -  1.85257 # j2n6s200_joint_3
+          # - -2.83523 # j2n6s200_joint_4
+          # - -1.61925 # j2n6s200_joint_5
+          # - -2.67325 # j2n6s200_joint_6
+          # Front-staging configuration
+          - -2.30252
+          - 4.23221
+          - 3.84109
+          - -4.65546
+          - 3.94225
+          - 4.26543
         orientation_constraint_quaternion: # perpendicular to the base link
           - 0.707168 # x
           - 0.0 # y
@@ -102,7 +110,7 @@ ada_feeding_action_servers:
           - 0.6 # x, rad
           - 3.14159 # y, rad
           - 0.5 # z, rad
-        allowed_planning_time_to_staging_configuration: 1.0 # secs
+        allowed_planning_time_to_staging_configuration: 1.5 # secs
         max_velocity_scaling_factor_to_staging_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
         max_velocity_scaling_factor_to_mouth: 0.4 # optional in (0.0, 1.0], default: 0.1
       tick_rate: 10 # Hz, optional, default: 30

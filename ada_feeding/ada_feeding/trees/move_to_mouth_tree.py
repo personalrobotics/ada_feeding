@@ -387,7 +387,7 @@ class MoveToMouthTree(MoveToTree):
                 tolerance_position_goal=self.mouth_pose_tolerance,
                 tolerance_orientation_goal=(0.6, 0.5, 0.5),
                 parameterization_orientation_goal=1,  # Rotation vector
-                cartesian=False,
+                cartesian=True,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time_to_mouth,
                 max_velocity_scaling_factor=self.max_velocity_scaling_factor_to_mouth,
