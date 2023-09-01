@@ -69,7 +69,11 @@ def main():
     # print(probabilities)
 
     y_train_pred = lgr.predict(X_train)
+    y_pred_train_proba = lgr.predict_log_proba(X_train)
     y_val_pred = lgr.predict(X_val)
+    y_pred_test_proba = lgr.predict_log_proba(X_test)
+    print(y_pred_train_proba)
+    print(y_pred_test_proba)
 
     # compare the accuracy scores
     train_accuracy_score = accuracy_score(y_train, y_train_pred)
