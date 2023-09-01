@@ -27,6 +27,7 @@ from rcl_interfaces.srv import SetParameters
 from std_srvs.srv import SetBool
 
 # Local imports
+from .bite_transfer import get_toggle_watchdog_listener_behavior
 from .retry_call_ros_service import retry_call_ros_service
 
 
@@ -98,27 +99,11 @@ def pre_moveto_config(
     if re_tare:
         # Toggle the Watchdog Listener off
         if toggle_watchdog_listener:
-            turn_watchdog_listener_off_name = Blackboard.separator.join(
-                [name, turn_watchdog_listener_off_prefix]
-            )
-            turn_watchdog_listener_off_key_response = Blackboard.separator.join(
-                [turn_watchdog_listener_off_name, "response"]
-            )
-            turn_watchdog_listener_off = retry_call_ros_service(
-                name=turn_watchdog_listener_off_name,
-                service_type=SetBool,
-                service_name="~/toggle_watchdog_listener",
-                key_request=None,
-                request=SetBool.Request(data=False),
-                key_response=turn_watchdog_listener_off_key_response,
-                response_checks=[
-                    py_trees.common.ComparisonExpression(
-                        variable=turn_watchdog_listener_off_key_response + ".success",
-                        value=True,
-                        operator=operator.eq,
-                    )
-                ],
-                logger=logger,
+            turn_watchdog_listener_off = get_toggle_watchdog_listener_behavior(
+                name,
+                turn_watchdog_listener_off_prefix,
+                False,
+                logger,
             )
             children.append(turn_watchdog_listener_off)
 
@@ -149,27 +134,11 @@ def pre_moveto_config(
 
         # Toggle the Watchdog Listener on
         if toggle_watchdog_listener:
-            turn_watchdog_listener_on_name = Blackboard.separator.join(
-                [name, turn_watchdog_listener_on_prefix]
-            )
-            turn_watchdog_listener_on_key_response = Blackboard.separator.join(
-                [turn_watchdog_listener_on_name, "response"]
-            )
-            turn_watchdog_listener_on = retry_call_ros_service(
-                name=turn_watchdog_listener_on_name,
-                service_type=SetBool,
-                service_name="~/toggle_watchdog_listener",
-                key_request=None,
-                request=SetBool.Request(data=True),
-                key_response=turn_watchdog_listener_on_key_response,
-                response_checks=[
-                    py_trees.common.ComparisonExpression(
-                        variable=turn_watchdog_listener_on_key_response + ".success",
-                        value=True,
-                        operator=operator.eq,
-                    )
-                ],
-                logger=logger,
+            turn_watchdog_listener_on = get_toggle_watchdog_listener_behavior(
+                name,
+                turn_watchdog_listener_on_prefix,
+                True,
+                logger,
             )
             children.append(turn_watchdog_listener_on)
 

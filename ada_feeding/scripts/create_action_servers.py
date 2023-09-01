@@ -460,6 +460,12 @@ def main(args: List = None) -> None:
     rclpy.init(args=args)
 
     create_action_servers = CreateActionServers()
+    # pylint: disable=protected-access
+    # There is an issue to address this, see
+    # https://github.com/personalrobotics/ada_feeding/issues/62
+    create_action_servers._default_callback_group = (
+        rclpy.callback_groups.ReentrantCallbackGroup()
+    )
 
     # Use a MultiThreadedExecutor to enable processing goals concurrently
     executor = MultiThreadedExecutor()
