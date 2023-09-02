@@ -93,13 +93,20 @@ ada_feeding_action_servers:
           # - -2.83523 # j2n6s200_joint_4
           # - -1.61925 # j2n6s200_joint_5
           # - -2.67325 # j2n6s200_joint_6
-          # Front-staging configuration
-          - -2.30252
-          - 4.23221
-          - 3.84109
-          - -4.65546
-          - 3.94225
-          - 4.26543
+          # # Front-staging configuration -- Taller
+          # - -2.30252
+          # - 4.23221
+          # - 3.84109
+          # - -4.65546
+          # - 3.94225
+          # - 4.26543
+          # Front-staging configuration -- Shorter
+          - -2.32526
+          - 4.456298
+          - 4.16769
+          - 1.53262
+          - -2.18359
+          - -2.19525
         orientation_constraint_quaternion: # perpendicular to the base link
           - 0.707168 # x
           - 0.0 # y

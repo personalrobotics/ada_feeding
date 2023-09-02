@@ -28,7 +28,7 @@ ada_planning_scene:
       frame_id: root # the frame_id that the pose is relative to
     table: # the table mesh
       filename: table.stl
-      position: [0.08, -0.5, -0.45]
+      position: [0.08, -0.5, -0.48]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
       frame_id: root # the frame_id that the pose is relative to
     head: # the head mesh
