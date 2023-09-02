@@ -55,6 +55,8 @@ class MoveFromMouthTree(MoveToTree):
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time_to_staging_configuration: float = 0.5,
         allowed_planning_time_to_end_configuration: float = 0.5,
+        max_velocity_scaling_factor_to_staging_configuration: float = 0.1,
+        max_velocity_scaling_factor_to_end_configuration: float = 0.1,
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 4.0,
         torque_threshold: float = 4.0,
@@ -87,6 +89,12 @@ class MoveFromMouthTree(MoveToTree):
             time for the MoveIt2 motion planner to move to the staging config.
         allowed_planning_time_to_end_configuration: The allowed planning
             time for the MoveIt2 motion planner to move to the end config.
+        max_velocity_scaling_factor_to_staging_configuration: The maximum
+            velocity scaling factor for the MoveIt2 motion planner to move to
+            the staging config.
+        max_velocity_scaling_factor_to_end_configuration: The maximum
+            velocity scaling factor for the MoveIt2 motion planner to move to
+            the end config.
         wheelchair_collision_object_id: The ID of the wheelchair collision object
             in the MoveIt2 planning scene.
         force_threshold: The force threshold (N) for the ForceGateController.
@@ -124,6 +132,12 @@ class MoveFromMouthTree(MoveToTree):
         )
         self.allowed_planning_time_to_end_configuration = (
             allowed_planning_time_to_end_configuration
+        )
+        self.max_velocity_scaling_factor_to_staging_configuration = (
+            max_velocity_scaling_factor_to_staging_configuration
+        )
+        self.max_velocity_scaling_factor_to_end_configuration = (
+            max_velocity_scaling_factor_to_end_configuration
         )
         self.wheelchair_collision_object_id = wheelchair_collision_object_id
         self.force_threshold = force_threshold
@@ -201,6 +215,9 @@ class MoveFromMouthTree(MoveToTree):
                 cartesian=True,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time_to_staging_configuration,
+                max_velocity_scaling_factor=(
+                    self.max_velocity_scaling_factor_to_staging_configuration
+                ),
                 quat_xyzw_path=self.orientation_constraint_to_staging_configuration_quaternion,
                 tolerance_orientation_path=(
                     self.orientation_constraint_to_staging_configuration_tolerances
@@ -239,6 +256,7 @@ class MoveFromMouthTree(MoveToTree):
                 tolerance_joint_goal=self.end_configuration_tolerance,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time_to_end_configuration,
+                max_velocity_scaling_factor=self.max_velocity_scaling_factor_to_end_configuration,
                 quat_xyzw_path=self.orientation_constraint_to_end_configuration_quaternion,
                 tolerance_orientation_path=(
                     self.orientation_constraint_to_end_configuration_tolerances
