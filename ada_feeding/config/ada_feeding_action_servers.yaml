@@ -74,9 +74,6 @@ ada_feeding_action_servers:
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToMouth action
-    # TODO: This is a dummy MoveToMouth implementation used to test MoveToPose.
-    # It will be replaced with the actual MoveToMouth action once that is
-    # implemented.
     MoveToMouth: # required
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveToMouthTree # required
@@ -118,8 +115,8 @@ ada_feeding_action_servers:
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveFromMouthToAbovePlate action.
-    # No need for orientation path constraints because presumably the
-    # food is off the fork.
+    # No need for orientation path constraints when moving above the plate
+    # because presumably there is no food on the fork.
     MoveFromMouthToAbovePlate: # required
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveFromMouthTree # required
@@ -127,6 +124,8 @@ ada_feeding_action_servers:
         - staging_configuration_position
         - staging_configuration_quat_xyzw
         - end_configuration
+        - orientation_constraint_to_staging_configuration_quaternion
+        - orientation_constraint_to_staging_configuration_tolerances
       tree_kwargs: # optional
         staging_configuration_position:
           -  0.27971 # x
@@ -144,11 +143,20 @@ ada_feeding_action_servers:
           - -2.30031 # j2n6s200_joint_4
           - -2.34026 # j2n6s200_joint_5
           -  2.95450 # j2n6s200_joint_6
+        orientation_constraint_to_staging_configuration_quaternion: # perpendicular to the base link
+          - 0.707168 # x
+          - 0.0 # y
+          - 0.0 # z
+          - 0.707168 # w
+        orientation_constraint_to_staging_configuration_tolerances: # Note that tolerances are w.r.t. the axes in quat_xyzw_path
+          - 0.6 # x, rad
+          - 3.14159 # y, rad
+          - 0.5 # z, rad
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveFromMouthToRestingPosition action.
-    # Need orientation path constraints because presumably there
-    # is still food on the fork.
+    # Need orientation path constraints to end config because
+    # presumably there is still food on the fork.
     MoveFromMouthToRestingPosition: # required
       action_type: ada_feeding_msgs.action.MoveTo # required
       tree_class: ada_feeding.trees.MoveFromMouthTree # required
@@ -156,8 +164,10 @@ ada_feeding_action_servers:
         - staging_configuration_position
         - staging_configuration_quat_xyzw
         - end_configuration
-        - orientation_constraint_quaternion
-        - orientation_constraint_tolerances
+        - orientation_constraint_to_staging_configuration_quaternion
+        - orientation_constraint_to_staging_configuration_tolerances
+        - orientation_constraint_to_end_configuration_quaternion
+        - orientation_constraint_to_end_configuration_tolerances
         - allowed_planning_time_to_end_configuration
       tree_kwargs: # optional
         staging_configuration_position:
@@ -176,12 +186,21 @@ ada_feeding_action_servers:
           - -4.76501 # j2n6s200_joint_4
           -  5.99991 # j2n6s200_joint_5
           -  4.99555 # j2n6s200_joint_6
-        orientation_constraint_quaternion: # perpendicular to the base link
+        orientation_constraint_to_staging_configuration_quaternion: # perpendicular to the base link
           - 0.707168 # x
           - 0.0 # y
           - 0.0 # z
           - 0.707168 # w
-        orientation_constraint_tolerances: # Note that tolerances are w.r.t. the axes in quat_xyzw_path
+        orientation_constraint_to_staging_configuration_tolerances: # Note that tolerances are w.r.t. the axes in quat_xyzw_path
+          - 0.6 # x, rad
+          - 3.14159 # y, rad
+          - 0.5 # z, rad
+        orientation_constraint_to_end_configuration_quaternion: # perpendicular to the base link
+          - 0.707168 # x
+          - 0.0 # y
+          - 0.0 # z
+          - 0.707168 # w
+        orientation_constraint_to_end_configuration_tolerances: # Note that tolerances are w.r.t. the axes in quat_xyzw_path
           - 0.6 # x, rad
           - 3.14159 # y, rad
           - 0.5 # z, rad
