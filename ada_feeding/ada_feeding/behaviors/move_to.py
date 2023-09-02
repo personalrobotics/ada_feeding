@@ -159,6 +159,9 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 self.move_to_blackboard, "allowed_planning_time", 0.5
             )
 
+        # If the plan is cartesian, it should always avoid collisions
+        self.moveit2.cartesian_avoid_collisions = True
+
         # Reset local state variables
         self.prev_query_state = None
         self.planning_start_time = time.time()

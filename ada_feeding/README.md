@@ -8,7 +8,7 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
 - Install [ROS2 Humble](https://docs.ros.org/en/humble/Installation.html)
 - Install Python dependencies: `python3 -m pip install pyyaml py_trees pymongo tornado trimesh`
 - Install the code to command the real robot ([instructions here](https://github.com/personalrobotics/ada_ros2/blob/main/README.md))
-- Git clone the [PRL fork of pymoveit (branch: `amaln/allowed_collision_matrix`)](https://github.com/personalrobotics/pymoveit2) and the [PRL fork of py_trees_ros (branch: `amaln/service_client`)](https://github.com/personalrobotics/py_trees_ros/tree/amaln/service_client) into your ROS2 workspace's `src` folder.
+- Git clone the [PRL fork of pymoveit (branch: `amaln/cartesian_allow_collision`)](https://github.com/personalrobotics/pymoveit2/tree/amaln/cartesian_avoid_collision) and the [PRL fork of py_trees_ros (branch: `amaln/service_client`)](https://github.com/personalrobotics/py_trees_ros/tree/amaln/service_client) into your ROS2 workspace's `src` folder.
 - Install additional dependencies: `sudo apt install ros-humble-py-trees-ros-interfaces`.
 - Install the web app into your workspace ([instructions here](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp)).
 
