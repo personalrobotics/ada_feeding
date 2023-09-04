@@ -1,0 +1,71 @@
+# NOTE: You have to change this node name if you change the node name in the launchfile.
+test_segment_from_point:
+  ros__parameters:
+    # There are two modes:
+    #   online:  The node will subscribe to the image topic and display the image.
+    #            When the user clicks a point on the image, it will call the
+    #            SegmentFromPoint action server and display the result(s).
+    #   offline: The node will read the images and points specified in the params.
+    #            It will call the SegmentFromPoint action server and save the results. 
+    mode: online # online or offline
+    
+    # The name of the action server to call
+    action_server_name: /SegmentFromPoint
+    
+    # Note that all directories are relative to the `base_dir` parameter, passed
+    # in by the launchfile.
+    offline: # Params for offline mode
+      save_dir: test_img/output # directory to save results in
+      sleep_time: 1.0 # secs, how long to sleep after publishing an image before calling the action server
+      # NOTE: The below lists must be the same length!
+      images: # list of images to segment
+        - test_img/sete_00100.jpg
+        - test_img/sete_00100.jpg
+        - test_img/sete_00100.jpg
+        - test_img/sete_00100.jpg
+        - test_img/sete_00100.jpg
+        - test_img/sete_00100.jpg
+        - test_img/sete_00100.jpg
+        - test_img/setf_00113.jpg
+        - test_img/setf_00113.jpg
+        - test_img/setf_00113.jpg
+        - test_img/seth_00092.jpg
+        - test_img/seth_00092.jpg
+        - test_img/seth_00092.jpg
+        - test_img/noodles.jpg
+        - test_img/noodles.jpg
+        - test_img/noodles.jpg
+      point_xs: # list of x coordinates to segment
+        - 800
+        - 1050
+        - 1200
+        - 800
+        - 900
+        - 1200
+        - 1300
+        - 1050
+        - 1300
+        - 1300
+        - 1280
+        - 550
+        - 1000
+        - 870
+        - 650
+        - 400
+      point_ys: # list of y coordinates to segment
+        - 500
+        - 400
+        - 400
+        - 250
+        - 175
+        - 200
+        - 900
+        - 400
+        - 500
+        - 800
+        - 170
+        - 550
+        - 210
+        - 750
+        - 200
+        - 800

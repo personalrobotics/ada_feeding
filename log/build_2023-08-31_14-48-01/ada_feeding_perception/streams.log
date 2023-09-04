@@ -1,0 +1,63 @@
+[0.620s] Invoking command in '/home/rkarim/ros2_ws/src/ada_feeding/ada_feeding_perception': PYTHONPATH=/home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/prefix_override:/home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../build/ada_feeding_perception build --build-base /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build install --record /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/install.log --single-version-externally-managed
+[0.765s] running egg_info
+[0.765s] creating ../build/ada_feeding_perception/ada_feeding_perception.egg-info
+[0.765s] writing ../build/ada_feeding_perception/ada_feeding_perception.egg-info/PKG-INFO
+[0.765s] writing dependency_links to ../build/ada_feeding_perception/ada_feeding_perception.egg-info/dependency_links.txt
+[0.765s] writing entry points to ../build/ada_feeding_perception/ada_feeding_perception.egg-info/entry_points.txt
+[0.765s] writing requirements to ../build/ada_feeding_perception/ada_feeding_perception.egg-info/requires.txt
+[0.766s] writing top-level names to ../build/ada_feeding_perception/ada_feeding_perception.egg-info/top_level.txt
+[0.766s] writing manifest file '../build/ada_feeding_perception/ada_feeding_perception.egg-info/SOURCES.txt'
+[0.767s] reading manifest file '../build/ada_feeding_perception/ada_feeding_perception.egg-info/SOURCES.txt'
+[0.767s] writing manifest file '../build/ada_feeding_perception/ada_feeding_perception.egg-info/SOURCES.txt'
+[0.767s] running build
+[0.767s] running build_py
+[0.767s] creating /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build
+[0.767s] creating /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib
+[0.767s] creating /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception
+[0.767s] copying ada_feeding_perception/helpers.py -> /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception
+[0.768s] copying ada_feeding_perception/test_sam.py -> /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception
+[0.768s] copying ada_feeding_perception/segment_from_point.py -> /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception
+[0.768s] copying ada_feeding_perception/face_detection.py -> /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception
+[0.768s] copying ada_feeding_perception/test_segment_from_point.py -> /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception
+[0.769s] copying ada_feeding_perception/__init__.py -> /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception
+[0.769s] running install
+[0.769s] /usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.
+[0.769s]   warnings.warn(
+[0.769s] running install_lib
+[0.770s] creating /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception
+[0.770s] copying /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception/helpers.py -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception
+[0.770s] copying /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception/test_sam.py -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception
+[0.770s] copying /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception/segment_from_point.py -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception
+[0.770s] copying /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception/face_detection.py -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception
+[0.770s] copying /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception/test_segment_from_point.py -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception
+[0.770s] copying /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build/lib/ada_feeding_perception/__init__.py -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception
+[0.770s] byte-compiling /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception/helpers.py to helpers.cpython-310.pyc
+[0.771s] byte-compiling /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception/test_sam.py to test_sam.cpython-310.pyc
+[0.772s] byte-compiling /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception/segment_from_point.py to segment_from_point.cpython-310.pyc
+[0.773s] byte-compiling /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception/face_detection.py to face_detection.cpython-310.pyc
+[0.774s] byte-compiling /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception/test_segment_from_point.py to test_segment_from_point.cpython-310.pyc
+[0.775s] byte-compiling /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception/__init__.py to __init__.cpython-310.pyc
+[0.775s] running install_data
+[0.775s] creating /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ament_index
+[0.776s] creating /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ament_index/resource_index
+[0.776s] creating /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ament_index/resource_index/packages
+[0.776s] copying resource/ada_feeding_perception -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ament_index/resource_index/packages
+[0.776s] copying package.xml -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ada_feeding_perception
+[0.776s] creating /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ada_feeding_perception/model
+[0.776s] creating /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ada_feeding_perception/launch
+[0.776s] copying launch/ada_feeding_perception_launch.xml -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ada_feeding_perception/launch
+[0.776s] copying launch/test_food_segmentation_launch.xml -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ada_feeding_perception/launch
+[0.776s] creating /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ada_feeding_perception/config
+[0.776s] copying config/test_segment_from_point.yaml -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ada_feeding_perception/config
+[0.776s] copying config/face_detection.yaml -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ada_feeding_perception/config
+[0.777s] copying config/segment_from_point.yaml -> /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ada_feeding_perception/config
+[0.777s] creating /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/share/ada_feeding_perception/test_img
+[0.777s] running install_egg_info
+[0.778s] Copying ../build/ada_feeding_perception/ada_feeding_perception.egg-info to /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages/ada_feeding_perception-0.0.0-py3.10.egg-info
+[0.779s] running install_scripts
+[0.790s] Installing face_detection script to /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/ada_feeding_perception
+[0.790s] Installing segment_from_point script to /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/ada_feeding_perception
+[0.790s] Installing test_realsense script to /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/ada_feeding_perception
+[0.790s] Installing test_segment_from_point script to /home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/ada_feeding_perception
+[0.791s] writing list of installed files to '/home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/install.log'
+[0.805s] Invoked command in '/home/rkarim/ros2_ws/src/ada_feeding/ada_feeding_perception' returned '0': PYTHONPATH=/home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/prefix_override:/home/rkarim/ros2_ws/src/ada_feeding/install/ada_feeding_perception/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../build/ada_feeding_perception build --build-base /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/build install --record /home/rkarim/ros2_ws/src/ada_feeding/build/ada_feeding_perception/install.log --single-version-externally-managed

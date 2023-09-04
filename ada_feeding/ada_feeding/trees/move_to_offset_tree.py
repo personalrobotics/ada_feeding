@@ -39,18 +39,9 @@ class MoveToOffsetTree(MoveToTree):
 
     def __init__(
         self,
-        position: Tuple[float, float, float],
-        quat_xyzw: Tuple[float, float, float, float],
-        frame_id: Optional[str] = None,
-        target_link: Optional[str] = None,
-        tolerance_position: float = 0.001,
-        tolerance_orientation: Union[float, Tuple[float, float, float]] = 0.001,
-        parameterization: int = 0,
-        weight_position: float = 1.0,
-        weight_orientation: float = 1.0,
-        cartesian: bool = False,
-        planner_id: str = "RRTstarkConfigDefault",
-        allowed_planning_time: float = 0.5,
+        dustance: float,
+        direction: str,
+        allowed_planning_time: float = 0.5
     ):
         """
         Initializes tree-specific parameters.
@@ -76,17 +67,8 @@ class MoveToOffsetTree(MoveToTree):
         super().__init__()
 
         # Store the parameters for the move to offset behavior
-        self.position = position
-        self.quat_xyzw = quat_xyzw
-        self.frame_id = frame_id
-        self.target_link = target_link
-        self.tolerance_position = tolerance_position
-        self.tolerance_orientation = tolerance_orientation
-        self.parameterization = parameterization
-        self.weight_position = weight_position
-        self.weight_orientation = weight_orientation
-        self.cartesian = cartesian
-        self.planner_id = planner_id
+        self.distance = distance
+        self.direction = direction
         self.allowed_planning_time = allowed_planning_time
 
     # pylint: disable=too-many-locals, too-many-statements
