@@ -287,6 +287,10 @@ class EStopCondition(WatchdogCondition):
         Set the system volume using `amixer`. This is necessary because the
         e-stop button is a microphone, so the system's microphone volume will
         impact the amplitude of readings for the e-stop button.
+
+        TODO: Although not crucial, we should consider storing the original
+        system volume, and then restoring it when thos watchdog condition is
+        terminated.
         """
         # Get the amixer_configuration
         toggle_control_name = self.amixer_configuration[
