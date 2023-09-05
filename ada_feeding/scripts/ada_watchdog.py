@@ -26,7 +26,6 @@ from std_msgs.msg import Header
 from ada_feeding.watchdog import (
     EStopCondition,
     FTSensorCondition,
-    WatchdogCondition,
 )
 
 

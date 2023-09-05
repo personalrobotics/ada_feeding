@@ -7,6 +7,7 @@ e-stop button either being clicked or being unplugged and fails if so.
 
 # Standard imports
 import socket
+import subprocess
 from threading import Lock, Thread
 from typing import List, Optional, Tuple, Union
 
@@ -52,6 +53,9 @@ class EStopCondition(WatchdogCondition):
 
         # Load the parameters
         self.__load_parameters()
+
+        # Set system volume
+        self.__set_system_volume()
 
         # Initialize the accumulators
         self.start_time = None
@@ -208,6 +212,138 @@ class EStopCondition(WatchdogCondition):
             ),
         )
         self.time_per_click_duration = Duration(seconds=time_per_click_sec.value)
+
+        # Parameters for setting system volume using `amixer`. This is necessary
+        # because the e-stop button is a microphone, so the system's microphone
+        # volume will impact the amplitude of readings for the e-stop button.
+        # See `ada_watchdog.yaml` for instructions on tuning these parameters.
+        amixer_configuration_name = self._node.declare_parameter(
+            "amixer_configuration_name",
+            None,
+            ParameterDescriptor(
+                name="amixer_configuration_name",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The name of the configuration to use for `amixer`. "
+                    "For configuration name `config_name`, there must be "
+                    "parameters `config_name.amixer_mic_toggle_control_name`, "
+                    "`config_name.amixer_mic_control_names`, and "
+                    "`config_name.amixer_mic_control_percentages`."
+                ),
+                read_only=True,
+            ),
+        )
+        amixer_mic_toggle_control_name = self._node.declare_parameter(
+            f"{amixer_configuration_name.value}.amixer_mic_toggle_control_name",
+            None,
+            ParameterDescriptor(
+                name=f"{amixer_configuration_name.value}.amixer_mic_toggle_control_name",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The name of the toggle control to use for `amixer`. "
+                    "This is the control that is toggled to mute/unmute the "
+                    "microphone."
+                ),
+                read_only=True,
+            ),
+        )
+        amixer_mic_control_names = self._node.declare_parameter(
+            f"{amixer_configuration_name.value}.amixer_mic_control_names",
+            None,
+            ParameterDescriptor(
+                name=f"{amixer_configuration_name.value}.amixer_mic_control_names",
+                type=ParameterType.PARAMETER_STRING_ARRAY,
+                description=(
+                    "The names of the controls to use for `amixer`. "
+                    "These are the controls that are set to change the microphone "
+                    "volume."
+                ),
+                read_only=True,
+            ),
+        )
+        amixer_mic_control_percentages = self._node.declare_parameter(
+            f"{amixer_configuration_name.value}.amixer_mic_control_percentages",
+            None,
+            ParameterDescriptor(
+                name=f"{amixer_configuration_name.value}.amixer_mic_control_percentages",
+                type=ParameterType.PARAMETER_INTEGER_ARRAY,
+                description=(
+                    "The percentages to set the controls to for `amixer`. "
+                    "These are the percentages that the controls are set to change "
+                    "the microphone volume. Must be the same length as "
+                    "`amixer_mic_control_names`."
+                ),
+                read_only=True,
+            ),
+        )
+        self.amixer_configuration = {
+            "amixer_mic_toggle_control_name": amixer_mic_toggle_control_name.value,
+            "amixer_mic_control_names": amixer_mic_control_names.value,
+            "amixer_mic_control_percentages": amixer_mic_control_percentages.value,
+        }
+
+    def __set_system_volume(self) -> None:
+        """
+        Set the system volume using `amixer`. This is necessary because the
+        e-stop button is a microphone, so the system's microphone volume will
+        impact the amplitude of readings for the e-stop button.
+        """
+        # Get the amixer_configuration
+        toggle_control_name = self.amixer_configuration[
+            "amixer_mic_toggle_control_name"
+        ]
+        control_names = self.amixer_configuration["amixer_mic_control_names"]
+        control_percentages = self.amixer_configuration[
+            "amixer_mic_control_percentages"
+        ]
+
+        # First, unmute the microphone
+        if toggle_control_name is not None:
+            try:
+                toggle_output = subprocess.check_output(
+                    ["amixer", "sget", toggle_control_name]
+                )
+                if b"[off]" in toggle_output:
+                    toggle_output = subprocess.check_output(
+                        ["amixer", "sset", toggle_control_name, "toggle"]
+                    )
+                    if b"[on]" not in toggle_output:
+                        self._node.get_logger().error(
+                            f"Microphone remained muted even after toggling:\n{toggle_output}"
+                        )
+            except subprocess.CalledProcessError as exc:
+                self._node.get_logger().error(
+                    f"Error toggling microphone on: {exc.output}"
+                )
+        else:
+            self._node.get_logger().error(
+                "toggle_control_name is not set, so the system microphone "
+                "cannot be unmuted"
+            )
+
+        # Then, set the microphone volume
+        if control_names is not None and control_percentages is not None:
+            for i in range(min(len(control_names), len(control_percentages))):
+                try:
+                    control_name = control_names[i]
+                    control_percentage = control_percentages[i]
+                    control_output = subprocess.check_output(
+                        ["amixer", "sset", control_name, f"{control_percentage}%"]
+                    )
+                    if f"[{control_percentage}]%".encode() not in control_output:
+                        self._node.get_logger().error(
+                            f"Microphone f{control_name} volume did not correctly set to "
+                            f"{control_percentage}%:\n{control_output}"
+                        )
+                except subprocess.CalledProcessError as exc:
+                    self._node.get_logger().error(
+                        f"Error setting microphone volume: {exc.output}"
+                    )
+        else:
+            self._node.get_logger().error(
+                "control_names and/or control_percentages "
+                "are not set, so the system microphone volume cannot be set"
+            )
 
     def __acpi_listener(self) -> None:
         """
@@ -419,7 +555,10 @@ class EStopCondition(WatchdogCondition):
         name_1 = "E-Stop Button Not Clicked"
         with self.num_clicks_lock:
             status_1 = self.num_clicks < 2
-        condition_1 = f"E-stop button has {'not ' if status_1 else ''}been clicked since the startup click"
+        condition_1 = (
+            f"E-stop button has {'not ' if status_1 else ''}"
+            "been clicked since the startup click"
+        )
 
         name_2 = "E-Stop Button Plugged in"
         with self.is_mic_unplugged_lock:

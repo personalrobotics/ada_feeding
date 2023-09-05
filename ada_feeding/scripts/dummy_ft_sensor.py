@@ -107,7 +107,7 @@ class DummyForceTorqueSensor(Node):
 
         self.get_logger().info("Initialized!")
 
-    def set_bias_callback(self, _: SetBool.Request, response: SetBool.Response):
+    def set_bias_callback(self, request: SetBool.Request, response: SetBool.Response):
         """
         Callback for the set_bias service. In order to mimic the actual service,
         this returns immediately, but then stops publishing data for 0.75 sec
