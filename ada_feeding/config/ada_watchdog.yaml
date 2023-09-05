@@ -31,6 +31,8 @@ ada_watchdog:
     # The device ID of the microphone (e-stop button). This should usually
     # be 0, the system default
     device: 0
+    # How often (in Hz) to retry opening the microphone if it fails.
+    stream_open_retry_hz: 1.0
     # How long to wait before checking the microphone readings. This is because
     # there is initial noise when we first listen to the microphone.
     initial_wait_secs: 2.0

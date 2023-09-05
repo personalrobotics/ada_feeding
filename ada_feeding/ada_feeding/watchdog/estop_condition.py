@@ -39,6 +39,17 @@ class EStopCondition(WatchdogCondition):
     # pylint: disable=too-many-instance-attributes
     # We need so many because we allow users to configure the audio stream parameters.
 
+    PYAUDIO_STREAM_TROUBLESHOOTING = (
+        "The Pyaudio stream not opening error is often caused by another process using "
+        "the microphone and/or audio device. To address this, terminate the code and "
+        "try the following:\n"
+        "  1. Close all applications (e.g., System Settings) that may be accessing "
+        "audio devices.\n"
+        "  2. If that still doesn't address it, run `pulseaudio -k && sudo alsa "
+        "force-reload`.\n"
+        "Note that until this is addressed, the e-stop button will not be working."
+    )
+
     def __init__(self, node: Node) -> None:
         """
         Initialize the EStopCondition class.
@@ -74,15 +85,9 @@ class EStopCondition(WatchdogCondition):
         self.audio = pyaudio.PyAudio()
 
         # Initialize the stream, with a callback
-        self.stream = self.audio.open(
-            format=pyaudio.paInt16,
-            channels=1,  # The e-stop button is mono
-            rate=self.rate,
-            input=True,
-            frames_per_buffer=self.chunk,
-            input_device_index=self.device,
-            stream_callback=self.__audio_callback,
-        )
+        self.stream = None
+        self.last_stream_init_time = self._node.get_clock().now()
+        self.__init_stream()
 
     def __load_parameters(self) -> None:
         """
@@ -133,6 +138,23 @@ class EStopCondition(WatchdogCondition):
             ),
         )
         self.device = device.value
+
+        stream_open_retry_hz = self._node.declare_parameter(
+            "stream_open_retry_hz",
+            1.0,
+            ParameterDescriptor(
+                name="stream_open_retry_hz",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The rate (Hz) at which to retry opening the audio stream "
+                    "if it fails to open."
+                ),
+                read_only=True,
+            ),
+        )
+        self.stream_open_retry_duration = Duration(
+            seconds=1.0 / stream_open_retry_hz.value
+        )
 
         initial_wait_secs = self._node.declare_parameter(
             "initial_wait_secs",
@@ -349,6 +371,32 @@ class EStopCondition(WatchdogCondition):
                 "are not set, so the system microphone volume cannot be set"
             )
 
+    def __init_stream(self) -> None:
+        """
+        Initialize the audio stream. This function opens the audio stream and
+        sets the callback function.
+        """
+        self.last_stream_init_time = self._node.get_clock().now()
+        try:
+            self.stream = self.audio.open(
+                format=pyaudio.paInt16,
+                channels=1,  # The e-stop button is mono
+                rate=self.rate,
+                input=True,
+                frames_per_buffer=self.chunk,
+                input_device_index=self.device,
+                stream_callback=self.__audio_callback,
+            )
+        except OSError as exc:
+            self._node.get_logger().error(
+                (
+                    f"Error opening audio device {self.device}. "
+                    f"{EStopCondition.PYAUDIO_STREAM_TROUBLESHOOTING}\n\n"
+                    f"Excpetion: {exc}"
+                ),
+                throttle_duration_sec=1,
+            )
+
     def __acpi_listener(self) -> None:
         """
         Listens for ACPI events. If the e-stop button is unplugged, sets the
@@ -531,14 +579,29 @@ class EStopCondition(WatchdogCondition):
             least one message on topic X")] means that the startup condition has not
             passed because the node has not received any messages on topic X yet.
         """
-        name_1 = "Startup: E-Stop Button Clicked"
+        name_1 = "Startup: Pyaudio Stream Started"
+        # Attempt to start the stream
+        if self.stream is None:
+            # Retry opening the stream at the user-specified rate.
+            if (
+                self._node.get_clock().now() - self.last_stream_init_time
+                > self.stream_open_retry_duration
+            ):
+                self.__init_stream()
+        status_1 = self.stream is not None
+        condition_1 = f"Pyaudio stream has {'' if status_1 else 'not '}been started. "
+        if not status_1:  # Add troubleshooting information
+            condition_1 += EStopCondition.PYAUDIO_STREAM_TROUBLESHOOTING
+
+        # Verify that the e-stop button has been clicked at least once
+        name_2 = "Startup: E-Stop Button Clicked"
         with self.num_clicks_lock:
-            status_1 = self.num_clicks > 0
-        condition_1 = (
+            status_2 = self.num_clicks > 0
+        condition_2 = (
             f"E-stop button has {'' if status_1 else 'not '}been clicked at least once"
         )
 
-        return [(status_1, name_1, condition_1)]
+        return [(status_1, name_1, condition_1), (status_2, name_2, condition_2)]
 
     def check_status(self) -> List[Tuple[bool, str, str]]:
         """
@@ -576,6 +639,7 @@ class EStopCondition(WatchdogCondition):
         Terminate the EStop condition. This cleanly closes the pyaudio connection.
         """
         # Close the audio stream
-        self.stream.stop_stream()
-        self.stream.close()
+        if self.stream is not None:
+            self.stream.stop_stream()
+            self.stream.close()
         self.audio.terminate()
