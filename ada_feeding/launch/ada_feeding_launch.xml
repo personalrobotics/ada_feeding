@@ -1,5 +1,6 @@
 <launch>
   <arg name="run_web_bridge" default="true" description="Whether to run the web bridge nodes" />
+  <arg name="use_estop" default="true" description="Whether to use the e-stop. Should only be set false in sim, since we don't have a way of simulating the e-stop button." />
 
   <group if="$(var run_web_bridge)">
     <!-- The ROSBridge Node -->
@@ -11,6 +12,7 @@
   <!-- Launch the watchdog -->
   <node pkg="ada_feeding" exec="ada_watchdog.py" name="ada_watchdog">
     <param from="$(find-pkg-share ada_feeding)/config/ada_watchdog.yaml"/>
+    <param name="use_estop" value="$(var use_estop)"/>
     <remap from="~/ft_topic" to="/wireless_ft/ftSensor1" />
   </node>
 

@@ -6,9 +6,6 @@ ada_watchdog:
     ############################################################################
     # The rate at which to publish the watchdog message
     publish_rate_hz: 60.0
-    # Whether or not to use the estop button. This should only be set false in
-    # sim, because we currently have no way of simulating the estop button.
-    use_estop: true
 
     ############################################################################
     # Parameters for the FTSensorCondition of the watchdog
@@ -31,6 +28,8 @@ ada_watchdog:
     # The device ID of the microphone (e-stop button). This should usually
     # be 0, the system default
     device: 0
+    # How often (in Hz) to retry opening the microphone if it fails.
+    stream_open_retry_hz: 1.0
     # How long to wait before checking the microphone readings. This is because
     # there is initial noise when we first listen to the microphone.
     initial_wait_secs: 2.0
@@ -41,3 +40,59 @@ ada_watchdog:
     #   jack/microphone MICROPHONE unplug
     # Include the first two words in this parameter, exclude the third.
     acpi_event_name: "jack/microphone MICROPHONE"
+    # If there is a falling edge that passes this 16-bit int, it is considered a button
+    # click.
+    min_threshold: -10000
+    # If there is a rising edge that passes this 16-bit int, it is considered a button
+    # click.
+    max_threshold: 10000
+    # If there are multiple button clicks within this time range, it is considered a
+    # single click.
+    time_per_click_sec: 0.5
+    
+    # The below parameters are used to set the system microphone volume. It is
+    # important for system microphone volume to be consistent, because the e-stop
+    # button's signal amplitude is based on that. Since each device has different
+    # controls, we specify device-specific configurations.
+    # 
+    # Instructions to get the amixer parameters are here:
+    #     1. `amixer_mic_toggle_control_name`:
+    #         - Mute the microphone in the system settings.
+    #         - Run `amixer` in a terminal.
+    #         - Unmute the microphone in the system settings.
+    #         - Run `amixer` in a terminal.
+    #         - See which control switched from [off] to [on]. That is the control
+    #           name you want. (Note: saving amixer output to file and running `diff`
+    #           make this process easier.)
+    #     2. `amixer_mic_control_names`:
+    #         - Unmute the microphone in the system settings, and set its volume to be
+    #           low but not 0%.
+    #         - Run `amixer` in a terminal.
+    #         - In system settings, set the microphone volume to be 100%.
+    #         - Run `amixer` in a terminal.
+    #         - See which controls changed. Those are the control names you want.
+    #     3. `amixer_mic_control_percentages`:
+    #         - Open Audacity and System Settings side-by-side. Start recording in
+    #           Audacity. Press the e-stop button and notice the curve. You want the
+    #           low/high points of the curve to reach +/-1.0, but not exceed it (evidenced
+    #           by a horizontal line at 1.0 in Audacity). Tune the microphone volume in
+    #           System Settings until you get this.
+    #         - Run `amixer` in a terminal. Check the percentages for the controls you found
+    #           in the previous step. Those are the percentages you want.
+    amixer_configuration_name: lovelace
+    t0b1:
+      amixer_mic_toggle_control_name: "'Capture',0"
+      amixer_mic_control_names:
+        - "'Capture',0"
+        - "'Front Mic Boost',0"
+      amixer_mic_control_percentages:
+        - 37
+        - 0
+    lovelace:
+      amixer_mic_toggle_control_name: "'Capture',0"
+      amixer_mic_control_names:
+        - "'Capture',0"
+        - "'Internal Mic Boost',0"
+      amixer_mic_control_percentages:
+        - 40
+        - 0

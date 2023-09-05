@@ -7,6 +7,7 @@ e-stop button either being clicked or being unplugged and fails if so.
 
 # Standard imports
 import socket
+import subprocess
 from threading import Lock, Thread
 from typing import List, Optional, Tuple, Union
 
@@ -38,6 +39,18 @@ class EStopCondition(WatchdogCondition):
     # pylint: disable=too-many-instance-attributes
     # We need so many because we allow users to configure the audio stream parameters.
 
+    PYAUDIO_STREAM_TROUBLESHOOTING = (
+        "The Pyaudio stream not opening error is often caused by another process using "
+        "the microphone and/or audio device. To address this, terminate the code and "
+        "try the following:\n"
+        "  1. Close all applications (e.g., System Settings) that may be accessing "
+        "audio devices.\n"
+        "  2. If that still doesn't address it, run `sudo alsa force-reload`.\n"
+        "     Wait a few (~5) secs after running this command to restart the node,\n"
+        "     and note that you may have to run this command multiple times.\n"
+        "Note that until this is addressed, the e-stop button will not be working."
+    )
+
     def __init__(self, node: Node) -> None:
         """
         Initialize the EStopCondition class.
@@ -52,6 +65,9 @@ class EStopCondition(WatchdogCondition):
 
         # Load the parameters
         self.__load_parameters()
+
+        # Set system volume
+        self.__set_system_volume()
 
         # Initialize the accumulators
         self.start_time = None
@@ -70,15 +86,9 @@ class EStopCondition(WatchdogCondition):
         self.audio = pyaudio.PyAudio()
 
         # Initialize the stream, with a callback
-        self.stream = self.audio.open(
-            format=pyaudio.paInt16,
-            channels=1,  # The e-stop button is mono
-            rate=self.rate,
-            input=True,
-            frames_per_buffer=self.chunk,
-            input_device_index=self.device,
-            stream_callback=self.__audio_callback,
-        )
+        self.stream = None
+        self.last_stream_init_time = self._node.get_clock().now()
+        self.__init_stream()
 
     def __load_parameters(self) -> None:
         """
@@ -129,6 +139,23 @@ class EStopCondition(WatchdogCondition):
             ),
         )
         self.device = device.value
+
+        stream_open_retry_hz = self._node.declare_parameter(
+            "stream_open_retry_hz",
+            1.0,
+            ParameterDescriptor(
+                name="stream_open_retry_hz",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The rate (Hz) at which to retry opening the audio stream "
+                    "if it fails to open."
+                ),
+                read_only=True,
+            ),
+        )
+        self.stream_open_retry_duration = Duration(
+            seconds=1.0 / stream_open_retry_hz.value
+        )
 
         initial_wait_secs = self._node.declare_parameter(
             "initial_wait_secs",
@@ -208,6 +235,168 @@ class EStopCondition(WatchdogCondition):
             ),
         )
         self.time_per_click_duration = Duration(seconds=time_per_click_sec.value)
+
+        # Parameters for setting system volume using `amixer`. This is necessary
+        # because the e-stop button is a microphone, so the system's microphone
+        # volume will impact the amplitude of readings for the e-stop button.
+        # See `ada_watchdog.yaml` for instructions on tuning these parameters.
+        amixer_configuration_name = self._node.declare_parameter(
+            "amixer_configuration_name",
+            None,
+            ParameterDescriptor(
+                name="amixer_configuration_name",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The name of the configuration to use for `amixer`. "
+                    "For configuration name `config_name`, there must be "
+                    "parameters `config_name.amixer_mic_toggle_control_name`, "
+                    "`config_name.amixer_mic_control_names`, and "
+                    "`config_name.amixer_mic_control_percentages`."
+                ),
+                read_only=True,
+            ),
+        )
+        amixer_mic_toggle_control_name = self._node.declare_parameter(
+            f"{amixer_configuration_name.value}.amixer_mic_toggle_control_name",
+            None,
+            ParameterDescriptor(
+                name=f"{amixer_configuration_name.value}.amixer_mic_toggle_control_name",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The name of the toggle control to use for `amixer`. "
+                    "This is the control that is toggled to mute/unmute the "
+                    "microphone."
+                ),
+                read_only=True,
+            ),
+        )
+        amixer_mic_control_names = self._node.declare_parameter(
+            f"{amixer_configuration_name.value}.amixer_mic_control_names",
+            None,
+            ParameterDescriptor(
+                name=f"{amixer_configuration_name.value}.amixer_mic_control_names",
+                type=ParameterType.PARAMETER_STRING_ARRAY,
+                description=(
+                    "The names of the controls to use for `amixer`. "
+                    "These are the controls that are set to change the microphone "
+                    "volume."
+                ),
+                read_only=True,
+            ),
+        )
+        amixer_mic_control_percentages = self._node.declare_parameter(
+            f"{amixer_configuration_name.value}.amixer_mic_control_percentages",
+            None,
+            ParameterDescriptor(
+                name=f"{amixer_configuration_name.value}.amixer_mic_control_percentages",
+                type=ParameterType.PARAMETER_INTEGER_ARRAY,
+                description=(
+                    "The percentages to set the controls to for `amixer`. "
+                    "These are the percentages that the controls are set to change "
+                    "the microphone volume. Must be the same length as "
+                    "`amixer_mic_control_names`."
+                ),
+                read_only=True,
+            ),
+        )
+        self.amixer_configuration = {
+            "amixer_mic_toggle_control_name": amixer_mic_toggle_control_name.value,
+            "amixer_mic_control_names": amixer_mic_control_names.value,
+            "amixer_mic_control_percentages": amixer_mic_control_percentages.value,
+        }
+
+    def __set_system_volume(self) -> None:
+        """
+        Set the system volume using `amixer`. This is necessary because the
+        e-stop button is a microphone, so the system's microphone volume will
+        impact the amplitude of readings for the e-stop button.
+
+        TODO: Although not crucial, we should consider storing the original
+        system volume, and then restoring it when thos watchdog condition is
+        terminated.
+        """
+        # Get the amixer_configuration
+        toggle_control_name = self.amixer_configuration[
+            "amixer_mic_toggle_control_name"
+        ]
+        control_names = self.amixer_configuration["amixer_mic_control_names"]
+        control_percentages = self.amixer_configuration[
+            "amixer_mic_control_percentages"
+        ]
+
+        # First, unmute the microphone
+        if toggle_control_name is not None:
+            try:
+                toggle_output = subprocess.check_output(
+                    ["amixer", "sget", toggle_control_name]
+                )
+                if b"[off]" in toggle_output:
+                    toggle_output = subprocess.check_output(
+                        ["amixer", "sset", toggle_control_name, "toggle"]
+                    )
+                    if b"[on]" not in toggle_output:
+                        self._node.get_logger().error(
+                            f"Microphone remained muted even after toggling:\n{toggle_output}"
+                        )
+            except subprocess.CalledProcessError as exc:
+                self._node.get_logger().error(
+                    f"Error toggling microphone on: {exc.output}"
+                )
+        else:
+            self._node.get_logger().error(
+                "toggle_control_name is not set, so the system microphone "
+                "cannot be unmuted"
+            )
+
+        # Then, set the microphone volume
+        if control_names is not None and control_percentages is not None:
+            for i in range(min(len(control_names), len(control_percentages))):
+                try:
+                    control_name = control_names[i]
+                    control_percentage = control_percentages[i]
+                    control_output = subprocess.check_output(
+                        ["amixer", "sset", control_name, f"{control_percentage}%"]
+                    )
+                    if f"[{control_percentage}%]".encode() not in control_output:
+                        self._node.get_logger().error(
+                            f"Microphone {control_name} volume did not correctly set to "
+                            f"{control_percentage}%:\n{control_output}"
+                        )
+                except subprocess.CalledProcessError as exc:
+                    self._node.get_logger().error(
+                        f"Error setting microphone volume: {exc.output}"
+                    )
+        else:
+            self._node.get_logger().error(
+                "control_names and/or control_percentages "
+                "are not set, so the system microphone volume cannot be set"
+            )
+
+    def __init_stream(self) -> None:
+        """
+        Initialize the audio stream. This function opens the audio stream and
+        sets the callback function.
+        """
+        self.last_stream_init_time = self._node.get_clock().now()
+        try:
+            self.stream = self.audio.open(
+                format=pyaudio.paInt16,
+                channels=1,  # The e-stop button is mono
+                rate=self.rate,
+                input=True,
+                frames_per_buffer=self.chunk,
+                input_device_index=self.device,
+                stream_callback=self.__audio_callback,
+            )
+        except OSError as exc:
+            self._node.get_logger().error(
+                (
+                    f"Error opening audio device {self.device}. "
+                    f"{EStopCondition.PYAUDIO_STREAM_TROUBLESHOOTING}\n\n"
+                    f"Excpetion: {exc}"
+                ),
+                throttle_duration_sec=1,
+            )
 
     def __acpi_listener(self) -> None:
         """
@@ -391,14 +580,29 @@ class EStopCondition(WatchdogCondition):
             least one message on topic X")] means that the startup condition has not
             passed because the node has not received any messages on topic X yet.
         """
-        name_1 = "Startup: E-Stop Button Clicked"
+        name_1 = "Startup: Pyaudio Stream Started"
+        # Attempt to start the stream
+        if self.stream is None:
+            # Retry opening the stream at the user-specified rate.
+            if (
+                self._node.get_clock().now() - self.last_stream_init_time
+                > self.stream_open_retry_duration
+            ):
+                self.__init_stream()
+        status_1 = self.stream is not None
+        condition_1 = f"Pyaudio stream has {'' if status_1 else 'not '}been started. "
+        if not status_1:  # Add troubleshooting information
+            condition_1 += EStopCondition.PYAUDIO_STREAM_TROUBLESHOOTING
+
+        # Verify that the e-stop button has been clicked at least once
+        name_2 = "Startup: E-Stop Button Clicked"
         with self.num_clicks_lock:
-            status_1 = self.num_clicks > 0
-        condition_1 = (
+            status_2 = self.num_clicks > 0
+        condition_2 = (
             f"E-stop button has {'' if status_1 else 'not '}been clicked at least once"
         )
 
-        return [(status_1, name_1, condition_1)]
+        return [(status_1, name_1, condition_1), (status_2, name_2, condition_2)]
 
     def check_status(self) -> List[Tuple[bool, str, str]]:
         """
@@ -419,7 +623,10 @@ class EStopCondition(WatchdogCondition):
         name_1 = "E-Stop Button Not Clicked"
         with self.num_clicks_lock:
             status_1 = self.num_clicks < 2
-        condition_1 = f"E-stop button has {'not ' if status_1 else ''}been clicked since the startup click"
+        condition_1 = (
+            f"E-stop button has {'not ' if status_1 else ''}"
+            "been clicked since the startup click"
+        )
 
         name_2 = "E-Stop Button Plugged in"
         with self.is_mic_unplugged_lock:
@@ -433,6 +640,7 @@ class EStopCondition(WatchdogCondition):
         Terminate the EStop condition. This cleanly closes the pyaudio connection.
         """
         # Close the audio stream
-        self.stream.stop_stream()
-        self.stream.close()
+        if self.stream is not None:
+            self.stream.stop_stream()
+            self.stream.close()
         self.audio.terminate()
