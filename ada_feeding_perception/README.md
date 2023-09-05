@@ -5,8 +5,7 @@ This code performs image segmentation using the [Segment Anything](https://githu
 1. Clone this directory into the `src` folder of your ROS2 workspace.
 2. Install the Python dependencies:
 ```
-chmod +x install.sh
-./install.sh
+source install.sh
 ```
 3. Install the system dependencies:
 ```
