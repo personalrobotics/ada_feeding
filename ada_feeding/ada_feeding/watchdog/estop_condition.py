@@ -45,8 +45,9 @@ class EStopCondition(WatchdogCondition):
         "try the following:\n"
         "  1. Close all applications (e.g., System Settings) that may be accessing "
         "audio devices.\n"
-        "  2. If that still doesn't address it, run `pulseaudio -k && sudo alsa "
-        "force-reload`.\n"
+        "  2. If that still doesn't address it, run `sudo alsa force-reload`.\n"
+        "     Wait a few (~5) secs after running this command to restart the node,\n"
+        "     and note that you may have to run this command multiple times.\n"
         "Note that until this is addressed, the e-stop button will not be working."
     )
 
@@ -356,9 +357,9 @@ class EStopCondition(WatchdogCondition):
                     control_output = subprocess.check_output(
                         ["amixer", "sset", control_name, f"{control_percentage}%"]
                     )
-                    if f"[{control_percentage}]%".encode() not in control_output:
+                    if f"[{control_percentage}%]".encode() not in control_output:
                         self._node.get_logger().error(
-                            f"Microphone f{control_name} volume did not correctly set to "
+                            f"Microphone {control_name} volume did not correctly set to "
                             f"{control_percentage}%:\n{control_output}"
                         )
                 except subprocess.CalledProcessError as exc:
