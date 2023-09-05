@@ -10,6 +10,7 @@ In practice, this node is used to add the wheelchair, table, and user's face.
 from collections import namedtuple
 from os import path
 import threading
+import time
 from typing import List
 
 # Third-party imports
@@ -60,6 +61,23 @@ class ADAPlanningScene(Node):
         """
         Load the parameters for the planning scene.
         """
+        # At what frequency (Hz) to check whether the `/collision_object`
+        # topic is available (to call to add to the planning scene)
+        wait_for_moveit_hz = self.declare_parameter(
+            "wait_for_moveit_hz",
+            30.0,  # default value
+            ParameterDescriptor(
+                name="wait_for_moveit_hz",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The rate (Hz) at which to check the whether the "
+                    "`/collision_object` topic is available (i.e., MoveIt is running)."
+                ),
+                read_only=True,
+            ),
+        )
+        self.wait_for_moveit_hz = wait_for_moveit_hz.value
+
         # Read the assets directory path
         assets_dir = self.declare_parameter(
             "assets_dir",
@@ -126,6 +144,22 @@ class ADAPlanningScene(Node):
                 quat_xyzw=quat_xyzw.value,
             )
 
+    def wait_for_moveit(self) -> None:
+        """
+        Wait for the MoveIt2 interface to be ready. Specifically, it waits
+        until the `/collision_object` topic has at least one subscriber.
+        """
+        rate = self.create_rate(self.wait_for_moveit_hz)
+        while rclpy.ok():
+            # pylint: disable=protected-access
+            # This is necessary. Ideally, the publisher would not be protected.
+            if (
+                self.moveit2._MoveIt2__collision_object_publisher.get_subscription_count()
+                > 0
+            ):
+                break
+            rate.sleep()
+
     def initialize_planning_scene(self) -> None:
         """
         Initialize the planning scene with the objects.
@@ -161,10 +195,21 @@ def main(args: List = None) -> None:
     )
     spin_thread.start()
 
+    # Wait for the MoveIt2 interface to be ready
+    ada_planning_scene.get_logger().info("Waiting for MoveIt2 interface...")
+    ada_planning_scene.wait_for_moveit()
+
     # Initialize the planning scene
+    ada_planning_scene.get_logger().info("Initializing planning scene...")
     ada_planning_scene.initialize_planning_scene()
     ada_planning_scene.get_logger().info("Planning scene initialized.")
 
+    # Sleep to allow the messages to go through
+    time.sleep(10.0)
+
+    # Terminate this node
+    ada_planning_scene.destroy_node()
+    rclpy.shutdown()
     # Join the spin thread (so it is spinning in the main thread)
     spin_thread.join()
 

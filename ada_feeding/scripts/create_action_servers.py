@@ -10,17 +10,15 @@ import traceback
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 # Third-party imports
-from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+from ada_watchdog_listener import ADAWatchdogListener
 import py_trees
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.action.server import ServerGoalHandle
-from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
-from rclpy.time import Time
 
 # Local imports
 from ada_feeding import ActionServerBT
@@ -92,20 +90,12 @@ class CreateActionServers(Node):
         super().__init__("create_action_servers")
 
         # Read the parameters that specify what action servers to create.
-        watchdog_timeout, action_server_params = self.read_params()
+        action_server_params = self.read_params()
 
-        # Subscribe to the watchdog topic
-        self.watchdog_failed = (
-            True  # until we get a message from the watchdog, assume it has failed
-        )
-        self.last_watchdog_msg_time = None
-        self.watchdog_sub = self.create_subscription(
-            DiagnosticArray,
-            "~/watchdog",
-            self.watchdog_callback,
-            1,
-        )
-        self.watchdog_timeout = Duration(seconds=watchdog_timeout.value)
+        # Create the watchdog listener. Note that this watchdog listener
+        # adds additional parameters -- `watchdog_timeout_sec` and
+        # `initial_wait_time_sec` -- and another subscription to `~/watchdog`.
+        self.watchdog_listener = ADAWatchdogListener(self)
 
         # Track the active goal request.
         self.active_goal_request_lock = threading.Lock()
@@ -122,21 +112,6 @@ class CreateActionServers(Node):
         -------
         action_server_params: A list of ActionServerParams objects.
         """
-        # Read the watchdog timeout
-        watchdog_timeout = self.declare_parameter(
-            "watchdog_timeout",
-            0.5,
-            ParameterDescriptor(
-                name="watchdog_timeout",
-                type=ParameterType.PARAMETER_DOUBLE,
-                description=(
-                    "The maximum time (s) that the watchdog can go without "
-                    "publishing before the watchdog fails."
-                ),
-                read_only=True,
-            ),
-        )
-
         # Read the server names
         server_names = self.declare_parameter(
             "server_names",
@@ -244,39 +219,7 @@ class CreateActionServers(Node):
                 )
             )
 
-        return watchdog_timeout, action_server_params
-
-    def watchdog_callback(self, msg: DiagnosticArray) -> None:
-        """
-        Callback function for the watchdog topic. This function checks if the
-        watchdog has failed and, if so, cancels the active goal. Further, it
-        prevents any goals from being accepted once the watchdog has failed.
-
-        Parameters
-        ----------
-        msg: The watchdog message.
-        """
-        watchdog_failed = False
-        for status in msg.status:
-            if status.level != DiagnosticStatus.OK:
-                watchdog_failed = True
-                break
-        self.watchdog_failed = watchdog_failed
-
-        self.last_watchdog_msg_time = Time.from_msg(msg.header.stamp)
-
-    def is_watchdog_ok(self) -> bool:
-        """
-        Returns True if the watchdog is OK and has not timed out, else False.
-        """
-        return (
-            (not self.watchdog_failed)
-            and (self.last_watchdog_msg_time is not None)
-            and (
-                (self.get_clock().now() - self.last_watchdog_msg_time)
-                < self.watchdog_timeout
-            )
-        )
+        return action_server_params
 
     def create_action_servers(
         self, action_server_params: List[ActionServerParams]
@@ -346,7 +289,7 @@ class CreateActionServers(Node):
 
         # If we don't already have an active goal_request, accept this one
         with self.active_goal_request_lock:
-            if self.is_watchdog_ok() and self.active_goal_request is None:
+            if self.watchdog_listener.ok() and self.active_goal_request is None:
                 self.get_logger().info("Accepting goal request")
                 self.active_goal_request = goal_request
                 return GoalResponse.ACCEPT
@@ -398,7 +341,7 @@ class CreateActionServers(Node):
         tree_action_server = self._tree_classes[tree_class](**tree_kwargs)
         # Create the tree once
         tree = tree_action_server.create_tree(
-            server_name, action_type, self.get_logger(), self
+            server_name, action_type, server_name, self.get_logger(), self
         )
 
         async def execute_callback(goal_handle: ServerGoalHandle) -> Awaitable:
@@ -416,79 +359,84 @@ class CreateActionServers(Node):
                 f"with request {goal_handle.request}"
             )
 
-            # Setup the behavior tree class
-            tree.setup()  # TODO: consider adding a timeout here
-
-            # Send the goal to the behavior tree
-            tree_action_server.send_goal(tree, goal_handle.request)
-
-            # Execute the behavior tree
-            rate = self.create_rate(tick_rate)
-            result = None
-            try:
-                while rclpy.ok():
-                    # Check if the goal has been canceled
-                    if goal_handle.is_cancel_requested:
-                        # Note that the body of this conditional may be called
-                        # multiple times until the preemption is complete.
-                        self.get_logger().info("Goal canceled")
-                        tree_action_server.preempt_goal(
-                            tree
-                        )  # blocks until the preempt succeeds
-                        goal_handle.canceled()
-                        result = tree_action_server.get_result(tree)
-                        break
-
-                    # Check if the watchdog has failed
-                    if not self.is_watchdog_ok():
-                        self.get_logger().info("Watchdog failed, aborting goal")
-                        tree_action_server.preempt_goal(
-                            tree
-                        )  # blocks until the preempt succeeds
-                        goal_handle.abort()
-                        result = tree_action_server.get_result(tree)
-                        break
-
-                    # Tick the tree once and publish feedback
-                    tree.tick()
-                    feedback_msg = tree_action_server.get_feedback(tree)
-                    goal_handle.publish_feedback(feedback_msg)
-                    self.get_logger().info(f"Publishing feedback {feedback_msg}")
-
-                    # Check the tree status
-                    if tree.root.status == py_trees.common.Status.SUCCESS:
-                        self.get_logger().info("Goal succeeded")
-                        goal_handle.succeed()
-                        result = tree_action_server.get_result(tree)
-                        break
-                    if tree.root.status in set(
-                        (py_trees.common.Status.FAILURE, py_trees.common.Status.INVALID)
-                    ):
-                        self.get_logger().info("Goal failed")
-                        goal_handle.abort()
-                        result = tree_action_server.get_result(tree)
-                        break
-
-                    # Sleep
-                    rate.sleep()
-            except KeyboardInterrupt:
-                pass
-
-            # If we have gotten here without a result, that means something
-            # went wrong. Abort the goal.
-            if result is None:
-                goal_handle.abort()
-                result = action_type.Result()
-
-            # Shutdown the tree
             # pylint: disable=broad-exception-caught
             # All exceptions need printing at shutdown
             try:
+                # Setup the behavior tree class
+                tree.setup(node=self)  # TODO: consider adding a timeout here
+
+                # Send the goal to the behavior tree
+                tree_action_server.send_goal(tree, goal_handle.request)
+
+                # Execute the behavior tree
+                rate = self.create_rate(tick_rate)
+                result = None
+                try:
+                    while rclpy.ok():
+                        # Check if the goal has been canceled
+                        if goal_handle.is_cancel_requested:
+                            # Note that the body of this conditional may be called
+                            # multiple times until the preemption is complete.
+                            self.get_logger().info("Goal canceled")
+                            tree_action_server.preempt_goal(
+                                tree
+                            )  # blocks until the preempt succeeds
+                            goal_handle.canceled()
+                            result = tree_action_server.get_result(tree)
+                            break
+
+                        # Check if the watchdog has failed
+                        if not self.watchdog_listener.ok():
+                            self.get_logger().warn("Watchdog failed, aborting goal")
+                            tree_action_server.preempt_goal(
+                                tree
+                            )  # blocks until the preempt succeeds
+                            goal_handle.abort()
+                            result = tree_action_server.get_result(tree)
+                            break
+
+                        # Tick the tree once and publish feedback
+                        tree.tick()
+                        feedback_msg = tree_action_server.get_feedback(tree)
+                        goal_handle.publish_feedback(feedback_msg)
+                        self.get_logger().debug(f"Publishing feedback {feedback_msg}")
+
+                        # Check the tree status
+                        if tree.root.status == py_trees.common.Status.SUCCESS:
+                            self.get_logger().info("Goal succeeded")
+                            goal_handle.succeed()
+                            result = tree_action_server.get_result(tree)
+                            break
+                        if tree.root.status in set(
+                            (
+                                py_trees.common.Status.FAILURE,
+                                py_trees.common.Status.INVALID,
+                            )
+                        ):
+                            self.get_logger().info("Goal failed")
+                            goal_handle.abort()
+                            result = tree_action_server.get_result(tree)
+                            break
+
+                        # Sleep
+                        rate.sleep()
+                except KeyboardInterrupt:
+                    pass
+
+                # If we have gotten here without a result, that means something
+                # went wrong. Abort the goal.
+                if result is None:
+                    goal_handle.abort()
+                    result = action_type.Result()
+
+                # Shutdown the tree
                 tree.shutdown()
             except Exception as exc:
                 self.get_logger().error(
-                    f"Error shutting down tree: \n{traceback.format_exc()}\n{exc}"
+                    f"Error running tree: \n{traceback.format_exc()}\n{exc}"
                 )
+                goal_handle.abort()
+                result = action_type.Result()
 
             # Unset the goal and return the result
             with self.active_goal_request_lock:

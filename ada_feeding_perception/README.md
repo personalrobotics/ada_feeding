@@ -3,10 +3,14 @@ This code performs image segmentation using the [Segment Anything](https://githu
 
 ## Installation
 1. Clone this directory into the `src` folder of your ROS2 workspace.
-2. Install the dependencies:
+2. Install the Python dependencies:
 ```
 chmod +x install.sh
 ./install.sh
+```
+3. Install the system dependencies:
+```
+sudo apt install ros-humble-image-transport ros-humble-compressed-image-transport
 ```
 
 For testing, be sure to unzip `test/food_img.zip`.
@@ -15,7 +19,7 @@ For testing, be sure to unzip `test/food_img.zip`.
 
 1. Build your workspace: `colcon build`
 2. Source your workspace: `source install/setup.bash`
-3. Run the action servers: `ros2 launch ada_feeding_perception ada_feeding_perception_launch.xml`
+3. Run the perception nodes: `ros2 launch ada_feeding_perception ada_feeding_perception_launch.xml`
 4. Launch the motion nodes:
     1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_real_sense:=false run_face_detection:=false run_food_detection:=false`
     2. Real nodes: `ros2 launch ada_feeding ada_feeding_launch.xml`

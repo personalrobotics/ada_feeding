@@ -17,6 +17,9 @@ Usage:
     `ros2 param set /dummy_ft_sensor std [0.0, 0.1, 0.1, 0.1, 0.1, 0.1]`
 """
 
+# Standard imports
+import threading
+
 # Third-party imports
 from geometry_msgs.msg import WrenchStamped
 import numpy as np
@@ -24,6 +27,7 @@ from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from std_srvs.srv import SetBool
 
 
 class DummyForceTorqueSensor(Node):
@@ -35,6 +39,9 @@ class DummyForceTorqueSensor(Node):
     getting corrupted). The node is intended to be used to test the ADAWatchdog
     node.
     """
+
+    # pylint: disable=too-many-instance-attributes
+    # Two above is fine for a dummy node.
 
     def __init__(self, rate_hz: float = 30.0) -> None:
         """
@@ -48,7 +55,7 @@ class DummyForceTorqueSensor(Node):
         """
         super().__init__("dummy_ft_sensor")
 
-        # get the mean and standard deviaion of the distribution
+        # Get the mean and standard deviaion of the distribution
         self.mean = self.declare_parameter(
             "mean",
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -79,6 +86,15 @@ class DummyForceTorqueSensor(Node):
             ),
         )
 
+        # Create a service to (dummy) re-tare the sensor
+        self.set_bias_request_time = None
+        self.set_bias_request_time_lock = threading.Lock()
+        self.set_bias_service = self.create_service(
+            SetBool,
+            "/wireless_ft/set_bias",
+            self.set_bias_callback,
+        )
+
         # Create the publisher
         self.ft_msg = WrenchStamped()
         self.publisher_ = self.create_publisher(
@@ -89,12 +105,39 @@ class DummyForceTorqueSensor(Node):
         timer_period = 1.0 / rate_hz  # seconds
         self.timer = self.create_timer(timer_period, self.publish_msg)
 
+        self.get_logger().info("Initialized!")
+
+    def set_bias_callback(self, _: SetBool.Request, response: SetBool.Response):
+        """
+        Callback for the set_bias service. In order to mimic the actual service,
+        this returns immediately, but then stops publishing data for 0.75 sec
+        (handled in `publish_msg`). This is to mimic the time it takes to
+        re-tare the sensor.
+        """
+        response.success = True
+        if request.data:
+            response.message = "Successfully set the bias"
+        else:
+            response.message = "Successfully unset the bias"
+        with self.set_bias_request_time_lock:
+            self.set_bias_request_time = self.get_clock().now()
+        return response
+
     def publish_msg(self) -> None:
         """
         Publish a message to the force-torque sensor topic.
         """
         # Only publish if the sensor is on
         if self.get_parameter("is_on").value:
+            # Don't publish for 0.75 sec after a set_bias request
+            with self.set_bias_request_time_lock:
+                if (
+                    self.set_bias_request_time is not None
+                    and self.get_clock().now() - self.set_bias_request_time
+                    < rclpy.duration.Duration(seconds=0.75)
+                ):
+                    return
+
             # Get the simulated data
             ft_data = np.random.normal(
                 self.get_parameter("mean").value, self.get_parameter("std").value

@@ -93,25 +93,29 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.move_to_blackboard.register_key(
             key="allowed_planning_time", access=py_trees.common.Access.READ
         )
+        # Add the ability to set velocity scaling
+        self.move_to_blackboard.register_key(
+            key="max_velocity_scaling_factor", access=py_trees.common.Access.READ
+        )
         # Initialize the blackboard to read from the parent behavior tree
         self.tree_blackboard = self.attach_blackboard_client(
             name=name + " MoveTo", namespace=tree_name
         )
         # Feedback from MoveTo for the ROS2 Action Server
         self.tree_blackboard.register_key(
-            key="is_planning", access=py_trees.common.Access.EXCLUSIVE_WRITE
+            key="is_planning", access=py_trees.common.Access.WRITE
         )
         self.tree_blackboard.register_key(
-            key="planning_time", access=py_trees.common.Access.EXCLUSIVE_WRITE
+            key="planning_time", access=py_trees.common.Access.WRITE
         )
         self.tree_blackboard.register_key(
-            key="motion_time", access=py_trees.common.Access.EXCLUSIVE_WRITE
+            key="motion_time", access=py_trees.common.Access.WRITE
         )
         self.tree_blackboard.register_key(
-            key="motion_initial_distance", access=py_trees.common.Access.EXCLUSIVE_WRITE
+            key="motion_initial_distance", access=py_trees.common.Access.WRITE
         )
         self.tree_blackboard.register_key(
-            key="motion_curr_distance", access=py_trees.common.Access.EXCLUSIVE_WRITE
+            key="motion_curr_distance", access=py_trees.common.Access.WRITE
         )
 
         # Create MoveIt 2 interface for moving the Jaco arm. This must be done
@@ -137,12 +141,6 @@ class MoveTo(py_trees.behaviour.Behaviour):
             qos_profile=QoSPresetProfiles.SENSOR_DATA.value,
         )
 
-    def setup(self, **kwargs) -> None:
-        """
-        Create the MoveIt interface.
-        """
-        self.logger.info(f"{self.name} [MoveTo::setup()]")
-
     # pylint: disable=attribute-defined-outside-init
     # For attributes that are only used during the execution of the tree
     # and get reset before the next execution, it is reasonable to define
@@ -158,6 +156,11 @@ class MoveTo(py_trees.behaviour.Behaviour):
             get_from_blackboard_with_default(
                 self.move_to_blackboard, "planner_id", "RRTstarkConfigDefault"
             )
+        )
+
+        # Set the max velocity
+        self.moveit2.max_velocity = get_from_blackboard_with_default(
+            self.move_to_blackboard, "max_velocity_scaling_factor", 0.1
         )
 
         # Set the allowed planning time
@@ -262,10 +265,20 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 # for when the robot is in motion.
                 self.motion_future = self.moveit2.get_execution_future()
             elif self.moveit2.query_state() == MoveIt2State.IDLE:
-                # If we get here (i.e., self.moveit2 returned to IDLE without executing)
-                # then something went wrong (e.g., controller is already executing a
-                # trajectory, action server not available, goal was rejected, etc.)
-                return py_trees.common.Status.FAILURE
+                last_error_code = self.moveit2.get_last_execution_error_code()
+                if last_error_code is None or last_error_code.val != 1:
+                    # If we get here then something went wrong (e.g., controller
+                    # is already executing a trajectory, action server not
+                    # available, goal was rejected, etc.)
+                    self.logger.error(
+                        f"{self.name} [MoveTo::update()] Failed to execute trajectory before goal "
+                        "was accepted!"
+                    )
+                    return py_trees.common.Status.FAILURE
+                # If we get here, the goal finished executing within the
+                # last tick.
+                self.tree_blackboard.motion_curr_distance = 0.0
+                return py_trees.common.Status.SUCCESS
         if self.motion_future is not None:
             self.tree_blackboard.motion_curr_distance = (
                 self.distance_to_goal.get_distance()
@@ -309,6 +322,10 @@ class MoveTo(py_trees.behaviour.Behaviour):
         rate = self.node.create_rate(self.terminate_rate_hz)
         # A termination request has not succeeded until the MoveIt2 action server is IDLE
         while self.moveit2.query_state() != MoveIt2State.IDLE:
+            self.node.get_logger().info(
+                f"MoveTo Update MoveIt2State not Idle {time.time()} {terminate_requested_time} "
+                f"{self.terminate_timeout_s}"
+            )
             # If the goal is executing, cancel it
             if self.moveit2.query_state() == MoveIt2State.EXECUTING:
                 self.moveit2.cancel_execution()
