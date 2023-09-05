@@ -8,6 +8,6 @@ This repository contains code for the feeding web app. The app itself is in `fee
 - [ada_feeding (branch: `ros2-devel`)](https://github.com/personalrobotics/ada_feeding/tree/ros2-devel).
 - [web_video_server (branch: `ros2`)](https://github.com/RobotWebTools/web_video_server/tree/ros2)
     - Dependency: [async_web_server_cpp (branch: `ros2-develop`)](https://github.com/fkie/async_web_server_cpp)
-    - Dependency: [vision_opencv (branch: `humble` or your ROS2 version)](https://github.com/ros-perception/vision_opencv/tree/humble)
+    - Dependency: `ros-humble-vision-opencv`
     
 All these repositories of `feeding_web_interface`, `ada_feeding`, `async_web_server_cpp`, `vision_opencv`, `web_video_server`, and `PRL fork of rosbridge_suite` as mentioned above should be downloaded using `git clone ...` in the "src" folder inside the ROS2 workspace. Please follow the [Ubuntu (Debian) tutorial](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html) for ROS2 installation in Ubuntu 22, which will automatically lead to creation of "src" folder in ROS2 workspace. To access hidden `.env` file in Ubuntu to change the debug flag's value, press Ctrl + H in the `feeding_web_interface` folder. 
