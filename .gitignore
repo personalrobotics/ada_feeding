@@ -1,5 +1,6 @@
 # build folder
 build/
+__pycache__/
 
 # Compiled Object files
 *.slo
