@@ -41,6 +41,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
+        max_acceleration_scaling_factor: float = 0.1,
         # Optional parameters for the FT thresholds
         re_tare: bool = True,
         toggle_watchdog_listener: bool = True,
@@ -68,6 +69,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         allowed_planning_time: The allowed planning time for the MoveIt2 motion
             planner.
         max_velocity_scaling_factor: The maximum velocity scaling factor for the
+            MoveIt2 motion planner.
+        max_acceleration_scaling_factor: The maximum acceleration scaling factor for the
             MoveIt2 motion planner.
         re_tare: Whether to re-tare the force-torque sensor.
         toggle_watchdog_listener: Whether to toggle the watchdog listener on and off.
@@ -104,6 +107,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
+        self.max_acceleration_scaling_factor = max_acceleration_scaling_factor
 
         # Store the parameters for the FT threshold
         self.re_tare = re_tare
@@ -154,6 +158,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time,
                 max_velocity_scaling_factor=self.max_velocity_scaling_factor,
+                max_acceleration_scaling_factor=self.max_acceleration_scaling_factor,
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
                 clear_constraints=self.clear_constraints,
             )

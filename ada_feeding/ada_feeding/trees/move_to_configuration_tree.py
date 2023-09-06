@@ -50,6 +50,7 @@ class MoveToConfigurationTree(MoveToTree):
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
+        max_acceleration_scaling_factor: float = 0.1,
         keys_to_not_write_to_blackboard: Set[str] = set(),
         clear_constraints: bool = True,
     ):
@@ -67,6 +68,8 @@ class MoveToConfigurationTree(MoveToTree):
             planner.
         max_velocity_scaling_factor: The maximum velocity scaling factor for the
             MoveIt2 motion planner.
+        max_acceleration_scaling_factor: The maximum acceleration scaling factor
+            for the MoveIt2 motion planner.
         keys_to_not_write_to_blackboard: A set of keys that should not be written
             Note that the keys need to be exact e.g., "move_to.cartesian,"
             "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
@@ -87,6 +90,7 @@ class MoveToConfigurationTree(MoveToTree):
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
+        self.max_acceleration_scaling_factor = max_acceleration_scaling_factor
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
         self.clear_constraints = clear_constraints
 
@@ -167,6 +171,12 @@ class MoveToConfigurationTree(MoveToTree):
         self.blackboard.register_key(
             key=max_velocity_scaling_factor_key, access=py_trees.common.Access.WRITE
         )
+        max_acceleration_scaling_factor_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "max_acceleration_scaling_factor"]
+        )
+        self.blackboard.register_key(
+            key=max_acceleration_scaling_factor_key, access=py_trees.common.Access.WRITE,
+        )
 
         # Write the inputs to MoveToConfiguration to blackboard
         set_to_blackboard(
@@ -209,6 +219,12 @@ class MoveToConfigurationTree(MoveToTree):
             self.blackboard,
             max_velocity_scaling_factor_key,
             self.max_velocity_scaling_factor,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            max_acceleration_scaling_factor_key,
+            self.max_acceleration_scaling_factor,
             self.keys_to_not_write_to_blackboard,
         )
 

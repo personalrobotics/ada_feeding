@@ -45,6 +45,7 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
+        max_acceleration_scaling_factor: float = 0.1,
         # Optional parameters for the pose path constraint
         position_path: Tuple[float, float, float] = None,
         quat_xyzw_path: Tuple[float, float, float, float] = None,
@@ -72,6 +73,8 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
             planner.
         max_velocity_scaling_factor: The maximum velocity scaling factor for the
             MoveIt2 motion planner.
+        max_acceleration_scaling_factor: The maximum acceleration scaling factor
+            for the MoveIt2 motion planner.
         position_path: the position for the path constraint.
         quat_xyzw_path: the orientation for the path constraint.
         frame_id: the frame id of the target pose, for the pose path constraint.
@@ -107,6 +110,7 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
+        self.max_acceleration_scaling_factor = max_acceleration_scaling_factor
 
         # Store the parameters for the pose path constraint
         self.position_path = position_path
@@ -157,6 +161,7 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time,
                 max_velocity_scaling_factor=self.max_velocity_scaling_factor,
+                max_acceleration_scaling_factor=self.max_acceleration_scaling_factor,
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
                 clear_constraints=False,
             )
