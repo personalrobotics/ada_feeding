@@ -152,10 +152,8 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.logger.info(f"{self.name} [MoveTo::initialise()]")
 
         # Set the planner_id
-        self.moveit2.set_planner_id(
-            get_from_blackboard_with_default(
-                self.move_to_blackboard, "planner_id", "RRTstarkConfigDefault"
-            )
+        self.moveit2.planner_id = get_from_blackboard_with_default(
+            self.move_to_blackboard, "planner_id", "RRTstarkConfigDefault"
         )
 
         # Set the max velocity
