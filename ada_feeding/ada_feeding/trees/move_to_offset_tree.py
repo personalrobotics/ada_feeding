@@ -33,7 +33,7 @@ class MoveToOffsetTree(MoveToTree):
 
     def __init__(
         self,
-        dustance: float,
+        distance: float,
         direction: str,
         allowed_planning_time: float = 0.5
     ):
