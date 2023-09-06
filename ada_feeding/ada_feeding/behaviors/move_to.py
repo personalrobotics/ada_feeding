@@ -267,6 +267,17 @@ class MoveTo(py_trees.behaviour.Behaviour):
                     )
                     return py_trees.common.Status.FAILURE
 
+                # MoveIt's default cartesian interpolator doesn't respect velocity
+                # scaling, so we need to manually add that.
+                if self.cartesian and self.moveit2.max_velocity > 0.0:
+                    for point in traj.points:
+                        nsec = point.time_from_start.sec * 10.0**9
+                        nsec += point.time_from_start.nanosec
+                        nsec /= self.moveit2.max_velocity
+                        sec = int(math.floor(nsec / 10.0**9))
+                        point.time_from_start.sec = sec
+                        point.time_from_start.nanosec = int(nsec - sec * 10.0**9)
+
                 # Set the trajectory's initial distance to goal
                 self.tree_blackboard.motion_initial_distance = (
                     self.distance_to_goal.set_trajectory(traj)
