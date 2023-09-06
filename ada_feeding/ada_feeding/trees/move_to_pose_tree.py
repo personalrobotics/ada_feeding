@@ -267,7 +267,8 @@ class MoveToPoseTree(MoveToTree):
             [move_to_namespace_prefix, "max_acceleration_scaling_factor"]
         )
         self.blackboard.register_key(
-            key=max_acceleration_scaling_factor_key, access=py_trees.common.Access.WRITE,
+            key=max_acceleration_scaling_factor_key,
+            access=py_trees.common.Access.WRITE,
         )
 
         # Write the inputs to MoveToPose to blackboard
