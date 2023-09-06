@@ -84,6 +84,10 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.move_to_blackboard.register_key(
             key="cartesian", access=py_trees.common.Access.READ
         )
+        # Add the ability to set a pipeline_id
+        self.move_to_blackboard.register_key(
+            key="pipeline_id", access=py_trees.common.Access.READ
+        )
         # Add the ability to set a planner_id
         self.move_to_blackboard.register_key(
             key="planner_id", access=py_trees.common.Access.READ
@@ -144,6 +148,15 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.logger.info(f"{self.name} [MoveTo::initialise()]")
 
         with self.moveit2_lock:
+            # Set the planner_id
+            self.moveit2.planner_id = get_from_blackboard_with_default(
+                self.move_to_blackboard, "planner_id", "RRTstarkConfigDefault"
+            )
+            # Set the pipeline_id
+            self.moveit2.pipeline_id = get_from_blackboard_with_default(
+                self.move_to_blackboard, "pipeline_id", "ompl"
+            )
+
             # Set the planner_id
             self.moveit2.planner_id = get_from_blackboard_with_default(
                 self.move_to_blackboard, "planner_id", "RRTstarkConfigDefault"

@@ -48,6 +48,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         weight_position_goal: float = 1.0,
         weight_orientation_goal: float = 1.0,
         cartesian: bool = False,
+        pipeline_id: str = "ompl",
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
@@ -81,6 +82,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         weight_position_goal: the weight for the position goal.
         weight_orientation_goal: the weight for the orientation goal.
         cartesian: whether to use cartesian path planning.
+        pipeline_id: the pipeline ID to use for MoveIt2 motion planning.
         planner_id: the planner ID to use for MoveIt2 motion planning.
         allowed_planning_time: the allowed planning time for the MoveIt2 motion
             planner.
@@ -120,6 +122,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         self.weight_position_goal = weight_position_goal
         self.weight_orientation_goal = weight_orientation_goal
         self.cartesian = cartesian
+        self.pipeline_id = pipeline_id
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
@@ -176,6 +179,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
                 weight_position=self.weight_position_goal,
                 weight_orientation=self.weight_orientation_goal,
                 cartesian=self.cartesian,
+                pipeline_id=self.pipeline_id,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time,
                 max_velocity_scaling_factor=self.max_velocity_scaling_factor,

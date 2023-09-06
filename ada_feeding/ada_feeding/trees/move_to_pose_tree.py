@@ -58,6 +58,7 @@ class MoveToPoseTree(MoveToTree):
         weight_position: float = 1.0,
         weight_orientation: float = 1.0,
         cartesian: bool = False,
+        pipeline_id: str = "ompl",
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
@@ -81,6 +82,7 @@ class MoveToPoseTree(MoveToTree):
         weight_position: the weight for the end effector position.
         weight_orientation: the weight for the end effector orientation.
         cartesian: whether to use cartesian path planning.
+        pipeline_id: the pipeline to use for path planning.
         planner_id: the planner to use for path planning.
         allowed_planning_time: the allowed planning time for path planning.
         max_velocity_scaling_factor: the maximum velocity scaling factor for path
@@ -107,6 +109,7 @@ class MoveToPoseTree(MoveToTree):
         self.weight_position = weight_position
         self.weight_orientation = weight_orientation
         self.cartesian = cartesian
+        self.pipeline_id = pipeline_id
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
@@ -232,6 +235,12 @@ class MoveToPoseTree(MoveToTree):
         self.blackboard.register_key(
             key=cartesian_key, access=py_trees.common.Access.WRITE
         )
+        pipeline_id_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "pipeline_id"]
+        )
+        self.blackboard.register_key(
+            key=pipeline_id_key, access=py_trees.common.Access.WRITE
+        )
         planner_id_key = Blackboard.separator.join(
             [move_to_namespace_prefix, "planner_id"]
         )
@@ -324,6 +333,12 @@ class MoveToPoseTree(MoveToTree):
             self.blackboard,
             cartesian_key,
             self.cartesian,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            pipeline_id_key,
+            self.pipeline_id,
             self.keys_to_not_write_to_blackboard,
         )
         set_to_blackboard(

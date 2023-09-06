@@ -46,6 +46,7 @@ class MoveToConfigurationTree(MoveToTree):
         joint_positions: List[float],
         tolerance: float = 0.001,
         weight: float = 1.0,
+        pipeline_id: str = "ompl",
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
@@ -60,6 +61,7 @@ class MoveToConfigurationTree(MoveToTree):
         joint_positions: The joint positions to move the robot arm to.
         tolerance: The tolerance for the joint positions.
         weight: The weight for the joint goal constraint.
+        pipeline_id: The pipeline ID to use for the MoveIt2 motion planner.
         planner_id: The planner ID to use for the MoveIt2 motion planning.
         allowed_planning_time: The allowed planning time for the MoveIt2 motion
             planner.
@@ -81,6 +83,7 @@ class MoveToConfigurationTree(MoveToTree):
         assert len(self.joint_positions) == 6, "Must provide 6 joint positions"
         self.tolerance = tolerance
         self.weight = weight
+        self.pipeline_id = pipeline_id
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
@@ -140,6 +143,12 @@ class MoveToConfigurationTree(MoveToTree):
         )
 
         # Inputs for MoveTo
+        pipeline_id_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "pipeline_id"]
+        )
+        self.blackboard.register_key(
+            key=pipeline_id_key, access=py_trees.common.Access.WRITE
+        )
         planner_id_key = Blackboard.separator.join(
             [move_to_namespace_prefix, "planner_id"]
         )
@@ -176,6 +185,12 @@ class MoveToConfigurationTree(MoveToTree):
             self.blackboard,
             weight_key,
             self.weight,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            pipeline_id_key,
+            self.pipeline_id,
             self.keys_to_not_write_to_blackboard,
         )
         set_to_blackboard(
