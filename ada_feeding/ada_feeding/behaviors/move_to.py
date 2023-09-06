@@ -388,25 +388,41 @@ class DistanceToGoal:
 
     def joint_state_callback(self, msg: JointState) -> None:
         """
-        This function stores the robot's current joint state, and
-        """
-        self.curr_joint_state = msg
+        This function stores the robot's current joint state, and aligns those
+        messages with the order of joints in the robot's computed trajectory.
 
-        if (
-            self.aligned_joint_indices is None
-            and self.joint_names is not None
-            and self.trajectory is not None
-        ):
+        It assumes:
+            (a) that there are joint state messages that contain all of the robot's
+                joints that are in the trajectory.
+            (b) that the order of joins in the trajectory and in the joint state
+                messages never changes.
+        """
+        # Only store messages that have all of the robot's joints. This is
+        # because sometimes nodes other than the robot will be publishing to
+        # the joint state publisher.
+        contains_all_robot_joints = True
+        if self.joint_names is not None:
+            for joint_name in self.joint_names:
+                if joint_name not in msg.name:
+                    contains_all_robot_joints = False
+                    break
+        if contains_all_robot_joints:
+            self.curr_joint_state = msg
+
             # Align the joint names between the JointState and JointTrajectory
             # messages.
-            self.aligned_joint_indices = []
-            for joint_name in self.joint_names:
-                if joint_name in msg.name and joint_name in self.trajectory.joint_names:
-                    joint_state_i = msg.name.index(joint_name)
-                    joint_traj_i = self.trajectory.joint_names.index(joint_name)
-                    self.aligned_joint_indices.append(
-                        (joint_name, joint_state_i, joint_traj_i)
-                    )
+            if self.aligned_joint_indices is None and self.trajectory is not None:
+                self.aligned_joint_indices = []
+                for joint_name in self.joint_names:
+                    if (
+                        joint_name in msg.name
+                        and joint_name in self.trajectory.joint_names
+                    ):
+                        joint_state_i = msg.name.index(joint_name)
+                        joint_traj_i = self.trajectory.joint_names.index(joint_name)
+                        self.aligned_joint_indices.append(
+                            (joint_name, joint_state_i, joint_traj_i)
+                        )
 
     @staticmethod
     def joint_position_dist(point1: float, point2: float) -> float:
