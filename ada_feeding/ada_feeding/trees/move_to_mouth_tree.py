@@ -65,6 +65,8 @@ class MoveToMouthTree(MoveToTree):
         allowed_planning_time_to_mouth: float = 0.5,
         max_velocity_scaling_factor_to_staging_configuration: float = 0.1,
         max_velocity_scaling_factor_to_mouth: float = 0.1,
+        cartesian_jump_threshold_to_mouth: float = 0.0,
+        cartesian_max_step_to_mouth: float = 0.0025,
         head_object_id: str = "head",
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 4.0,
@@ -95,6 +97,11 @@ class MoveToMouthTree(MoveToTree):
             the staging config.
         max_velocity_scaling_factor_to_mouth: The maximum velocity scaling
             factor for the MoveIt2 motion planner to move to the user's mouth.
+        cartesian_jump_threshold_to_mouth: The maximum allowed jump in the
+            cartesian space for the MoveIt2 motion planner to move to the user's
+            mouth.
+        cartesian_max_step_to_mouth: The maximum allowed step in the cartesian
+            space for the MoveIt2 motion planner to move to the user's mouth.
         head_object_id: The ID of the head collision object in the MoveIt2
             planning scene.
         wheelchair_collision_object_id: The ID of the wheelchair collision object
@@ -131,6 +138,8 @@ class MoveToMouthTree(MoveToTree):
             max_velocity_scaling_factor_to_staging_configuration
         )
         self.max_velocity_scaling_factor_to_mouth = max_velocity_scaling_factor_to_mouth
+        self.cartesian_jump_threshold_to_mouth = cartesian_jump_threshold_to_mouth
+        self.cartesian_max_step_to_mouth = cartesian_max_step_to_mouth
         self.head_object_id = head_object_id
         self.wheelchair_collision_object_id = wheelchair_collision_object_id
         self.force_threshold = force_threshold
@@ -384,6 +393,9 @@ class MoveToMouthTree(MoveToTree):
                 tolerance_orientation_goal=(0.6, 0.5, 0.5),
                 parameterization_orientation_goal=1,  # Rotation vector
                 cartesian=True,
+                cartesian_jump_threshold=self.cartesian_jump_threshold_to_mouth,
+                cartesian_max_step=self.cartesian_max_step_to_mouth,
+                cartesian_fraction_threshold=0.85,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time_to_mouth,
                 max_velocity_scaling_factor=self.max_velocity_scaling_factor_to_mouth,

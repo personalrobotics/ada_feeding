@@ -84,6 +84,8 @@ ada_feeding_action_servers:
         - allowed_planning_time_to_staging_configuration
         - max_velocity_scaling_factor_to_staging_configuration
         - max_velocity_scaling_factor_to_mouth
+        - cartesian_jump_threshold_to_mouth
+        - cartesian_max_step_to_mouth
       tree_kwargs: # optional
         staging_configuration:
           # # Side-staging configuration
@@ -116,9 +118,11 @@ ada_feeding_action_servers:
           - 0.6 # x, rad
           - 3.14159 # y, rad
           - 0.5 # z, rad
-        allowed_planning_time_to_staging_configuration: 1.5 # secs
+        allowed_planning_time_to_staging_configuration: 2.0 # secs
         max_velocity_scaling_factor_to_staging_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
         max_velocity_scaling_factor_to_mouth: 0.4 # optional in (0.0, 1.0], default: 0.1
+        cartesian_jump_threshold_to_mouth: 4.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
+        cartesian_max_step_to_mouth: 0.01 # m
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveFromMouthToAbovePlate action.
@@ -135,6 +139,8 @@ ada_feeding_action_servers:
         - orientation_constraint_to_staging_configuration_tolerances
         - max_velocity_scaling_factor_to_staging_configuration
         - max_velocity_scaling_factor_to_end_configuration
+        - cartesian_jump_threshold_to_staging_configuration
+        - cartesian_max_step_to_staging_configuration
       tree_kwargs: # optional
         staging_configuration_position:
           -  0.27971 # x
@@ -163,6 +169,8 @@ ada_feeding_action_servers:
           - 0.5 # z, rad
         max_velocity_scaling_factor_to_staging_configuration: 0.4 # optional in (0.0, 1.0], default: 0.1
         max_velocity_scaling_factor_to_end_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
+        cartesian_jump_threshold_to_staging_configuration: 4.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
+        cartesian_max_step_to_staging_configuration: 0.01 # m
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveFromMouthToRestingPosition action.
@@ -182,6 +190,8 @@ ada_feeding_action_servers:
         - allowed_planning_time_to_end_configuration
         - max_velocity_scaling_factor_to_staging_configuration
         - max_velocity_scaling_factor_to_end_configuration
+        - cartesian_jump_threshold_to_staging_configuration
+        - cartesian_max_step_to_staging_configuration
       tree_kwargs: # optional
         staging_configuration_position:
           -  0.27971 # x
@@ -219,7 +229,9 @@ ada_feeding_action_servers:
           - 0.5 # z, rad
         max_velocity_scaling_factor_to_staging_configuration: 0.4 # optional in (0.0, 1.0], default: 0.1
         max_velocity_scaling_factor_to_end_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
-        allowed_planning_time_to_end_configuration: 1.5 # secs
+        cartesian_jump_threshold_to_staging_configuration: 4.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
+        cartesian_max_step_to_staging_configuration: 0.01 # m
+        allowed_planning_time_to_end_configuration: 2.5 # secs
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToStowLocation action

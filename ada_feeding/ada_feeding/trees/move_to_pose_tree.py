@@ -58,6 +58,9 @@ class MoveToPoseTree(MoveToTree):
         weight_position: float = 1.0,
         weight_orientation: float = 1.0,
         cartesian: bool = False,
+        cartesian_jump_threshold: float = 0.0,
+        cartesian_max_step: float = 0.0025,
+        cartesian_fraction_threshold: float = 0.0,
         pipeline_id: str = "ompl",
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
@@ -83,6 +86,10 @@ class MoveToPoseTree(MoveToTree):
         weight_position: the weight for the end effector position.
         weight_orientation: the weight for the end effector orientation.
         cartesian: whether to use cartesian path planning.
+        cartesian_jump_threshold: the jump threshold for cartesian path planning.
+        cartesian_max_step: the maximum step for cartesian path planning.
+        cartesian_fraction_threshold: Reject cartesian plans that don't reach
+            at least this fraction of the path to the goal.
         pipeline_id: the pipeline to use for path planning.
         planner_id: the planner to use for path planning.
         allowed_planning_time: the allowed planning time for path planning.
@@ -112,6 +119,9 @@ class MoveToPoseTree(MoveToTree):
         self.weight_position = weight_position
         self.weight_orientation = weight_orientation
         self.cartesian = cartesian
+        self.cartesian_jump_threshold = cartesian_jump_threshold
+        self.cartesian_max_step = cartesian_max_step
+        self.cartesian_fraction_threshold = cartesian_fraction_threshold
         self.pipeline_id = pipeline_id
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
@@ -239,6 +249,25 @@ class MoveToPoseTree(MoveToTree):
         self.blackboard.register_key(
             key=cartesian_key, access=py_trees.common.Access.WRITE
         )
+        cartesian_jump_threshold_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "cartesian_jump_threshold"]
+        )
+        self.blackboard.register_key(
+            key=cartesian_jump_threshold_key, access=py_trees.common.Access.WRITE
+        )
+        cartesian_max_step_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "cartesian_max_step"]
+        )
+        self.blackboard.register_key(
+            key=cartesian_max_step_key, access=py_trees.common.Access.WRITE
+        )
+        cartesian_fraction_threshold_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "cartesian_fraction_threshold"]
+        )
+        self.blackboard.register_key(
+            key=cartesian_fraction_threshold_key,
+            access=py_trees.common.Access.WRITE,
+        )
         pipeline_id_key = Blackboard.separator.join(
             [move_to_namespace_prefix, "pipeline_id"]
         )
@@ -344,6 +373,24 @@ class MoveToPoseTree(MoveToTree):
             self.blackboard,
             cartesian_key,
             self.cartesian,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            cartesian_jump_threshold_key,
+            self.cartesian_jump_threshold,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            cartesian_max_step_key,
+            self.cartesian_max_step,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            cartesian_fraction_threshold_key,
+            self.cartesian_fraction_threshold,
             self.keys_to_not_write_to_blackboard,
         )
         set_to_blackboard(

@@ -57,6 +57,8 @@ class MoveFromMouthTree(MoveToTree):
         allowed_planning_time_to_end_configuration: float = 0.5,
         max_velocity_scaling_factor_to_staging_configuration: float = 0.1,
         max_velocity_scaling_factor_to_end_configuration: float = 0.1,
+        cartesian_jump_threshold_to_staging_configuration: float = 0.0,
+        cartesian_max_step_to_staging_configuration: float = 0.0025,
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 4.0,
         torque_threshold: float = 4.0,
@@ -95,6 +97,12 @@ class MoveFromMouthTree(MoveToTree):
         max_velocity_scaling_factor_to_end_configuration: The maximum
             velocity scaling factor for the MoveIt2 motion planner to move to
             the end config.
+        cartesian_jump_threshold_to_staging_configuration: The cartesian
+            jump threshold for the MoveIt2 motion planner to move to the
+            staging config.
+        cartesian_max_step_to_staging_configuration: The cartesian
+            max step for the MoveIt2 motion planner to move to the
+            staging config.
         wheelchair_collision_object_id: The ID of the wheelchair collision object
             in the MoveIt2 planning scene.
         force_threshold: The force threshold (N) for the ForceGateController.
@@ -138,6 +146,12 @@ class MoveFromMouthTree(MoveToTree):
         )
         self.max_velocity_scaling_factor_to_end_configuration = (
             max_velocity_scaling_factor_to_end_configuration
+        )
+        self.cartesian_jump_threshold_to_staging_configuration = (
+            cartesian_jump_threshold_to_staging_configuration
+        )
+        self.cartesian_max_step_to_staging_configuration = (
+            cartesian_max_step_to_staging_configuration
         )
         self.wheelchair_collision_object_id = wheelchair_collision_object_id
         self.force_threshold = force_threshold
@@ -213,6 +227,9 @@ class MoveFromMouthTree(MoveToTree):
                 tolerance_orientation_goal=(0.6, 0.5, 0.5),
                 parameterization_orientation_goal=1,  # Rotation vector
                 cartesian=True,
+                cartesian_jump_threshold=self.cartesian_jump_threshold_to_staging_configuration,
+                cartesian_max_step=self.cartesian_max_step_to_staging_configuration,
+                cartesian_fraction_threshold=0.85,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time_to_staging_configuration,
                 max_velocity_scaling_factor=(
