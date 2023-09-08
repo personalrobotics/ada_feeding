@@ -302,13 +302,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 # MoveIt's default cartesian interpolator doesn't respect velocity
                 # scaling, so we need to manually add that.
                 if self.cartesian and self.moveit2.max_velocity > 0.0:
-                    for point in traj.points:
-                        nsec = point.time_from_start.sec * 10.0**9
-                        nsec += point.time_from_start.nanosec
-                        nsec /= self.moveit2.max_velocity
-                        sec = int(math.floor(nsec / 10.0**9))
-                        point.time_from_start.sec = sec
-                        point.time_from_start.nanosec = int(nsec - sec * 10.0**9)
+                    MoveTo.scale_velocity(traj, self.moveit2.max_velocity)
 
                 # Set the trajectory's initial distance to goal
                 self.tree_blackboard.motion_initial_distance = (
@@ -422,6 +416,42 @@ class MoveTo(py_trees.behaviour.Behaviour):
         Shutdown infrastructure created in setup().
         """
         self.logger.info(f"{self.name} [MoveTo::shutdown()]")
+
+    @staticmethod
+    def scale_velocity(traj: JointTrajectory, scale_factor: float) -> None:
+        """
+        Scale the velocity of the trajectory by the given factor. The resulting
+        trajectory should execute the same trajectory with the same continuity,
+        but just take 1/scale_factor as long to execute.
+
+        This function keeps positions the same and scales time, velocities, and
+        accelerations. It does not modify effort.
+
+        Parameters
+        ----------
+        traj: The trajectory to scale.
+        scale_factor: The factor to scale the velocity by, in [0, 1].
+        """
+        for point in traj.points:
+            # Scale time_from_start
+            nsec = point.time_from_start.sec * 10.0**9
+            nsec += point.time_from_start.nanosec
+            nsec /= scale_factor  # scale time
+            sec = int(math.floor(nsec / 10.0**9))
+            point.time_from_start.sec = sec
+            point.time_from_start.nanosec = int(nsec - sec * 10.0**9)
+
+            # Scale the velocities
+            for i in range(
+                len(point.velocities)
+            ):  # pylint: disable=consider-using-enumerate
+                point.velocities[i] *= scale_factor
+
+            # Scale the accelerations
+            for i in range(
+                len(point.accelerations)
+            ):  # pylint: disable=consider-using-enumerate
+                point.accelerations[i] *= scale_factor**2
 
 
 class DistanceToGoal:
