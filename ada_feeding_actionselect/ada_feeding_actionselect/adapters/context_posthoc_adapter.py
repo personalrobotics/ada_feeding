@@ -41,8 +41,8 @@ class ContextAdapter(ABC):
     def get_context(
         self,
         mask: Mask,
-        image: Union[Image, CompressedImage],
-        depth: Union[Image, CompressedImage]
+        image: npt.NDArray,
+        depth: npt.NDArray
     ) -> npt.NDArray:
         """
         Create the context vector from the provided visual info
@@ -71,8 +71,8 @@ class NoContext(ContextAdapter):
     def get_context(
         self,
         mask: Mask,
-        image: Union[Image, CompressedImage],
-        depth: Union[Image, CompressedImage]
+        image: npt.NDArray,
+        depth: npt.NDArray
     ) -> npt.NDArray:
         return np.array([0.0])
 
@@ -120,8 +120,8 @@ class NoContext(ContextAdapter, PosthocAdapter):
     def get_context(
         self,
         mask: Mask,
-        image: Union[Image, CompressedImage],
-        depth: Union[Image, CompressedImage]
+        image: npt.NDArray,
+        depth: npt.NDArray
     ) -> npt.NDArray:
         return np.array([0.0])
 
