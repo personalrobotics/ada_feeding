@@ -1,0 +1,113 @@
+## Cross-Policy Variables
+define: &library config/acquisition_library.xml
+define: &data_prefix default_spanet
+define: &context_lambda 1000.0
+define: &posthoc_lambda 1.0
+
+# NOTE: You have to change this node name if you change the node name in the launchfile.
+ada_feeding_policy_services:
+  ros__parameters:
+
+    #### Context Adapters
+
+    #context_class: ada_feeding_actionselect.adapters.SPANetContext
+    #context_kws:
+    #  - checkpoint
+    #context_kwargs:
+    #  checkpoint: food_spanet_all_rgb_wall_ckpt_best.pth
+
+    context_class: ada_feeding_actionselect.adapters.NoContext
+
+    #### Posthoc Adapters
+
+    #context_class: ada_feeding_actionselect.adapters.HapticNetPosthoc
+    #context_kws:
+    #  - checkpoint
+    #context_kwargs:
+    #  checkpoint: FCNcheckpoint_category_0_of_3fold_Adam.pth
+
+    posthoc_class: ada_feeding_actionselect.adapters.NoContext
+
+    #### Policies
+
+    constant: # required
+      policy_class: ada_feeding_actionselect.policies.ConstantPolicy # required
+      kws: # optional
+        - library
+        - index
+      kwargs: # optional
+        library: *library # path to library of actions (package share)
+        index: 0 # Which action to execute
+
+    random:
+      policy_class: ada_feeding_actionselect.policies.LinearPolicy
+      kws: 
+        - library
+        - context_lambda
+        - posthoc_lambda
+        - data_prefix
+      kwargs:
+        library: *library # path to library of actions (package share)
+        context_lambda: *context_lambda # L2 regularizer for context
+        posthoc_lambda: *posthoc_lambda # L2 regularizer for posthoc
+        data_prefix: *data_prefix # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
+
+    egreedy:
+      policy_class: ada_feeding_actionselect.policies.EGreedyPolicy
+      kws: 
+        - library
+        - context_lambda
+        - posthoc_lambda
+        - data_prefix
+        - epsilon
+      kwargs:
+        library: *library # path to library of actions (package share)
+        context_lambda: *context_lambda # L2 regularizer for context
+        posthoc_lambda: 0.0 # L2 regularizer for posthoc
+        data_prefix: *data_prefix # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
+        epsilon: 0.1 # how often to take a random action
+
+    egreedy_posthoc:
+      policy_class: ada_feeding_actionselect.policies.EGreedyPolicy
+      kws: 
+        - library
+        - context_lambda
+        - posthoc_lambda
+        - data_prefix
+        - epsilon
+      kwargs:
+        library: *library # path to library of actions (package share)
+        context_lambda: *context_lambda # L2 regularizer for context
+        posthoc_lambda: *posthoc_lambda # L2 regularizer for posthoc
+        data_prefix: *data_prefix # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
+        epsilon: 0.1 # how often to take a random action
+
+    linucb:
+      policy_class: ada_feeding_actionselect.policies.LinUCBPolicy
+      kws: 
+        - library
+        - context_lambda
+        - posthoc_lambda
+        - data_prefix
+        - alpha
+      kwargs:
+        library: *library # path to library of actions (package share)
+        context_lambda: *context_lambda # L2 regularizer for context
+        posthoc_lambda: 0.0 # L2 regularizer for posthoc
+        data_prefix: *data_prefix # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
+        alpha: 0.01 # scaling factor for the confidence bound
+
+    linucb_posthoc:
+      policy_class: ada_feeding_actionselect.policies.LinUCBPolicy
+      kws: 
+        - library
+        - context_lambda
+        - posthoc_lambda
+        - data_prefix
+        - alpha
+      kwargs:
+        library: *library # path to library of actions (package share)
+        context_lambda: *context_lambda # L2 regularizer for context
+        posthoc_lambda: *posthoc_lambda # L2 regularizer for posthoc
+        data_prefix: *data_prefix # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
+        alpha: 0.01 # scaling factor for the confidence bound

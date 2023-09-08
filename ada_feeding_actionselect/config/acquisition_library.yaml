@@ -1,4 +1,5 @@
 # Library of Acquisition Actions
+# Quats: W, X, Y, Z (matching Eigen)
 actions:
     - # Default Action (VS90)
       pre_pos: [0.0, 0.0, 1.0]
