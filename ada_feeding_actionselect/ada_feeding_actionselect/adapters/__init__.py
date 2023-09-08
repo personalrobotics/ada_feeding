@@ -14,4 +14,3 @@ from .context_posthoc_adapter import NoContext
 # TODO: SPANet Context
 
 # TODO: HapticNet Posthoc
-

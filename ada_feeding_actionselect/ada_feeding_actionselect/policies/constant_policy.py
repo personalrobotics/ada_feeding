@@ -23,9 +23,7 @@ class Policy(ABC):
     An interface to select an action based on input
     """
 
-    def __init__(self, 
-        context_dim: int, 
-        posthoc_dim: int):
+    def __init__(self, context_dim: int, posthoc_dim: int):
         """
         Default self properties
         """
@@ -41,9 +39,7 @@ class Policy(ABC):
 
     @abstractmethod
     def choice(
-        self,
-        context: npt.NDArray,
-        response: AcquisitionSelect.Response
+        self, context: npt.NDArray, response: AcquisitionSelect.Response
     ) -> AcquisitionSelect.Response:
         """
         Execute the policy to choose an action distribution.
@@ -65,7 +61,7 @@ class Policy(ABC):
         self,
         posthoc: npt.NDArray,
         request: AcquisitionReport.Request,
-        response: AcquisitionSelect.Response
+        response: AcquisitionSelect.Response,
     ) -> AcquisitionSelect.Response:
         """
         Update the policy based on the result of action
@@ -84,16 +80,15 @@ class Policy(ABC):
         """
         raise NotImplementedError("update not implemented")
 
+
 class ConstantPolicy(Policy):
     """
     Execute a constant policy
     """
 
-    def __init__(self, 
-        context_dim: int, 
-        posthoc_dim: int, 
-        library: str = "",
-        index: int = 0):
+    def __init__(
+        self, context_dim: int, posthoc_dim: int, library: str = "", index: int = 0
+    ):
         """
         Default self properties
         """
@@ -108,12 +103,12 @@ class ConstantPolicy(Policy):
         """
         self.library = helpers.get_action_policy(self.library_path)
         if self.index < 0 or self.index >= len(self.library):
-            raise IndexError(f"Index {index} is out of bounds: [0, {len(self.library)}]")
+            raise IndexError(
+                f"Index {index} is out of bounds: [0, {len(self.library)}]"
+            )
 
     def choice(
-        self,
-        context: npt.NDArray,
-        response: AcquisitionSelect.Response
+        self, context: npt.NDArray, response: AcquisitionSelect.Response
     ) -> AcquisitionSelect.Response:
         """
         Execute the policy to choose an action distribution.
@@ -136,7 +131,7 @@ class ConstantPolicy(Policy):
         self,
         posthoc: npt.NDArray,
         request: AcquisitionReport.Request,
-        response: AcquisitionSelect.Response
+        response: AcquisitionSelect.Response,
     ) -> AcquisitionSelect.Response:
         """
         Update the policy based on the result of action

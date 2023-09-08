@@ -16,9 +16,9 @@ from ament_index_python.packages import get_package_share_directory
 # Local imports
 from ada_feeding_msgs.msg import AcquisitionSchema
 
+
 def get_action_library(
-    library_path: str, 
-    key: str = "actions"
+    library_path: str, key: str = "actions"
 ) -> List[AcquisitionSchema]:
     """
     Loads library for actions from a YAML file.
@@ -33,11 +33,11 @@ def get_action_library(
     Array of AcquisitionSchema message objects
     """
 
-    package_share = get_package_share_directory('ada_feeding_actionselect')
+    package_share = get_package_share_directory("ada_feeding_actionselect")
     filename = os.path.join(package_share, library_path)
 
     yaml_file = None
-    with open(filename, 'r') as file:
+    with open(filename, "r") as file:
         yaml_file = yaml.safe_load(file)
 
     library = []

@@ -39,10 +39,7 @@ class ContextAdapter(ABC):
 
     @abstractmethod
     def get_context(
-        self,
-        mask: Mask,
-        image: npt.NDArray,
-        depth: npt.NDArray
+        self, mask: Mask, image: npt.NDArray, depth: npt.NDArray
     ) -> npt.NDArray:
         """
         Create the context vector from the provided visual info
@@ -59,6 +56,7 @@ class ContextAdapter(ABC):
         """
         raise NotImplementedError("get_context not implemented")
 
+
 class NoContext(ContextAdapter):
     """
     An instantiation that just returns [0] for context.
@@ -69,10 +67,7 @@ class NoContext(ContextAdapter):
         return 1
 
     def get_context(
-        self,
-        mask: Mask,
-        image: npt.NDArray,
-        depth: npt.NDArray
+        self, mask: Mask, image: npt.NDArray, depth: npt.NDArray
     ) -> npt.NDArray:
         return np.array([0.0])
 
@@ -91,10 +86,7 @@ class PosthocAdapter(ABC):
         raise NotImplementedError("dimension not implemented")
 
     @abstractmethod
-    def get_posthoc(
-        self,
-        data: npt.NDArray
-    ) -> npt.NDArray:
+    def get_posthoc(self, data: npt.NDArray) -> npt.NDArray:
         """
         Create the posthoc vector from the provided info
 
@@ -108,6 +100,7 @@ class PosthocAdapter(ABC):
         """
         raise NotImplementedError("get_context not implemented")
 
+
 class NoContext(ContextAdapter, PosthocAdapter):
     """
     An instantiation that just returns [0] for context and posthoc.
@@ -118,15 +111,9 @@ class NoContext(ContextAdapter, PosthocAdapter):
         return 1
 
     def get_context(
-        self,
-        mask: Mask,
-        image: npt.NDArray,
-        depth: npt.NDArray
+        self, mask: Mask, image: npt.NDArray, depth: npt.NDArray
     ) -> npt.NDArray:
         return np.array([0.0])
 
-    def get_posthoc(
-        self,
-        data: npt.NDArray
-    ) -> npt.NDArray:
+    def get_posthoc(self, data: npt.NDArray) -> npt.NDArray:
         return np.array([0.0])

@@ -21,8 +21,8 @@ from ada_feeding_actionselect.policies import Policy
 from ada_feeding_actionselect.adapters import ContextAdapter, PosthocAdapter
 from ada_feeding_msgs.srv import AcquisitionSelect, AcquisitionReport
 
-class PolicyServices(Node):
 
+class PolicyServices(Node):
     @staticmethod
     def get_kwargs(kws_root: str, kwarg_root: str) -> Dict:
         """
@@ -73,7 +73,7 @@ class PolicyServices(Node):
         """
         Declare ROS2 Parameters
         """
-        super().__init__('policy_service')
+        super().__init__("policy_service")
 
         # Name of the Policy
         policy_param = self.declare_parameter(
@@ -111,9 +111,7 @@ class PolicyServices(Node):
             raise ValueError("Policy Class is required.")
 
         policy_cls = import_from_string(policy_cls_name)
-        assert issubclass(
-            policy_cls, Policy
-        ), f"{policy_cls_name} must subclass Policy"
+        assert issubclass(policy_cls, Policy), f"{policy_cls_name} must subclass Policy"
 
         kwargs = get_kwargs(f"{policy_name}.kws", f"{policy_name}.kwargs")
 
@@ -170,7 +168,9 @@ class PolicyServices(Node):
         self.posthoc_adapter = context_cls(**posthoc_kwargs)
 
         # Initialize and validate the policy
-        self.policy = policy_cls(self.context_adapter.dim, self.posthoc_adapter.dim, **kwargs)
+        self.policy = policy_cls(
+            self.context_adapter.dim, self.posthoc_adapter.dim, **kwargs
+        )
         self.policy.validate()
 
         # Start image subscribers
@@ -179,21 +179,24 @@ class PolicyServices(Node):
 
         if self.context_adapter.use_rgb:
             self.rgb_sub = self.create_subscription(
-                get_img_msg_type("~/image", self),
-                self.rgb_callback, 1
-                )
+                get_img_msg_type("~/image", self), self.rgb_callback, 1
+            )
         if self.context_adapter.use_depth:
             self.depth_sub = self.create_subscription(
-                get_img_msg_type("~/depth", self),
-                self.depth_callback, 1
-                )
+                get_img_msg_type("~/depth", self), self.depth_callback, 1
+            )
 
-        self.select_srv = self.create_service(AcquisitionSelect, '~/action_select', self.select_callback)
-        self.report_srv = self.create_service(AcquisitionReport, '~/action_report', self.report_callback)
+        self.select_srv = self.create_service(
+            AcquisitionSelect, "~/action_select", self.select_callback
+        )
+        self.report_srv = self.create_service(
+            AcquisitionReport, "~/action_report", self.report_callback
+        )
 
     # Subscriptions
     def rgb_callback(self, msg: Union[CompressedImage, Image]):
         self.image = ros_msg_to_cv2_image(msg)
+
     def depth_callback(self, msg: Union[CompressedImage, Image]):
         self.depth = ros_msg_to_cv2_image(msg)
 
@@ -204,7 +207,9 @@ class PolicyServices(Node):
         """
 
         # Run the context adapter
-        context = self.context_adapter.get_context(request.food_context, self.image, self.depth)
+        context = self.context_adapter.get_context(
+            request.food_context, self.image, self.depth
+        )
         if context.size != self.context_adapter.dim:
             response.status = "Bad Context"
             return response
@@ -232,6 +237,7 @@ class PolicyServices(Node):
         response = self.policy.update(posthoc, request, response)
         return response
 
+
 def main():
     rclpy.init()
 
@@ -242,5 +248,5 @@ def main():
     rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
