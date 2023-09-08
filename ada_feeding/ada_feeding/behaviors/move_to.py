@@ -442,15 +442,13 @@ class MoveTo(py_trees.behaviour.Behaviour):
             point.time_from_start.nanosec = int(nsec - sec * 10.0**9)
 
             # Scale the velocities
-            for i in range(
-                len(point.velocities)
-            ):  # pylint: disable=consider-using-enumerate
+            # pylint: disable=consider-using-enumerate
+            # Necessary because we want to destructively modify the trajectory
+            for i in range(len(point.velocities)):
                 point.velocities[i] *= scale_factor
 
             # Scale the accelerations
-            for i in range(
-                len(point.accelerations)
-            ):  # pylint: disable=consider-using-enumerate
+            for i in range(len(point.accelerations)):
                 point.accelerations[i] *= scale_factor**2
 
 
