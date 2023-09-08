@@ -236,6 +236,7 @@ class CreateActionServers(Node):
         self._action_servers = []
         self._action_types = {}
         self._tree_classes = {}
+        self._trees = []
         for params in action_server_params:
             self.get_logger().info(
                 f"Creating action server {params.server_name} with type {params.action_type}"
@@ -343,6 +344,7 @@ class CreateActionServers(Node):
         tree = tree_action_server.create_tree(
             server_name, action_type, server_name, self.get_logger(), self
         )
+        self._trees.append(tree)
 
         async def execute_callback(goal_handle: ServerGoalHandle) -> Awaitable:
             """
@@ -359,12 +361,12 @@ class CreateActionServers(Node):
                 f"with request {goal_handle.request}"
             )
 
+            # Setup the behavior tree class
+            tree.setup(node=self)  # TODO: consider adding a timeout here
+
             # pylint: disable=broad-exception-caught
             # All exceptions need printing at shutdown
             try:
-                # Setup the behavior tree class
-                tree.setup(node=self)  # TODO: consider adding a timeout here
-
                 # Send the goal to the behavior tree
                 tree_action_server.send_goal(tree, goal_handle.request)
 
@@ -429,8 +431,6 @@ class CreateActionServers(Node):
                     goal_handle.abort()
                     result = action_type.Result()
 
-                # Shutdown the tree
-                tree.shutdown()
             except Exception as exc:
                 self.get_logger().error(
                     f"Error running tree: \n{traceback.format_exc()}\n{exc}"
@@ -444,6 +444,15 @@ class CreateActionServers(Node):
             return result
 
         return execute_callback
+
+    def shutdown(self) -> None:
+        """
+        Shutdown the node.
+        """
+        self.get_logger().info("Shutting down CreateActionServers")
+        for tree in self._trees:
+            # Shutdown the tree
+            tree.shutdown()
 
 
 def main(args: List = None) -> None:
@@ -462,6 +471,7 @@ def main(args: List = None) -> None:
     try:
         rclpy.spin(create_action_servers, executor=executor)
     except Exception:
+        create_action_servers.shutdown()
         traceback.print_exc()
 
     # Destroy the node explicitly
