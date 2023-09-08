@@ -7,8 +7,8 @@ ada_feeding_actionselect.
 
 # Standard imports
 import os
-import yaml
 from typing import List
+import yaml
 
 # Third-party imports
 from ament_index_python.packages import get_package_share_directory
@@ -37,7 +37,7 @@ def get_action_library(
     filename = os.path.join(package_share, library_path)
 
     yaml_file = None
-    with open(filename, "r") as file:
+    with open(filename, "r", encoding='utf-8') as file:
         yaml_file = yaml.safe_load(file)
 
     library = []
@@ -76,7 +76,7 @@ def get_action_library(
 
         schema.grasp_duration.sec = int(element["grasp_duration"])
         decimal = element["grasp_duration"] - schema.grasp_duration.sec
-        sehcma.grasp_duration.nanosec = (decimal * 1000000000) % 1000000000
+        schema.grasp_duration.nanosec = (decimal * 1000000000) % 1000000000
 
         schema.grasp_force = element["grasp_force"]
         schema.grasp_torque = element["grasp_torque"]
@@ -91,7 +91,7 @@ def get_action_library(
 
         schema.ext_duration.sec = int(element["ext_duration"])
         decimal = element["ext_duration"] - schema.ext_duration.sec
-        sehcma.ext_duration.nanosec = (decimal * 1000000000) % 1000000000
+        schema.ext_duration.nanosec = (decimal * 1000000000) % 1000000000
 
         schema.ext_force = element["ext_force"]
         schema.ext_torque = element["ext_torque"]

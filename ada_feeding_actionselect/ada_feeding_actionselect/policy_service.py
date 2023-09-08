@@ -7,6 +7,7 @@ This service implement AcquisitionSelect and AcquisitionReport.
 
 # Standard imports
 from typing import Dict, Union
+import numpy as np
 
 # Third-party imports
 import rclpy
@@ -23,51 +24,17 @@ from ada_feeding_msgs.srv import AcquisitionSelect, AcquisitionReport
 
 
 class PolicyServices(Node):
-    @staticmethod
-    def get_kwargs(kws_root: str, kwarg_root: str) -> Dict:
-        """
-        Pull variable keyward arguments from ROS2 parameter server.
-        Needed because RCL does not allow dictionary params.
+    """
+    The PolicyServices node initializes a 3 things:
+    a context adapter converts the incoming mask and images to a context vector
+    a policy recommends an action given the context
+    a posthoc adapter converts any incoming posthoc data to a posthoc vector.
 
-        Parameters
-        ----------
-        kws_root: String array of kwarg keys
-        kwarg_root: YAML dictionary of the form "kw: object"
+    This node collects images (rgb + depth) to pass to the context adapter
+    and creates services to implement AcquisitionSelect and AcquisitionReport.
 
-        Returns
-        -------
-        Dictionary of kwargs: "{kw: object}"
-        """
-
-        kws = self.declare_parameter(
-            kws_root,
-            descriptor=ParameterDescriptor(
-                name="kws",
-                type=ParameterType.PARAMETER_STRING_ARRAY,
-                description=(
-                    "List of keywords for custom arguments to be passed "
-                    "to the class during initialization."
-                ),
-                read_only=True,
-            ),
-        )
-        if kws.value is not None:
-            kwargs = {
-                kw: self.declare_parameter(
-                    f"{kwarg_root}.{kw}",
-                    descriptor=ParameterDescriptor(
-                        name=kw,
-                        description="Custom keyword argument for the class.",
-                        dynamic_typing=True,
-                        read_only=True,
-                    ),
-                )
-                for kw in kws.value
-            }
-        else:
-            kwargs = {}
-
-        return kwargs
+    TODO: optionally record data (context + posthoc + loss) based on param
+    """
 
     def __init__(self):
         """
@@ -113,7 +80,7 @@ class PolicyServices(Node):
         policy_cls = import_from_string(policy_cls_name)
         assert issubclass(policy_cls, Policy), f"{policy_cls_name} must subclass Policy"
 
-        kwargs = get_kwargs(f"{policy_name}.kws", f"{policy_name}.kwargs")
+        kwargs = self.get_kwargs(f"{policy_name}.kws", f"{policy_name}.kwargs")
 
         # Get the context adapter
         context_cls_param = self.declare_parameter(
@@ -138,7 +105,7 @@ class PolicyServices(Node):
             context_cls, ContextAdapter
         ), f"{context_cls_name} must subclass ContextAdapter"
 
-        context_kwargs = get_kwargs("context_kws", "context_kwargs")
+        context_kwargs = self.get_kwargs("context_kws", "context_kwargs")
         self.context_adapter = context_cls(**context_kwargs)
 
         # Get the posthoc adapter
@@ -164,7 +131,7 @@ class PolicyServices(Node):
             posthoc_cls, PosthocAdapter
         ), f"{posthoc_cls_name} must subclass PosthocAdapter"
 
-        posthoc_kwargs = get_kwargs("posthoc_kws", "posthoc_kwargs")
+        posthoc_kwargs = self.get_kwargs("posthoc_kws", "posthoc_kwargs")
         self.posthoc_adapter = context_cls(**posthoc_kwargs)
 
         # Initialize and validate the policy
@@ -176,28 +143,35 @@ class PolicyServices(Node):
         # Start image subscribers
         self.image = None
         self.depth = None
+        self.ros_objs = []
 
         if self.context_adapter.use_rgb:
-            self.rgb_sub = self.create_subscription(
-                get_img_msg_type("~/image", self), self.rgb_callback, 1
-            )
+            self.ros_objs.append(self.create_subscription(
+                get_img_msg_type("~/image", self), "~/image", self.rgb_callback, 1
+            ))
         if self.context_adapter.use_depth:
-            self.depth_sub = self.create_subscription(
-                get_img_msg_type("~/depth", self), self.depth_callback, 1
-            )
+            self.ros_objs.append(self.create_subscription(
+                get_img_msg_type("~/depth", self), "~/depth", self.depth_callback, 1
+            ))
 
-        self.select_srv = self.create_service(
+        self.ros_objs.append(self.create_service(
             AcquisitionSelect, "~/action_select", self.select_callback
-        )
-        self.report_srv = self.create_service(
+        ))
+        self.ros_objs.append(self.create_service(
             AcquisitionReport, "~/action_report", self.report_callback
-        )
+        ))
 
     # Subscriptions
     def rgb_callback(self, msg: Union[CompressedImage, Image]):
+        """
+        Store rgb image
+        """
         self.image = ros_msg_to_cv2_image(msg)
 
     def depth_callback(self, msg: Union[CompressedImage, Image]):
+        """
+        Store depth image
+        """
         self.depth = ros_msg_to_cv2_image(msg)
 
     # Services
@@ -237,8 +211,56 @@ class PolicyServices(Node):
         response = self.policy.update(posthoc, request, response)
         return response
 
+    def get_kwargs(self, kws_root: str, kwarg_root: str) -> Dict:
+        """
+        Pull variable keyward arguments from ROS2 parameter server.
+        Needed because RCL does not allow dictionary params.
+
+        Parameters
+        ----------
+        kws_root: String array of kwarg keys
+        kwarg_root: YAML dictionary of the form "kw: object"
+
+        Returns
+        -------
+        Dictionary of kwargs: "{kw: object}"
+        """
+
+        kws = self.declare_parameter(
+            kws_root,
+            descriptor=ParameterDescriptor(
+                name="kws",
+                type=ParameterType.PARAMETER_STRING_ARRAY,
+                description=(
+                    "List of keywords for custom arguments to be passed "
+                    "to the class during initialization."
+                ),
+                read_only=True,
+            ),
+        )
+        if kws.value is not None:
+            kwargs = {
+                kw: self.declare_parameter(
+                    f"{kwarg_root}.{kw}",
+                    descriptor=ParameterDescriptor(
+                        name=kw,
+                        description="Custom keyword argument for the class.",
+                        dynamic_typing=True,
+                        read_only=True,
+                    ),
+                )
+                for kw in kws.value
+            }
+        else:
+            kwargs = {}
+
+        return kwargs
+
 
 def main():
+    """
+    Entry point
+    """
     rclpy.init()
 
     node = PolicyServices()

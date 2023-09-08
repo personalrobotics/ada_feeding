@@ -9,7 +9,6 @@ context and posthoc vectors from input data.
 from abc import ABC, abstractmethod
 
 # Third-party imports
-from sensor_msgs.msg import CompressedImage, Image
 import numpy as np
 import numpy.typing as npt
 
@@ -55,21 +54,6 @@ class ContextAdapter(ABC):
         A flat numpy array, shape (dim,)
         """
         raise NotImplementedError("get_context not implemented")
-
-
-class NoContext(ContextAdapter):
-    """
-    An instantiation that just returns [0] for context.
-    """
-
-    @property
-    def dim(self) -> int:
-        return 1
-
-    def get_context(
-        self, mask: Mask, image: npt.NDArray, depth: npt.NDArray
-    ) -> npt.NDArray:
-        return np.array([0.0])
 
 
 class PosthocAdapter(ABC):

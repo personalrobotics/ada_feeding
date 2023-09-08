@@ -6,11 +6,9 @@ selecting an action based on a policy.
 """
 
 # Standard imports
-import os
 from abc import ABC, abstractmethod
 
 # Third-party imports
-import numpy as np
 import numpy.typing as npt
 
 # Local imports
@@ -29,13 +27,6 @@ class Policy(ABC):
         """
         self.context_dim = context_dim
         self.posthoc_dim = posthoc_dim
-
-    def validate(self):
-        """
-        Validate variable arguments.
-        Raise an exception on failure.
-        """
-        pass
 
     @abstractmethod
     def choice(
@@ -93,15 +84,8 @@ class ConstantPolicy(Policy):
         Default self properties
         """
         super().__init__(context_dim, posthoc_dim)
-        self.library_path = library
         self.index = index
-
-    def validate(self):
-        """
-        Validate variable arguments.
-        Raise an exception on failure.
-        """
-        self.library = helpers.get_action_policy(self.library_path)
+        self.library = helpers.get_action_library(library)
         if self.index < 0 or self.index >= len(self.library):
             raise IndexError(
                 f"Index {index} is out of bounds: [0, {len(self.library)}]"
