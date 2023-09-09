@@ -11,7 +11,7 @@ wrap that behaviour tree in a ROS2 action server.
 # Standard imports
 from functools import partial
 import logging
-from typing import List
+from typing import List, Tuple
 
 # Third-party imports
 import py_trees
@@ -71,7 +71,7 @@ class MoveToMouthTree(MoveToTree):
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 4.0,
         torque_threshold: float = 4.0,
-        allowed_face_distance: float = 1.5,
+        allowed_face_distance: Tuple[float, float] = (0.4, 1.5),
     ):
         """
         Initializes tree-specific parameters.
@@ -112,7 +112,7 @@ class MoveToMouthTree(MoveToTree):
         torque_threshold: The torque threshold (N*m) for the ForceGateController.
             For now, the same threshold is used to move to the staging location
             and to the mouth.
-        allowed_face_distance: The maximum distance (m) between a face and the
+        allowed_face_distance: The min and max distance (m) between a face and the
             **camera's optical frame** for the robot to move towards the face.
         """
 
@@ -172,7 +172,11 @@ class MoveToMouthTree(MoveToTree):
                 + msg.detected_mouth_center.point.y**2.0
                 + msg.detected_mouth_center.point.z**2.0
             ) ** 0.5
-            if distance <= self.allowed_face_distance:
+            if (
+                self.allowed_face_distance[0]
+                <= distance
+                <= self.allowed_face_distance[1]
+            ):
                 return True
         return False
 
