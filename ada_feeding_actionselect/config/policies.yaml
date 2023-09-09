@@ -1,13 +1,13 @@
 ## Cross-Policy Variables
 # RCL *NEEDS* to add aliases
 # See: https://github.com/personalrobotics/ada_feeding/issues/79
-#define: &library config/acquisition_library.xml
+#define: &library config/acquisition_library.yaml
 #define: &data_prefix default_spanet
 #define: &context_lambda 1000.0
 #define: &posthoc_lambda 1.0
 
 # NOTE: You have to change this node name if you change the node name in the launchfile.
-ada_feeding_policy_services:
+ada_feeding_actionselect:
   ros__parameters:
 
     #### Context Adapters
@@ -38,7 +38,7 @@ ada_feeding_policy_services:
         - library
         - index
       kwargs: # optional
-        library: config/acquisition_library.xml # path to library of actions (package share)
+        library: config/acquisition_library.yaml # path to library of actions (package share)
         index: 0 # Which action to execute
 
     random:
@@ -49,7 +49,7 @@ ada_feeding_policy_services:
         - posthoc_lambda
         - data_prefix
       kwargs:
-        library: config/acquisition_library.xml # path to library of actions (package share)
+        library: config/acquisition_library.yaml # path to library of actions (package share)
         context_lambda: 1000.0 # L2 regularizer for context
         posthoc_lambda: 1.0 # L2 regularizer for posthoc
         data_prefix: default_spanet # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
@@ -63,7 +63,7 @@ ada_feeding_policy_services:
         - data_prefix
         - epsilon
       kwargs:
-        library: config/acquisition_library.xml # path to library of actions (package share)
+        library: config/acquisition_library.yaml # path to library of actions (package share)
         context_lambda: 1000.0 # L2 regularizer for context
         posthoc_lambda: 0.0 # L2 regularizer for posthoc
         data_prefix: default_spanet # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
@@ -78,7 +78,7 @@ ada_feeding_policy_services:
         - data_prefix
         - epsilon
       kwargs:
-        library: config/acquisition_library.xml # path to library of actions (package share)
+        library: config/acquisition_library.yaml # path to library of actions (package share)
         context_lambda: 1000.0 # L2 regularizer for context
         posthoc_lambda: 1.0 # L2 regularizer for posthoc
         data_prefix: default_spanet # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
@@ -93,7 +93,7 @@ ada_feeding_policy_services:
         - data_prefix
         - alpha
       kwargs:
-        library: config/acquisition_library.xml # path to library of actions (package share)
+        library: config/acquisition_library.yaml # path to library of actions (package share)
         context_lambda: 1000.0 # L2 regularizer for context
         posthoc_lambda: 0.0 # L2 regularizer for posthoc
         data_prefix: default_spanet # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
@@ -108,7 +108,7 @@ ada_feeding_policy_services:
         - data_prefix
         - alpha
       kwargs:
-        library: config/acquisition_library.xml # path to library of actions (package share)
+        library: config/acquisition_library.yaml # path to library of actions (package share)
         context_lambda: 1000.0 # L2 regularizer for context
         posthoc_lambda: 1.0 # L2 regularizer for posthoc
         data_prefix: default_spanet # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz

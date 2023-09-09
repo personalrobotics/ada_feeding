@@ -138,18 +138,17 @@ class PolicyServices(Node):
         self.policy = policy_cls(
             self.context_adapter.dim, self.posthoc_adapter.dim, **kwargs
         )
-        self.policy.validate()
 
         # Start image subscribers
         self.image = None
         self.depth = None
         self.ros_objs = []
 
-        if self.context_adapter.use_rgb:
+        if self.context_adapter.need_rgb:
             self.ros_objs.append(self.create_subscription(
                 get_img_msg_type("~/image", self), "~/image", self.rgb_callback, 1
             ))
-        if self.context_adapter.use_depth:
+        if self.context_adapter.need_depth:
             self.ros_objs.append(self.create_subscription(
                 get_img_msg_type("~/depth", self), "~/depth", self.depth_callback, 1
             ))
@@ -160,6 +159,8 @@ class PolicyServices(Node):
         self.ros_objs.append(self.create_service(
             AcquisitionReport, "~/action_report", self.report_callback
         ))
+
+        self.get_logger().info(f"Policy '{policy_name}' initialized!")
 
     # Subscriptions
     def rgb_callback(self, msg: Union[CompressedImage, Image]):
@@ -254,7 +255,7 @@ class PolicyServices(Node):
         else:
             kwargs = {}
 
-        return kwargs
+        return {kw: arg.value for kw, arg in kwargs.items()}
 
 
 def main():

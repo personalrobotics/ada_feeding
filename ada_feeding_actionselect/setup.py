@@ -21,6 +21,11 @@ setup(
             os.path.join("share", package_name, "data"),
             glob(os.path.join("data", "*.npz")),
         ),
+        # Include all launch files.
+        (
+            os.path.join("share", package_name, "launch"),
+            glob(os.path.join("launch", "*launch.[pxy][yma]*")),
+        ),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
