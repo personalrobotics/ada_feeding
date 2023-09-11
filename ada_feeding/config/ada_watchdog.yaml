@@ -14,7 +14,7 @@ ada_watchdog:
     # If the force_torque sensor has not published a message in this amount of time,
     # or any of its dimensions are zero-variance in this amount of time, the watchdog 
     # will trigger a fault.
-    ft_timeout_sec: 1.0
+    ft_timeout_sec: 0.5
 
     ############################################################################
     # Parameters for the EStopCondition of the watchdog
