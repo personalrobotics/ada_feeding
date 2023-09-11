@@ -76,7 +76,7 @@ def get_action_library(
 
         schema.grasp_duration.sec = int(element["grasp_duration"])
         decimal = element["grasp_duration"] - schema.grasp_duration.sec
-        schema.grasp_duration.nanosec = int((decimal * 1000000000) % 1000000000)
+        schema.grasp_duration.nanosec = int((decimal * 10**9) % 10**9)
 
         schema.grasp_force = element["grasp_force"]
         schema.grasp_torque = element["grasp_torque"]
