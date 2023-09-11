@@ -15,6 +15,7 @@
 ## Approach Frame
 # Same as Food Frame, except:
 # +X = -(pre_transform.translation())
+# e.g., +X points in the direction from the utensil to the food.
 # Projected onto Food X/Y plane
 
 ## Utensil Frame = "forkTip" TF
@@ -41,8 +42,9 @@ geometry_msgs/Vector3 pre_rot_hint
 
 # In-Food Twist
 # Linear (dX, dY, dZ) in *approach frame*
+geometry_msgs/Vector3 grasp_linear
 # Angular (omegaX, omegaY, omegaZ) in *utensil frame*
-geometry_msgs/Twist grasp_twist
+geometry_msgs/Vector3 grasp_angular
 builtin_interfaces/Duration grasp_duration
 
 # Grasp Force/Torque Thresholds
@@ -53,8 +55,9 @@ float64 grasp_torque
 
 # Extraction Twist
 # Linear (dX, dY, dZ) in *approach frame*
+geometry_msgs/Vector3 ext_linear
 # Angular (omegaX, omegaY, omegaZ) in *utensil frame*
-geometry_msgs/Twist ext_twist
+geometry_msgs/Vector3 ext_angular
 builtin_interfaces/Duration ext_duration
 
 # Extraction Force/Torque Thresholds

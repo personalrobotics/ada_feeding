@@ -67,12 +67,12 @@ def get_action_library(
             schema.pre_rot_hint.z = element["pre_rot_hint"][2]
 
         # Grasp
-        schema.grasp_twist.linear.x = element["grasp_offset"][0]
-        schema.grasp_twist.linear.y = element["grasp_offset"][1]
-        schema.grasp_twist.linear.z = element["grasp_offset"][2]
-        schema.grasp_twist.angular.x = element["grasp_rot"][0]
-        schema.grasp_twist.angular.y = element["grasp_rot"][1]
-        schema.grasp_twist.angular.z = element["grasp_rot"][2]
+        schema.grasp_linear.x = element["grasp_linear"][0]
+        schema.grasp_linear.y = element["grasp_linear"][1]
+        schema.grasp_linear.z = element["grasp_linear"][2]
+        schema.grasp_angular.x = element["grasp_angular"][0]
+        schema.grasp_angular.y = element["grasp_angular"][1]
+        schema.grasp_angular.z = element["grasp_angular"][2]
 
         schema.grasp_duration.sec = int(element["grasp_duration"])
         decimal = element["grasp_duration"] - schema.grasp_duration.sec
@@ -82,12 +82,12 @@ def get_action_library(
         schema.grasp_torque = element["grasp_torque"]
 
         # Extraction
-        schema.ext_twist.linear.x = element["ext_offset"][0]
-        schema.ext_twist.linear.y = element["ext_offset"][1]
-        schema.ext_twist.linear.z = element["ext_offset"][2]
-        schema.ext_twist.angular.x = element["ext_rot"][0]
-        schema.ext_twist.angular.y = element["ext_rot"][1]
-        schema.ext_twist.angular.z = element["ext_rot"][2]
+        schema.ext_linear.x = element["ext_linear"][0]
+        schema.ext_linear.y = element["ext_linear"][1]
+        schema.ext_linear.z = element["ext_linear"][2]
+        schema.ext_angular.x = element["ext_angular"][0]
+        schema.ext_angular.y = element["ext_angular"][1]
+        schema.ext_angular.z = element["ext_angular"][2]
 
         schema.ext_duration.sec = int(element["ext_duration"])
         decimal = element["ext_duration"] - schema.ext_duration.sec

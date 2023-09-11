@@ -27,8 +27,9 @@ uint8 action_index
 # Posthoc context
 float64[] posthoc
 
-# AcquisitionSelect call hash
-string action_select_hash
+# AcquisitionSelect call id
+# Used in AcquisitionReport
+string selection_id
 
 ---
 # Whether the robot is currently planning or moving (required)
