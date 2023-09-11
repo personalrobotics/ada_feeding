@@ -6,11 +6,11 @@ This service implement AcquisitionSelect and AcquisitionReport.
 """
 
 # Standard imports
-import numpy as np
 import threading
 from typing import Dict, Union
 
 # Third-party imports
+import numpy as np
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage, Image
@@ -36,6 +36,11 @@ class PolicyServices(Node):
 
     TODO: optionally record data (context + posthoc + loss) based on param
     """
+
+    # pylint: disable=too-many-instance-attributes
+    # Having more than 7 instance attributes is unavoidable here, since for
+    # every subscription we need to store the subscription, mutex, and data,
+    # and we have 2 subscriptions.
 
     def __init__(self):
         """
