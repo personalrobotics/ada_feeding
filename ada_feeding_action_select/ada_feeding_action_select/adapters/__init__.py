@@ -4,10 +4,10 @@ and posthoc context.
 """
 
 # Generic Adapter Classes
-from .context_posthoc_adapter import ContextAdapter, PosthocAdapter
+from .base_adapters import ContextAdapter, PosthocAdapter
 
 # Just returns [0]
-from .context_posthoc_adapter import NoContext
+from .base_adapters import NoContext
 
 # TODO: Posthoc Passthrough
 

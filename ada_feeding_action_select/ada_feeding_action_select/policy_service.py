@@ -18,8 +18,8 @@ from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 # Internal imports
 from ada_feeding.helpers import import_from_string
 from ada_feeding_perception.helpers import get_img_msg_type, ros_msg_to_cv2_image
-from ada_feeding_actionselect.policies import Policy
-from ada_feeding_actionselect.adapters import ContextAdapter, PosthocAdapter
+from ada_feeding_action_select.policies import Policy
+from ada_feeding_action_select.adapters import ContextAdapter, PosthocAdapter
 from ada_feeding_msgs.srv import AcquisitionSelect, AcquisitionReport
 
 
@@ -67,7 +67,7 @@ class PolicyServices(Node):
                 type=ParameterType.PARAMETER_STRING,
                 description=(
                     "The class of the policy to run, must subclass "
-                    "Policy. E.g., ada_feeding_actionselect.policies.ConstantPolicy"
+                    "Policy. E.g., ada_feeding_action_select.policies.ConstantPolicy"
                 ),
                 read_only=True,
             ),
@@ -90,7 +90,7 @@ class PolicyServices(Node):
                 type=ParameterType.PARAMETER_STRING,
                 description=(
                     "The class of the context adapter to run, must subclass "
-                    "ContextAdapter. E.g., ada_feeding_actionselect.adapters.NoContext"
+                    "ContextAdapter. E.g., ada_feeding_action_select.adapters.NoContext"
                 ),
                 read_only=True,
             ),
@@ -116,7 +116,7 @@ class PolicyServices(Node):
                 type=ParameterType.PARAMETER_STRING,
                 description=(
                     "The class of the posthoc adapter to run, must subclass "
-                    "PosthocAdapter. E.g., ada_feeding_actionselect.adapters.NoContext"
+                    "PosthocAdapter. E.g., ada_feeding_action_select.adapters.NoContext"
                 ),
                 read_only=True,
             ),

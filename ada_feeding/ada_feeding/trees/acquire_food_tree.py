@@ -77,14 +77,24 @@ class AcquireFoodTree(MoveToTree):
         # TODO: Define full tree
         pass
 
-    # Override result to add other elements to feedback msg
+    # Override result to handle timing outside MoveTo Behaviors
     @override
     def get_feedback(self, tree: py_trees.trees.BehaviourTree) -> object:
         # Docstring copied by @override
         feedback_msg = super().get_feedback(tree)
 
-        # TODO: add action_index, posthoc, action_select_hash
+        # TODO: fix is_planning / planning_time in non-MoveTo Behavior
         return feedback_msg
+
+
+    # Override result to add other elements to result msg
+    @override
+    def get_result(self, tree: py_trees.trees.BehaviourTree) -> object:
+        # Docstring copied by @override
+        result_msg = super().get_feedback(tree)
+
+        # TODO: add action_index, posthoc, action_select_hash
+        return result_msg
 
 
 

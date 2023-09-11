@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>ada_feeding_actionselect</name>
+  <name>ada_feeding_action_select</name>
   <version>0.0.0</version>
   <description>Framework for selecting motion primitives (e.g. food acquisition actions) from food visual and haptic information.</description>
   <maintainer email="ekgordon@cs.washington.edu">Ethan K. Gordon</maintainer>

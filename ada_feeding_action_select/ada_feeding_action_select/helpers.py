@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 This module defines a number of helper functions that are reused throughout
-ada_feeding_actionselect.
+ada_feeding_action_select.
 """
 
 # Standard imports
@@ -33,7 +33,7 @@ def get_action_library(
     Array of AcquisitionSchema message objects
     """
 
-    package_share = get_package_share_directory("ada_feeding_actionselect")
+    package_share = get_package_share_directory("ada_feeding_action_select")
     filename = os.path.join(package_share, library_path)
 
     yaml_file = None

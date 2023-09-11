@@ -7,6 +7,7 @@ context and posthoc vectors from input data.
 
 # Standard imports
 from abc import ABC, abstractmethod
+from typing import Optional
 
 # Third-party imports
 import numpy as np
@@ -25,6 +26,10 @@ class ContextAdapter(ABC):
         """
         Default self properties
         """
+
+        # These attributes are used by the policy service
+        # To determine whether to pass image/depth data
+        # to get_context.
         self.need_rgb = False
         self.need_depth = False
 
@@ -38,7 +43,7 @@ class ContextAdapter(ABC):
 
     @abstractmethod
     def get_context(
-        self, mask: Mask, image: npt.NDArray, depth: npt.NDArray
+        self, mask: Mask, image: Optional[npt.NDArray], depth: Optional[npt.NDArray]
     ) -> npt.NDArray:
         """
         Create the context vector from the provided visual info
@@ -82,7 +87,7 @@ class PosthocAdapter(ABC):
         -------
         A flat numpy array, shape (dim,)
         """
-        raise NotImplementedError("get_context not implemented")
+        raise NotImplementedError("get_posthoc not implemented")
 
 
 class NoContext(ContextAdapter, PosthocAdapter):
@@ -95,7 +100,7 @@ class NoContext(ContextAdapter, PosthocAdapter):
         return 1
 
     def get_context(
-        self, mask: Mask, image: npt.NDArray, depth: npt.NDArray
+        self, mask: Mask, image: Optional[npt.NDArray], depth: Optional[npt.NDArray]
     ) -> npt.NDArray:
         return np.array([0.0])
 

@@ -7,33 +7,33 @@
 #define: &posthoc_lambda 1.0
 
 # NOTE: You have to change this node name if you change the node name in the launchfile.
-ada_feeding_actionselect:
+ada_feeding_action_select:
   ros__parameters:
 
     #### Context Adapters
 
-    #context_class: ada_feeding_actionselect.adapters.SPANetContext
+    #context_class: ada_feeding_action_select.adapters.SPANetContext
     #context_kws:
     #  - checkpoint
     #context_kwargs:
     #  checkpoint: food_spanet_all_rgb_wall_ckpt_best.pth
 
-    context_class: ada_feeding_actionselect.adapters.NoContext
+    context_class: ada_feeding_action_select.adapters.NoContext
 
     #### Posthoc Adapters
 
-    #context_class: ada_feeding_actionselect.adapters.HapticNetPosthoc
+    #context_class: ada_feeding_action_select.adapters.HapticNetPosthoc
     #context_kws:
     #  - checkpoint
     #context_kwargs:
     #  checkpoint: FCNcheckpoint_category_0_of_3fold_Adam.pth
 
-    posthoc_class: ada_feeding_actionselect.adapters.NoContext
+    posthoc_class: ada_feeding_action_select.adapters.NoContext
 
     #### Policies
 
     constant: # required
-      policy_class: ada_feeding_actionselect.policies.ConstantPolicy # required
+      policy_class: ada_feeding_action_select.policies.ConstantPolicy # required
       kws: # optional
         - library
         - index
@@ -42,7 +42,7 @@ ada_feeding_actionselect:
         index: 0 # Which action to execute
 
     random:
-      policy_class: ada_feeding_actionselect.policies.LinearPolicy
+      policy_class: ada_feeding_action_select.policies.LinearPolicy
       kws: 
         - library
         - context_lambda
@@ -55,7 +55,7 @@ ada_feeding_actionselect:
         data_prefix: default_spanet # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
 
     egreedy:
-      policy_class: ada_feeding_actionselect.policies.EGreedyPolicy
+      policy_class: ada_feeding_action_select.policies.EGreedyPolicy
       kws: 
         - library
         - context_lambda
@@ -70,7 +70,7 @@ ada_feeding_actionselect:
         epsilon: 0.1 # how often to take a random action
 
     egreedy_posthoc:
-      policy_class: ada_feeding_actionselect.policies.EGreedyPolicy
+      policy_class: ada_feeding_action_select.policies.EGreedyPolicy
       kws: 
         - library
         - context_lambda
@@ -85,7 +85,7 @@ ada_feeding_actionselect:
         epsilon: 0.1 # how often to take a random action
 
     linucb:
-      policy_class: ada_feeding_actionselect.policies.LinUCBPolicy
+      policy_class: ada_feeding_action_select.policies.LinUCBPolicy
       kws: 
         - library
         - context_lambda
@@ -100,7 +100,7 @@ ada_feeding_actionselect:
         alpha: 0.01 # scaling factor for the confidence bound
 
     linucb_posthoc:
-      policy_class: ada_feeding_actionselect.policies.LinUCBPolicy
+      policy_class: ada_feeding_action_select.policies.LinUCBPolicy
       kws: 
         - library
         - context_lambda

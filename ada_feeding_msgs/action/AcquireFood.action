@@ -20,14 +20,14 @@ uint8 STATUS_UNKNOWN=99
 # Whether the planning and motion succeeded and if not, why
 uint8 status
 
-## Information to send to ActionSelect service
+## Information to send to AcquisitionSelect service
 # Action Taken
 uint8 action_index
 
 # Posthoc context
 float64[] posthoc
 
-# ActionSelect call hash
+# AcquisitionSelect call hash
 string action_select_hash
 
 ---

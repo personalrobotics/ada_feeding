@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = "ada_feeding_actionselect"
+package_name = "ada_feeding_action_select"
 
 setup(
     name=package_name,
@@ -36,7 +36,7 @@ setup(
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "policy_service = ada_feeding_actionselect.policy_service:main",
+            "policy_service = ada_feeding_action_select.policy_service:main",
         ],
     },
 )

@@ -1,5 +1,8 @@
 # This message is used to specify an Acquisition Action based
 # on the schema available at:
+# E.K. Gordon, A. Nanavati, et al.
+# "Towards General Single-Utensil Food Acquisition with Human-Informed Actions"
+# CoRL 2023
 # https://drive.google.com/file/d/1IP74g9bTQAbf8lahd7nxqTfV1Aook3bG/view
 
 ### Reference Frames

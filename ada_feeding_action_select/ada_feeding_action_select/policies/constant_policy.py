@@ -13,7 +13,7 @@ import numpy.typing as npt
 
 # Local imports
 from ada_feeding_msgs.srv import AcquisitionSelect, AcquisitionReport
-from ada_feeding_actionselect import helpers
+from ada_feeding_action_select import helpers
 
 
 class Policy(ABC):
