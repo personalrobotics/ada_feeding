@@ -91,7 +91,7 @@ def get_action_library(
 
         schema.ext_duration.sec = int(element["ext_duration"])
         decimal = element["ext_duration"] - schema.ext_duration.sec
-        schema.ext_duration.nanosec = int((decimal * 1000000000) % 1000000000)
+        schema.ext_duration.nanosec = int((decimal * 10**9) % 10**9)
 
         schema.ext_force = element["ext_force"]
         schema.ext_torque = element["ext_torque"]
