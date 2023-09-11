@@ -38,11 +38,12 @@ def get_action_library(
 
     yaml_file = None
     try:
-        with open(filename, "r", encoding='utf-8') as file:
+        with open(filename, "r", encoding="utf-8") as file:
             yaml_file = yaml.safe_load(file)
     except Exception as exc:
-        raise exc.__class__(f"Failed to load acquisition library at {filename}. Are you passing in the right library parameter value? {exc}")
-
+        raise exc.__class__(
+            f"Failed to load acquisition library at {filename}. Are you passing in the right library parameter value? {exc}"
+        )
 
     library = []
     for element in yaml_file[key]:

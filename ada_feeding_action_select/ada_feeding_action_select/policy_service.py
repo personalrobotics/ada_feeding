@@ -148,20 +148,31 @@ class PolicyServices(Node):
         self.latest_depth_msg_lock = threading.Lock()
 
         if self.context_adapter.need_rgb:
-            self.ros_objs.append(self.create_subscription(
-                get_img_msg_type("~/image", self), "~/image", self.rgb_callback, 1
-            ))
+            self.ros_objs.append(
+                self.create_subscription(
+                    get_img_msg_type("~/image", self), "~/image", self.rgb_callback, 1
+                )
+            )
         if self.context_adapter.need_depth:
-            self.ros_objs.append(self.create_subscription(
-                get_img_msg_type("~/aligned_depth", self), "~/aligned_depth", self.depth_callback, 1
-            ))
+            self.ros_objs.append(
+                self.create_subscription(
+                    get_img_msg_type("~/aligned_depth", self),
+                    "~/aligned_depth",
+                    self.depth_callback,
+                    1,
+                )
+            )
 
-        self.ros_objs.append(self.create_service(
-            AcquisitionSelect, "~/action_select", self.select_callback
-        ))
-        self.ros_objs.append(self.create_service(
-            AcquisitionReport, "~/action_report", self.report_callback
-        ))
+        self.ros_objs.append(
+            self.create_service(
+                AcquisitionSelect, "~/action_select", self.select_callback
+            )
+        )
+        self.ros_objs.append(
+            self.create_service(
+                AcquisitionReport, "~/action_report", self.report_callback
+            )
+        )
 
         self.get_logger().info(f"Policy '{policy_name}' initialized!")
 
@@ -181,7 +192,9 @@ class PolicyServices(Node):
             self.depth = ros_msg_to_cv2_image(msg)
 
     # Services
-    def select_callback(self, request: AcquisitionSelect.Request, response: AcquisitionSelect.Response) -> AcquisitionSelect.Response:
+    def select_callback(
+        self, request: AcquisitionSelect.Request, response: AcquisitionSelect.Response
+    ) -> AcquisitionSelect.Response:
         """
         Implement AcquisitionSelect.srv
         """
@@ -201,7 +214,9 @@ class PolicyServices(Node):
         response = self.policy.choice(context, response)
         return response
 
-    def report_callback(self, request: AcquisitionReport.Request, response: AcquisitionReport.Response) -> AcquisitionReport.Response:
+    def report_callback(
+        self, request: AcquisitionReport.Request, response: AcquisitionReport.Response
+    ) -> AcquisitionReport.Response:
         """
         Implement AcquisitionReport.srv
         """
