@@ -10,7 +10,7 @@
 ## Food Frame:
 # Origin: Center, Bottom of the food
 # +Z = against gravity
-# +X = major axis of food bounding ellipse
+# +X = major axis of food bounding ellipse (see below for handling PI-rotation symmetry)
 
 ## Approach Frame
 # Same as Food Frame, except:
