@@ -340,10 +340,11 @@ class CreateActionServers(Node):
         """
         # Initialize the ActionServerBT object once
         tree_action_server = self._tree_classes[tree_class](**tree_kwargs)
-        # Create the tree once
+        # Create and setup the tree once
         tree = tree_action_server.create_tree(
             server_name, action_type, server_name, self.get_logger(), self
         )
+        tree.setup(node=self)  # TODO: consider adding a timeout here
         self._trees.append(tree)
 
         async def execute_callback(goal_handle: ServerGoalHandle) -> Awaitable:
@@ -360,9 +361,6 @@ class CreateActionServers(Node):
                 f"Executing goal {goal_uuid} "
                 f"with request {goal_handle.request}"
             )
-
-            # Setup the behavior tree class
-            tree.setup(node=self)  # TODO: consider adding a timeout here
 
             # pylint: disable=broad-exception-caught
             # All exceptions need printing at shutdown
