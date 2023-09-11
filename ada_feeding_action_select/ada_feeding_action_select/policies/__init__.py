@@ -4,7 +4,7 @@ based on context (visual and posthoc).
 """
 
 # Generic Policy
-from .constant_policy import Policy
+from .base_policies import Policy
 
 # Constant Policy
-from .constant_policy import ConstantPolicy
+from .base_policies import ConstantPolicy

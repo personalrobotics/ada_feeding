@@ -24,6 +24,11 @@ class Policy(ABC):
     def __init__(self, context_dim: int, posthoc_dim: int):
         """
         Default self properties
+
+        Parameters
+        ----------
+        context_dim: Provided context vectors should be of shape (context_dim, )
+        posthod_cim: Provided posthoc vectors should be of shape (posthoc_dim, )
         """
         self.context_dim = context_dim
         self.posthoc_dim = posthoc_dim

@@ -6,8 +6,9 @@ This service implement AcquisitionSelect and AcquisitionReport.
 """
 
 # Standard imports
-from typing import Dict, Union
 import numpy as np
+import threading
+from typing import Dict, Union
 
 # Third-party imports
 import rclpy
@@ -80,7 +81,7 @@ class PolicyServices(Node):
         policy_cls = import_from_string(policy_cls_name)
         assert issubclass(policy_cls, Policy), f"{policy_cls_name} must subclass Policy"
 
-        kwargs = self.get_kwargs(f"{policy_name}.kws", f"{policy_name}.kwargs")
+        policy_kwargs = self.get_kwargs(f"{policy_name}.kws", f"{policy_name}.kwargs")
 
         # Get the context adapter
         context_cls_param = self.declare_parameter(
@@ -136,13 +137,15 @@ class PolicyServices(Node):
 
         # Initialize and validate the policy
         self.policy = policy_cls(
-            self.context_adapter.dim, self.posthoc_adapter.dim, **kwargs
+            self.context_adapter.dim, self.posthoc_adapter.dim, **policy_kwargs
         )
 
         # Start image subscribers
         self.image = None
         self.depth = None
         self.ros_objs = []
+        self.latest_img_msg_lock = threading.Lock()
+        self.latest_depth_msg_lock = threading.Lock()
 
         if self.context_adapter.need_rgb:
             self.ros_objs.append(self.create_subscription(
@@ -150,7 +153,7 @@ class PolicyServices(Node):
             ))
         if self.context_adapter.need_depth:
             self.ros_objs.append(self.create_subscription(
-                get_img_msg_type("~/depth", self), "~/depth", self.depth_callback, 1
+                get_img_msg_type("~/aligned_depth", self), "~/aligned_depth", self.depth_callback, 1
             ))
 
         self.ros_objs.append(self.create_service(
@@ -167,24 +170,28 @@ class PolicyServices(Node):
         """
         Store rgb image
         """
-        self.image = ros_msg_to_cv2_image(msg)
+        with self.latest_img_msg_lock:
+            self.image = ros_msg_to_cv2_image(msg)
 
     def depth_callback(self, msg: Union[CompressedImage, Image]):
         """
         Store depth image
         """
-        self.depth = ros_msg_to_cv2_image(msg)
+        with self.latest_depth_msg_lock:
+            self.depth = ros_msg_to_cv2_image(msg)
 
     # Services
-    def select_callback(self, request, response):
+    def select_callback(self, request: AcquisitionSelect.Request, response: AcquisitionSelect.Response) -> AcquisitionSelect.Response:
         """
         Implement AcquisitionSelect.srv
         """
 
         # Run the context adapter
-        context = self.context_adapter.get_context(
-            request.food_context, self.image, self.depth
-        )
+        with self.latest_img_msg_lock:
+            with self.latest_depth_msg_lock:
+                context = self.context_adapter.get_context(
+                    request.food_context, self.image, self.depth
+                )
         if context.size != self.context_adapter.dim:
             response.status = "Bad Context"
             return response
@@ -194,7 +201,7 @@ class PolicyServices(Node):
         response = self.policy.choice(context, response)
         return response
 
-    def report_callback(self, request, response):
+    def report_callback(self, request: AcquisitionReport.Request, response: AcquisitionReport.Response) -> AcquisitionReport.Response:
         """
         Implement AcquisitionReport.srv
         """
@@ -212,6 +219,7 @@ class PolicyServices(Node):
         response = self.policy.update(posthoc, request, response)
         return response
 
+    # TODO: Consider making get_kwargs an ada_feeding helper
     def get_kwargs(self, kws_root: str, kwarg_root: str) -> Dict:
         """
         Pull variable keyward arguments from ROS2 parameter server.

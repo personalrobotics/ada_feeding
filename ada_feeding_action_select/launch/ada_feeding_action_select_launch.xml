@@ -6,7 +6,7 @@
     <param from="$(find-pkg-share ada_feeding_action_select)/config/policies.yaml"/>
     <param name="policy" value="$(var policy)"/>
     <remap from="~/image" to="/camera/color/image_raw/compressed"/>
-    <remap from="~/depth" to="/camera/aligned_depth_to_color/image_raw"/>
+    <remap from="~/aligned_depth" to="/camera/aligned_depth_to_color/image_raw"/>
   </node>
 
 </launch>
