@@ -123,9 +123,8 @@ class FaceDetectionNode(Node):
         # (updated with subscription)
         self.camera_matrix = [614, 0, 312, 0, 614, 223, 0, 0, 1]
 
-        # Keeps track of the detected mouth points
-        self.img_mouth_center = []
-        self.img_mouth_points = []
+        # Keeps track of the detected depth point
+        self.img_eyes_center = []
         self.is_face_detected = False
 
         # The header of the latest color image with a detected face/mouth
@@ -297,8 +296,7 @@ class FaceDetectionNode(Node):
 
         with self.mouth_detection_lock:
             is_face_detected = self.is_face_detected
-            img_mouth_center = self.img_mouth_center
-            img_mouth_points = self.img_mouth_points
+            img_eyes_center = self.img_eyes_center
             color_img_header = self.color_img_header
 
         with self.camera_info_lock:
@@ -309,8 +307,8 @@ class FaceDetectionNode(Node):
             face_detection_msg = FaceDetection()
             if is_face_detected:
                 # Retrieve the 2d location of the mouth center
-                u = int(img_mouth_center[0])
-                v = int(img_mouth_center[1])
+                u = int(img_eyes_center[0])
+                v = int(img_eyes_center[1])
 
                 # Find depth image closest in time to saved color image
                 difference_array = np.zeros((len(self.depth_buffer),), dtype=np.float32)
@@ -327,11 +325,13 @@ class FaceDetectionNode(Node):
                     desired_encoding="passthrough",
                 )
 
-                # Retrieve the depth value averaged over all mouth coordinates
+                # Retrieve the depth value averaged over a 9x9 pixel square around
+                # point between eyes
                 depth_sum = 0
-                for point in img_mouth_points:
-                    depth_sum += closest_depth[int(point[1])][int(point[0])]
-                depth = depth_sum / float(len(img_mouth_points))
+                for x in range(u - 4, u + 4):
+                    for y in range(v - 4, v + 4):
+                        depth_sum += closest_depth[int(x)][int(y)]
+                depth = depth_sum / float(81)
 
                 # Create target 3d point, with mm measurements converted to m
                 # Equations and explanation can be found at https://youtu.be/qByYk6JggQU
@@ -403,9 +403,9 @@ class FaceDetectionNode(Node):
                 (x, y, w, h) = faces[largest_face[1]]
                 cv2.rectangle(image_rgb, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
-                # Find stomion (mouth center) in image
-                img_mouth_center = landmarks[largest_face[1]][0][66]
-                img_mouth_points = landmarks[largest_face[1]][0][48:68]
+                # Find marker between eyes. This is used to estimate stomion depth in the
+                # case that the stomion is hidden behind the fork.
+                img_eyes_center = landmarks[largest_face[1]][0][27]
 
                 color_img_header = msg.header
 
@@ -415,8 +415,7 @@ class FaceDetectionNode(Node):
                 self.is_face_detected = is_face_detected
                 # The below variables are only accessed if is_face_detected is True
                 if is_face_detected:
-                    self.img_mouth_center = img_mouth_center
-                    self.img_mouth_points = img_mouth_points
+                    self.img_eyes_center = img_eyes_center
                     self.color_img_header = color_img_header
 
             # Publish annotated image with face and mouth landmarks
