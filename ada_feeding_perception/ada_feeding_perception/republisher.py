@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
 This module defines the Republisher node, which takes in parameters for `from_topics`
-and `to_topics` and republishes the messages from the `from_topics` to the `to_topics`.
+and `republished_namespace` and republishes the messages from the `from_topics` within
+the specified namespace.
 
 This node is intended to address the issue where, when subscribing to images on a
-different topic to the one you are publishing them on, the rate slows down a lot if
+different machine to the one you are publishing them on, the rate slows down a lot if
 you have >3 subscriptions.
 """
 
@@ -12,22 +13,19 @@ you have >3 subscriptions.
 from typing import Any, Callable, List, Tuple
 
 # Third-party imports
-from ada_feeding.helpers import import_from_string
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
 # Local imports
+from ada_feeding.helpers import import_from_string
 
 
 class Republisher(Node):
     """
-    A node that takes in parameters for `from_topics` and `to_topics` and republishes
-    the messages from the `from_topics` to the `to_topics`.
-
-    TODO: As opposed to always subscribing to the `from_topic`, this node should
-    only do so once there is a subscriber on the `to_topic`.
+    A node that takes in parameters for `from_topics` and `republished_namespace` and
+    republishes the messages from the `from_topics` within the specified namespace.
     """
 
     def __init__(self) -> None:
@@ -37,7 +35,11 @@ class Republisher(Node):
         super().__init__("republisher")
 
         # Load the parameters
-        self.from_topics, self.topic_type_strs, self.to_topics = self.load_parameters()
+        (
+            self.from_topics,
+            self.topic_type_strs,
+            self.republished_namespace,
+        ) = self.load_parameters()
 
         # Import the topic types
         self.topic_types = []
@@ -45,9 +47,7 @@ class Republisher(Node):
             self.topic_types.append(import_from_string(topic_type_str))
 
         # For each topic, create a callback, publisher, and subscriber
-        num_topics = min(
-            len(self.from_topics), len(self.topic_types), len(self.to_topics)
-        )
+        num_topics = min(len(self.from_topics), len(self.topic_types))
         self.callbacks = []
         self.pubs = []
         self.subs = []
@@ -57,10 +57,17 @@ class Republisher(Node):
             self.callbacks.append(callback)
 
             # Create the publisher
+            to_topic = "/".join(
+                [
+                    "",
+                    self.republished_namespace.lstrip("/"),
+                    self.from_topics[i].lstrip("/"),
+                ]
+            )
             publisher = self.create_publisher(
                 msg_type=self.topic_types[i],
-                topic=self.to_topics[i],
-                qos_profile=1,  # TODO: we should mirror the QOS profile of the from_topic
+                topic=to_topic,
+                qos_profile=1,  # TODO: we should get and mirror the QOS profile of the from_topic
             )
             self.pubs.append(publisher)
 
@@ -69,7 +76,7 @@ class Republisher(Node):
                 msg_type=self.topic_types[i],
                 topic=self.from_topics[i],
                 callback=callback,
-                qos_profile=1,  # TODO: we should mirror the QOS profile of the from_topic
+                qos_profile=1,  # TODO: we should get and mirror the QOS profile of the from_topic
             )
             self.subs.append(subscriber)
 
@@ -83,13 +90,12 @@ class Republisher(Node):
             The topics to subscribe to.
         topic_types : List[str]
             The types of the topics to subscribe to in format, e.g., `std_msgs.msg.String`.
-        to_topics : List[str]
-            The topics to publish to.
+        republished_namespace : str
+            The namespace to republish topics under.
         """
         # Read the from topics
         from_topics = self.declare_parameter(
             "from_topics",
-            [],
             descriptor=ParameterDescriptor(
                 name="from_topics",
                 type=ParameterType.PARAMETER_STRING_ARRAY,
@@ -101,7 +107,6 @@ class Republisher(Node):
         # Read the topic types
         topic_types = self.declare_parameter(
             "topic_types",
-            [],
             descriptor=ParameterDescriptor(
                 name="topic_types",
                 type=ParameterType.PARAMETER_STRING_ARRAY,
@@ -114,18 +119,26 @@ class Republisher(Node):
         )
 
         # Read the to topics
-        to_topics = self.declare_parameter(
-            "to_topics",
-            [],
+        republished_namespace = self.declare_parameter(
+            "republished_namespace",
+            "/local",
             descriptor=ParameterDescriptor(
-                name="to_topics",
-                type=ParameterType.PARAMETER_STRING_ARRAY,
-                description="List of the topics to publish to.",
+                name="republished_namespace",
+                type=ParameterType.PARAMETER_STRING,
+                description="The namespace to republish topics under.",
                 read_only=True,
             ),
         )
 
-        return from_topics.value, topic_types.value, to_topics.value
+        # Replace unset parameters with empty list
+        from_topics_retval = from_topics.value
+        if from_topics_retval is None:
+            from_topics_retval = []
+        topic_types_retval = topic_types.value
+        if topic_types_retval is None:
+            topic_types_retval = []
+
+        return from_topics_retval, topic_types_retval, republished_namespace.value
 
     def create_callback(self, i: int) -> Callable:
         """
@@ -151,9 +164,9 @@ class Republisher(Node):
             msg : Any
                 The message from the subscriber.
             """
-            self.get_logger().info(
-                f"Received message on topic {i} {self.from_topics[i]}"
-            )
+            # self.get_logger().info(
+            #     f"Received message on topic {i} {self.from_topics[i]}"
+            # )
             self.pubs[i].publish(msg)
 
         return callback
