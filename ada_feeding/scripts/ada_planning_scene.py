@@ -23,7 +23,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
 CollisionMeshParams = namedtuple(
-    "CollisionMeshParams", ["filepath", "position", "quat_xyzw"]
+    "CollisionMeshParams", ["filepath", "position", "quat_xyzw", "frame_id"]
 )
 
 
@@ -136,12 +136,22 @@ class ADAPlanningScene(Node):
                     read_only=True,
                 ),
             )
+            frame_id = self.declare_parameter(
+                f"{object_id}.frame_id",
+                descriptor=ParameterDescriptor(
+                    name="frame_id",
+                    type=ParameterType.PARAMETER_STRING,
+                    description=("The frame ID that the pose is in."),
+                    read_only=True,
+                ),
+            )
 
             # Add the object to the list of objects
             self.objects[object_id] = CollisionMeshParams(
                 filepath=path.join(assets_dir.value, filename.value),
                 position=position.value,
                 quat_xyzw=quat_xyzw.value,
+                frame_id=frame_id.value,
             )
 
     def wait_for_moveit(self) -> None:
@@ -171,6 +181,7 @@ class ADAPlanningScene(Node):
                 filepath=params.filepath,
                 position=params.position,
                 quat_xyzw=params.quat_xyzw,
+                frame_id=params.frame_id,
             )
 
 
