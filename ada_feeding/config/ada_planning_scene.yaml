@@ -6,28 +6,53 @@ ada_planning_scene:
       - wheelchair_collision
       - table
       - head
-    # For each object, specify the filename of the mesh, and the position and
-    # orientation relative to the robot's base frame.
+      - workspace_wall_front
+      - workspace_wall_left
+      - workspace_wall_top
+    # For each object, specify:
+    #   - Shape: EITHER `filepath` (for a mesh) OR `primitive_type` and
+    #     `primitive_dims`(for a primitive -- see shape_msgs/SolidPrimitive.msg)
+    #   - Pose: `position` and `quat_xyzw` (see geometry_msgs/Pose.msg)
+    #   - Frame ID: `frame_id` (the frame_id of the object that the pose is
+    #     relative to)
     wheelchair: # the wheelchair mesh
       filename: wheelchair.stl
       position: [0.02, -0.02, -0.05]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
-      frame_id: root # the frame_id of the wheelchair meshthat the pose is relative to
+      frame_id: root # the frame_id that the pose is relative to
     # an expanded mesh around the wheelchair to account for a user sitting in it
     wheelchair_collision: 
       filename: wheelchair_collision.stl
       position: [0.02, -0.02, -0.05] # should match the wheelchair position
       quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
-      frame_id: root # the frame_id of the wheelchair meshthat the pose is relative to
+      frame_id: root # the frame_id that the pose is relative to
     table: # the table mesh
       filename: table.stl
       position: [0.08, -0.5, -0.45]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
-      frame_id: root # the frame_id of the wheelchair meshthat the pose is relative to
+      frame_id: root # the frame_id that the pose is relative to
     head: # the head mesh
       filename: tom.stl
       # This is an initial guess of head position; it will be updated as the
       # robot perceives the face.
       position: [0.29, 0.35, 0.85]
       quat_xyzw: [-0.0616284, -0.0616284, -0.704416, 0.704416]
-      frame_id: root # the frame_id of the wheelchair meshthat the pose is relative to
+      frame_id: root # the frame_id that the pose is relative to
+    workspace_wall_front:
+      primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
+      primitive_dims: [1.59, 0.01, 0.8] # Box has 3 dims: [x, y, z]
+      position: [-0.05, -0.58, 0.65]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+      frame_id: root # the frame_id that the pose is relative to
+    workspace_wall_left:
+      primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
+      primitive_dims: [0.01, 1.5, 1.60] # Box has 3 dims: [x, y, z]
+      position: [0.75, 0.17, 0.25]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+      frame_id: root # the frame_id that the pose is relative to
+    workspace_wall_top:
+      primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
+      primitive_dims: [1.59, 1.5, 0.01] # Box has 3 dims: [x, y, z]
+      position: [-0.05, 0.17, 1.05]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+      frame_id: root # the frame_id that the pose is relative to

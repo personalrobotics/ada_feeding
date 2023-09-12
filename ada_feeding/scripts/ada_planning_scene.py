@@ -23,7 +23,15 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
 CollisionMeshParams = namedtuple(
-    "CollisionMeshParams", ["filepath", "position", "quat_xyzw", "frame_id"]
+    "CollisionMeshParams",
+    [
+        "filepath",
+        "primitive_type",
+        "primitive_dims",
+        "position",
+        "quat_xyzw",
+        "frame_id",
+    ],
 )
 
 
@@ -108,15 +116,47 @@ class ADAPlanningScene(Node):
         for object_id in object_ids.value:
             filename = self.declare_parameter(
                 f"{object_id}.filename",
+                None,
                 descriptor=ParameterDescriptor(
                     name="filename",
                     type=ParameterType.PARAMETER_STRING,
-                    description=f"The filename of the mesh for the '{object_id}' object.",
+                    description=(
+                        f"The filename of the mesh for the '{object_id}' object. "
+                        "Either this or `primitive_type` and `primitive_dims` must "
+                        "be specified."
+                    ),
+                    read_only=True,
+                ),
+            )
+            primitive_type = self.declare_parameter(
+                f"{object_id}.primitive_type",
+                None,
+                descriptor=ParameterDescriptor(
+                    name="primitive_type",
+                    type=ParameterType.PARAMETER_INTEGER,
+                    description=(
+                        f"The primitive type of the '{object_id}' object. "
+                        "Either this and `primitive_dims` must be defined, or `filename`."
+                    ),
+                    read_only=True,
+                ),
+            )
+            primitive_dims = self.declare_parameter(
+                f"{object_id}.primitive_dims",
+                None,
+                descriptor=ParameterDescriptor(
+                    name="primitive_dims",
+                    type=ParameterType.PARAMETER_DOUBLE_ARRAY,
+                    description=(
+                        f"The dimensions of the '{object_id}' object. "
+                        "Either this and `primitive_type` must be defined, or `filename`."
+                    ),
                     read_only=True,
                 ),
             )
             position = self.declare_parameter(
                 f"{object_id}.position",
+                None,
                 descriptor=ParameterDescriptor(
                     name="position",
                     type=ParameterType.PARAMETER_DOUBLE_ARRAY,
@@ -126,6 +166,7 @@ class ADAPlanningScene(Node):
             )
             quat_xyzw = self.declare_parameter(
                 f"{object_id}.quat_xyzw",
+                None,
                 descriptor=ParameterDescriptor(
                     name="quat_xyzw",
                     type=ParameterType.PARAMETER_DOUBLE_ARRAY,
@@ -138,6 +179,7 @@ class ADAPlanningScene(Node):
             )
             frame_id = self.declare_parameter(
                 f"{object_id}.frame_id",
+                None,
                 descriptor=ParameterDescriptor(
                     name="frame_id",
                     type=ParameterType.PARAMETER_STRING,
@@ -147,8 +189,15 @@ class ADAPlanningScene(Node):
             )
 
             # Add the object to the list of objects
+            filepath = (
+                None
+                if filename.value is None
+                else path.join(assets_dir.value, filename.value)
+            )
             self.objects[object_id] = CollisionMeshParams(
-                filepath=path.join(assets_dir.value, filename.value),
+                filepath=filepath,
+                primitive_type=primitive_type.value,
+                primitive_dims=primitive_dims.value,
                 position=position.value,
                 quat_xyzw=quat_xyzw.value,
                 frame_id=frame_id.value,
@@ -176,13 +225,23 @@ class ADAPlanningScene(Node):
         """
         # Add each object to the planning scene
         for object_id, params in self.objects.items():
-            self.moveit2.add_collision_mesh(
-                id=object_id,
-                filepath=params.filepath,
-                position=params.position,
-                quat_xyzw=params.quat_xyzw,
-                frame_id=params.frame_id,
-            )
+            if params.primitive_type is None:
+                self.moveit2.add_collision_mesh(
+                    id=object_id,
+                    filepath=params.filepath,
+                    position=params.position,
+                    quat_xyzw=params.quat_xyzw,
+                    frame_id=params.frame_id,
+                )
+            else:
+                self.moveit2.add_collision_primitive(
+                    id=object_id,
+                    prim_type=params.primitive_type,
+                    dims=params.primitive_dims,
+                    position=params.position,
+                    quat_xyzw=params.quat_xyzw,
+                    frame_id=params.frame_id,
+                )
 
 
 def main(args: List = None) -> None:
