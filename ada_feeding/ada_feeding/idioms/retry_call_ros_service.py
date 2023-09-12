@@ -25,7 +25,7 @@ def retry_call_ros_service(
     key_response: Optional[str] = None,
     response_checks: Optional[List[py_trees.common.ComparisonExpression]] = None,
     max_retries: int = 3,
-    wait_for_server_timeout_sec: float = 3.0,
+    wait_for_server_timeout_sec: float = 0.0,
     logger: Optional[logging.Logger] = None,
 ) -> py_trees.behaviour.Behaviour:
     """

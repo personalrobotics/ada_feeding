@@ -227,6 +227,7 @@ class MoveToMouthTree(MoveToTree):
         )
         pre_moveto_config_behavior = pre_moveto_config(
             name=pre_moveto_config_name,
+            toggle_watchdog_listener=False,
             f_mag=self.force_threshold,
             t_mag=self.torque_threshold,
             logger=logger,

@@ -21,6 +21,7 @@ ada_feeding_action_servers:
       tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
       tree_kws: # optional
         - joint_positions
+        - toggle_watchdog_listener
         - f_mag
         - max_velocity_scaling_factor
       tree_kwargs: # optional
@@ -31,6 +32,7 @@ ada_feeding_action_servers:
           - -2.30031 # j2n6s200_joint_4
           - -2.34026 # j2n6s200_joint_5
           -  2.95450 # j2n6s200_joint_6
+        toggle_watchdog_listener: false # optional, default: true
         f_mag: 4.0 # N
         max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
       tick_rate: 10 # Hz, optional, default: 30
@@ -53,6 +55,7 @@ ada_feeding_action_servers:
       tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
       tree_kws: # optional
         - joint_positions
+        - toggle_watchdog_listener
         - f_mag
         - max_velocity_scaling_factor
       tree_kwargs: # optional
@@ -63,6 +66,7 @@ ada_feeding_action_servers:
           - -4.76501 # j2n6s200_joint_4
           -  5.99991 # j2n6s200_joint_5
           -  4.99555 # j2n6s200_joint_6
+        toggle_watchdog_listener: false # optional, default: true
         f_mag: 4.0 # N
         max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
       tick_rate: 10 # Hz, optional, default: 30
@@ -111,6 +115,7 @@ ada_feeding_action_servers:
       tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
       tree_kws: # optional
         - joint_positions
+        - toggle_watchdog_listener
         - f_mag
         - max_velocity_scaling_factor
       tree_kwargs: # optional
@@ -121,6 +126,7 @@ ada_feeding_action_servers:
           - -4.00012 # j2n6s200_joint_4
           -  0.22831 # j2n6s200_joint_5
           -  3.87886 # j2n6s200_joint_6
+        toggle_watchdog_listener: false # optional, default: true
         f_mag: 4.0 # N
         max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
       tick_rate: 10 # Hz, optional, default: 30

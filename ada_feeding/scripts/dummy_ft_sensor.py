@@ -43,7 +43,7 @@ class DummyForceTorqueSensor(Node):
     # pylint: disable=too-many-instance-attributes
     # Two above is fine for a dummy node.
 
-    def __init__(self, rate_hz: float = 30.0) -> None:
+    def __init__(self, rate_hz: float = 100.0) -> None:
         """
         Initialize the dummy force-torque sensor node.
 
@@ -88,6 +88,7 @@ class DummyForceTorqueSensor(Node):
 
         # Create a service to (dummy) re-tare the sensor
         self.set_bias_request_time = None
+        self.messages_since_bias_request = 0
         self.set_bias_request_time_lock = threading.Lock()
         self.set_bias_service = self.create_service(
             SetBool,
@@ -129,14 +130,16 @@ class DummyForceTorqueSensor(Node):
         """
         # Only publish if the sensor is on
         if self.get_parameter("is_on").value:
-            # Don't publish for 0.75 sec after a set_bias request
+            # Reduce the publication rate by 10x while retaring
             with self.set_bias_request_time_lock:
                 if (
                     self.set_bias_request_time is not None
                     and self.get_clock().now() - self.set_bias_request_time
                     < rclpy.duration.Duration(seconds=0.75)
                 ):
-                    return
+                    self.messages_since_bias_request += 1
+                    if (self.messages_since_bias_request % 10) != 0:
+                        return
 
             # Get the simulated data
             ft_data = np.random.normal(
