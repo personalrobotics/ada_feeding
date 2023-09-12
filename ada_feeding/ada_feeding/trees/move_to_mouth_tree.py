@@ -32,7 +32,6 @@ from ada_feeding.idioms import pre_moveto_config
 from ada_feeding.idioms.bite_transfer import (
     get_toggle_collision_object_behavior,
     get_toggle_face_detection_behavior,
-    get_toggle_watchdog_listener_behavior,
 )
 from ada_feeding.trees import (
     MoveToTree,
@@ -221,7 +220,6 @@ class MoveToMouthTree(MoveToTree):
         move_to_target_pose_prefix = "move_to_target_pose"
         disallow_wheelchair_collision_prefix = "disallow_wheelchair_collision"
         turn_face_detection_off_prefix = "turn_face_detection_off"
-        turn_watchdog_listener_on_prefix = "turn_watchdog_listener_on"
 
         # Create the behaviour to turn face detection on
         turn_face_detection_on = get_toggle_face_detection_behavior(
@@ -399,7 +397,7 @@ class MoveToMouthTree(MoveToTree):
                 cartesian=True,
                 cartesian_jump_threshold=self.cartesian_jump_threshold_to_mouth,
                 cartesian_max_step=self.cartesian_max_step_to_mouth,
-                cartesian_fraction_threshold=0.85,
+                cartesian_fraction_threshold=0.60,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time_to_mouth,
                 max_velocity_scaling_factor=self.max_velocity_scaling_factor_to_mouth,
@@ -460,15 +458,6 @@ class MoveToMouthTree(MoveToTree):
         )
         move_to_mouth.logger = logger
 
-        # If there was a failure in the main tree, we want to ensure to turn
-        # the watchdog listener back on
-        turn_watchdog_listener_on = get_toggle_watchdog_listener_behavior(
-            name,
-            turn_watchdog_listener_on_prefix,
-            True,
-            logger,
-        )
-
         # Create a cleanup branch for the behaviors that should get executed if
         # the main tree has a failure
         cleanup_tree = py_trees.composites.Sequence(
@@ -477,7 +466,6 @@ class MoveToMouthTree(MoveToTree):
             children=[
                 gen_disallow_wheelchair_collision(),
                 gen_turn_face_detection_off(),
-                turn_watchdog_listener_on,
             ],
         )
 

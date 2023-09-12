@@ -118,10 +118,10 @@ ada_feeding_action_servers:
           - 0.6 # x, rad
           - 3.14159 # y, rad
           - 0.5 # z, rad
-        allowed_planning_time_to_staging_configuration: 2.0 # secs
+        allowed_planning_time_to_staging_configuration: 2.5 # secs
         max_velocity_scaling_factor_to_staging_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
         max_velocity_scaling_factor_to_mouth: 0.4 # optional in (0.0, 1.0], default: 0.1
-        cartesian_jump_threshold_to_mouth: 4.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
+        cartesian_jump_threshold_to_mouth: 2.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
         cartesian_max_step_to_mouth: 0.01 # m
       tick_rate: 10 # Hz, optional, default: 30
 
@@ -169,7 +169,7 @@ ada_feeding_action_servers:
           - 0.5 # z, rad
         max_velocity_scaling_factor_to_staging_configuration: 0.4 # optional in (0.0, 1.0], default: 0.1
         max_velocity_scaling_factor_to_end_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
-        cartesian_jump_threshold_to_staging_configuration: 4.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
+        cartesian_jump_threshold_to_staging_configuration: 2.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
         cartesian_max_step_to_staging_configuration: 0.01 # m
       tick_rate: 10 # Hz, optional, default: 30
 
@@ -229,7 +229,7 @@ ada_feeding_action_servers:
           - 0.5 # z, rad
         max_velocity_scaling_factor_to_staging_configuration: 0.4 # optional in (0.0, 1.0], default: 0.1
         max_velocity_scaling_factor_to_end_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
-        cartesian_jump_threshold_to_staging_configuration: 4.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
+        cartesian_jump_threshold_to_staging_configuration: 2.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
         cartesian_max_step_to_staging_configuration: 0.01 # m
         allowed_planning_time_to_end_configuration: 2.5 # secs
       tick_rate: 10 # Hz, optional, default: 30

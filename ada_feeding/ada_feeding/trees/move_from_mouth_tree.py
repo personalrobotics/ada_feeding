@@ -22,7 +22,6 @@ from rclpy.node import Node
 from ada_feeding.idioms import pre_moveto_config
 from ada_feeding.idioms.bite_transfer import (
     get_toggle_collision_object_behavior,
-    get_toggle_watchdog_listener_behavior,
 )
 from ada_feeding.trees import (
     MoveToTree,
@@ -188,7 +187,6 @@ class MoveFromMouthTree(MoveToTree):
         move_to_staging_configuration_prefix = "move_to_staging_configuration"
         disallow_wheelchair_collision_prefix = "disallow_wheelchair_collision"
         move_to_end_configuration_prefix = "move_to_end_configuration"
-        turn_watchdog_listener_on_prefix = "turn_watchdog_listener_on"
 
         # Configure the force-torque sensor and thresholds before moving
         pre_moveto_config_name = Blackboard.separator.join(
@@ -196,6 +194,7 @@ class MoveFromMouthTree(MoveToTree):
         )
         pre_moveto_config_behavior = pre_moveto_config(
             name=pre_moveto_config_name,
+            toggle_watchdog_listener=False,
             f_mag=self.force_threshold,
             t_mag=self.torque_threshold,
             logger=logger,
@@ -229,7 +228,7 @@ class MoveFromMouthTree(MoveToTree):
                 cartesian=True,
                 cartesian_jump_threshold=self.cartesian_jump_threshold_to_staging_configuration,
                 cartesian_max_step=self.cartesian_max_step_to_staging_configuration,
-                cartesian_fraction_threshold=0.85,
+                cartesian_fraction_threshold=0.60,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time_to_staging_configuration,
                 max_velocity_scaling_factor=(
@@ -306,25 +305,9 @@ class MoveFromMouthTree(MoveToTree):
         )
         move_from_mouth.logger = logger
 
-        # If there was a failure in the main tree, we want to ensure to turn
-        # the watchdog listener back on
-        turn_watchdog_listener_on = get_toggle_watchdog_listener_behavior(
-            name,
-            turn_watchdog_listener_on_prefix,
-            True,
-            logger,
-        )
-
         # Create a cleanup branch for the behaviors that should get executed if
         # the main tree has a failure
-        cleanup_tree = py_trees.composites.Sequence(
-            name=name + " Cleanup",
-            memory=True,
-            children=[
-                gen_disallow_wheelchair_collision(),
-                turn_watchdog_listener_on,
-            ],
-        )
+        cleanup_tree = gen_disallow_wheelchair_collision()
 
         # If move_from_mouth fails, we still want to do some cleanup (e.g., turn
         # face detection off).

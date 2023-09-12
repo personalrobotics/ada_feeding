@@ -188,36 +188,40 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             memory=True,
             children=[pre_moveto_behavior, move_to_configuration_root],
         )
+        main_tree.logger = logger
 
-        # If there was a failure in the main tree, we want to ensure to turn
-        # the watchdog listener back on
-        # pylint: disable=duplicate-code
-        # This is similar to any other tree that needs to cleanup pre_moveto_config
-        turn_watchdog_listener_on = get_toggle_watchdog_listener_behavior(
-            name,
-            turn_watchdog_listener_on_prefix,
-            True,
-            logger,
-        )
+        if self.toggle_watchdog_listener:
+            # If there was a failure in the main tree, we want to ensure to turn
+            # the watchdog listener back on
+            # pylint: disable=duplicate-code
+            # This is similar to any other tree that needs to cleanup pre_moveto_config
+            turn_watchdog_listener_on = get_toggle_watchdog_listener_behavior(
+                name,
+                turn_watchdog_listener_on_prefix,
+                True,
+                logger,
+            )
 
-        # Create a cleanup branch for the behaviors that should get executed if
-        # the main tree has a failure
-        cleanup_tree = turn_watchdog_listener_on
+            # Create a cleanup branch for the behaviors that should get executed if
+            # the main tree has a failure
+            cleanup_tree = turn_watchdog_listener_on
 
-        # If main_tree fails, we still want to do some cleanup.
-        root = py_trees.composites.Selector(
-            name=name,
-            memory=True,
-            children=[
-                main_tree,
-                # Even though we are cleaning up the tree, it should still
-                # pass the failure up.
-                py_trees.decorators.SuccessIsFailure(
-                    name + " Cleanup Root", cleanup_tree
-                ),
-            ],
-        )
-        root.logger = logger
+            # If main_tree fails, we still want to do some cleanup.
+            root = py_trees.composites.Selector(
+                name=name,
+                memory=True,
+                children=[
+                    main_tree,
+                    # Even though we are cleaning up the tree, it should still
+                    # pass the failure up.
+                    py_trees.decorators.SuccessIsFailure(
+                        name + " Cleanup Root", cleanup_tree
+                    ),
+                ],
+            )
+            root.logger = logger
+        else:
+            root = main_tree
 
         tree = py_trees.trees.BehaviourTree(root)
         return tree
