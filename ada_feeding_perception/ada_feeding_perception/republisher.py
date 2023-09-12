@@ -89,6 +89,7 @@ class Republisher(Node):
         # Read the from topics
         from_topics = self.declare_parameter(
             "from_topics",
+            [],
             descriptor=ParameterDescriptor(
                 name="from_topics",
                 type=ParameterType.PARAMETER_STRING_ARRAY,
@@ -100,6 +101,7 @@ class Republisher(Node):
         # Read the topic types
         topic_types = self.declare_parameter(
             "topic_types",
+            [],
             descriptor=ParameterDescriptor(
                 name="topic_types",
                 type=ParameterType.PARAMETER_STRING_ARRAY,
@@ -114,6 +116,7 @@ class Republisher(Node):
         # Read the to topics
         to_topics = self.declare_parameter(
             "to_topics",
+            [],
             descriptor=ParameterDescriptor(
                 name="to_topics",
                 type=ParameterType.PARAMETER_STRING_ARRAY,
