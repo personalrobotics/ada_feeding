@@ -400,12 +400,13 @@ class DistanceToGoal:
         # Only store messages that have all of the robot's joints. This is
         # because sometimes nodes other than the robot will be publishing to
         # the joint state publisher.
+        if self.joint_names is None:
+            return
         contains_all_robot_joints = True
-        if self.joint_names is not None:
-            for joint_name in self.joint_names:
-                if joint_name not in msg.name:
-                    contains_all_robot_joints = False
-                    break
+        for joint_name in self.joint_names:
+            if joint_name not in msg.name:
+                contains_all_robot_joints = False
+                break
         if contains_all_robot_joints:
             self.curr_joint_state = msg
 
