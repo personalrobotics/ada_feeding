@@ -5,16 +5,13 @@ republisher:
     from_topics:
       - /camera/color/image_raw/compressed
       - /camera/aligned_depth_to_color/image_raw
-      - /camera/depth/image_rect_raw
 
     # The types of topics to republish from
     topic_types:
       - sensor_msgs.msg.CompressedImage
-      - sensor_msgs.msg.Image
       - sensor_msgs.msg.Image
 
     # The name of the topics to republish to
     to_topics:
       - /local/camera/color/image_raw/compressed
       - /local/camera/aligned_depth_to_color/image_raw
-      - /local/camera/depth/image_rect_raw
