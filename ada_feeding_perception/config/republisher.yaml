@@ -4,7 +4,7 @@ republisher:
     # The name of the topics to republish from
     from_topics:
       - /camera/color/image_raw/compressed
-      - /camera/color/image_raw/camera_info
+      - /camera/color/camera_info
       - /camera/aligned_depth_to_color/image_raw
 
     # The types of topics to republish from
