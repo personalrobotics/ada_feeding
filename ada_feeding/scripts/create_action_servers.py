@@ -469,12 +469,10 @@ def main(args: List = None) -> None:
     try:
         rclpy.spin(create_action_servers, executor=executor)
     except Exception:
-        create_action_servers.shutdown()
         traceback.print_exc()
 
     # Destroy the node explicitly
-    # (optional - otherwise it will be done automatically
-    # when the garbage collector destroys the node object)
+    create_action_servers.shutdown()
     create_action_servers.destroy_node()
     rclpy.shutdown()
 
