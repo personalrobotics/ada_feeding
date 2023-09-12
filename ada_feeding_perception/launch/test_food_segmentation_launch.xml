@@ -4,7 +4,7 @@
     <param name="base_dir" value="$(find-pkg-share ada_feeding_perception)"/>
 
     <!-- The image topic must be the same topic that the SegmentFromPoint action server is listening to -->
-    <remap from="~/image" to="/camera/color/image_raw/compressed"/>
+    <remap from="~/image" to="/local/camera/color/image_raw/compressed"/>
   </node>
 
 </launch>

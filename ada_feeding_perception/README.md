@@ -18,7 +18,7 @@ For testing, be sure to unzip `test/food_img.zip`.
 
 1. Build your workspace: `colcon build`
 2. Source your workspace: `source install/setup.bash`
-3. Run the perception nodes: `ros2 launch ada_feeding_perception ada_feeding_perception_launch.xml`
+3. Run the perception nodes: `ros2 launch ada_feeding_perception ada_feeding_perception.launch.py`
 4. Launch the motion nodes:
     1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_real_sense:=false run_face_detection:=false run_food_detection:=false`
     2. Real nodes: `ros2 launch ada_feeding ada_feeding_launch.xml`
@@ -59,6 +59,8 @@ To run this script, do:
 See `config/test_segment_from_point.yaml` for other sample images and points. Note that you have to unzip `test/food_img.zip` to run this.
 
 #### Option B: Interactively Testing the ROS Action Server
+
+**NOTE**: On some machines Option B does not work (more generally, matplotlib interactive graphics don't work).
 
 We have provided a ROS node that displays the live image stream from a topic, let's users click on it, and sends that point click to the SegmentFromPoint action server.
 
