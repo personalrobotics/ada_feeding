@@ -45,6 +45,8 @@ class ADAWatchdog(Node):
         """
         super().__init__("ada_watchdog")
 
+        self._default_callback_group = rclpy.callback_groups.ReentrantCallbackGroup()
+
         # Load parameters
         self.__load_parameters()
 

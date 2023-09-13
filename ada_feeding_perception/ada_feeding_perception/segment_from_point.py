@@ -58,6 +58,8 @@ class SegmentFromPointNode(Node):
 
         super().__init__("segment_from_point")
 
+        self._default_callback_group = rclpy.callback_groups.ReentrantCallbackGroup()
+
         # Check if cuda is available
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 

@@ -52,6 +52,8 @@ class FaceDetectionNode(Node):
         """
         super().__init__("face_detection")
 
+        self._default_callback_group = rclpy.callback_groups.ReentrantCallbackGroup()
+
         # Read the parameters
         # NOTE: These parameters are only read once. Any changes after the node
         # is initialized will not be reflected.
