@@ -15,7 +15,6 @@ from moveit_msgs.msg import MoveItErrorCodes
 import py_trees
 from pymoveit2 import MoveIt2, MoveIt2State
 from pymoveit2.robots import kinova
-from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from rclpy.qos import QoSPresetProfiles
 from sensor_msgs.msg import JointState
@@ -121,14 +120,12 @@ class MoveTo(py_trees.behaviour.Behaviour):
         # Create MoveIt 2 interface for moving the Jaco arm. This must be done
         # in __init__ and not setup since the MoveIt2 interface must be
         # initialized before the ROS2 node starts spinning.
-        callback_group = ReentrantCallbackGroup()
         self.moveit2 = MoveIt2(
             node=self.node,
             joint_names=kinova.joint_names(),
             base_link_name=kinova.base_link_name(),
             end_effector_name="forkTip",
             group_name=kinova.MOVE_GROUP_ARM,
-            callback_group=callback_group,
         )
 
         # Subscribe to the joint state and track the distance to goal while the

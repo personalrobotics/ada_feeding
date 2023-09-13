@@ -55,6 +55,8 @@ class DummyForceTorqueSensor(Node):
         """
         super().__init__("dummy_ft_sensor")
 
+        self._default_callback_group = rclpy.callback_groups.ReentrantCallbackGroup()
+
         # Get the mean and standard deviaion of the distribution
         self.mean = self.declare_parameter(
             "mean",
