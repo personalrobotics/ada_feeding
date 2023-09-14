@@ -10,7 +10,7 @@ import numpy as np
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import CompressedImage, Image
+from sensor_msgs.msg import CompressedImage, Image, CameraInfo
 
 
 class DummyRealSense(Node):
@@ -82,9 +82,46 @@ class DummyRealSense(Node):
         self.aligned_depth_publisher = self.create_publisher(
             Image, "~/aligned_depth", 1
         )
+        self.camera_info_publisher = self.create_publisher(
+            CameraInfo, "~/camera_info", 1
+        )
         if self.video is not None:
             self.num_frames = 0
         self.bridge = CvBridge()
+
+        # Define constant CameraInfo
+        self.camera_info_msg = CameraInfo()
+        self.camera_info_msg.header.frame_id = "camera_color_optical_frame"
+        self.camera_info_msg.height = 480
+        self.camera_info_msg.width = 640
+        self.camera_info_msg.distortion_model = "plumb_bob"
+        self.camera_info_msg.d = [0.0, 0.0, 0.0, 0.0, 0.0]
+        self.camera_info_msg.k = [
+            614.5933227539062,
+            0.0,
+            312.1358947753906,
+            0.0,
+            614.6914672851562,
+            223.70831298828125,
+            0.0,
+            0.0,
+            1.0,
+        ]
+        self.camera_info_msg.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+        self.camera_info_msg.p = [
+            614.5933227539062,
+            0.0,
+            312.1358947753906,
+            0.0,
+            0.0,
+            614.6914672851562,
+            223.70831298828125,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+        ]
 
         # Launch the publisher in a separate thread
         self.thread = threading.Thread(target=self.publish_frames, daemon=True)
@@ -126,6 +163,10 @@ class DummyRealSense(Node):
             depth_frame_msg.header.frame_id = "camera_color_optical_frame"
             depth_frame_msg.header.stamp = self.get_clock().now().to_msg()
             self.aligned_depth_publisher.publish(depth_frame_msg)
+
+            # Publish the Camera Info
+            self.camera_info_msg.header.stamp = compressed_frame_msg.header.stamp
+            self.camera_info_publisher.publish(self.camera_info_msg)
 
             rate.sleep()
 

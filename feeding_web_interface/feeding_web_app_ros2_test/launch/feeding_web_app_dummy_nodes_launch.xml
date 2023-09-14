@@ -20,7 +20,9 @@
     <!-- Perception: The RealSense Node -->
     <node pkg="feeding_web_app_ros2_test" exec="DummyRealSense" name="DummyRealSense">
       <remap from="~/image" to="/camera/color/image_raw"/>
+      <remap from="~/compressed_image" to="/camera/color/image_raw/compressed"/>
       <remap from="~/aligned_depth" to="/camera/aligned_depth_to_color/image_raw"/>
+      <remap from="~/camera_info" to="/camera/color/camera_info"/>
       <param name="fps" value="30"/>
       <param name="rgb_path" value="$(find-pkg-share feeding_web_app_ros2_test)/../data/above_plate_1_rgb.jpg"/>
       <param name="depth_path" value="$(find-pkg-share feeding_web_app_ros2_test)/../data/above_plate_1_depth.png"/>

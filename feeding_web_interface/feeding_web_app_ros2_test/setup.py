@@ -33,6 +33,7 @@ setup(
         "console_scripts": [
             # Scripts for the main app
             "AcquireFood = feeding_web_app_ros2_test.AcquireFood:main",
+            "AcquireFoodClient = feeding_web_app_ros2_test.AcquireFoodClient:main",
             "DummyRealSense = feeding_web_app_ros2_test.DummyRealSense:main",
             "FaceDetection = feeding_web_app_ros2_test.FaceDetection:main",
             "MoveAbovePlate = feeding_web_app_ros2_test.MoveAbovePlate:main",
