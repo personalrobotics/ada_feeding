@@ -34,6 +34,8 @@ class Republisher(Node):
         """
         super().__init__("republisher")
 
+        self._default_callback_group = rclpy.callback_groups.ReentrantCallbackGroup()
+
         # Load the parameters
         (
             self.from_topics,
