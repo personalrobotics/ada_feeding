@@ -17,6 +17,7 @@ from cv_bridge import CvBridge
 from geometry_msgs.msg import Point
 import numpy as np
 import rclpy
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.executors import MultiThreadedExecutor
@@ -54,8 +55,6 @@ class FaceDetectionNode(Node):
         topic when face detection is on.
         """
         super().__init__("face_detection")
-
-        self._default_callback_group = rclpy.callback_groups.ReentrantCallbackGroup()
 
         # Read the parameters
         # NOTE: These parameters are only read once. Any changes after the node
@@ -108,6 +107,7 @@ class FaceDetectionNode(Node):
             SetBool,
             "~/toggle_face_detection",
             self.toggle_face_detection_callback,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # Create the publishers
@@ -131,7 +131,11 @@ class FaceDetectionNode(Node):
         self.latest_img_msg_lock = threading.Lock()
         image_topic = "~/image"
         self.img_subscription = self.create_subscription(
-            get_img_msg_type(image_topic, self), image_topic, self.camera_callback, 1
+            get_img_msg_type(image_topic, self),
+            image_topic,
+            self.camera_callback,
+            1,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         depth_buffer_size = depth_buffer_size.value
@@ -144,6 +148,7 @@ class FaceDetectionNode(Node):
             aligned_depth_topic,
             self.depth_callback,
             1,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # Subscribe to the camera info
@@ -152,7 +157,11 @@ class FaceDetectionNode(Node):
         # (updated with subscription)
         self.camera_matrix = [614, 0, 312, 0, 614, 223, 0, 0, 1]
         self.camera_info_subscription = self.create_subscription(
-            CameraInfo, "~/camera_info", self.camera_info_callback, 1
+            CameraInfo,
+            "~/camera_info",
+            self.camera_info_callback,
+            1,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
     def read_params(
@@ -504,7 +513,9 @@ class FaceDetectionNode(Node):
             with self.latest_img_msg_lock:
                 rgb_msg = self.latest_img_msg
             if rgb_msg is None:
-                self.get_logger().warn("No RGB image message received.", throttle_duration_sec=1)
+                self.get_logger().warn(
+                    "No RGB image message received.", throttle_duration_sec=1
+                )
                 continue
 
             # Detect the largest face in the RGB image
@@ -522,8 +533,10 @@ class FaceDetectionNode(Node):
                 if is_face_detected_depth:
                     # Get the 3d location of the mouth
                     face_detection_msg.detected_mouth_center.header = rgb_msg.header
-                    face_detection_msg.detected_mouth_center.point = self.get_stomion_point(
-                        img_mouth_center[0], img_mouth_center[1], depth_mm
+                    face_detection_msg.detected_mouth_center.point = (
+                        self.get_stomion_point(
+                            img_mouth_center[0], img_mouth_center[1], depth_mm
+                        )
                     )
                 else:
                     is_face_detected = False
@@ -540,7 +553,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     face_detection = FaceDetectionNode()
-    executor = MultiThreadedExecutor()
+    executor = MultiThreadedExecutor(num_threads=4)
 
     # Spin in the background since detecting faces will block
     # the main thread
