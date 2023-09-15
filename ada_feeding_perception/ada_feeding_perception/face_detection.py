@@ -394,7 +394,7 @@ class FaceDetectionNode(Node):
 
     def get_mouth_depth(
         self, rgb_msg: Union[CompressedImage, Image], face_points: np.ndarray
-    ) -> float:
+    ) -> Tuple[bool, float]:
         """
         Get the depth of the mouth of the largest detected face in the image.
 
@@ -423,6 +423,16 @@ class FaceDetectionNode(Node):
                 if time_diff < min_time_diff:
                     min_time_diff = time_diff
                     closest_depth_msg = depth_msg
+            if closest_depth_msg is None:
+                self.get_logger().warn(
+                    "No depth image message received.", throttle_duration_sec=1
+                )
+                return False, 0
+            self.get_logger().info(
+                f"Closest depth image message received at {closest_depth_msg.header.stamp}. "
+                f"Corresponding RGB image message received at {rgb_msg.header.stamp}. "
+                f"Time difference: {min_time_diff} seconds."
+            )
         image_depth = self.bridge.imgmsg_to_cv2(
             closest_depth_msg,
             desired_encoding="passthrough",
@@ -434,7 +444,7 @@ class FaceDetectionNode(Node):
             depth_sum += image_depth[int(point[1])][int(point[0])]
         depth_mm = depth_sum / float(len(face_points))
 
-        return depth_mm
+        return True, depth_mm
 
     def get_stomion_point(self, u: int, v: int, depth_mm: float) -> Point:
         """
@@ -493,6 +503,9 @@ class FaceDetectionNode(Node):
             # Get the latest RGB image message
             with self.latest_img_msg_lock:
                 rgb_msg = self.latest_img_msg
+            if rgb_msg is None:
+                self.get_logger().warn("No RGB image message received.", throttle_duration_sec=1)
+                continue
 
             # Detect the largest face in the RGB image
             (
@@ -503,13 +516,17 @@ class FaceDetectionNode(Node):
 
             if is_face_detected:
                 # Get the depth of the mouth
-                depth_mm = self.get_mouth_depth(rgb_msg, img_mouth_points)
-
-                # Get the 3d location of the mouth
-                face_detection_msg.detected_mouth_center.header = rgb_msg.header
-                face_detection_msg.detected_mouth_center.point = self.get_stomion_point(
-                    img_mouth_center[0], img_mouth_center[1], depth_mm
+                is_face_detected_depth, depth_mm = self.get_mouth_depth(
+                    rgb_msg, img_mouth_points
                 )
+                if is_face_detected_depth:
+                    # Get the 3d location of the mouth
+                    face_detection_msg.detected_mouth_center.header = rgb_msg.header
+                    face_detection_msg.detected_mouth_center.point = self.get_stomion_point(
+                        img_mouth_center[0], img_mouth_center[1], depth_mm
+                    )
+                else:
+                    is_face_detected = False
 
             # Publish 3d point
             face_detection_msg.is_face_detected = is_face_detected
