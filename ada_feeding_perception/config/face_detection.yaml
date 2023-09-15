@@ -12,4 +12,4 @@ face_detection:
     # The desired length of the depth image buffer
     depth_buffer_size: 30
     # The rate at which to detect and publish detected faces
-    rate_hz: 15
+    rate_hz: 3
