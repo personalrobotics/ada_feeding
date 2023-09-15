@@ -18,6 +18,7 @@ from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.action.server import ServerGoalHandle
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -58,8 +59,6 @@ class SegmentFromPointNode(Node):
 
         super().__init__("segment_from_point")
 
-        self._default_callback_group = rclpy.callback_groups.ReentrantCallbackGroup()
-
         # Check if cuda is available
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -91,6 +90,7 @@ class SegmentFromPointNode(Node):
             "~/camera_info",
             self.camera_info_callback,
             1,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.camera_info = None
         self.camera_info_lock = threading.Lock()
@@ -106,6 +106,7 @@ class SegmentFromPointNode(Node):
             aligned_depth_topic,
             self.depth_image_callback,
             1,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.latest_depth_img_msg = None
         self.latest_depth_img_msg_lock = threading.Lock()
@@ -117,6 +118,7 @@ class SegmentFromPointNode(Node):
             image_topic,
             self.image_callback,
             1,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.latest_img_msg = None
         self.latest_img_msg_lock = threading.Lock()
@@ -244,6 +246,7 @@ class SegmentFromPointNode(Node):
             self.execute_callback,
             goal_callback=self.goal_callback,
             cancel_callback=self.cancel_callback,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.get_logger().info("...Done!")
 
@@ -509,7 +512,7 @@ def main(args=None):
     segment_from_point = SegmentFromPointNode()
 
     # Use a MultiThreadedExecutor to enable processing goals concurrently
-    executor = MultiThreadedExecutor()
+    executor = MultiThreadedExecutor(num_threads=5)
 
     rclpy.spin(segment_from_point, executor=executor)
 
