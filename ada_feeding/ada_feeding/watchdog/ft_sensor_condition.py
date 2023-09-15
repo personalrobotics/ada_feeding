@@ -67,11 +67,15 @@ class FTSensorCondition(WatchdogCondition):
 
         # Subscribe to the FT sensor topic
         self.ft_sensor_topic = self._node.resolve_topic_name("~/ft_topic")
+        self.ft_sensor_callback_group = (
+            rclpy.callback_groups.MutuallyExclusiveCallbackGroup()
+        )
         self.ft_sensor_subscription = self._node.create_subscription(
             WrenchStamped,
             self.ft_sensor_topic,
             self.__ft_sensor_callback,
             rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value,
+            callback_group=self.ft_sensor_callback_group,
         )
 
     def __ft_sensor_callback(self, msg: WrenchStamped) -> None:

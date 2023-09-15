@@ -66,8 +66,16 @@ class ADAWatchdog(Node):
         )
 
         # Publish at the specified rate
+        # TODO: Consider making this a separate thread that runs at a fixed rate,
+        # to avoid the callback queue getting backed up if the function takes
+        # longer than the specified rate to run.
+        self.timer_callback_group = (
+            rclpy.callback_groups.MutuallyExclusiveCallbackGroup()
+        )
         timer_period = 1.0 / self.publish_rate_hz.value  # seconds
-        self.timer = self.create_timer(timer_period, self.__check_conditions)
+        self.timer = self.create_timer(
+            timer_period, self.__check_conditions, self.timer_callback_group
+        )
 
     def __load_parameters(self) -> None:
         """
@@ -199,7 +207,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Use a MultiThreadedExecutor to enable processing topics concurrently
-    executor = MultiThreadedExecutor()
+    executor = MultiThreadedExecutor(num_threads=3)
 
     # Create and spin the node
     ada_watchdog = ADAWatchdog()
