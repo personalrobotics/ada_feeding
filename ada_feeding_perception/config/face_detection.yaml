@@ -10,4 +10,6 @@ face_detection:
     # The URL to download the facial landmark detection model checkpoint from if it is not already downloaded
     landmark_model_base_url: "https://raw.githubusercontent.com/kurnianggoro/GSOC2017/master/data/"
     # The desired length of the depth image buffer
-    depth_buffer_size: 10
+    depth_buffer_size: 30
+    # The rate at which to detect and publish detected faces
+    rate_hz: 3

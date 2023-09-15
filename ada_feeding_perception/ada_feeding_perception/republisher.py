@@ -34,16 +34,18 @@ class Republisher(Node):
         """
         super().__init__("republisher")
 
+        self._default_callback_group = rclpy.callback_groups.ReentrantCallbackGroup()
+
         # Load the parameters
         (
             self.from_topics,
-            self.topic_type_strs,
-            self.republished_namespace,
+            topic_type_strs,
+            republished_namespace,
         ) = self.load_parameters()
 
         # Import the topic types
         self.topic_types = []
-        for topic_type_str in self.topic_type_strs:
+        for topic_type_str in topic_type_strs:
             self.topic_types.append(import_from_string(topic_type_str))
 
         # For each topic, create a callback, publisher, and subscriber
@@ -60,7 +62,7 @@ class Republisher(Node):
             to_topic = "/".join(
                 [
                     "",
-                    self.republished_namespace.lstrip("/"),
+                    republished_namespace.lstrip("/"),
                     self.from_topics[i].lstrip("/"),
                 ]
             )
