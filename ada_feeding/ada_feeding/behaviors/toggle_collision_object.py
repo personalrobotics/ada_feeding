@@ -23,6 +23,9 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
     scene.
     """
 
+    # pylint: disable=too-many-instance-attributes
+    # One over is fine.
+
     def __init__(
         self,
         name: str,
