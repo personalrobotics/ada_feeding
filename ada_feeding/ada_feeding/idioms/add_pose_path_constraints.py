@@ -13,13 +13,16 @@ from typing import Set, Tuple, Optional, Union
 # Third-party imports
 import py_trees
 from py_trees.blackboard import Blackboard
+from rclpy.node import Node
 
 # Local imports
 from ada_feeding.decorators import (
+    ClearConstraints,
     SetPositionPathConstraint,
     SetOrientationPathConstraint,
 )
 from ada_feeding.helpers import (
+    CLEAR_CONSTRAINTS_NAMESPACE_PREFIX,
     POSITION_PATH_CONSTRAINT_NAMESPACE_PREFIX,
     ORIENTATION_PATH_CONSTRAINT_NAMESPACE_PREFIX,
     set_to_blackboard,
@@ -38,6 +41,7 @@ def add_pose_path_constraints(
     name: str,
     blackboard: py_trees.blackboard.Blackboard,
     logger: logging.Logger,
+    node: Node,
     keys_to_not_write_to_blackboard: Set[str] = set(),
     # Optional parameters for the pose path constraint
     position_path: Optional[Tuple[float, float, float]] = None,
@@ -49,6 +53,7 @@ def add_pose_path_constraints(
     parameterization_orientation_path: int = 0,
     weight_position_path: float = 1.0,
     weight_orientation_path: float = 1.0,
+    clear_constraints: bool = True,
 ) -> py_trees.behaviour.Behaviour:
     """
     Adds a SetPositionPathConstraint and/or SetOrientationPathConstraint to a
@@ -62,6 +67,7 @@ def add_pose_path_constraints(
     name: The name for the tree that this behavior is in.
     blackboard: The blackboard for the tree that this behavior is in.
     logger: The logger for the tree that this behavior is in.
+    node: The ROS2 node that the MoveIt2 object is associated with.
     keys_to_not_write_to_blackboard: the keys to not write to the blackboard.
         Note that the keys need to be exact e.g., "move_to.cartesian,"
         "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
@@ -78,6 +84,9 @@ def add_pose_path_constraints(
         orientation tolerance.
     weight_position_path: the weight for the position path.
     weight_orientation_path: the weight for the orientation path.
+    clear_constraints: Whether or not to put a ClearConstraints decorator at the top
+        of this branch. If you will be adding additional Constraints on top of this
+        tree, this should be False. Else (e.g., if this is a standalone tree), True.
     """
 
     # Separate blackboard namespaces for decorators
@@ -89,6 +98,7 @@ def add_pose_path_constraints(
         orientation_path_constraint_namespace_prefix = (
             ORIENTATION_PATH_CONSTRAINT_NAMESPACE_PREFIX
         )
+    clear_constraints_namespace_prefix = CLEAR_CONSTRAINTS_NAMESPACE_PREFIX
 
     # Position constraints
     if position_path is not None:
@@ -230,7 +240,7 @@ def add_pose_path_constraints(
             [name, position_path_constraint_namespace_prefix]
         )
         position_constraint = SetPositionPathConstraint(
-            position_path_constaint_name, child
+            position_path_constaint_name, child, node
         )
         position_constraint.logger = logger
     else:
@@ -242,10 +252,22 @@ def add_pose_path_constraints(
             [name, orientation_path_constraint_namespace_prefix]
         )
         orientation_constraint = SetOrientationPathConstraint(
-            orientation_goal_constaint_name, position_constraint
+            orientation_goal_constaint_name, position_constraint, node
         )
         orientation_constraint.logger = logger
     else:
         orientation_constraint = position_constraint
 
-    return orientation_constraint
+    # Clear any previous constraints that may be in the MoveIt2 object
+    if clear_constraints:
+        clear_constraints_name = Blackboard.separator.join(
+            [name, clear_constraints_namespace_prefix]
+        )
+        clear_constraints_behavior = ClearConstraints(
+            clear_constraints_name, orientation_constraint, node
+        )
+        clear_constraints_behavior.logger = logger
+    else:
+        clear_constraints_behavior = orientation_constraint
+
+    return clear_constraints_behavior

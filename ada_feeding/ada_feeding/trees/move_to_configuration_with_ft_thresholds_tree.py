@@ -51,6 +51,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         t_y: float = 0.0,
         t_z: float = 0.0,
         keys_to_not_write_to_blackboard: Set[str] = set(),
+        clear_constraints: bool = True,
     ):
         """
         Initializes tree-specific parameters.
@@ -80,6 +81,9 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             Note that the keys need to be exact e.g., "move_to.cartesian,"
             "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
             etc.
+        clear_constraints: Whether or not to put a ClearConstraints decorator at the top
+            of this branch. If you will be adding additional Constraints on top of this
+            tree, this should be False. Else (e.g., if this is a standalone tree), True.
         """
 
         # pylint: disable=too-many-locals
@@ -110,6 +114,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self.t_z = t_z
 
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
+        self.clear_constraints = clear_constraints
 
     def create_move_to_tree(
         self,
@@ -143,6 +148,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 allowed_planning_time=self.allowed_planning_time,
                 max_velocity_scaling_factor=self.max_velocity_scaling_factor,
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
+                clear_constraints=self.clear_constraints,
             )
             .create_tree(name, self.action_type, tree_root_name, logger, node)
             .root

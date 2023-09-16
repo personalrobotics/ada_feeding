@@ -12,10 +12,8 @@ from abc import ABC, abstractmethod
 
 # Third-party imports
 import py_trees
-from pymoveit2 import MoveIt2
 
 # Local imports
-from ada_feeding.behaviors import MoveTo
 
 
 class MoveToConstraint(py_trees.decorators.Decorator, ABC):
@@ -23,36 +21,6 @@ class MoveToConstraint(py_trees.decorators.Decorator, ABC):
     An abstract decorator to add constraints to any behavior that moves
     the robot using MoveIt2.
     """
-
-    def __init__(
-        self,
-        name: str,
-        child: py_trees.behaviour.Behaviour,
-    ):
-        """
-        Initialize the MoveToConstraint decorator.
-
-        Parameters
-        ----------
-        name: The name of the behavior.
-        child: The child behavior.
-        """
-        # Check the child behavior type
-        if not isinstance(child, (MoveTo, MoveToConstraint)):
-            raise TypeError(
-                f"{name} [MoveToConstraint::__init__()] Child must be of "
-                "type MoveTo or MoveToConstraint!"
-            )
-
-        # Initiatilize the decorator
-        super().__init__(name=name, child=child)
-
-    @property
-    def moveit2(self) -> MoveIt2:
-        """
-        Get the MoveIt2 interface.
-        """
-        return self.decorated.moveit2
 
     def initialise(self) -> None:
         """
@@ -78,15 +46,3 @@ class MoveToConstraint(py_trees.decorators.Decorator, ABC):
         Just pass through the child's status
         """
         return self.decorated.status
-
-    def terminate(self, new_status: py_trees.common.Status) -> None:
-        """
-        Clear the constraints.
-        """
-        self.logger.info(
-            f"{self.name} [MoveToConstraint::terminate()][{self.status}->{new_status}]"
-        )
-
-        # Clear the constraints
-        self.moveit2.clear_goal_constraints()
-        self.moveit2.clear_path_constraints()

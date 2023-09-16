@@ -10,12 +10,10 @@ MoveIt's planning scene.
 
 # Third-party imports
 import py_trees
-from pymoveit2 import MoveIt2
-from pymoveit2.robots import kinova
-from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 
 # Local imports
+from ada_feeding.helpers import get_moveit2_object
 
 
 class ToggleCollisionObject(py_trees.behaviour.Behaviour):
@@ -53,19 +51,13 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
         self.collision_object_id = collision_object_id
         self.allow = allow
 
-        # Create MoveIt 2 interface for moving the Jaco arm. This must be done
-        # in __init__ and not setup since the MoveIt2 interface must be
-        # initialized before the ROS2 node starts spinning.
-        # Using ReentrantCallbackGroup to align with the examples from pymoveit2.
-        # TODO: Assess whether ReentrantCallbackGroup is necessary for MoveIt2.
-        callback_group = ReentrantCallbackGroup()
-        self.moveit2 = MoveIt2(
-            node=self.node,
-            joint_names=kinova.joint_names(),
-            base_link_name=kinova.base_link_name(),
-            end_effector_name="forkTip",
-            group_name=kinova.MOVE_GROUP_ARM,
-            callback_group=callback_group,
+        # Get the MoveIt2 object.
+        self.blackboard = self.attach_blackboard_client(
+            name=name + " ToggleCollisionObject", namespace=name
+        )
+        self.moveit2, self.moveit2_lock = get_moveit2_object(
+            self.blackboard,
+            self.node,
         )
 
     def update(self) -> py_trees.common.Status:
@@ -79,7 +71,8 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
         """
         self.logger.info(f"{self.name} [ToggleCollisionObject::update()]")
         # (Dis)allow collisions between the robot and the collision object
-        succ = self.moveit2.allow_collisions(self.collision_object_id, self.allow)
+        with self.moveit2_lock:
+            succ = self.moveit2.allow_collisions(self.collision_object_id, self.allow)
 
         # Return success
         if succ:

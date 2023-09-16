@@ -13,16 +13,15 @@ from typing import List, Optional
 from action_msgs.msg import GoalStatus
 from moveit_msgs.msg import MoveItErrorCodes
 import py_trees
-from pymoveit2 import MoveIt2, MoveIt2State
+from pymoveit2 import MoveIt2State
 from pymoveit2.robots import kinova
-from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from rclpy.qos import QoSPresetProfiles
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectory
 
 # Local imports
-from ada_feeding.helpers import get_from_blackboard_with_default
+from ada_feeding.helpers import get_from_blackboard_with_default, get_moveit2_object
 
 
 class MoveTo(py_trees.behaviour.Behaviour):
@@ -118,19 +117,10 @@ class MoveTo(py_trees.behaviour.Behaviour):
             key="motion_curr_distance", access=py_trees.common.Access.WRITE
         )
 
-        # Create MoveIt 2 interface for moving the Jaco arm. This must be done
-        # in __init__ and not setup since the MoveIt2 interface must be
-        # initialized before the ROS2 node starts spinning.
-        # Using ReentrantCallbackGroup to align with the examples from pymoveit2.
-        # TODO: Assess whether ReentrantCallbackGroup is necessary for MoveIt2.
-        callback_group = ReentrantCallbackGroup()
-        self.moveit2 = MoveIt2(
-            node=self.node,
-            joint_names=kinova.joint_names(),
-            base_link_name=kinova.base_link_name(),
-            end_effector_name="forkTip",
-            group_name=kinova.MOVE_GROUP_ARM,
-            callback_group=callback_group,
+        # Get the MoveIt2 object.
+        self.moveit2, self.moveit2_lock = get_moveit2_object(
+            self.move_to_blackboard,
+            self.node,
         )
 
         # Subscribe to the joint state and track the distance to goal while the
@@ -153,20 +143,21 @@ class MoveTo(py_trees.behaviour.Behaviour):
         """
         self.logger.info(f"{self.name} [MoveTo::initialise()]")
 
-        # Set the planner_id
-        self.moveit2.planner_id = get_from_blackboard_with_default(
-            self.move_to_blackboard, "planner_id", "RRTstarkConfigDefault"
-        )
+        with self.moveit2_lock:
+            # Set the planner_id
+            self.moveit2.planner_id = get_from_blackboard_with_default(
+                self.move_to_blackboard, "planner_id", "RRTstarkConfigDefault"
+            )
 
-        # Set the max velocity
-        self.moveit2.max_velocity = get_from_blackboard_with_default(
-            self.move_to_blackboard, "max_velocity_scaling_factor", 0.1
-        )
+            # Set the max velocity
+            self.moveit2.max_velocity = get_from_blackboard_with_default(
+                self.move_to_blackboard, "max_velocity_scaling_factor", 0.1
+            )
 
-        # Set the allowed planning time
-        self.moveit2.allowed_planning_time = get_from_blackboard_with_default(
-            self.move_to_blackboard, "allowed_planning_time", 0.5
-        )
+            # Set the allowed planning time
+            self.moveit2.allowed_planning_time = get_from_blackboard_with_default(
+                self.move_to_blackboard, "allowed_planning_time", 0.5
+            )
 
         # Reset local state variables
         self.prev_query_state = None
@@ -218,7 +209,8 @@ class MoveTo(py_trees.behaviour.Behaviour):
                     )
                     return py_trees.common.Status.FAILURE
                 # Initiate an asynchronous planning call
-                planning_future = self.moveit2.plan_async(cartesian=self.cartesian)
+                with self.moveit2_lock:
+                    planning_future = self.moveit2.plan_async(cartesian=self.cartesian)
                 if planning_future is None:
                     self.logger.error(
                         f"{self.name} [MoveTo::update()] Failed to initiate planning!"
@@ -234,9 +226,10 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 self.motion_start_time = time.time()
 
                 # Get the trajectory
-                traj = self.moveit2.get_trajectory(
-                    self.planning_future, cartesian=self.cartesian
-                )
+                with self.moveit2_lock:
+                    traj = self.moveit2.get_trajectory(
+                        self.planning_future, cartesian=self.cartesian
+                    )
                 self.logger.info(f"Trajectory: {traj} | type {type(traj)}")
                 if traj is None:
                     self.logger.error(
@@ -253,7 +246,8 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 )
 
                 # Send the trajectory to MoveIt
-                self.moveit2.execute(traj)
+                with self.moveit2_lock:
+                    self.moveit2.execute(traj)
                 return py_trees.common.Status.RUNNING
 
             # Still planning
@@ -262,16 +256,20 @@ class MoveTo(py_trees.behaviour.Behaviour):
         # Is moving
         self.tree_blackboard.motion_time = time.time() - self.motion_start_time
         if self.motion_future is None:
-            if self.moveit2.query_state() == MoveIt2State.REQUESTING:
+            with self.moveit2_lock:
+                query_state = self.moveit2.query_state()
+            if query_state == MoveIt2State.REQUESTING:
                 # The goal has been sent to the action server, but not yet accepted
                 return py_trees.common.Status.RUNNING
-            if self.moveit2.query_state() == MoveIt2State.EXECUTING:
+            if query_state == MoveIt2State.EXECUTING:
                 # The goal has been accepted and is executing. In this case
                 # don't return a status since we drop down into the below
                 # for when the robot is in motion.
-                self.motion_future = self.moveit2.get_execution_future()
-            elif self.moveit2.query_state() == MoveIt2State.IDLE:
-                last_error_code = self.moveit2.get_last_execution_error_code()
+                with self.moveit2_lock:
+                    self.motion_future = self.moveit2.get_execution_future()
+            elif query_state == MoveIt2State.IDLE:
+                with self.moveit2_lock:
+                    last_error_code = self.moveit2.get_last_execution_error_code()
                 if last_error_code is None or last_error_code.val != 1:
                     # If we get here then something went wrong (e.g., controller
                     # is already executing a trajectory, action server not
@@ -327,23 +325,24 @@ class MoveTo(py_trees.behaviour.Behaviour):
         terminate_requested_time = time.time()
         rate = self.node.create_rate(self.terminate_rate_hz)
         # A termination request has not succeeded until the MoveIt2 action server is IDLE
-        while self.moveit2.query_state() != MoveIt2State.IDLE:
-            self.node.get_logger().info(
-                f"MoveTo Update MoveIt2State not Idle {time.time()} {terminate_requested_time} "
-                f"{self.terminate_timeout_s}"
-            )
-            # If the goal is executing, cancel it
-            if self.moveit2.query_state() == MoveIt2State.EXECUTING:
-                self.moveit2.cancel_execution()
-
-            # Check for terminate timeout
-            if time.time() - terminate_requested_time > self.terminate_timeout_s:
-                self.logger.error(
-                    f"{self.name} [MoveTo::terminate()] Terminate timed out!"
+        with self.moveit2_lock:
+            while self.moveit2.query_state() != MoveIt2State.IDLE:
+                self.node.get_logger().info(
+                    f"MoveTo Update MoveIt2State not Idle {time.time()} {terminate_requested_time} "
+                    f"{self.terminate_timeout_s}"
                 )
-                break
+                # If the goal is executing, cancel it
+                if self.moveit2.query_state() == MoveIt2State.EXECUTING:
+                    self.moveit2.cancel_execution()
 
-            rate.sleep()
+                # Check for terminate timeout
+                if time.time() - terminate_requested_time > self.terminate_timeout_s:
+                    self.logger.error(
+                        f"{self.name} [MoveTo::terminate()] Terminate timed out!"
+                    )
+                    break
+
+                rate.sleep()
 
     def shutdown(self) -> None:
         """

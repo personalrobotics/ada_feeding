@@ -17,10 +17,12 @@ from rclpy.node import Node
 # Local imports
 from ada_feeding.behaviors import MoveTo
 from ada_feeding.decorators import (
+    ClearConstraints,
     SetPositionGoalConstraint,
     SetOrientationGoalConstraint,
 )
 from ada_feeding.helpers import (
+    CLEAR_CONSTRAINTS_NAMESPACE_PREFIX,
     POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
     ORIENTATION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
     MOVE_TO_NAMESPACE_PREFIX,
@@ -39,7 +41,7 @@ class MoveToPoseTree(MoveToTree):
     A behavior tree that consists of a single behavior, MoveToPose.
     """
 
-    # pylint: disable=too-many-instance-attributes, too-many-arguments
+    # pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-locals
     # Many arguments is fine for this class since it has to be able to configure all parameters
     # of its constraints.
     # pylint: disable=dangerous-default-value
@@ -60,6 +62,7 @@ class MoveToPoseTree(MoveToTree):
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
         keys_to_not_write_to_blackboard: Set[str] = set(),
+        clear_constraints: bool = True,
     ):
         """
         Initializes tree-specific parameters.
@@ -86,6 +89,9 @@ class MoveToPoseTree(MoveToTree):
             Note that the keys need to be exact e.g., "move_to.cartesian,"
             "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
             etc.
+        clear_constraints: Whether or not to put a ClearConstraints decorator at the top
+            of this branch. If you will be adding additional Constraints on top of this
+            tree, this should be False. Else (e.g., if this is a standalone tree), True.
         """
         # Initialize MoveTo
         super().__init__()
@@ -105,6 +111,7 @@ class MoveToPoseTree(MoveToTree):
         self.allowed_planning_time = allowed_planning_time
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
+        self.clear_constraints = clear_constraints
 
     # pylint: disable=too-many-locals, too-many-statements
     # Unfortunately, many locals/statements are required here to isolate the keys
@@ -142,6 +149,7 @@ class MoveToPoseTree(MoveToTree):
             orientation_goal_constraint_namespace_prefix = (
                 ORIENTATION_GOAL_CONSTRAINT_NAMESPACE_PREFIX
             )
+        clear_constraints_namespace_prefix = CLEAR_CONSTRAINTS_NAMESPACE_PREFIX
         move_to_namespace_prefix = MOVE_TO_NAMESPACE_PREFIX
 
         # Position constraints
@@ -348,7 +356,7 @@ class MoveToPoseTree(MoveToTree):
                 [name, position_goal_constraint_namespace_prefix]
             )
             position_constraint = SetPositionGoalConstraint(
-                position_goal_constaint_name, move_to
+                position_goal_constaint_name, move_to, node
             )
             position_constraint.logger = logger
         else:
@@ -356,15 +364,27 @@ class MoveToPoseTree(MoveToTree):
 
         # Add the orientation goal constraint to the MoveTo behavior
         if self.quat_xyzw is not None:
-            orientation_goal_constaint_name = Blackboard.separator.join(
+            orientation_goal_constraint_name = Blackboard.separator.join(
                 [name, orientation_goal_constraint_namespace_prefix]
             )
-            root = SetOrientationGoalConstraint(
-                orientation_goal_constaint_name, position_constraint
+            orientation_constraint = SetOrientationGoalConstraint(
+                orientation_goal_constraint_name, position_constraint, node
+            )
+            orientation_constraint.logger = logger
+        else:
+            orientation_constraint = position_constraint
+
+        # Clear the constraints
+        if self.clear_constraints:
+            clear_constraints_name = Blackboard.separator.join(
+                [name, clear_constraints_namespace_prefix]
+            )
+            root = ClearConstraints(
+                clear_constraints_name, orientation_constraint, node
             )
             root.logger = logger
         else:
-            root = position_constraint
+            root = orientation_constraint
 
         tree = py_trees.trees.BehaviourTree(root)
         return tree

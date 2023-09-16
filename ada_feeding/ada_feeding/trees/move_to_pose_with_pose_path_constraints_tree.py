@@ -62,6 +62,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         weight_position_path: float = 1.0,
         weight_orientation_path: float = 1.0,
         keys_to_not_write_to_blackboard: Set[str] = set(),
+        clear_constraints: bool = True,
     ):
         """
         Initializes tree-specific parameters.
@@ -101,6 +102,9 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
             Note that the keys need to be exact e.g., "move_to.cartesian,"
             "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
             etc.
+        clear_constraints: Whether or not to put a ClearConstraints decorator at the top
+            of this branch. If you will be adding additional Constraints on top of this
+            tree, this should be False. Else (e.g., if this is a standalone tree), True.
         """
         # Initialize MoveToTree
         super().__init__()
@@ -132,6 +136,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         self.weight_orientation_path = weight_orientation_path
 
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
+        self.clear_constraints = clear_constraints
 
     def create_move_to_tree(
         self,
@@ -175,6 +180,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
                 allowed_planning_time=self.allowed_planning_time,
                 max_velocity_scaling_factor=self.max_velocity_scaling_factor,
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
+                clear_constraints=False,
             )
             .create_tree(name, self.action_type, tree_root_name, logger, node)
             .root
@@ -195,6 +201,8 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
             parameterization_orientation_path=self.parameterization_orientation_path,
             weight_position_path=self.weight_position_path,
             weight_orientation_path=self.weight_orientation_path,
+            node=node,
+            clear_constraints=self.clear_constraints,
         )
 
         tree = py_trees.trees.BehaviourTree(root)

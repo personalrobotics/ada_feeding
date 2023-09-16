@@ -16,8 +16,13 @@ from rclpy.node import Node
 
 # Local imports
 from ada_feeding.behaviors import MoveTo
-from ada_feeding.decorators import SetJointGoalConstraint
-from ada_feeding.helpers import set_to_blackboard
+from ada_feeding.decorators import ClearConstraints, SetJointGoalConstraint
+from ada_feeding.helpers import (
+    CLEAR_CONSTRAINTS_NAMESPACE_PREFIX,
+    JOINT_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
+    MOVE_TO_NAMESPACE_PREFIX,
+    set_to_blackboard,
+)
 from ada_feeding.trees import MoveToTree
 
 # pylint: disable=duplicate-code
@@ -45,6 +50,7 @@ class MoveToConfigurationTree(MoveToTree):
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
         keys_to_not_write_to_blackboard: Set[str] = set(),
+        clear_constraints: bool = True,
     ):
         """
         Initializes tree-specific parameters.
@@ -63,6 +69,9 @@ class MoveToConfigurationTree(MoveToTree):
             Note that the keys need to be exact e.g., "move_to.cartesian,"
             "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
             etc.
+        clear_constraints: Whether or not to put a ClearConstraints decorator at the top
+            of this branch. If you will be adding additional Constraints on top of this
+            tree, this should be False. Else (e.g., if this is a standalone tree), True.
         """
         # Initialize MoveToTree
         super().__init__()
@@ -76,6 +85,7 @@ class MoveToConfigurationTree(MoveToTree):
         self.allowed_planning_time = allowed_planning_time
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
+        self.clear_constraints = clear_constraints
 
     # pylint: disable=too-many-locals
     # Unfortunately, many local variables are required here to isolate the keys
@@ -105,8 +115,9 @@ class MoveToConfigurationTree(MoveToTree):
         tree: The behavior tree that moves the robot above the plate.
         """
         # Separate blackboard namespaces for children
-        joint_constraint_namespace_prefix = "joint_goal_constraint"
-        move_to_namespace_prefix = "move_to"
+        joint_constraint_namespace_prefix = JOINT_GOAL_CONSTRAINT_NAMESPACE_PREFIX
+        clear_constraints_namespace_prefix = CLEAR_CONSTRAINTS_NAMESPACE_PREFIX
+        move_to_namespace_prefix = MOVE_TO_NAMESPACE_PREFIX
 
         # Inputs for MoveToConfiguration
         joint_positions_key = Blackboard.separator.join(
@@ -195,8 +206,20 @@ class MoveToConfigurationTree(MoveToTree):
         joint_goal_constaint_name = Blackboard.separator.join(
             [name, joint_constraint_namespace_prefix]
         )
-        root = SetJointGoalConstraint(joint_goal_constaint_name, move_to)
-        root.logger = logger
+        joint_constraints = SetJointGoalConstraint(
+            joint_goal_constaint_name, move_to, node
+        )
+        joint_constraints.logger = logger
+
+        # Clear the constraints
+        if self.clear_constraints:
+            clear_constraints_name = Blackboard.separator.join(
+                [name, clear_constraints_namespace_prefix]
+            )
+            root = ClearConstraints(clear_constraints_name, joint_constraints, node)
+            root.logger = logger
+        else:
+            root = joint_constraints
 
         tree = py_trees.trees.BehaviourTree(root)
         return tree
