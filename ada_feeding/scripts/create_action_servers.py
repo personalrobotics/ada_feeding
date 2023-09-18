@@ -89,8 +89,6 @@ class CreateActionServers(Node):
         """
         super().__init__("create_action_servers")
 
-        self._default_callback_group = rclpy.callback_groups.ReentrantCallbackGroup()
-
         # Read the parameters that specify what action servers to create.
         action_server_params = self.read_params()
 

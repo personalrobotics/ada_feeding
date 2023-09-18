@@ -15,6 +15,7 @@ from typing import Any, Callable, List, Tuple
 # Third-party imports
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
@@ -79,6 +80,7 @@ class Republisher(Node):
                 topic=self.from_topics[i],
                 callback=callback,
                 qos_profile=1,  # TODO: we should get and mirror the QOS profile of the from_topic
+                callback_group=MutuallyExclusiveCallbackGroup(),
             )
             self.subs.append(subscriber)
 
@@ -183,7 +185,7 @@ def main(args=None):
     republisher = Republisher()
 
     # Use a MultiThreadedExecutor to enable processing goals concurrently
-    executor = MultiThreadedExecutor()
+    executor = MultiThreadedExecutor(num_threads=len(republisher.subs))
 
     rclpy.spin(republisher, executor=executor)
 

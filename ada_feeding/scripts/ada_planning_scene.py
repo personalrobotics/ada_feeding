@@ -55,6 +55,8 @@ class ADAPlanningScene(Node):
         self.load_parameters()
 
         # Initialize the MoveIt2 interface
+        # Using ReentrantCallbackGroup to align with the examples from pymoveit2.
+        # TODO: Assess whether ReentrantCallbackGroup is necessary for MoveIt2.
         callback_group = ReentrantCallbackGroup()
         self.moveit2 = MoveIt2(
             node=self,
