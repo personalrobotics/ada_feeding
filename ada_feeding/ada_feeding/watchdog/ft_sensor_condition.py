@@ -29,6 +29,9 @@ class FTSensorCondition(WatchdogCondition):
     checks that the sensor is still publishing and its data is not zero-variance.
     """
 
+    # pylint: disable=too-many-instance-attributes
+    # One over is fine, since each attribute is necessary
+
     def __init__(self, node: Node) -> None:
         """
         Initialize the FTSensorCondition class.
