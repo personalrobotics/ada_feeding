@@ -10,6 +10,9 @@ This package contains custom py_tree decorators for the Ada Feeding project.
 # Parent class for all decorators that add constraints
 from .move_to_constraint import MoveToConstraint
 
+# Clear constraints
+from .clear_constraints import ClearConstraints
+
 # Goal constraints
 from .set_joint_goal_constraint import SetJointGoalConstraint
 from .set_position_goal_constraint import SetPositionGoalConstraint

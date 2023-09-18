@@ -6,10 +6,11 @@ behavior that moves the robot using MoveIt2.
 """
 # Third-party imports
 import py_trees
+from rclpy.node import Node
 
 # Local imports
 from ada_feeding.decorators import MoveToConstraint
-from ada_feeding.helpers import get_from_blackboard_with_default
+from ada_feeding.helpers import get_from_blackboard_with_default, get_moveit2_object
 
 # pylint: disable=duplicate-code
 # All the constraints have similar code when registering and setting blackboard
@@ -26,6 +27,7 @@ class SetPositionGoalConstraint(MoveToConstraint):
         self,
         name: str,
         child: py_trees.behaviour.Behaviour,
+        node: Node,
     ):
         """
         Initialize the MoveToConstraint decorator.
@@ -52,6 +54,12 @@ class SetPositionGoalConstraint(MoveToConstraint):
         )
         self.blackboard.register_key(key="weight", access=py_trees.common.Access.READ)
 
+        # Get the MoveIt2 object.
+        self.moveit2, self.moveit2_lock = get_moveit2_object(
+            self.blackboard,
+            node,
+        )
+
     def set_constraint(self) -> None:
         """
         Sets the position goal constraint.
@@ -70,10 +78,11 @@ class SetPositionGoalConstraint(MoveToConstraint):
         weight = get_from_blackboard_with_default(self.blackboard, "weight", 1.0)
 
         # Set the constraint
-        self.moveit2.set_position_goal(
-            position=position,
-            frame_id=frame_id,
-            target_link=target_link,
-            tolerance=tolerance,
-            weight=weight,
-        )
+        with self.moveit2_lock:
+            self.moveit2.set_position_goal(
+                position=position,
+                frame_id=frame_id,
+                target_link=target_link,
+                tolerance=tolerance,
+                weight=weight,
+            )
