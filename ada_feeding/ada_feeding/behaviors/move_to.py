@@ -7,17 +7,13 @@ logic to move the robot arm using pymoveit2.
 # Standard imports
 import math
 import time
-from typing import List, Optional
 
 # Third-party imports
 from action_msgs.msg import GoalStatus
 from moveit_msgs.msg import MoveItErrorCodes
 import py_trees
 from pymoveit2 import MoveIt2State
-from pymoveit2.robots import kinova
 from rclpy.node import Node
-from rclpy.qos import QoSPresetProfiles
-from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectory
 
 # Local imports
@@ -145,16 +141,6 @@ class MoveTo(py_trees.behaviour.Behaviour):
             self.node,
         )
 
-        # Subscribe to the joint state and track the distance to goal while the
-        # robot is executing the trajectory.
-        self.distance_to_goal = DistanceToGoal()
-        node.create_subscription(
-            msg_type=JointState,
-            topic="joint_states",
-            callback=self.distance_to_goal.joint_state_callback,
-            qos_profile=QoSPresetProfiles.SENSOR_DATA.value,
-        )
-
     # pylint: disable=attribute-defined-outside-init
     # For attributes that are only used during the execution of the tree
     # and get reset before the next execution, it is reasonable to define
@@ -237,12 +223,11 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.tree_blackboard.motion_initial_distance = 0.0
         self.tree_blackboard.motion_curr_distance = 0.0
 
-        # Set the joint names
-        self.distance_to_goal.set_joint_names(kinova.joint_names())
+        # Store the trajectory to be able to monitor the robot's progress
+        self.traj = None
+        self.traj_i = 0
+        self.aligned_joint_indices = None
 
-    # pylint: disable=too-many-branches, too-many-return-statements
-    # This is the heart of the MoveTo behavior, so the number of branches
-    # and return statements is reasonable.
     def update(self) -> py_trees.common.Status:
         """
         Monitor the progress of moving the robot. This includes:
@@ -251,6 +236,11 @@ class MoveTo(py_trees.behaviour.Behaviour):
             - Checking if motion is complete
             - Updating feedback in the blackboard
         """
+
+        # pylint: disable=too-many-branches, too-many-return-statements
+        # This is the heart of the MoveTo behavior, so the number of branches
+        # and return statements is reasonable.
+
         self.logger.info(f"{self.name} [MoveTo::update()]")
 
         # Check the state of MoveIt
@@ -287,13 +277,13 @@ class MoveTo(py_trees.behaviour.Behaviour):
 
                 # Get the trajectory
                 with self.moveit2_lock:
-                    traj = self.moveit2.get_trajectory(
+                    self.traj = self.moveit2.get_trajectory(
                         self.planning_future,
                         cartesian=self.cartesian,
                         cartesian_fraction_threshold=self.cartesian_fraction_threshold,
                     )
-                self.logger.info(f"Trajectory: {traj} | type {type(traj)}")
-                if traj is None:
+                self.logger.info(f"Trajectory: {self.traj}")
+                if self.traj is None:
                     self.logger.error(
                         f"{self.name} [MoveTo::update()] Failed to get trajectory from MoveIt!"
                     )
@@ -302,11 +292,11 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 # MoveIt's default cartesian interpolator doesn't respect velocity
                 # scaling, so we need to manually add that.
                 if self.cartesian and self.moveit2.max_velocity > 0.0:
-                    MoveTo.scale_velocity(traj, self.moveit2.max_velocity)
+                    MoveTo.scale_velocity(self.traj, self.moveit2.max_velocity)
 
                 # Set the trajectory's initial distance to goal
-                self.tree_blackboard.motion_initial_distance = (
-                    self.distance_to_goal.set_trajectory(traj)
+                self.tree_blackboard.motion_initial_distance = float(
+                    len(self.traj.points)
                 )
                 self.tree_blackboard.motion_curr_distance = (
                     self.tree_blackboard.motion_initial_distance
@@ -314,7 +304,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
 
                 # Send the trajectory to MoveIt
                 with self.moveit2_lock:
-                    self.moveit2.execute(traj)
+                    self.moveit2.execute(self.traj)
                 return py_trees.common.Status.RUNNING
 
             # Still planning
@@ -351,9 +341,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 self.tree_blackboard.motion_curr_distance = 0.0
                 return py_trees.common.Status.SUCCESS
         if self.motion_future is not None:
-            self.tree_blackboard.motion_curr_distance = (
-                self.distance_to_goal.get_distance()
-            )
+            self.tree_blackboard.motion_curr_distance = self.get_distance_to_goal()
             if self.motion_future.done():
                 # The goal has finished executing
                 if self.motion_future.result().status == GoalStatus.STATUS_SUCCEEDED:
@@ -394,7 +382,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
         # A termination request has not succeeded until the MoveIt2 action server is IDLE
         with self.moveit2_lock:
             while self.moveit2.query_state() != MoveIt2State.IDLE:
-                self.node.get_logger().info(
+                self.node.logger.info(
                     f"MoveTo Update MoveIt2State not Idle {time.time()} {terminate_requested_time} "
                     f"{self.terminate_timeout_s}"
                 )
@@ -451,88 +439,6 @@ class MoveTo(py_trees.behaviour.Behaviour):
             for i in range(len(point.accelerations)):
                 point.accelerations[i] *= scale_factor**2
 
-
-class DistanceToGoal:
-    """
-    The DistanceToGoal class is used to determine how much of the trajectory
-    the robot arm has yet to execute.
-
-    In practice, it keeps track of what joint state along the trajectory the
-    robot is currently in, and returns the number of remaining joint states. As
-    a result, this is not technically a measure of either distance or time, but
-    should give some intuition of how much of the trajectory is left to execute.
-    """
-
-    def __init__(self):
-        """
-        Initializes the DistanceToGoal class.
-        """
-        self.joint_names = None
-        self.aligned_joint_indices = None
-
-        self.trajectory = None
-        self.curr_joint_state_i = 0
-        self.curr_joint_state = None
-
-    def set_joint_names(self, joint_names: List[str]) -> None:
-        """
-        This function stores the robot's joint names.
-
-        Parameters
-        ----------
-        joint_names: The names of the joints that the robot arm is moving.
-        """
-        self.joint_names = joint_names
-
-    def set_trajectory(self, trajectory: JointTrajectory) -> float:
-        """
-        This function takes in the robot's trajectory and returns the initial
-        distance to goal e.g., the distance between the starting and ending
-        joint state. In practice, this returns the length of the trajectory.
-        """
-        self.trajectory = trajectory
-        self.curr_joint_state_i = 0
-        return float(len(self.trajectory.points))
-
-    def joint_state_callback(self, msg: JointState) -> None:
-        """
-        This function stores the robot's current joint state, and aligns those
-        messages with the order of joints in the robot's computed trajectory.
-
-        It assumes:
-            (a) that there are joint state messages that contain all of the robot's
-                joints that are in the trajectory.
-            (b) that the order of joins in the trajectory and in the joint state
-                messages never changes.
-        """
-        # Only store messages that have all of the robot's joints. This is
-        # because sometimes nodes other than the robot will be publishing to
-        # the joint state publisher.
-        if self.joint_names is None:
-            return
-        contains_all_robot_joints = True
-        for joint_name in self.joint_names:
-            if joint_name not in msg.name:
-                contains_all_robot_joints = False
-                break
-        if contains_all_robot_joints:
-            self.curr_joint_state = msg
-
-            # Align the joint names between the JointState and JointTrajectory
-            # messages.
-            if self.aligned_joint_indices is None and self.trajectory is not None:
-                self.aligned_joint_indices = []
-                for joint_name in self.joint_names:
-                    if (
-                        joint_name in msg.name
-                        and joint_name in self.trajectory.joint_names
-                    ):
-                        joint_state_i = msg.name.index(joint_name)
-                        joint_traj_i = self.trajectory.joint_names.index(joint_name)
-                        self.aligned_joint_indices.append(
-                            (joint_name, joint_state_i, joint_traj_i)
-                        )
-
     @staticmethod
     def joint_position_dist(point1: float, point2: float) -> float:
         """
@@ -542,44 +448,63 @@ class DistanceToGoal:
         abs_dist = abs(point1 - point2) % (2 * math.pi)
         return min(abs_dist, 2 * math.pi - abs_dist)
 
-    def get_distance(self) -> Optional[float]:
+    def get_distance_to_goal(self) -> float:
         """
-        This function determines where in the trajectory the robot is. It does
-        this by computing the distance (L1 distance across the joint positions)
-        between the current joint state and the upcoming joint states in the
-        trajectory, and selecting the nearest local min.
+        Returns the remaining distance to the goal.
 
-        This function assumes the joint names are aligned between the JointState
-        and JointTrajectory messages.
+        In practice, it keeps track of what joint state along the trajectory the
+        robot is currently in, and returns the number of remaining joint states. As
+        a result, this is not technically a measure of either distance or time, but
+        should give some intuition of how much of the trajectory is left to execute.
         """
-        # If we haven't yet received a joint state message to the trajectory,
-        # immediately return
+        # If the trajectory has not been set, something is wrong.
+        if self.traj is None:
+            self.logger.error(
+                f"{self.name} [MoveTo::get_distance_to_goal()] Trajectory is None!"
+            )
+            return 0.0
+
+        # Get the latest joint state of the robot
+        with self.moveit2_lock:
+            curr_joint_state = self.moveit2.joint_state
+
+        # Lazily align the joints between the trajectory and the joint states message
         if self.aligned_joint_indices is None:
-            if self.trajectory is None:
-                return None
-            return float(len(self.trajectory.points) - self.curr_joint_state_i)
+            self.aligned_joint_indices = []
+            for joint_traj_i, joint_name in enumerate(self.traj.joint_names):
+                if joint_name in curr_joint_state.name:
+                    joint_state_i = curr_joint_state.name.index(joint_name)
+                    self.aligned_joint_indices.append(
+                        (joint_name, joint_state_i, joint_traj_i)
+                    )
+                else:
+                    self.logger.error(
+                        f"{self.name} [MoveTo::get_distance_to_goal()] Joint {joint_name} not in "
+                        "current joint state, despite being in the trajectory. Skipping this joint "
+                        "in distance to goal calculation."
+                    )
 
-        # Else, determine how much remaining the robot has of the trajectory
-        prev_dist = None
-        for i in range(self.curr_joint_state_i, len(self.trajectory.points)):
+        # Get the point along the trajectory closest to the robot's current joint state
+        min_dist = None
+        for i in range(self.traj_i, len(self.traj.points)):
             # Compute the distance between the current joint state and the
             # ujoint state at index i.
-            traj_joint_state = self.trajectory.points[i]
+            traj_joint_state = self.traj.points[i]
             dist = sum(
-                DistanceToGoal.joint_position_dist(
-                    self.curr_joint_state.position[joint_state_i],
+                MoveTo.joint_position_dist(
+                    curr_joint_state.position[joint_state_i],
                     traj_joint_state.positions[joint_traj_i],
                 )
                 for (_, joint_state_i, joint_traj_i) in self.aligned_joint_indices
             )
 
             # If the distance is increasing, we've found the local min.
-            if prev_dist is not None:
-                if dist >= prev_dist:
-                    self.curr_joint_state_i = i - 1
-                    return float(len(self.trajectory.points) - self.curr_joint_state_i)
+            if min_dist is not None:
+                if dist >= min_dist:
+                    self.traj_i = i - 1
+                    return float(len(self.traj.points) - self.traj_i)
 
-            prev_dist = dist
+            min_dist = dist
 
         # If the distance never increased, we are nearing the final waypoint.
         # Because the robot may still have slight motion even after this point,
