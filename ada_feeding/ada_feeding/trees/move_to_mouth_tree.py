@@ -354,7 +354,7 @@ class MoveToMouthTree(MoveToTree):
             access=py_trees.common.Access.WRITE,
         )
         self.blackboard.set(frame_id_key, "j2n6s200_link_base")
-        # Hardcode head orientation to be perpendiculaf to the back of the wheelchair.
+        # Hardcode head orientation to be perpendicular to the back of the wheelchair.
         quat_xyzw_key = Blackboard.separator.join([move_head_prefix, "quat_xyzw"])
         self.blackboard.register_key(
             key=quat_xyzw_key,

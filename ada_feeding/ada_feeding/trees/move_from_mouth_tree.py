@@ -19,6 +19,7 @@ from py_trees.blackboard import Blackboard
 from rclpy.node import Node
 
 # Local imports
+from ada_feeding.behaviors import ModifyCollisionObject, ModifyCollisionObjectOperation
 from ada_feeding.idioms import pre_moveto_config
 from ada_feeding.idioms.bite_transfer import (
     get_toggle_collision_object_behavior,
@@ -185,8 +186,10 @@ class MoveFromMouthTree(MoveToTree):
         pre_moveto_config_prefix = "pre_moveto_config"
         allow_wheelchair_collision_prefix = "allow_wheelchair_collision"
         move_to_staging_configuration_prefix = "move_to_staging_configuration"
+        add_wheelchair_wall_prefix = "add_wheelchair_wall"
         disallow_wheelchair_collision_prefix = "disallow_wheelchair_collision"
         move_to_end_configuration_prefix = "move_to_end_configuration"
+        remove_wheelchair_wall_prefix = "remove_wheelchair_wall"
 
         # Configure the force-torque sensor and thresholds before moving
         pre_moveto_config_name = Blackboard.separator.join(
@@ -262,6 +265,54 @@ class MoveFromMouthTree(MoveToTree):
             logger,
         )
 
+        # Create the behavior to add a collision wall between the staging pose and the user,
+        # to prevent the robot from moving closer to the user.
+        in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
+        in_front_of_wheelchair_wall_prim_type = (
+            1  # Box=1. See shape_msgs/SolidPrimitive.msg
+        )
+        in_front_of_wheelchair_wall_dims = [
+            0.75,
+            0.01,
+            0.4,
+        ]  # Box has 3 dims: [x, y, z]
+        add_in_front_of_wheelchair_wall = ModifyCollisionObject(
+            name=Blackboard.separator.join([name, add_wheelchair_wall_prefix]),
+            node=node,
+            operation=ModifyCollisionObjectOperation.ADD,
+            collision_object_id=in_front_of_wheelchair_wall_id,
+            collision_object_position_input_key="position",
+            collision_object_orientation_input_key="quat_xyzw",
+            prim_type=in_front_of_wheelchair_wall_prim_type,
+            dims=in_front_of_wheelchair_wall_dims,
+        )
+        add_in_front_of_wheelchair_wall.logger = logger
+        # Write the position, orientation, and frame_id to the blackboard
+        position_key = Blackboard.separator.join(
+            [add_wheelchair_wall_prefix, "position"]
+        )
+        self.blackboard.register_key(
+            key=position_key,
+            access=py_trees.common.Access.WRITE,
+        )
+        self.blackboard.set(position_key, (0.37, 0.17, 0.85))
+        quat_xyzw_key = Blackboard.separator.join(
+            [add_wheelchair_wall_prefix, "quat_xyzw"]
+        )
+        self.blackboard.register_key(
+            key=quat_xyzw_key,
+            access=py_trees.common.Access.WRITE,
+        )
+        self.blackboard.set(quat_xyzw_key, (0.0, 0.0, 0.0, 1.0))
+        frame_id_key = Blackboard.separator.join(
+            [add_wheelchair_wall_prefix, "frame_id"]
+        )
+        self.blackboard.register_key(
+            key=frame_id_key,
+            access=py_trees.common.Access.WRITE,
+        )
+        self.blackboard.set(frame_id_key, "root")
+
         # Create the behaviour to move the robot to the end configuration
         move_to_end_configuration_name = Blackboard.separator.join(
             [name, move_to_end_configuration_prefix]
@@ -289,6 +340,17 @@ class MoveFromMouthTree(MoveToTree):
             .root
         )
 
+        # Create the behavior to remove the collision wall between the staging pose and the user.
+        def gen_remove_in_front_of_wheelchair_wall() -> None:
+            retval = ModifyCollisionObject(
+                name=Blackboard.separator.join([name, remove_wheelchair_wall_prefix]),
+                node=node,
+                operation=ModifyCollisionObjectOperation.REMOVE,
+                collision_object_id=in_front_of_wheelchair_wall_id,
+            )
+            retval.logger = logger
+            return retval
+
         # Link all the behaviours together in a sequence with memory
         move_from_mouth = py_trees.composites.Sequence(
             name=name + " Main",
@@ -300,14 +362,23 @@ class MoveFromMouthTree(MoveToTree):
                 allow_wheelchair_collision,
                 move_to_staging_configuration,
                 gen_disallow_wheelchair_collision(),
+                add_in_front_of_wheelchair_wall,
                 move_to_end_configuration,
+                gen_remove_in_front_of_wheelchair_wall(),
             ],
         )
         move_from_mouth.logger = logger
 
         # Create a cleanup branch for the behaviors that should get executed if
         # the main tree has a failure
-        cleanup_tree = gen_disallow_wheelchair_collision()
+        cleanup_tree = py_trees.composites.Sequence(
+            name=name + " Cleanup",
+            memory=True,
+            children=[
+                gen_disallow_wheelchair_collision(),
+                gen_remove_in_front_of_wheelchair_wall(),
+            ],
+        )
 
         # If move_from_mouth fails, we still want to do some cleanup (e.g., turn
         # face detection off).
