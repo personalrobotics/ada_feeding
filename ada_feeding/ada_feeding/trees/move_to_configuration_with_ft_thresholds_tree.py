@@ -15,6 +15,7 @@ from rclpy.node import Node
 
 # Local imports
 from ada_feeding.idioms import pre_moveto_config
+from ada_feeding.idioms.bite_transfer import get_toggle_watchdog_listener_behavior
 from ada_feeding.trees import MoveToTree, MoveToConfigurationTree
 
 
@@ -36,9 +37,11 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         # Optional parameters for moving to a configuration
         tolerance_joint: float = 0.001,
         weight_joint: float = 1.0,
+        pipeline_id: str = "ompl",
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
+        max_acceleration_scaling_factor: float = 0.1,
         # Optional parameters for the FT thresholds
         re_tare: bool = True,
         toggle_watchdog_listener: bool = True,
@@ -61,10 +64,13 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         joint_positions: The joint positions for the goal constraint.
         tolerance_joint: The tolerance for the joint goal constraint.
         weight_joint: The weight for the joint goal constraint.
+        pipeline_id: The pipeline ID to use for MoveIt2 motion planning.
         planner_id: The planner ID to use for MoveIt2 motion planning.
         allowed_planning_time: The allowed planning time for the MoveIt2 motion
             planner.
         max_velocity_scaling_factor: The maximum velocity scaling factor for the
+            MoveIt2 motion planner.
+        max_acceleration_scaling_factor: The maximum acceleration scaling factor for the
             MoveIt2 motion planner.
         re_tare: Whether to re-tare the force-torque sensor.
         toggle_watchdog_listener: Whether to toggle the watchdog listener on and off.
@@ -97,9 +103,11 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         assert len(self.joint_positions) == 6, "Must provide 6 joint positions"
         self.tolerance_joint = tolerance_joint
         self.weight_joint = weight_joint
+        self.pipeline_id = pipeline_id
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
+        self.max_acceleration_scaling_factor = max_acceleration_scaling_factor
 
         # Store the parameters for the FT threshold
         self.re_tare = re_tare
@@ -137,6 +145,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         -------
         tree: The behavior tree that moves the robot above the plate.
         """
+        turn_watchdog_listener_on_prefix = "turn_watchdog_listener_on"
+
         # First, create the MoveToConfiguration behavior tree, in the same
         # namespace as this tree
         move_to_configuration_root = (
@@ -144,9 +154,11 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 joint_positions=self.joint_positions,
                 tolerance=self.tolerance_joint,
                 weight=self.weight_joint,
+                pipeline_id=self.pipeline_id,
                 planner_id=self.planner_id,
                 allowed_planning_time=self.allowed_planning_time,
                 max_velocity_scaling_factor=self.max_velocity_scaling_factor,
+                max_acceleration_scaling_factor=self.max_acceleration_scaling_factor,
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
                 clear_constraints=self.clear_constraints,
             )
@@ -171,11 +183,45 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         )
 
         # Combine them in a sequence with memory
-        root = py_trees.composites.Sequence(
+        main_tree = py_trees.composites.Sequence(
             name=name,
             memory=True,
             children=[pre_moveto_behavior, move_to_configuration_root],
         )
+        main_tree.logger = logger
+
+        if self.toggle_watchdog_listener:
+            # If there was a failure in the main tree, we want to ensure to turn
+            # the watchdog listener back on
+            # pylint: disable=duplicate-code
+            # This is similar to any other tree that needs to cleanup pre_moveto_config
+            turn_watchdog_listener_on = get_toggle_watchdog_listener_behavior(
+                name,
+                turn_watchdog_listener_on_prefix,
+                True,
+                logger,
+            )
+
+            # Create a cleanup branch for the behaviors that should get executed if
+            # the main tree has a failure
+            cleanup_tree = turn_watchdog_listener_on
+
+            # If main_tree fails, we still want to do some cleanup.
+            root = py_trees.composites.Selector(
+                name=name,
+                memory=True,
+                children=[
+                    main_tree,
+                    # Even though we are cleaning up the tree, it should still
+                    # pass the failure up.
+                    py_trees.decorators.SuccessIsFailure(
+                        name + " Cleanup Root", cleanup_tree
+                    ),
+                ],
+            )
+            root.logger = logger
+        else:
+            root = main_tree
 
         tree = py_trees.trees.BehaviourTree(root)
         return tree

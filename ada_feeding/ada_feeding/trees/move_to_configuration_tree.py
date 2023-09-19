@@ -46,9 +46,11 @@ class MoveToConfigurationTree(MoveToTree):
         joint_positions: List[float],
         tolerance: float = 0.001,
         weight: float = 1.0,
+        pipeline_id: str = "ompl",
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
+        max_acceleration_scaling_factor: float = 0.1,
         keys_to_not_write_to_blackboard: Set[str] = set(),
         clear_constraints: bool = True,
     ):
@@ -60,11 +62,14 @@ class MoveToConfigurationTree(MoveToTree):
         joint_positions: The joint positions to move the robot arm to.
         tolerance: The tolerance for the joint positions.
         weight: The weight for the joint goal constraint.
+        pipeline_id: The pipeline ID to use for the MoveIt2 motion planner.
         planner_id: The planner ID to use for the MoveIt2 motion planning.
         allowed_planning_time: The allowed planning time for the MoveIt2 motion
             planner.
         max_velocity_scaling_factor: The maximum velocity scaling factor for the
             MoveIt2 motion planner.
+        max_acceleration_scaling_factor: The maximum acceleration scaling factor
+            for the MoveIt2 motion planner.
         keys_to_not_write_to_blackboard: A set of keys that should not be written
             Note that the keys need to be exact e.g., "move_to.cartesian,"
             "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
@@ -81,9 +86,11 @@ class MoveToConfigurationTree(MoveToTree):
         assert len(self.joint_positions) == 6, "Must provide 6 joint positions"
         self.tolerance = tolerance
         self.weight = weight
+        self.pipeline_id = pipeline_id
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
+        self.max_acceleration_scaling_factor = max_acceleration_scaling_factor
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
         self.clear_constraints = clear_constraints
 
@@ -140,6 +147,12 @@ class MoveToConfigurationTree(MoveToTree):
         )
 
         # Inputs for MoveTo
+        pipeline_id_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "pipeline_id"]
+        )
+        self.blackboard.register_key(
+            key=pipeline_id_key, access=py_trees.common.Access.WRITE
+        )
         planner_id_key = Blackboard.separator.join(
             [move_to_namespace_prefix, "planner_id"]
         )
@@ -157,6 +170,13 @@ class MoveToConfigurationTree(MoveToTree):
         )
         self.blackboard.register_key(
             key=max_velocity_scaling_factor_key, access=py_trees.common.Access.WRITE
+        )
+        max_acceleration_scaling_factor_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "max_acceleration_scaling_factor"]
+        )
+        self.blackboard.register_key(
+            key=max_acceleration_scaling_factor_key,
+            access=py_trees.common.Access.WRITE,
         )
 
         # Write the inputs to MoveToConfiguration to blackboard
@@ -180,6 +200,12 @@ class MoveToConfigurationTree(MoveToTree):
         )
         set_to_blackboard(
             self.blackboard,
+            pipeline_id_key,
+            self.pipeline_id,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
             planner_id_key,
             self.planner_id,
             self.keys_to_not_write_to_blackboard,
@@ -194,6 +220,12 @@ class MoveToConfigurationTree(MoveToTree):
             self.blackboard,
             max_velocity_scaling_factor_key,
             self.max_velocity_scaling_factor,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            max_acceleration_scaling_factor_key,
+            self.max_acceleration_scaling_factor,
             self.keys_to_not_write_to_blackboard,
         )
 

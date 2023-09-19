@@ -415,8 +415,13 @@ class FaceDetectionNode(Node):
 
         Returns
         -------
+        detected: whether the mouth was detected in the depth image.
         depth_mm: The depth of the mouth in mm.
         """
+
+        # pylint: disable=too-many-locals
+        # This function is not too complex, but it does have a lot of local variables.
+
         # Find depth image closest in time to RGB image that face was in
         with self.depth_buffer_lock:
             min_time_diff = float("inf")
@@ -449,10 +454,20 @@ class FaceDetectionNode(Node):
 
         # Retrieve the depth value averaged over all mouth coordinates
         depth_sum = 0
+        num_points_in_frame = 0
         for point in face_points:
-            depth_sum += image_depth[int(point[1])][int(point[0])]
-        depth_mm = depth_sum / float(len(face_points))
+            x, y = int(point[0]), int(point[1])
+            if 0 <= x < image_depth.shape[1] and 0 <= y < image_depth.shape[0]:
+                num_points_in_frame += 1
+                depth_sum += image_depth[y][x]
+        if num_points_in_frame < 0.5 * len(face_points):
+            self.get_logger().warn(
+                "Detected face in the RGB image, but majority of mouth points "
+                "were outside the frame of the depth image. Ignoring this face."
+            )
+            return False, 0
 
+        depth_mm = depth_sum / float(num_points_in_frame)
         return True, depth_mm
 
     def get_stomion_point(self, u: int, v: int, depth_mm: float) -> Point:

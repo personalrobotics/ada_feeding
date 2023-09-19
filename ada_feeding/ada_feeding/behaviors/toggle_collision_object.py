@@ -23,6 +23,9 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
     scene.
     """
 
+    # pylint: disable=too-many-instance-attributes
+    # One over is fine.
+
     def __init__(
         self,
         name: str,
@@ -60,6 +63,18 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
             self.node,
         )
 
+    # pylint: disable=attribute-defined-outside-init
+    # For attributes that are only used during the execution of the tree
+    # and get reset before the next execution, it is reasonable to define
+    # them in `initialise`.
+    def initialise(self) -> None:
+        """
+        Reset the service_future.
+        """
+        self.logger.info(f"{self.name} [ToggleCollisionObject::initialise()]")
+
+        self.service_future = None
+
     def update(self) -> py_trees.common.Status:
         """
         (Dis)allow collisions between the robot and a collision
@@ -71,10 +86,24 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
         """
         self.logger.info(f"{self.name} [ToggleCollisionObject::update()]")
         # (Dis)allow collisions between the robot and the collision object
-        with self.moveit2_lock:
-            succ = self.moveit2.allow_collisions(self.collision_object_id, self.allow)
+        if self.service_future is None:
+            with self.moveit2_lock:
+                service_future = self.moveit2.allow_collisions(
+                    self.collision_object_id, self.allow
+                )
+            if service_future is None:  # service not available
+                return py_trees.common.Status.FAILURE
+            self.service_future = service_future
+            return py_trees.common.Status.RUNNING
 
-        # Return success
-        if succ:
-            return py_trees.common.Status.SUCCESS
-        return py_trees.common.Status.FAILURE
+        # Check if the service future is done
+        if self.service_future.done():
+            with self.moveit2_lock:
+                succ = self.moveit2.process_allow_collision_future(self.service_future)
+            # Return success/failure
+            if succ:
+                return py_trees.common.Status.SUCCESS
+            return py_trees.common.Status.FAILURE
+
+        # Return running
+        return py_trees.common.Status.RUNNING

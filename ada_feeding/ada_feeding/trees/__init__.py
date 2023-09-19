@@ -20,5 +20,6 @@ from .move_to_pose_tree import MoveToPoseTree
 from .move_to_pose_with_pose_path_constraints_tree import (
     MoveToPoseWithPosePathConstraintsTree,
 )
+from .move_from_mouth_tree import MoveFromMouthTree
 from .move_to_mouth_tree import MoveToMouthTree
 from .move_to_dummy_tree import MoveToDummyTree

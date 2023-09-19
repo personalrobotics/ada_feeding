@@ -84,6 +84,10 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.move_to_blackboard.register_key(
             key="cartesian", access=py_trees.common.Access.READ
         )
+        # Add the ability to set a pipeline_id
+        self.move_to_blackboard.register_key(
+            key="pipeline_id", access=py_trees.common.Access.READ
+        )
         # Add the ability to set a planner_id
         self.move_to_blackboard.register_key(
             key="planner_id", access=py_trees.common.Access.READ
@@ -96,6 +100,24 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.move_to_blackboard.register_key(
             key="max_velocity_scaling_factor", access=py_trees.common.Access.READ
         )
+        # Add the ability to set acceleration scaling
+        self.move_to_blackboard.register_key(
+            key="max_acceleration_scaling_factor", access=py_trees.common.Access.READ
+        )
+        # Add the ability to set the cartesian jump threshold
+        self.move_to_blackboard.register_key(
+            key="cartesian_jump_threshold", access=py_trees.common.Access.READ
+        )
+        # Add the ability to set the cartesian max step
+        self.move_to_blackboard.register_key(
+            key="cartesian_max_step", access=py_trees.common.Access.READ
+        )
+        # Add the ability to set a cartesian fraction threshold (e.g., only
+        # accept plans that completed at least this fraction of the path)
+        self.move_to_blackboard.register_key(
+            key="cartesian_fraction_threshold", access=py_trees.common.Access.READ
+        )
+
         # Initialize the blackboard to read from the parent behavior tree
         self.tree_blackboard = self.attach_blackboard_client(
             name=name + " MoveTo", namespace=tree_name
@@ -148,6 +170,15 @@ class MoveTo(py_trees.behaviour.Behaviour):
             self.moveit2.planner_id = get_from_blackboard_with_default(
                 self.move_to_blackboard, "planner_id", "RRTstarkConfigDefault"
             )
+            # Set the pipeline_id
+            self.moveit2.pipeline_id = get_from_blackboard_with_default(
+                self.move_to_blackboard, "pipeline_id", "ompl"
+            )
+
+            # Set the planner_id
+            self.moveit2.planner_id = get_from_blackboard_with_default(
+                self.move_to_blackboard, "planner_id", "RRTstarkConfigDefault"
+            )
 
             # Set the max velocity
             self.moveit2.max_velocity = get_from_blackboard_with_default(
@@ -158,6 +189,39 @@ class MoveTo(py_trees.behaviour.Behaviour):
             self.moveit2.allowed_planning_time = get_from_blackboard_with_default(
                 self.move_to_blackboard, "allowed_planning_time", 0.5
             )
+
+            # Set the max acceleration
+            self.moveit2.max_acceleration = get_from_blackboard_with_default(
+                self.move_to_blackboard, "max_acceleration_scaling_factor", 0.1
+            )
+
+            # Set the allowed planning time
+            self.moveit2.allowed_planning_time = get_from_blackboard_with_default(
+                self.move_to_blackboard, "allowed_planning_time", 0.5
+            )
+
+        # Set the cartesian jump threshold
+        self.moveit2.cartesian_jump_threshold = get_from_blackboard_with_default(
+            self.move_to_blackboard, "cartesian_jump_threshold", 0.0
+        )
+
+        # Get whether we should use the cartesian interpolator
+        self.cartesian = get_from_blackboard_with_default(
+            self.move_to_blackboard, "cartesian", False
+        )
+
+        # Get the cartesian max step
+        self.cartesian_max_step = get_from_blackboard_with_default(
+            self.move_to_blackboard, "cartesian_max_step", 0.0025
+        )
+
+        # Get the cartesian fraction threshold
+        self.cartesian_fraction_threshold = get_from_blackboard_with_default(
+            self.move_to_blackboard, "cartesian_fraction_threshold", 0.0
+        )
+
+        # If the plan is cartesian, it should always avoid collisions
+        self.moveit2.cartesian_avoid_collisions = True
 
         # Reset local state variables
         self.prev_query_state = None
@@ -173,14 +237,8 @@ class MoveTo(py_trees.behaviour.Behaviour):
         self.tree_blackboard.motion_initial_distance = 0.0
         self.tree_blackboard.motion_curr_distance = 0.0
 
-        # Get all parameters for motion, resorting to default values if unset.
-        self.joint_names = kinova.joint_names()
-        self.cartesian = get_from_blackboard_with_default(
-            self.move_to_blackboard, "cartesian", False
-        )
-
         # Set the joint names
-        self.distance_to_goal.set_joint_names(self.joint_names)
+        self.distance_to_goal.set_joint_names(kinova.joint_names())
 
     # pylint: disable=too-many-branches, too-many-return-statements
     # This is the heart of the MoveTo behavior, so the number of branches
@@ -210,7 +268,9 @@ class MoveTo(py_trees.behaviour.Behaviour):
                     return py_trees.common.Status.FAILURE
                 # Initiate an asynchronous planning call
                 with self.moveit2_lock:
-                    planning_future = self.moveit2.plan_async(cartesian=self.cartesian)
+                    planning_future = self.moveit2.plan_async(
+                        cartesian=self.cartesian, max_step=self.cartesian_max_step
+                    )
                 if planning_future is None:
                     self.logger.error(
                         f"{self.name} [MoveTo::update()] Failed to initiate planning!"
@@ -228,7 +288,9 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 # Get the trajectory
                 with self.moveit2_lock:
                     traj = self.moveit2.get_trajectory(
-                        self.planning_future, cartesian=self.cartesian
+                        self.planning_future,
+                        cartesian=self.cartesian,
+                        cartesian_fraction_threshold=self.cartesian_fraction_threshold,
                     )
                 self.logger.info(f"Trajectory: {traj} | type {type(traj)}")
                 if traj is None:
@@ -236,6 +298,11 @@ class MoveTo(py_trees.behaviour.Behaviour):
                         f"{self.name} [MoveTo::update()] Failed to get trajectory from MoveIt!"
                     )
                     return py_trees.common.Status.FAILURE
+
+                # MoveIt's default cartesian interpolator doesn't respect velocity
+                # scaling, so we need to manually add that.
+                if self.cartesian and self.moveit2.max_velocity > 0.0:
+                    MoveTo.scale_velocity(traj, self.moveit2.max_velocity)
 
                 # Set the trajectory's initial distance to goal
                 self.tree_blackboard.motion_initial_distance = (
@@ -349,6 +416,40 @@ class MoveTo(py_trees.behaviour.Behaviour):
         Shutdown infrastructure created in setup().
         """
         self.logger.info(f"{self.name} [MoveTo::shutdown()]")
+
+    @staticmethod
+    def scale_velocity(traj: JointTrajectory, scale_factor: float) -> None:
+        """
+        Scale the velocity of the trajectory by the given factor. The resulting
+        trajectory should execute the same trajectory with the same continuity,
+        but just take 1/scale_factor as long to execute.
+
+        This function keeps positions the same and scales time, velocities, and
+        accelerations. It does not modify effort.
+
+        Parameters
+        ----------
+        traj: The trajectory to scale.
+        scale_factor: The factor to scale the velocity by, in [0, 1].
+        """
+        for point in traj.points:
+            # Scale time_from_start
+            nsec = point.time_from_start.sec * 10.0**9
+            nsec += point.time_from_start.nanosec
+            nsec /= scale_factor  # scale time
+            sec = int(math.floor(nsec / 10.0**9))
+            point.time_from_start.sec = sec
+            point.time_from_start.nanosec = int(nsec - sec * 10.0**9)
+
+            # Scale the velocities
+            # pylint: disable=consider-using-enumerate
+            # Necessary because we want to destructively modify the trajectory
+            for i in range(len(point.velocities)):
+                point.velocities[i] *= scale_factor
+
+            # Scale the accelerations
+            for i in range(len(point.accelerations)):
+                point.accelerations[i] *= scale_factor**2
 
 
 class DistanceToGoal:

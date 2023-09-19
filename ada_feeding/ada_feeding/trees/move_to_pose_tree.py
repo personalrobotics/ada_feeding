@@ -58,9 +58,14 @@ class MoveToPoseTree(MoveToTree):
         weight_position: float = 1.0,
         weight_orientation: float = 1.0,
         cartesian: bool = False,
+        cartesian_jump_threshold: float = 0.0,
+        cartesian_max_step: float = 0.0025,
+        cartesian_fraction_threshold: float = 0.0,
+        pipeline_id: str = "ompl",
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
+        max_acceleration_scaling_factor: float = 0.1,
         keys_to_not_write_to_blackboard: Set[str] = set(),
         clear_constraints: bool = True,
     ):
@@ -81,10 +86,17 @@ class MoveToPoseTree(MoveToTree):
         weight_position: the weight for the end effector position.
         weight_orientation: the weight for the end effector orientation.
         cartesian: whether to use cartesian path planning.
+        cartesian_jump_threshold: the jump threshold for cartesian path planning.
+        cartesian_max_step: the maximum step for cartesian path planning.
+        cartesian_fraction_threshold: Reject cartesian plans that don't reach
+            at least this fraction of the path to the goal.
+        pipeline_id: the pipeline to use for path planning.
         planner_id: the planner to use for path planning.
         allowed_planning_time: the allowed planning time for path planning.
         max_velocity_scaling_factor: the maximum velocity scaling factor for path
             planning.
+        max_acceleration_scaling_factor: the maximum acceleration scaling factor for
+            path planning.
         keys_to_not_write_to_blackboard: the keys to not write to the blackboard.
             Note that the keys need to be exact e.g., "move_to.cartesian,"
             "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
@@ -107,9 +119,14 @@ class MoveToPoseTree(MoveToTree):
         self.weight_position = weight_position
         self.weight_orientation = weight_orientation
         self.cartesian = cartesian
+        self.cartesian_jump_threshold = cartesian_jump_threshold
+        self.cartesian_max_step = cartesian_max_step
+        self.cartesian_fraction_threshold = cartesian_fraction_threshold
+        self.pipeline_id = pipeline_id
         self.planner_id = planner_id
         self.allowed_planning_time = allowed_planning_time
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
+        self.max_acceleration_scaling_factor = max_acceleration_scaling_factor
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
         self.clear_constraints = clear_constraints
 
@@ -232,6 +249,31 @@ class MoveToPoseTree(MoveToTree):
         self.blackboard.register_key(
             key=cartesian_key, access=py_trees.common.Access.WRITE
         )
+        cartesian_jump_threshold_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "cartesian_jump_threshold"]
+        )
+        self.blackboard.register_key(
+            key=cartesian_jump_threshold_key, access=py_trees.common.Access.WRITE
+        )
+        cartesian_max_step_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "cartesian_max_step"]
+        )
+        self.blackboard.register_key(
+            key=cartesian_max_step_key, access=py_trees.common.Access.WRITE
+        )
+        cartesian_fraction_threshold_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "cartesian_fraction_threshold"]
+        )
+        self.blackboard.register_key(
+            key=cartesian_fraction_threshold_key,
+            access=py_trees.common.Access.WRITE,
+        )
+        pipeline_id_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "pipeline_id"]
+        )
+        self.blackboard.register_key(
+            key=pipeline_id_key, access=py_trees.common.Access.WRITE
+        )
         planner_id_key = Blackboard.separator.join(
             [move_to_namespace_prefix, "planner_id"]
         )
@@ -249,6 +291,13 @@ class MoveToPoseTree(MoveToTree):
         )
         self.blackboard.register_key(
             key=max_velocity_scaling_factor_key, access=py_trees.common.Access.WRITE
+        )
+        max_acceleration_scaling_factor_key = Blackboard.separator.join(
+            [move_to_namespace_prefix, "max_acceleration_scaling_factor"]
+        )
+        self.blackboard.register_key(
+            key=max_acceleration_scaling_factor_key,
+            access=py_trees.common.Access.WRITE,
         )
 
         # Write the inputs to MoveToPose to blackboard
@@ -328,6 +377,30 @@ class MoveToPoseTree(MoveToTree):
         )
         set_to_blackboard(
             self.blackboard,
+            cartesian_jump_threshold_key,
+            self.cartesian_jump_threshold,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            cartesian_max_step_key,
+            self.cartesian_max_step,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            cartesian_fraction_threshold_key,
+            self.cartesian_fraction_threshold,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            pipeline_id_key,
+            self.pipeline_id,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
             planner_id_key,
             self.planner_id,
             self.keys_to_not_write_to_blackboard,
@@ -342,6 +415,12 @@ class MoveToPoseTree(MoveToTree):
             self.blackboard,
             max_velocity_scaling_factor_key,
             self.max_velocity_scaling_factor,
+            self.keys_to_not_write_to_blackboard,
+        )
+        set_to_blackboard(
+            self.blackboard,
+            max_acceleration_scaling_factor_key,
+            self.max_acceleration_scaling_factor,
             self.keys_to_not_write_to_blackboard,
         )
 
