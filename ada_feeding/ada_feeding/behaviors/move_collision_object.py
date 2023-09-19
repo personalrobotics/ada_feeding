@@ -34,7 +34,7 @@ class MoveCollisionObject(py_trees.behaviour.Behaviour):
         collision_object_id: str,
         collision_object_position_input_key: str,
         collision_object_orientation_input_key: str,
-        reverse_position_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+        position_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0),
     ) -> None:
         """
         Initializes the behavior. Requires the blackboard to pass it a position
@@ -47,10 +47,10 @@ class MoveCollisionObject(py_trees.behaviour.Behaviour):
         node: The ROS node to associate the publishes with.
         collision_object_id: The ID for the collision object in the MoveIt planning scene.
         collision_object_position_input_key: The key for the collision object pose input
-            on the blackboard.
+            on the blackboard. This should be a list of size 3.
         collision_object_orientation_input_key: The key for the collision object orientation
-            input on the blackboard.
-        reverse_position_offset: The offset to *subtract from* to the collision object position.
+            input on the blackboard. This should be a list of size 4.
+        position_offset: The offset to *add to* to the collision object position.
         """
         # Initiatilize the behavior
         super().__init__(name=name)
@@ -62,7 +62,7 @@ class MoveCollisionObject(py_trees.behaviour.Behaviour):
         self.collision_object_orientation_input_key = (
             collision_object_orientation_input_key
         )
-        self.reverse_position_offset = reverse_position_offset
+        self.position_offset = position_offset
 
         # Initialize the blackboard for this behavior
         self.blackboard = self.attach_blackboard_client(
@@ -123,9 +123,9 @@ class MoveCollisionObject(py_trees.behaviour.Behaviour):
         collision_object.id = self.collision_object_id
         collision_object.header.frame_id = self.blackboard.frame_id
         pose = Pose()
-        pose.position.x = collision_object_position[0] - self.reverse_position_offset[0]
-        pose.position.y = collision_object_position[1] - self.reverse_position_offset[1]
-        pose.position.z = collision_object_position[2] - self.reverse_position_offset[2]
+        pose.position.x = collision_object_position[0] + self.position_offset[0]
+        pose.position.y = collision_object_position[1] + self.position_offset[1]
+        pose.position.z = collision_object_position[2] + self.position_offset[2]
         pose.orientation.x = collision_object_orientation[0]
         pose.orientation.y = collision_object_orientation[1]
         pose.orientation.z = collision_object_orientation[2]

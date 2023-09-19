@@ -341,7 +341,7 @@ class MoveToMouthTree(MoveToTree):
             collision_object_id=self.head_object_id,
             collision_object_position_input_key=target_position_output_key,
             collision_object_orientation_input_key="quat_xyzw",
-            reverse_position_offset=target_position_offset,
+            position_offset=tuple(-1.0 * p for p in target_position_offset),
         )
         move_head.logger = logger
         # The frame_id for the position outputted by the ComputeMoveToMouthPosition
