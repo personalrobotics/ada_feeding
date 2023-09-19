@@ -5,11 +5,14 @@ This module defines the MoveTo behavior, which contains the core
 logic to move the robot arm using pymoveit2.
 """
 # Standard imports
+import csv
 import math
+import os
 import time
 
 # Third-party imports
 from action_msgs.msg import GoalStatus
+from ament_index_python.packages import get_package_share_directory
 from moveit_msgs.msg import MoveItErrorCodes
 import py_trees
 from pymoveit2 import MoveIt2State
@@ -44,6 +47,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
         terminate_timeout_s: float = 10.0,
         terminate_rate_hz: float = 30.0,
         planning_service_timeout_s: float = 10.0,
+        save_trajectory_viz: bool = False,
     ):
         """
         Initialize the MoveTo class.
@@ -62,15 +66,20 @@ class MoveTo(py_trees.behaviour.Behaviour):
             processed.
         planning_service_timeout_s: How long to wait for the planning service to be
             ready before failing.
+        save_trajectory_viz: Whether to generate and save a visualization of the
+            trajectory in joint space. This is useful for debugging, but should
+            be disabled in production.
         """
         # Initiatilize the behavior
         super().__init__(name=name)
 
         # Store parameters
         self.node = node
+        self.tree_name = tree_name
         self.terminate_timeout_s = terminate_timeout_s
         self.terminate_rate_hz = terminate_rate_hz
         self.planning_service_timeout_s = planning_service_timeout_s
+        self.save_trajectory_viz = save_trajectory_viz
 
         # Initialization the blackboard for this behavior
         self.move_to_blackboard = self.attach_blackboard_client(
@@ -116,7 +125,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
 
         # Initialize the blackboard to read from the parent behavior tree
         self.tree_blackboard = self.attach_blackboard_client(
-            name=name + " MoveTo", namespace=tree_name
+            name=name + " MoveTo", namespace=self.tree_name
         )
         # Feedback from MoveTo for the ROS2 Action Server
         self.tree_blackboard.register_key(
@@ -294,6 +303,10 @@ class MoveTo(py_trees.behaviour.Behaviour):
                 if self.cartesian and self.moveit2.max_velocity > 0.0:
                     MoveTo.scale_velocity(self.traj, self.moveit2.max_velocity)
 
+                # Save the trajectory visualization
+                if self.save_trajectory_viz:
+                    MoveTo.visualize_trajectory(self.tree_name, self.traj)
+
                 # Set the trajectory's initial distance to goal
                 self.tree_blackboard.motion_initial_distance = float(
                     len(self.traj.points)
@@ -444,6 +457,11 @@ class MoveTo(py_trees.behaviour.Behaviour):
         """
         Given two joint positions in radians, this function computes the
         distance between then, accounting for rotational symmetry.
+
+        Parameters
+        ----------
+        point1: The first joint position, in radians.
+        point2: The second joint position, in radians.
         """
         abs_dist = abs(point1 - point2) % (2 * math.pi)
         return min(abs_dist, 2 * math.pi - abs_dist)
@@ -510,3 +528,88 @@ class MoveTo(py_trees.behaviour.Behaviour):
         # Because the robot may still have slight motion even after this point,
         # we conservatively return 1.0.
         return 1.0
+
+    @staticmethod
+    def visualize_trajectory(action_name: str, traj: JointTrajectory) -> None:
+        """
+        Generates a visualization of the positions, velocities, and accelerations
+        of each joint in the trajectory. Saves the visualization in the share
+        directory for `ada_feeding`, as `trajectories/{timestamp}_{action}.png`.
+        Also saves a CSV of the trajectory.
+
+        Parameters
+        ----------
+        action_name: The name of the action that generated this trajectory.
+        traj: The trajectory to visualize.
+        """
+
+        # pylint: disable=too-many-locals
+        # Necessary because this function saves both the image and CSV
+
+        # pylint: disable=import-outside-toplevel
+        # No need to import graphing libraries if we aren't saving the trajectory
+        import matplotlib.pyplot as plt
+
+        # Get the filepath, excluding the extension
+        file_dir = os.path.join(
+            get_package_share_directory("ada_feeding"),
+            "trajectories",
+        )
+        if not os.path.exists(file_dir):
+            os.mkdir(file_dir)
+        filepath = os.path.join(
+            file_dir,
+            f"{int(time.time()*10**9)}_{action_name}",
+        )
+
+        # Generate the CSV header
+        csv_header = ["time_from_start"]
+        for descr in ["Position", "Velocity", "Acceleration"]:
+            for joint_name in traj.joint_names:
+                csv_header.append(f"{joint_name} {descr}")
+        csv_data = [csv_header]
+
+        # Generate the axes for the graph
+        nrows = 2
+        ncols = int(math.ceil(len(traj.joint_names) / float(nrows)))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(20, 10))
+        positions = [[] for _ in traj.joint_names]
+        velocities = [[] for _ in traj.joint_names]
+        accelerations = [[] for _ in traj.joint_names]
+        time_from_start = []
+
+        # Loop over the trajectory
+        for point in traj.points:
+            timestamp = (
+                point.time_from_start.sec + point.time_from_start.nanosec * 10.0**-9
+            )
+            row = [timestamp]
+            time_from_start.append(timestamp)
+            for descr in ["positions", "velocities", "accelerations"]:
+                for i, joint_name in enumerate(traj.joint_names):
+                    row.append(getattr(point, descr)[i])
+                    if descr == "positions":
+                        positions[i].append(getattr(point, descr)[i])
+                    elif descr == "velocities":
+                        velocities[i].append(getattr(point, descr)[i])
+                    elif descr == "accelerations":
+                        accelerations[i].append(getattr(point, descr)[i])
+            csv_data.append(row)
+
+        # Generate and save the figure
+        for i, joint_name in enumerate(traj.joint_names):
+            ax = axes[i // ncols, i % ncols]
+            ax.plot(time_from_start, positions[i], label="Position (rad)")
+            ax.plot(time_from_start, velocities[i], label="Velocity (rad/s)")
+            ax.plot(time_from_start, accelerations[i], label="Acceleration (rad/s^2)")
+            ax.set_xlabel("Time (s)")
+            ax.set_title(joint_name)
+            ax.legend()
+        fig.tight_layout()
+        fig.savefig(filepath + ".png")
+        plt.clf()
+
+        # Save the CSV
+        with open(filepath + ".csv", "w", encoding="utf-8") as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerows(csv_data)
