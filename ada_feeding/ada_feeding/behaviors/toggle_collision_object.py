@@ -7,6 +7,7 @@ MoveIt's planning scene.
 """
 
 # Standard imports
+from typing import List
 
 # Third-party imports
 import py_trees
@@ -30,7 +31,7 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
         self,
         name: str,
         node: Node,
-        collision_object_id: str,
+        collision_object_ids: List[str],
         allow: bool,
     ) -> None:
         """
@@ -40,7 +41,7 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
         ----------
         name: The name of the behavior.
         node: The ROS node to associate the publishers with.
-        collision_object_id: The ID for the collision object in the MoveIt planning scene.
+        collision_object_ids: The ID for the collision object in the MoveIt planning scene.
         allow: If True, then collisions between the robot and collision object ID are
             *allowed* e.g., a plan that collides with the object will be considered valid.
             If False, then collisions between the robot and collision object ID are
@@ -51,7 +52,7 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
 
         # Store parameters
         self.node = node
-        self.collision_object_id = collision_object_id
+        self.collision_object_ids = collision_object_ids
         self.allow = allow
 
         # Get the MoveIt2 object.
@@ -74,6 +75,8 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
         self.logger.info(f"{self.name} [ToggleCollisionObject::initialise()]")
 
         self.service_future = None
+        self.curr_collision_object_id_i = 0
+        self.all_collision_object_succ = True
 
     def update(self) -> py_trees.common.Status:
         """
@@ -87,12 +90,30 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
         self.logger.info(f"{self.name} [ToggleCollisionObject::update()]")
         # (Dis)allow collisions between the robot and the collision object
         if self.service_future is None:
+            # Check if we have processed all collision objects
+            if self.curr_collision_object_id_i >= len(self.collision_object_ids):
+                # We have processed all collision objects
+                if self.all_collision_object_succ:
+                    # We have processed all collision objects and they were all successful
+                    return py_trees.common.Status.SUCCESS
+                return py_trees.common.Status.FAILURE
+
+            # Get the next collision object ID
+            collision_object_id = self.collision_object_ids[
+                self.curr_collision_object_id_i
+            ]
+            self.logger.info(
+                f"{self.name} [ToggleCollisionObject::update()] "
+                f"collision_object_id: {collision_object_id}"
+            )
             with self.moveit2_lock:
                 service_future = self.moveit2.allow_collisions(
-                    self.collision_object_id, self.allow
+                    collision_object_id, self.allow
                 )
             if service_future is None:  # service not available
-                return py_trees.common.Status.FAILURE
+                self.all_collision_object_succ = False
+                self.curr_collision_object_id_i += 1
+                return py_trees.common.Status.RUNNING
             self.service_future = service_future
             return py_trees.common.Status.RUNNING
 
@@ -100,10 +121,16 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
         if self.service_future.done():
             with self.moveit2_lock:
                 succ = self.moveit2.process_allow_collision_future(self.service_future)
-            # Return success/failure
-            if succ:
-                return py_trees.common.Status.SUCCESS
-            return py_trees.common.Status.FAILURE
+            # Process success/failure
+            self.logger.info(
+                f"{self.name} [ToggleCollisionObject::update()] "
+                f"service_future: {succ}"
+            )
+            if not succ:
+                self.all_collision_object_succ = False
+            self.curr_collision_object_id_i += 1
+            self.service_future = None
+            return py_trees.common.Status.RUNNING
 
         # Return running
         return py_trees.common.Status.RUNNING

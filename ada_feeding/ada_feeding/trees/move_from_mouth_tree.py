@@ -209,7 +209,7 @@ class MoveFromMouthTree(MoveToTree):
             name,
             allow_wheelchair_collision_prefix,
             node,
-            self.wheelchair_collision_object_id,
+            [self.wheelchair_collision_object_id],
             True,
             logger,
         )
@@ -257,7 +257,7 @@ class MoveFromMouthTree(MoveToTree):
             name,
             disallow_wheelchair_collision_prefix,
             node,
-            self.wheelchair_collision_object_id,
+            [self.wheelchair_collision_object_id],
             False,
             logger,
         )
