@@ -21,7 +21,9 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
 4. Launch the RealSense & Perception:
     1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false run_web_bridge:=false`
     2. Real nodes: Follow the instructions in the [`ada_feeding_perception` README](https://github.com/personalrobotics/ada_feeding/blob/ros2-devel/ada_feeding_perception/README.md#usage)
-5. Ensure the e-stop is plugged in. Run the action servers: `ros2 launch ada_feeding ada_feeding_launch.xml`
+5. Run the action servers:
+    1. If the e-stop is plugged in: `ros2 launch ada_feeding ada_feeding_launch.xml`
+    2. If the e-stop is not plugged in: `ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false`
 6. Launch MoveIt2:
     1. Sim (RVIZ): `ros2 launch ada_moveit demo_feeding.launch.py sim:=mock`
     2. Real Robot: `ros2 launch ada_moveit demo_feeding.launch.py`
