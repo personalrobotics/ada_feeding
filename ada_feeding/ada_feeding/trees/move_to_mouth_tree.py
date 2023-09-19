@@ -23,7 +23,8 @@ from rclpy.node import Node
 from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding.behaviors import (
     ComputeMoveToMouthPosition,
-    MoveCollisionObject,
+    ModifyCollisionObject,
+    ModifyCollisionObjectOperation,
 )
 from ada_feeding.helpers import (
     POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
@@ -335,9 +336,10 @@ class MoveToMouthTree(MoveToTree):
         # Create the behavior to move the head in the collision scene to the mouth
         # position. For now, assume the head is always perpendicular to the back
         # of the wheelchair.
-        move_head = MoveCollisionObject(
+        move_head = ModifyCollisionObject(
             name=Blackboard.separator.join([name, move_head_prefix]),
             node=node,
+            operation=ModifyCollisionObjectOperation.MOVE,
             collision_object_id=self.head_object_id,
             collision_object_position_input_key=target_position_output_key,
             collision_object_orientation_input_key="quat_xyzw",
