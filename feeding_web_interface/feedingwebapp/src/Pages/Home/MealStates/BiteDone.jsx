@@ -18,9 +18,9 @@ const BiteDone = () => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
   // Get icon image for move above plate
-  let moveAbovePlateImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
+  let moveAbovePlateImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingFromMouthToAbovePlate]
   // Get icon image for move to resting position
-  let moveToRestingPositionImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToRestingPosition]
+  let moveToRestingPositionImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingFromMouthToRestingPosition]
   // Flag to check if the current orientation is portrait
   const isPortrait = useMediaQuery({ query: '(orientation: portrait)' })
   // Indicator of how to arrange screen elements based on orientation
@@ -36,14 +36,14 @@ const BiteDone = () => {
    * Callback function for when the user wants to move above plate.
    */
   const moveAbovePlate = useCallback(() => {
-    setMealState(MEAL_STATE.R_MovingAbovePlate)
+    setMealState(MEAL_STATE.R_MovingFromMouthToAbovePlate)
   }, [setMealState])
 
   /**
    * Callback function for when the user wants to move to resting position.
    */
   const moveToRestingPosition = useCallback(() => {
-    setMealState(MEAL_STATE.R_MovingToRestingPosition)
+    setMealState(MEAL_STATE.R_MovingFromMouthToRestingPosition)
   }, [setMealState])
 
   /**

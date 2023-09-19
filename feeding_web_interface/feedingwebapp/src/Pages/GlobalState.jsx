@@ -36,6 +36,14 @@ export const APP_PAGE = {
  *     bite acquisition was succesful or not.
  *   - R_MovingToMouth: Waiting for the robot to finish moving to the user's
  *     mouth.
+ *   - R_MovingFromMouthToAbovePlate: Waiting for the robot to move from the
+ *     user's mouth to above the plate. This is a separate action from
+ *     R_MovingAbovePlate to allow us to customize the departure from the mouth
+ *     (e.g., a slower speed).
+ *   - R_MovingFromMouthToRestingPosition: Waiting for the robot to move from
+ *     the user's mouth to resting position. This is a separate action from
+ *     R_MovingToRestingPosition to allow us to customize the departure from
+ *     the mouth (e.g., a slower speed).
  *   - U_BiteDone: Waiting for the user to indicate that they are done eating
  *     the bite.
  *   - R_StowingArm: Waiting for the robot to stow the arm.
@@ -50,6 +58,8 @@ export const MEAL_STATE = {
   R_MovingToRestingPosition: 'R_MovingToRestingPosition',
   U_BiteAcquisitionCheck: 'U_BiteAcquisitionCheck',
   R_MovingToMouth: 'R_MovingToMouth',
+  R_MovingFromMouthToAbovePlate: 'R_MovingFromMouthToAbovePlate',
+  R_MovingFromMouthToRestingPosition: 'R_MovingFromMouthToRestingPosition',
   U_BiteDone: 'U_BiteDone',
   R_StowingArm: 'R_StowingArm',
   U_PostMeal: 'U_PostMeal'

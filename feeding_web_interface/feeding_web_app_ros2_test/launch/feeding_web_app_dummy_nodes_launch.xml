@@ -48,6 +48,10 @@
     <node pkg="feeding_web_app_ros2_test" exec="MoveToRestingPosition" name="MoveToRestingPosition"/>
     <!-- Motion: The MoveToMouth action -->
     <node pkg="feeding_web_app_ros2_test" exec="MoveToMouth" name="MoveToMouth"/>
+    <!-- Motion: The MoveFromMouthToAbovePlate action -->
+    <node pkg="feeding_web_app_ros2_test" exec="MoveFromMouthToAbovePlate" name="MoveFromMouthToAbovePlate"/>
+    <!-- Motion: The MoveFromMouthToRestingPosition action -->
+    <node pkg="feeding_web_app_ros2_test" exec="MoveFromMouthToRestingPosition" name="MoveFromMouthToRestingPosition"/>
     <!-- Motion: The MoveToStowLocation action -->
     <node pkg="feeding_web_app_ros2_test" exec="MoveToStowLocation" name="MoveToStowLocation"/>
   </group>

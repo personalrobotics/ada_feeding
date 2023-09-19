@@ -23,7 +23,9 @@ export const TIME_TO_RESET_MS = 3600000 // 1 hour in milliseconds
  */
 let MOVING_STATE_ICON_DICT = {}
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate] = '/robot_state_imgs/move_above_plate_position.svg'
+MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingFromMouthToAbovePlate] = '/robot_state_imgs/move_above_plate_position.svg'
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToRestingPosition] = '/robot_state_imgs/move_to_resting_position.svg'
+MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingFromMouthToRestingPosition] = '/robot_state_imgs/move_to_resting_position.svg'
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth] = '/robot_state_imgs/move_to_mouth_position.svg'
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_StowingArm] = '/robot_state_imgs/stowing_arm_position.svg'
 export { MOVING_STATE_ICON_DICT }
@@ -54,6 +56,10 @@ ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingAbovePlate] = {
   actionName: 'MoveAbovePlate',
   messageType: 'ada_feeding_msgs/action/MoveTo'
 }
+ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingFromMouthToAbovePlate] = {
+  actionName: 'MoveFromMouthToAbovePlate',
+  messageType: 'ada_feeding_msgs/action/MoveTo'
+}
 ROS_ACTIONS_NAMES[MEAL_STATE.U_BiteSelection] = {
   actionName: 'SegmentFromPoint',
   messageType: 'ada_feeding_msgs/action/SegmentFromPoint'
@@ -64,6 +70,10 @@ ROS_ACTIONS_NAMES[MEAL_STATE.R_BiteAcquisition] = {
 }
 ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingToRestingPosition] = {
   actionName: 'MoveToRestingPosition',
+  messageType: 'ada_feeding_msgs/action/MoveTo'
+}
+ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingFromMouthToRestingPosition] = {
+  actionName: 'MoveFromMouthToRestingPosition',
   messageType: 'ada_feeding_msgs/action/MoveTo'
 }
 ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingToMouth] = {

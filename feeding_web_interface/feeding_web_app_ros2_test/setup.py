@@ -39,6 +39,8 @@ setup(
             "MoveAbovePlate = feeding_web_app_ros2_test.MoveAbovePlate:main",
             "MoveToRestingPosition = feeding_web_app_ros2_test.MoveToRestingPosition:main",
             "MoveToMouth = feeding_web_app_ros2_test.MoveToMouth:main",
+            "MoveFromMouthToAbovePlate = feeding_web_app_ros2_test.MoveFromMouthToAbovePlate:main",
+            "MoveFromMouthToRestingPosition = feeding_web_app_ros2_test.MoveFromMouthToRestingPosition:main",
             "MoveToStowLocation = feeding_web_app_ros2_test.MoveToStowLocation:main",
             "SegmentFromPoint = feeding_web_app_ros2_test.SegmentFromPoint:main",
             # Scripts for the "TestROS" component
