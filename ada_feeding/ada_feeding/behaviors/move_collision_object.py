@@ -15,6 +15,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 # Local imports
+from ada_feeding.helpers import get_moveit2_object
 
 
 class MoveCollisionObject(py_trees.behaviour.Behaviour):
@@ -84,11 +85,10 @@ class MoveCollisionObject(py_trees.behaviour.Behaviour):
             access=py_trees.common.Access.READ,
         )
 
-        # Create the publisher
-        self.publisher = self.node.create_publisher(
-            CollisionObject,
-            "/collision_object",
-            QoSProfile(reliability=ReliabilityPolicy.RELIABLE, depth=1),
+        # Get the MoveIt2 interface
+        self.moveit2, self.moveit2_lock = get_moveit2_object(
+            self.blackboard,
+            self.node,
         )
 
     def update(self) -> py_trees.common.Status:
@@ -110,6 +110,7 @@ class MoveCollisionObject(py_trees.behaviour.Behaviour):
             collision_object_orientation = self.blackboard.get(
                 self.collision_object_orientation_input_key
             )
+            frame_id = self.blackboard.get("frame_id")
         except KeyError:
             # If the collision object pose is not on the blackboard, return failure
             self.logger.error(
@@ -118,23 +119,21 @@ class MoveCollisionObject(py_trees.behaviour.Behaviour):
             )
             return py_trees.common.Status.FAILURE
 
-        # Create the collision object
-        collision_object = CollisionObject()
-        collision_object.id = self.collision_object_id
-        collision_object.header.frame_id = self.blackboard.frame_id
-        pose = Pose()
-        pose.position.x = collision_object_position[0] + self.position_offset[0]
-        pose.position.y = collision_object_position[1] + self.position_offset[1]
-        pose.position.z = collision_object_position[2] + self.position_offset[2]
-        pose.orientation.x = collision_object_orientation[0]
-        pose.orientation.y = collision_object_orientation[1]
-        pose.orientation.z = collision_object_orientation[2]
-        pose.orientation.w = collision_object_orientation[3]
-        collision_object.pose = pose
-        collision_object.operation = CollisionObject.MOVE
+        # Add the offset
+        collision_object_position = [
+            collision_object_position[0] + self.position_offset[0],
+            collision_object_position[1] + self.position_offset[1],
+            collision_object_position[2] + self.position_offset[2],
+        ]
 
-        # Publish the collision object
-        self.publisher.publish(collision_object)
+        # Move the collision object
+        with self.moveit2_lock:
+            self.moveit2.move_collision(
+                self.collision_object_id,
+                collision_object_position,
+                collision_object_orientation,
+                frame_id,
+            )
 
         # Return success
         return py_trees.common.Status.SUCCESS
