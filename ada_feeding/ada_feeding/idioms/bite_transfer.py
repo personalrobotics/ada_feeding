@@ -8,6 +8,7 @@ transfer, e.g., the MoveToMouth and MoveFromMouth behaviors.
 # Standard imports
 import logging
 import operator
+from typing import List
 
 # Third-party imports
 import py_trees
@@ -24,7 +25,7 @@ def get_toggle_collision_object_behavior(
     tree_name: str,
     behavior_name_prefix: str,
     node: Node,
-    collision_object_id: str,
+    collision_object_ids: List[str],
     allow: bool,
     logger: logging.Logger,
 ) -> py_trees.behaviour.Behaviour:
@@ -36,7 +37,7 @@ def get_toggle_collision_object_behavior(
     tree_name: The name of the tree that this behaviour belongs to.
     behavior_name_prefix: The prefix for the name of the behaviour.
     node: The ROS2 node that this behaviour belongs to.
-    collision_object_id: The ID of the collision object to toggle.
+    collision_object_ids: The IDs of the collision object to toggle.
     allow: Whether to allow or disallow the collision object.
     logger: The logger to use for the behaviour.
 
@@ -52,7 +53,7 @@ def get_toggle_collision_object_behavior(
     toggle_collision_object = ToggleCollisionObject(
         name=Blackboard.separator.join([tree_name, behavior_name_prefix]),
         node=node,
-        collision_object_id=collision_object_id,
+        collision_object_ids=collision_object_ids,
         allow=allow,
     )
     toggle_collision_object.logger = logger

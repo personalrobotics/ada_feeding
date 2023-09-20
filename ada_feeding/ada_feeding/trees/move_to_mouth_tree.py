@@ -23,7 +23,8 @@ from rclpy.node import Node
 from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding.behaviors import (
     ComputeMoveToMouthPosition,
-    MoveCollisionObject,
+    ModifyCollisionObject,
+    ModifyCollisionObjectOperation,
 )
 from ada_feeding.helpers import (
     POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
@@ -335,13 +336,14 @@ class MoveToMouthTree(MoveToTree):
         # Create the behavior to move the head in the collision scene to the mouth
         # position. For now, assume the head is always perpendicular to the back
         # of the wheelchair.
-        move_head = MoveCollisionObject(
+        move_head = ModifyCollisionObject(
             name=Blackboard.separator.join([name, move_head_prefix]),
             node=node,
+            operation=ModifyCollisionObjectOperation.MOVE,
             collision_object_id=self.head_object_id,
             collision_object_position_input_key=target_position_output_key,
             collision_object_orientation_input_key="quat_xyzw",
-            reverse_position_offset=target_position_offset,
+            position_offset=tuple(-1.0 * p for p in target_position_offset),
         )
         move_head.logger = logger
         # The frame_id for the position outputted by the ComputeMoveToMouthPosition
@@ -352,7 +354,7 @@ class MoveToMouthTree(MoveToTree):
             access=py_trees.common.Access.WRITE,
         )
         self.blackboard.set(frame_id_key, "j2n6s200_link_base")
-        # Hardcode head orientation to be perpendiculaf to the back of the wheelchair.
+        # Hardcode head orientation to be perpendicular to the back of the wheelchair.
         quat_xyzw_key = Blackboard.separator.join([move_head_prefix, "quat_xyzw"])
         self.blackboard.register_key(
             key=quat_xyzw_key,
@@ -371,7 +373,7 @@ class MoveToMouthTree(MoveToTree):
             name,
             allow_wheelchair_collision_prefix,
             node,
-            self.wheelchair_collision_object_id,
+            [self.wheelchair_collision_object_id],
             True,
             logger,
         )
@@ -423,7 +425,7 @@ class MoveToMouthTree(MoveToTree):
             name,
             disallow_wheelchair_collision_prefix,
             node,
-            self.wheelchair_collision_object_id,
+            [self.wheelchair_collision_object_id],
             False,
             logger,
         )
