@@ -143,6 +143,10 @@ class ComputeFoodFrame(BlackboardBehavior):
         # I think this is reasonable to understand
         # the logic of this function.
 
+        # pylint: disable=too-many-statements
+        # We can't get around all the conversions
+        # to ROS2 msg types, which take 3-4 statements each.
+
         camera_frame = self.blackboard_get("camera_info").header.frame_id
         node = self.blackboard_get("ros2_node")
 
