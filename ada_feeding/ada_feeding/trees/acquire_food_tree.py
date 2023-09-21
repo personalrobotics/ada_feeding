@@ -20,14 +20,13 @@ from ada_feeding import ActionServerBT
 class AcquireFoodTree(MoveToTree):
     """
     A behvaior tree to select and execute an acquisition
-    action (see ada_feeding_msgs.action.AcquisitionSchema) 
+    action (see ada_feeding_msgs.action.AcquisitionSchema)
     for a given food mask in ada_feeding_msgs.action.AcquireFood.
     """
 
     # pylint: disable=too-many-instance-attributes, too-many-arguments
     # Many arguments is fine for this class since it has to be able to configure all parameters
     # of its constraints.
-
 
     def __init__(
         self,
@@ -86,7 +85,6 @@ class AcquireFoodTree(MoveToTree):
         # TODO: fix is_planning / planning_time in non-MoveTo Behavior
         return feedback_msg
 
-
     # Override result to add other elements to result msg
     @override
     def get_result(self, tree: py_trees.trees.BehaviourTree) -> object:
@@ -95,8 +93,3 @@ class AcquireFoodTree(MoveToTree):
 
         # TODO: add action_index, posthoc, action_select_hash
         return result_msg
-
-
-
-
-        

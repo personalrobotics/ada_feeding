@@ -5,9 +5,11 @@ Ada Feeding project.
 
 # Standard imports
 from threading import Lock
-from typing import Any, Optional, Set, Tuple, NewType
+from typing import Any, Optional, Set, Tuple
 
 # Third-party imports
+import numpy as np
+from geometry_msgs.msg import Vector3, Quaternion
 import py_trees
 from py_trees.common import Access
 from pymoveit2 import MoveIt2
@@ -15,16 +17,21 @@ from pymoveit2.robots import kinova
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 
+
 # Type for Blackboard Key
 class BlackboardKey(str):
-  # Class instances construction in Python follows this two-step call:
-  # First __new__, which allocates the immutable structure,
-  # Then __init__, to set up the mutable part.
-  # Since str in python is immutable, it has no __init__ method.
-  # All data for str must be set at __new__ execution, so instead
-  # of overriding __init__, we override __new__:
-  def __new__(cls, *args, **kwargs):
-    return str.__new__(cls, *args, **kwargs)
+    """
+    String wrapper for Blackboard Keys
+    Class instances construction in Python follows this two-step call:
+    First __new__, which allocates the immutable structure,
+    Then __init__, to set up the mutable part.
+    Since str in python is immutable, it has no __init__ method.
+    All data for str must be set at __new__ execution, so instead
+    of overriding __init__, we override __new__:
+    """
+    def __new__(cls, *args, **kwargs):
+        return str.__new__(cls, *args, **kwargs)
+
 
 # These prefixes are used to separate namespaces from each other.
 # For example, if we have a behavior `foo` that has a position goal constraint,
@@ -44,6 +51,42 @@ POSITION_PATH_CONSTRAINT_NAMESPACE_PREFIX = "position_path_constraint"
 ORIENTATION_PATH_CONSTRAINT_NAMESPACE_PREFIX = "orientation_path_constraint"
 JOINT_PATH_CONSTRAINT_NAMESPACE_PREFIX = "joint_path_constraint"
 MOVE_TO_NAMESPACE_PREFIX = "move_to"
+
+
+def quat_between_vectors(vec_from: Vector3, vec_to: Vector3) -> Quaternion:
+    """
+    Returns the Quaternion rotation (shortest arc)
+    between 2 3-Vectors.
+    See: https://stackoverflow.com/questions/1171849/
+    finding-quaternion-representing-the-rotation-from-one-vector-to-another
+    """
+
+    vec_quat = np.zeros(4)
+    vec_quat[3] = 1.0
+
+    vec_from_np = np.array([vec_from.x, vec_from.y, vec_from.z])
+    vec_from_np = vec_from_np / np.linalg.norm(vec_from_np)
+    vec_to_np = np.array([vec_to.x, vec_to.y, vec_to.z])
+    vec_to_np = vec_to_np / np.linalg.norm(vec_to_np)
+    dot = np.dot(vec_from_np, vec_to_np)
+    if np.isclose(dot, -1.0):
+        # pi rotation about any orthogonal vector
+        vec_quat[3] = 0.0
+        vec_quat[:3] = np.cross(np.random.random(3), vec_from_np)
+    else:
+        half = vec_from_np + vec_to_np
+        half = half / np.linalg.norm(half)
+        vec_quat[3] = np.dot(vec_from, half)
+        vec_quat[:3] = np.cross(vec_from, half)
+
+    # Normalize and return
+    vec_quat = vec_quat / np.linalg.norm(vec_quat)
+    ret = Quaternion()
+    ret.x = vec_quat[0]
+    ret.y = vec_quat[1]
+    ret.z = vec_quat[2]
+    ret.w = vec_quat[3]
+    return ret
 
 
 def get_moveit2_object(
