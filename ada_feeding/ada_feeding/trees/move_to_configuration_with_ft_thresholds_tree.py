@@ -6,6 +6,7 @@ tree and provides functions to wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
+from functools import partial
 import logging
 from typing import List, Set
 
@@ -14,7 +15,7 @@ import py_trees
 from rclpy.node import Node
 
 # Local imports
-from ada_feeding.idioms import pre_moveto_config
+from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import get_toggle_watchdog_listener_behavior
 from ada_feeding.trees import MoveToTree, MoveToConfigurationTree
 
@@ -23,6 +24,9 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
     """
     A behavior tree that moves the robot to a specified configuration, after
     re-taring the FT sensor and setting specific FT thresholds.
+
+    TODO: Add the ability to pass force-torque thresholds to revert after the
+    motion, and then set the force-torque thresholds in the scoped behavior.
     """
 
     # pylint: disable=too-many-instance-attributes, too-many-arguments
@@ -182,46 +186,35 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             logger=logger,
         )
 
-        # Combine them in a sequence with memory
-        main_tree = py_trees.composites.Sequence(
-            name=name,
-            memory=True,
-            children=[pre_moveto_behavior, move_to_configuration_root],
-        )
-        main_tree.logger = logger
-
         if self.toggle_watchdog_listener:
             # If there was a failure in the main tree, we want to ensure to turn
             # the watchdog listener back on
             # pylint: disable=duplicate-code
             # This is similar to any other tree that needs to cleanup pre_moveto_config
-            turn_watchdog_listener_on = get_toggle_watchdog_listener_behavior(
+            turn_watchdog_listener_on_fn = partial(
+                get_toggle_watchdog_listener_behavior,
                 name,
                 turn_watchdog_listener_on_prefix,
                 True,
                 logger,
             )
 
-            # Create a cleanup branch for the behaviors that should get executed if
-            # the main tree has a failure
-            cleanup_tree = turn_watchdog_listener_on
-
-            # If main_tree fails, we still want to do some cleanup.
-            root = py_trees.composites.Selector(
-                name=name,
-                memory=True,
-                children=[
-                    main_tree,
-                    # Even though we are cleaning up the tree, it should still
-                    # pass the failure up.
-                    py_trees.decorators.SuccessIsFailure(
-                        name + " Cleanup Root", cleanup_tree
-                    ),
-                ],
+            # Create the main tree
+            root = scoped_behavior(
+                name=name + " ToggleWatchdogListenerOffScope",
+                pre_behavior=pre_moveto_behavior,
+                main_behaviors=[move_to_configuration_root],
+                post_behavior_fn=turn_watchdog_listener_on_fn,
             )
             root.logger = logger
         else:
-            root = main_tree
+            # Combine them in a sequence with memory
+            root = py_trees.composites.Sequence(
+                name=name,
+                memory=True,
+                children=[pre_moveto_behavior, move_to_configuration_root],
+            )
+            root.logger = logger
 
         tree = py_trees.trees.BehaviourTree(root)
         return tree

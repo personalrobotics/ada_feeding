@@ -29,7 +29,7 @@ from ada_feeding.behaviors import (
 from ada_feeding.helpers import (
     POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
 )
-from ada_feeding.idioms import pre_moveto_config
+from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import (
     get_toggle_collision_object_behavior,
     get_toggle_face_detection_behavior,
@@ -440,48 +440,27 @@ class MoveToMouthTree(MoveToTree):
         )
 
         # Link all the behaviours together in a sequence with memory
-        move_to_mouth = py_trees.composites.Sequence(
+        root = py_trees.composites.Sequence(
             name=name + " Main",
             memory=True,
             children=[
-                turn_face_detection_on,
                 # For now, we only re-tare the F/T sensor once, since no large forces
                 # are expected during transfer.
                 pre_moveto_config_behavior,
                 move_to_staging_configuration,
-                detect_face,
+                scoped_behavior(
+                    name=name + " FaceDetectionOnScope",
+                    pre_behavior=turn_face_detection_on,
+                    main_behaviors=[detect_face],
+                    post_behavior_fn=gen_turn_face_detection_off,
+                ),
                 compute_target_position,
                 move_head,
-                allow_wheelchair_collision,
-                move_to_target_pose,
-                gen_disallow_wheelchair_collision(),
-                gen_turn_face_detection_off(),
-            ],
-        )
-        move_to_mouth.logger = logger
-
-        # Create a cleanup branch for the behaviors that should get executed if
-        # the main tree has a failure
-        cleanup_tree = py_trees.composites.Sequence(
-            name=name + " Cleanup",
-            memory=True,
-            children=[
-                gen_disallow_wheelchair_collision(),
-                gen_turn_face_detection_off(),
-            ],
-        )
-
-        # If move_to_mouth fails, we still want to do some cleanup (e.g., turn
-        # face detection off).
-        root = py_trees.composites.Selector(
-            name=name,
-            memory=True,
-            children=[
-                move_to_mouth,
-                # Even though we are cleaning up the tree, it should still
-                # pass the failure up.
-                py_trees.decorators.SuccessIsFailure(
-                    name + " Cleanup Root", cleanup_tree
+                scoped_behavior(
+                    name=name + " AllowWheelchairCollisionScope",
+                    pre_behavior=allow_wheelchair_collision,
+                    main_behaviors=[move_to_target_pose],
+                    post_behavior_fn=gen_disallow_wheelchair_collision,
                 ),
             ],
         )
