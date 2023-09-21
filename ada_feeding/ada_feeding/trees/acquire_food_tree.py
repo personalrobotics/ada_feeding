@@ -14,7 +14,10 @@ import py_trees
 from rclpy.node import Node
 
 # Local imports
-from ada_feeding import ActionServerBT
+from ada_feeding.behaviors import ComputeFoodFrame
+from ada_feeding.helpers import BlackboardKey
+from ada_feeding.trees import MoveToTree
+from ada_feeding_msgs.action import AcquireFood
 
 
 class AcquireFoodTree(MoveToTree):
@@ -28,26 +31,12 @@ class AcquireFoodTree(MoveToTree):
     # Many arguments is fine for this class since it has to be able to configure all parameters
     # of its constraints.
 
-    def __init__(
-        self,
-        planner_id: str = "RRTstarkConfigDefault",
-        allowed_planning_time: float = 0.5,
-    ):
+    def __init__(self):
         """
         Initializes tree-specific parameters.
-
-        Parameters
-        ----------
-        planner_id: The planner ID to use for the MoveIt2 motion planning.
-        allowed_planning_time: The allowed planning time for the MoveIt2 motion
-            planner.
         """
         # Initialize MoveToTree
         super().__init__()
-
-        # Store the parameters
-        self.planner_id = planner_id
-        self.allowed_planning_time = allowed_planning_time
 
     # pylint: disable=too-many-locals
     # Unfortunately, many local variables are required here to isolate the keys
@@ -55,6 +44,7 @@ class AcquireFoodTree(MoveToTree):
     def create_move_to_tree(
         self,
         name: str,
+        tree_root_name: str,
         logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
@@ -63,7 +53,8 @@ class AcquireFoodTree(MoveToTree):
 
         Parameters
         ----------
-        name: The name of the behavior tree.
+        name: The name of the behavior tree. (DEPRECATED)
+        tree_root_name: Name of the parent root tree (DEPRECATED)
         logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
@@ -72,9 +63,80 @@ class AcquireFoodTree(MoveToTree):
         -------
         tree: The behavior tree that acquires food
         """
+        # TODO: remove name and tree_root_name
+        # We have access to them implicitly via self.blackboard / self.blackboard_tree_root
 
-        # TODO: Define full tree
-        pass
+        ### Tree-scope blackboard objects
+        # ROS2 Node
+        self.blackboard.register_key(
+            key="ros2_node", access=py_trees.common.Access.WRITE
+        )
+        self.blackboard.ros2_node = node
+
+        ### Inputs we expect on the blackboard on initialization
+        # Note: WRITE access since send_goal could write to these
+        # Mask for ComputeFoodFrame
+        self.blackboard.register_key(key="mask", access=py_trees.common.Access.WRITE)
+        # CameraInfo for ComputeFoodFrame
+        self.blackboard.register_key(
+            key="camera_info", access=py_trees.common.Access.WRITE
+        )
+        # Camera Frame for ComputeFoodFrame
+        self.blackboard.register_key(
+            key="camera_frame", access=py_trees.common.Access.WRITE
+        )
+
+        ### Define Tree Leaves and Subtrees
+
+        # Add ComputeFoodFrame
+        compute_food_frame = ComputeFoodFrame(
+            "ComputeFoodFrame", self.blackboard.namespace
+        )
+        compute_food_frame.blackboard_inputs(
+            ros2_node=BlackboardKey("ros2_node"),
+            camera_info=BlackboardKey("camera_info"),
+            mask=BlackboardKey("mask"),
+            camera_frame=BlackboardKey("camera_frame"),
+            # Default world_frame
+            # Default debug_tf_frame
+        )
+        compute_food_frame.blackboard_outputs(
+            action_select_request=None,
+            food_frame=None,
+            debug_tf_publisher="debug_tf_publisher",
+        )
+
+        ### Define Tree Logic
+
+        # Root Sequence
+        root_seq = py_trees.composites.Sequence(
+            name="RootSequence",
+            memory=True,
+            children=[
+                compute_food_frame,
+            ],
+        )
+
+        ### Return tree
+        root_seq.logger = logger
+        return py_trees.trees.BehaviourTree(root_seq)
+
+    # Override goal to read arguments into local blackboard
+    @override
+    def send_goal(self, tree: py_trees.trees.BehaviourTree, goal: object) -> bool:
+        # Docstring copied by @override
+        super().send_goal(tree, goal)
+
+        # Check goal type
+        if not isinstance(goal, AcquireFood.Goal):
+            return False
+
+        # Write tree inputs to blackboard
+        self.blackboard.mask = goal.detected_food
+        self.blackboard.camera_info = goal.camera_info
+        self.blackboard.camera_frame = goal.header.frame_id
+
+        return True
 
     # Override result to handle timing outside MoveTo Behaviors
     @override

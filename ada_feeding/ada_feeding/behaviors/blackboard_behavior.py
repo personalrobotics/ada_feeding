@@ -43,7 +43,7 @@ class BlackboardBehavior(py_trees.behaviour.Behaviour):
         <key>: Union[BlackboardKey, <type>] = <default>
 
         Call from the subclass using:
-        super().blackboard_inputs(**{key: value for key, 
+        super().blackboard_inputs(**{key: value for key,
             value in locals().items() if key != 'self'})
 
         Constants will be stored in the local dict.
@@ -65,7 +65,7 @@ class BlackboardBehavior(py_trees.behaviour.Behaviour):
         <key>: BlackboardKey = <default>
 
         Call from the subclass using:
-        super().blackboard_inputs(**{key: value for key, 
+        super().blackboard_inputs(**{key: value for key,
             value in locals().items() if key != 'self'})
         """
         for key, value in kwargs.items():

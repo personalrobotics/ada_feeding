@@ -29,6 +29,7 @@ class BlackboardKey(str):
     All data for str must be set at __new__ execution, so instead
     of overriding __init__, we override __new__:
     """
+
     def __new__(cls, *args, **kwargs):
         return str.__new__(cls, *args, **kwargs)
 
