@@ -77,13 +77,15 @@ class AcquireFoodTree(MoveToTree):
             ros2_node=node,
             camera_info=BlackboardKey("camera_info"),
             mask=BlackboardKey("mask"),
-            # Default world_frame
-            # Default debug_tf_frame
+            # Default world_frame = "world"
+            # Default debug_tf_frame = "food"
         )
         compute_food_frame.blackboard_outputs(
             action_select_request=None,
             food_frame=None,
-            debug_tf_publisher=BlackboardKey("debug_tf_publisher"),
+            debug_tf_publisher=BlackboardKey(
+                "debug_tf_publisher"
+            ),  # Set to None to disable
         )
 
         ### Define Tree Logic
