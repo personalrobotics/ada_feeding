@@ -48,7 +48,6 @@ class ComputeFoodFrame(BlackboardBehavior):
         ros2_node: Union[BlackboardKey, Node],
         camera_info: Union[BlackboardKey, CameraInfo],
         mask: Union[BlackboardKey, Mask],
-        camera_frame: Union[BlackboardKey, str] = "camera_color_optical_frame",
         world_frame: Union[BlackboardKey, str] = "world",
         debug_food_frame: Union[BlackboardKey, str] = "food",
     ) -> None:
@@ -60,7 +59,6 @@ class ComputeFoodFrame(BlackboardBehavior):
         ros2_node (Node): ROS2 Node for reading/writing TFs
         camera_info (geometry_msgs/CameraInfo): camera intrinsics matrix
         mask (ada_feeding_msgs/Mask): food context, see Mask.msg
-        camera_frame (string): ID of the TF frame that the Mask is in
         world_frame (string): ID of the TF frame to represent the food frame in
         debug_food_frame (string): If len>0, TF frame to publish static transform
                                    (relative to world_frame) for debugging purposes
@@ -102,7 +100,7 @@ class ComputeFoodFrame(BlackboardBehavior):
     # It is okay for attributes in behaviors to be
     # defined in the setup / initialise functions.
 
-    def setup(self):
+    def setup(self, **kwargs):
         """
         Middleware (i.e. TF) setup
         """
@@ -125,12 +123,17 @@ class ComputeFoodFrame(BlackboardBehavior):
         self.intrinsics = pyrealsense2.intrinsics()
         self.intrinsics.width = camera_info.width
         self.intrinsics.height = camera_info.height
-        self.intrinsics.ppx = camera_info.K[2]
-        self.intrinsics.ppy = camera_info.K[5]
-        self.intrinsics.fx = camera_info.K[0]
-        self.intrinsics.fy = camera_info.K[4]
-        self.intrinsics.model = camera_info.distortion_model
-        self.intrinsics.coeffs = list(camera_info.D)
+        self.intrinsics.ppx = camera_info.k[2]
+        self.intrinsics.ppy = camera_info.k[5]
+        self.intrinsics.fx = camera_info.k[0]
+        self.intrinsics.fy = camera_info.k[4]
+        if camera_info.distortion_model == "plumb_bob":
+            self.intrinsics.model = pyrealsense2.distortion.brown_conrady
+        elif camera_info.distortion_model == "equidistant":
+            self.intrinsics.model = pyrealsense2.distortion.kannala_brandt4
+        else:
+            self.intrinsics.model = pyrealsense2.distortion.none
+        self.intrinsics.coeffs = list(camera_info.d)
 
     def update(self) -> py_trees.common.Status:
         """
@@ -140,10 +143,13 @@ class ComputeFoodFrame(BlackboardBehavior):
         # I think this is reasonable to understand
         # the logic of this function.
 
+        camera_frame = self.blackboard_get("camera_info").header.frame_id
+        node = self.blackboard_get("ros2_node")
+
         # Check if we have the camera transform
         if not self.tf_buffer.can_transform(
             self.blackboard_get("world_frame"),
-            self.blackboard_get("camera_frame"),
+            camera_frame,
             rclpy.time.Time(),
         ):
             # Not yet, wait for it
@@ -151,13 +157,13 @@ class ComputeFoodFrame(BlackboardBehavior):
             return py_trees.common.Status.RUNNING
         transform = self.tf_buffer.lookup_transform(
             self.blackboard_get("world_frame"),
-            self.blackboard_get("camera_frame"),
+            camera_frame,
             rclpy.time.Time(),
         )
 
         # Set up return objects
         world_to_food_transform = TransformStamped()
-        world_to_food_transform.header.stamp = rclpy.time.Time()
+        world_to_food_transform.header.stamp = node.get_clock().now().to_msg()
         world_to_food_transform.header.frame_id = self.blackboard_get("world_frame")
         world_to_food_transform.child_frame_id = self.blackboard_get("debug_food_frame")
 
@@ -165,11 +171,14 @@ class ComputeFoodFrame(BlackboardBehavior):
         mask = self.blackboard_get("mask")
         center_list = pyrealsense2.rs2_deproject_pixel_to_point(
             self.intrinsics,
-            [mask.x_offset + mask.width // 2, mask.y_offset + mask.height // 2],
+            [
+                mask.roi.x_offset + mask.roi.width // 2,
+                mask.roi.y_offset + mask.roi.height // 2,
+            ],
             mask.average_depth,
         )
         center = PointStamped()
-        center.header.frame_id = self.blackboard_get("camera_frame")
+        center.header.frame_id = camera_frame
         center.point.x = center_list[0]
         center.point.y = center_list[1]
         center.point.z = center_list[2]
@@ -204,7 +213,7 @@ class ComputeFoodFrame(BlackboardBehavior):
             self.intrinsics, [point2[0], point2[1]], mask.average_depth
         )
         x_pos = Vector3Stamped()
-        x_pos.header.frame_id = self.blackboard_get("camera_frame")
+        x_pos.header.frame_id = camera_frame
         x_pos.vector.x = point1[0] - point2[0]
         x_pos.vector.y = point1[1] - point2[1]
         x_pos.vector.z = point1[2] - point2[2]
@@ -220,7 +229,7 @@ class ComputeFoodFrame(BlackboardBehavior):
 
         x_unit = Vector3Stamped()
         x_unit.vector.x = 1.0
-        world_to_food_transform.transform.orientation = quat_between_vectors(
+        world_to_food_transform.transform.rotation = quat_between_vectors(
             x_unit.vector, x_pos.vector
         )
 

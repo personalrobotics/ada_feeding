@@ -77,8 +77,8 @@ def quat_between_vectors(vec_from: Vector3, vec_to: Vector3) -> Quaternion:
     else:
         half = vec_from_np + vec_to_np
         half = half / np.linalg.norm(half)
-        vec_quat[3] = np.dot(vec_from, half)
-        vec_quat[:3] = np.cross(vec_from, half)
+        vec_quat[3] = np.dot(vec_from_np, half)
+        vec_quat[:3] = np.cross(vec_from_np, half)
 
     # Normalize and return
     vec_quat = vec_quat / np.linalg.norm(vec_quat)

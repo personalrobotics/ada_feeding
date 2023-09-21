@@ -69,7 +69,7 @@ class BlackboardBehavior(py_trees.behaviour.Behaviour):
             value in locals().items() if key != 'self'})
         """
         for key, value in kwargs.items():
-            if value is not None:
+            if isinstance(value, BlackboardKey):  # Catches None
                 self.blackboard.register_key(
                     key=value, access=py_trees.common.Access.WRITE
                 )

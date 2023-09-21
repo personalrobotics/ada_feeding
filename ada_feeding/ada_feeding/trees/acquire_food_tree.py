@@ -66,10 +66,6 @@ class AcquireFoodTree(MoveToTree):
         self.blackboard.register_key(
             key="camera_info", access=py_trees.common.Access.WRITE
         )
-        # Camera Frame for ComputeFoodFrame
-        self.blackboard.register_key(
-            key="camera_frame", access=py_trees.common.Access.WRITE
-        )
 
         ### Define Tree Leaves and Subtrees
 
@@ -81,14 +77,13 @@ class AcquireFoodTree(MoveToTree):
             ros2_node=node,
             camera_info=BlackboardKey("camera_info"),
             mask=BlackboardKey("mask"),
-            camera_frame=BlackboardKey("camera_frame"),
             # Default world_frame
             # Default debug_tf_frame
         )
         compute_food_frame.blackboard_outputs(
             action_select_request=None,
             food_frame=None,
-            debug_tf_publisher="debug_tf_publisher",
+            debug_tf_publisher=BlackboardKey("debug_tf_publisher"),
         )
 
         ### Define Tree Logic
@@ -119,7 +114,6 @@ class AcquireFoodTree(MoveToTree):
         # Write tree inputs to blackboard
         self.blackboard.mask = goal.detected_food
         self.blackboard.camera_info = goal.camera_info
-        self.blackboard.camera_frame = goal.header.frame_id
 
         return True
 
@@ -136,7 +130,7 @@ class AcquireFoodTree(MoveToTree):
     @override
     def get_result(self, tree: py_trees.trees.BehaviourTree) -> object:
         # Docstring copied by @override
-        result_msg = super().get_feedback(tree)
+        result_msg = super().get_result(tree)
 
         # TODO: add action_index, posthoc, action_select_hash
         return result_msg
