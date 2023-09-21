@@ -14,7 +14,7 @@ import py_trees
 from rclpy.node import Node
 
 # Local imports
-from ada_feeding.behaviors import ComputeFoodFrame
+from ada_feeding.behaviors.acquisition import ComputeFoodFrame
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.trees import MoveToTree
 from ada_feeding_msgs.action import AcquireFood
@@ -30,14 +30,6 @@ class AcquireFoodTree(MoveToTree):
     # pylint: disable=too-many-instance-attributes, too-many-arguments
     # Many arguments is fine for this class since it has to be able to configure all parameters
     # of its constraints.
-
-    def __init__(self):
-        """
-        Initializes tree-specific parameters.
-        """
-        # Initialize MoveToTree
-        super().__init__()
-
     # pylint: disable=too-many-locals
     # Unfortunately, many local variables are required here to isolate the keys
     # of similar constraints in the blackboard.
