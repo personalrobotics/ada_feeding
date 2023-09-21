@@ -5,13 +5,12 @@ multi-tick version of that decorator is merged into py_trees, this
 decorator should be removed in favor of the main py_trees one.
 """
 
-import functools
-import inspect
 import time
 import typing
 
-from py_trees import behaviour, blackboard, common
+from py_trees import behaviour, common
 from py_trees.decorators import Decorator
+
 
 class OnPreempt(Decorator):
     """
@@ -31,6 +30,9 @@ class OnPreempt(Decorator):
     .. seealso:: :meth:`py_trees.idioms.eventually`, :meth:`py_trees.idioms.eventually_swiss`
     """
 
+    # pylint: disable=too-many-arguments
+    # This is acceptable, to give users maximum control over how this decorator
+    # behaves.
     def __init__(
         self,
         name: str,
@@ -38,7 +40,7 @@ class OnPreempt(Decorator):
         update_status: common.Status = common.Status.RUNNING,
         single_tick: bool = True,
         period_ms: int = 0,
-        timeout: typing.Optional[float] = None
+        timeout: typing.Optional[float] = None,
     ):
         """
         Initialise with the standard decorator arguments.
@@ -56,7 +58,7 @@ class OnPreempt(Decorator):
                 other than :data:`~py_trees.common.Status.RUNNING` if
                 `single_tick` is False. If None, then do not timeout.
         """
-        super(OnPreempt, self).__init__(name=name, child=child)
+        super().__init__(name=name, child=child)
         self.update_status = update_status
         self.single_tick = single_tick
         self.period_ms = period_ms
@@ -85,12 +87,9 @@ class OnPreempt(Decorator):
     def terminate(self, new_status: common.Status) -> None:
         """Tick the child behaviour once."""
         self.logger.debug(
-            "{}.terminate({})".format(
-                self.__class__.__name__,
-                "{}->{}".format(self.status, new_status)
-                if self.status != new_status
-                else f"{new_status}",
-            )
+            f"{self.__class__.__name__}.terminate({self.status}->{new_status})"
+            if self.status != new_status
+            else f"{new_status}",
         )
         if new_status == common.Status.INVALID:
             terminate_start_s = time.time()
@@ -99,7 +98,8 @@ class OnPreempt(Decorator):
             # If specified, tick until the child reaches a non-RUNNING status
             if not self.single_tick:
                 while self.decorated.status == common.Status.RUNNING and (
-                    self.timeout is None or time.time() - terminate_start_s < self.timeout
+                    self.timeout is None
+                    or time.time() - terminate_start_s < self.timeout
                 ):
                     if self.period_ms > 0:
                         time.sleep(self.period_ms / 1000.0)

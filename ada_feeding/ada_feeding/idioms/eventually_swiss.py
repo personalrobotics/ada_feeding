@@ -5,11 +5,16 @@ preempt-handling version of that idiom is merged into py_trees, this
 idiom should be removed in favor of the main py_trees one.
 """
 
-import operator
 import typing
 
-from py_trees import behaviour, behaviours, blackboard, common, composites, decorators
+from py_trees import behaviour, behaviours, common, composites
 
+from ada_feeding.decorators import OnPreempt
+
+
+# pylint: disable=too-many-arguments
+# This is acceptable, to give users maximum control over how the swiss knife
+# idiom behaves.
 def eventually_swiss(
     name: str,
     workers: typing.List[behaviour.Behaviour],
@@ -68,9 +73,11 @@ def eventually_swiss(
         children=[on_success_sequence, on_failure_sequence],
     )
     subtree_root = composites.Selector(
-        name=name, memory=False, children=[],
+        name=name,
+        memory=False,
+        children=[],
     )
-    decorator = decorators.OnPreempt(
+    decorator = OnPreempt(
         name="On Preemption",
         child=on_preempt,
         # Returning FAILURE is necessary so (a) the Selector always moves on to
