@@ -58,13 +58,6 @@ class AcquireFoodTree(MoveToTree):
         # TODO: remove name and tree_root_name
         # We have access to them implicitly via self.blackboard / self.blackboard_tree_root
 
-        ### Tree-scope blackboard objects
-        # ROS2 Node
-        self.blackboard.register_key(
-            key="ros2_node", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.ros2_node = node
-
         ### Inputs we expect on the blackboard on initialization
         # Note: WRITE access since send_goal could write to these
         # Mask for ComputeFoodFrame
@@ -85,7 +78,7 @@ class AcquireFoodTree(MoveToTree):
             "ComputeFoodFrame", self.blackboard.namespace
         )
         compute_food_frame.blackboard_inputs(
-            ros2_node=BlackboardKey("ros2_node"),
+            ros2_node=node,
             camera_info=BlackboardKey("camera_info"),
             mask=BlackboardKey("mask"),
             camera_frame=BlackboardKey("camera_frame"),
