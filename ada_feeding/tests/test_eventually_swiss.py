@@ -238,7 +238,7 @@ def combined_test(
     After terminating the tree, this function checks that the tree has not ticked
     `worker`, `on_success`, or `on_failure` any more, but has ticked `on_preempt`
     to completion. It also checks that the tree has terminated in the correct order:
-    `worker`, `on_success`, `on_failure`, `on_preempt`.
+    `worker` -> `on_success`/`on_failure` -> `on_preempt`.
 
     Parameters
     ----------
@@ -249,6 +249,7 @@ def combined_test(
         don't preempt the tree during that cycle.
     """
     # pylint: disable=too-many-locals, too-many-branches, too-many-statements
+    # pylint: disable=too-many-nested-blocks
     # This is where the bulk of the work to test eventually_swiss is done, so
     # it's hard to reduce the number of locals, branches, and statements.
     # pylint: disable=dangerous-default-value
@@ -413,21 +414,33 @@ def combined_test(
                 # Update the expected counts, statuses, termination_new_statuses, and
                 # root status following the preemption.
                 expected_counts[3] = callback_duration + 1
-                # Terminate all non-invalid behaviors
-                termination_order = []
+                # Update the expected termination of all non-invalid behaviors.
+                # We have separate termination orders for on_success and on_failure
+                # because we don't care about the relative order of the two, all
+                # we care is that worker terminates before them and `on_preempt`
+                # is run and terminates after them.
+                termination_order_on_success = []
+                termination_order_on_failure = []
                 for i in range(3):
                     if expected_statuses[i] != py_trees.common.Status.INVALID:
                         expected_statuses[i] = py_trees.common.Status.INVALID
                         expected_termination_new_statuses[
                             i
                         ] = py_trees.common.Status.INVALID
-                        termination_order.append(behaviors[i])
+                        if i == 1:
+                            termination_order_on_success.append(behaviors[i])
+                        elif i == 2:
+                            termination_order_on_failure.append(behaviors[i])
+                        else:
+                            termination_order_on_success.append(behaviors[i])
+                            termination_order_on_failure.append(behaviors[i])
                 # Because `on_preempt` also got preempted, its status is INVALID
                 # even though it ran to completion (as indicated by `expected_countsthe count`)
                 expected_statuses[3] = py_trees.common.Status.INVALID
                 expected_termination_new_statuses[3] = py_trees.common.Status.INVALID
                 root_expected_status = py_trees.common.Status.INVALID
-                termination_order.append(behaviors[3])
+                termination_order_on_success.append(behaviors[3])
+                termination_order_on_failure.append(behaviors[3])
                 descriptor += " after preemption"
 
                 # Run the preemption tests
@@ -442,7 +455,8 @@ def combined_test(
                     statuses=expected_termination_new_statuses,
                     descriptor=descriptor,
                 )
-                check_termination_order(termination_order, descriptor)
+                check_termination_order(termination_order_on_success, descriptor)
+                check_termination_order(termination_order_on_failure, descriptor)
                 assert (
                     root.status == root_expected_status
                 ), f"root status {root.status} is not {root_expected_status}, {descriptor}"
