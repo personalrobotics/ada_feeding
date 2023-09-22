@@ -395,7 +395,7 @@ class MoveTo(py_trees.behaviour.Behaviour):
         # A termination request has not succeeded until the MoveIt2 action server is IDLE
         with self.moveit2_lock:
             while self.moveit2.query_state() != MoveIt2State.IDLE:
-                self.node.logger.info(
+                self.logger.info(
                     f"MoveTo Update MoveIt2State not Idle {time.time()} {terminate_requested_time} "
                     f"{self.terminate_timeout_s}"
                 )
