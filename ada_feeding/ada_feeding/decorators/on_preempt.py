@@ -14,15 +14,12 @@ from py_trees.decorators import Decorator
 
 class OnPreempt(Decorator):
     """
-    Trigger the child on preemption, e.g., when :meth:`terminate` is
-    called with status :data:`~py_trees.common.Status.INVALID`. The
-    child can either be triggered: (a) for a single tick; or (b) until it
+    Behaves identically to :class:`~py_trees.decorators.PassThrough` except
+    that if it gets preempted (i.e., `terminate(INVALID)` is called on it)
+    while its status is :data:`~py_trees.common.Status.RUNNING`, it will
+    tick `on_preempt` either: (a) for a single tick; or (b) until `on_preempt`
     reaches a status other than :data:`~py_trees.common.Status.RUNNING` or
     times out.
-
-    Always return `update_status` and on :meth:`terminate` (with new_status
-    :data:`~py_trees.common.Status.INVALID`), call the child's
-    :meth:`~py_trees.behaviour.Behaviour.update` method.
 
     This is useful to cleanup, restore a context switch or to
     implement a finally-like behaviour.
@@ -37,7 +34,7 @@ class OnPreempt(Decorator):
         self,
         name: str,
         child: behaviour.Behaviour,
-        update_status: common.Status = common.Status.RUNNING,
+        on_preempt: behaviour.Behaviour,
         single_tick: bool = True,
         period_ms: int = 0,
         timeout: typing.Optional[float] = None,
@@ -48,7 +45,7 @@ class OnPreempt(Decorator):
         Args:
             name: the decorator name
             child: the child to be decorated
-            update_status: the status to return on :meth:`update`
+            on_preempt: the behaviour or subtree to tick on preemption
             single_tick: if True, tick the child once on preemption. Else,
                 tick the child until it reaches a status other than
                 :data:`~py_trees.common.Status.RUNNING`.
@@ -59,51 +56,58 @@ class OnPreempt(Decorator):
                 `single_tick` is False. If None, then do not timeout.
         """
         super().__init__(name=name, child=child)
-        self.update_status = update_status
+        self.on_preempt = on_preempt
         self.single_tick = single_tick
         self.period_ms = period_ms
         self.timeout = timeout
 
-    def tick(self) -> typing.Iterator[behaviour.Behaviour]:
-        """
-        Bypass the child when ticking.
-
-        Yields:
-            a reference to itself
-        """
-        self.logger.debug(f"{self.__class__.__name__}.tick()")
-        self.status = self.update()
-        yield self
-
     def update(self) -> common.Status:
         """
-        Return the constant status specified in the constructor.
+        Just reflect the child status.
 
         Returns:
             the behaviour's new status :class:`~py_trees.common.Status`
         """
-        return self.update_status
+        return self.decorated.status
+
+    def stop(self, new_status: common.Status) -> None:
+        """
+        Check if the child is running (dangling) and stop it if that is the case.
+
+        This function departs from the standard :meth:`~py_trees.decorators.Decorator.stop`
+        in that it *first* stops the child, and *then* stops the decorator.
+
+        Args:
+            new_status (:class:`~py_trees.common.Status`): the behaviour is transitioning to this new status
+        """
+        self.logger.debug(f"{self.__class__.__name__}.stop({new_status})")
+        # priority interrupt handling
+        if new_status == common.Status.INVALID:
+            self.decorated.stop(new_status)
+        # if the decorator returns SUCCESS/FAILURE and should stop the child
+        if self.decorated.status == common.Status.RUNNING:
+            self.decorated.stop(common.Status.INVALID)
+        self.terminate(new_status)
+        self.status = new_status
 
     def terminate(self, new_status: common.Status) -> None:
         """Tick the child behaviour once."""
         self.logger.debug(
             f"{self.__class__.__name__}.terminate({self.status}->{new_status})"
-            if self.status != new_status
-            else f"{new_status}",
         )
-        if new_status == common.Status.INVALID:
-            terminate_start_s = time.time()
+        if new_status == common.Status.INVALID and self.status == common.Status.RUNNING:
+            terminate_start_s = time.monotonic()
             # Tick the child once
-            self.decorated.tick_once()
+            self.on_preempt.tick_once()
             # If specified, tick until the child reaches a non-RUNNING status
             if not self.single_tick:
-                while self.decorated.status == common.Status.RUNNING and (
+                while self.on_preempt.status == common.Status.RUNNING and (
                     self.timeout is None
-                    or time.time() - terminate_start_s < self.timeout
+                    or time.monotonic() - terminate_start_s < self.timeout
                 ):
                     if self.period_ms > 0:
                         time.sleep(self.period_ms / 1000.0)
-                    self.decorated.tick_once()
+                    self.on_preempt.tick_once()
             # Do not need to stop the child here - this method
             # is only called by Decorator.stop() which will handle
             # that responsibility immediately after this method returns.

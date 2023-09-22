@@ -7,10 +7,9 @@ idiom should be removed in favor of the main py_trees one.
 
 import typing
 
-from py_trees import behaviour, behaviours, common, composites
-from py_trees.decorators import Inverter, StatusToBlackboard, SuccessIsFailure
+from py_trees import behaviour, behaviours, composites
 
-from ada_feeding.decorators import ForceStatus, OnPreempt
+from ada_feeding.decorators import OnPreempt
 
 
 def eventually_swiss(
@@ -22,7 +21,6 @@ def eventually_swiss(
     on_preempt_single_tick: bool = True,
     on_preempt_period_ms: int = 0,
     on_preempt_timeout: typing.Optional[float] = None,
-    status_blackboard_key: typing.Optional[str] = None,
 ) -> behaviour.Behaviour:
     """
     Implement a multi-tick, general purpose 'try-except-else'-like pattern.
@@ -34,7 +32,8 @@ def eventually_swiss(
     1. The on_success behaviour is ticked only if the workers all return SUCCESS.
     2. The on_failure behaviour is ticked only if at least one worker returns FAILURE.
     3. The on_preempt behaviour is ticked only if `stop(INVALID)` is called on the
-       root behavior returned from this idiom.
+       root behaviour returned from this idiom while the root behaviour's status is
+       :data:`~py_trees.common.Status.RUNNING`.
 
     .. graphviz:: dot/eventually-swiss.dot
 
@@ -52,115 +51,43 @@ def eventually_swiss(
         on_preempt_timeout: how long (sec) to wait for the on_preempt behaviour
             to reach a status other than :data:`~py_trees.common.Status.RUNNING`
             if `on_preempt_single_tick` is False. If None, then do not timeout.
-        status_blackboard_key: the key to use for the status blackboard variable.
-            If None, use "/{name}/eventually_swiss_status".
 
     Returns:
         :class:`~py_trees.behaviour.Behaviour`: the root of the oneshot subtree
 
     .. seealso:: :meth:`py_trees.idioms.eventually`, :ref:`py-trees-demo-eventually-swiss-program`
     """
-    # pylint: disable=too-many-arguments, too-many-locals
-    # This is acceptable, to give users maximum control over how the swiss knife
+    # pylint: disable=too-many-arguments
+    # This is acceptable, to give users maximum control over how this swiss-knife
     # idiom behaves.
 
-    # Create the subtree to handle `on_success`
-    if status_blackboard_key is None:
-        status_blackboard_key = f"/{name}/eventually_swiss_status"
-    unset_status = behaviours.UnsetBlackboardVariable(
-        name="Unset Status", key=status_blackboard_key
-    )
-    save_success_status = StatusToBlackboard(
-        name="Save Success Status",
-        child=on_success,
-        variable_name=status_blackboard_key,
-    )
-    on_success_sequence = composites.Sequence(
-        name="Work to Success",
+    workers_sequence = composites.Sequence(
+        name="Workers",
         memory=True,
-        children=[unset_status] + workers + [save_success_status],
+        children=workers,
     )
-
-    # Create the subtree to handle `on_failure`. This subtree must start with
-    # `return_status_if_set` so that `on_failure` is not ticked if `on_success`
-    # fails.
-    check_status_exists = behaviours.CheckBlackboardVariableExists(
-        name="Wait for Status",
-        variable_name=status_blackboard_key,
+    on_failure_return_failure = composites.Sequence(
+        name="On Failure Return Failure",
+        memory=True,
+        children=[on_failure, behaviours.Failure(name="Failure")],
     )
-    # Note that we can get away with using an Inverter here because the only way
-    # we get to this branch is if either the `workers` or `on_success` fails.
-    # So the status either doesn't exist or is FAILURE.
-    return_status_if_set = Inverter(
-        name="Return Status if Set",
-        child=check_status_exists,
-    )
-    on_failure_always_fail = SuccessIsFailure(
-        name="On Failure Always Failure",
-        child=on_failure,
-    )
-    save_failure_status = StatusToBlackboard(
-        name="Save Failure Status",
-        child=on_failure_always_fail,
-        variable_name=status_blackboard_key,
-    )
-    on_failure_sequence = composites.Sequence(
+    on_failure_subtree = composites.Selector(
         name="On Failure",
         memory=True,
-        children=[return_status_if_set, save_failure_status],
+        children=[workers_sequence, on_failure_return_failure],
     )
-
-    # Create the combined subtree to handle `on_success` and `on_failure`
-    combined = composites.Selector(
-        name="On Non-Preemption Subtree",
+    on_success_subtree = composites.Sequence(
+        name="On Success",
         memory=True,
-        children=[on_success_sequence, on_failure_sequence],
+        children=[on_failure_subtree, on_success],
     )
-    # We force the outcome of this tree to FAILURE so that the Selector always
-    # goes on to tick the `on_preempt_subtree`, which is necessary to ensure
-    # that the `on_preempt` behavior will get run if the tree is preempted.
-    on_success_or_failure_subtree = ForceStatus(
-        name="On Non-Preemption",
-        child=combined,
-        status=common.Status.FAILURE,
-    )
-
-    # Create the subtree to handle `on_preempt`
-    on_preempt_subtree = OnPreempt(
-        name="On Preemption",
-        child=on_preempt,
-        # Returning FAILURE is necessary so (a) the Selector always moves on to
-        # `set_status_subtree`; and (b) the decorator's status is not INVALID (which would
-        # prevent the Selector from passing on a `stop(INVALID)` call to it).
-        update_status=common.Status.FAILURE,
+    root = OnPreempt(
+        name=name,
+        child=on_success_subtree,
+        on_preempt=on_preempt,
         single_tick=on_preempt_single_tick,
         period_ms=on_preempt_period_ms,
         timeout=on_preempt_timeout,
     )
 
-    # Create the subtree to output the status once `on_success_or_failure_subtree`
-    # is done.
-    wait_for_status = behaviours.WaitForBlackboardVariable(
-        name="Wait for Status",
-        variable_name=status_blackboard_key,
-    )
-    blackboard_to_status = behaviours.BlackboardToStatus(
-        name="Blackboard to Status",
-        variable_name=status_blackboard_key,
-    )
-    set_status_subtree = composites.Sequence(
-        name="Set Status",
-        memory=True,
-        children=[wait_for_status, blackboard_to_status],
-    )
-
-    root = composites.Selector(
-        name=name,
-        memory=False,
-        children=[
-            on_success_or_failure_subtree,
-            on_preempt_subtree,
-            set_status_subtree,
-        ],
-    )
     return root
