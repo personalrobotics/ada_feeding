@@ -107,6 +107,7 @@ class FaceDetectionNode(Node):
         function will detect faces in the image and publish information about
         them to the /face_detection topic.
         """
+        self.get_logger().debug("Received image")
         self.is_on_lock.acquire()
         is_on = self.is_on
         self.is_on_lock.release()
@@ -161,23 +162,30 @@ class FaceDetectionNode(Node):
                 annotated_img = annotated_msg
                 # Publish the detected mouth center. The below is a hardcoded
                 # rough position of the mouth from the side staging location,
-                # in "camera_color_optical_frame." We add 5cm of noise to the
+                # in "camera_color_optical_frame." We add +/- 5cm of noise to the
                 # position for added realism
+                # head_position_from_staging_location = [0.044, -0.130, 0.654]
+                head_position_from_staging_location = [0.04196, -0.11682, 0.58047]
                 face_detection_msg.detected_mouth_center = PointStamped()
                 face_detection_msg.detected_mouth_center.header = msg.header
                 face_detection_msg.detected_mouth_center.point.x = (
-                    0.044 + (np.random.rand() - 0.5) / 10
+                    head_position_from_staging_location[0]
+                    + (2 * np.random.rand() - 1) * 0.05
                 )
                 face_detection_msg.detected_mouth_center.point.y = (
-                    -0.130 + (np.random.rand() - 0.5) / 10
+                    head_position_from_staging_location[1]
+                    + (2 * np.random.rand() - 1) * 0.05
                 )
                 face_detection_msg.detected_mouth_center.point.z = (
-                    0.654 + (np.random.rand() - 0.5) / 10
+                    head_position_from_staging_location[2]
+                    + (2 * np.random.rand() - 1) * 0.05
                 )
             else:
+                face_detection_msg.detected_mouth_center.header = msg.header
                 annotated_img = msg
             face_detection_msg.is_mouth_open = open_mouth_detected
             self.publisher_results.publish(face_detection_msg)
+            self.get_logger().info("Published face detection")
             self.publisher_image.publish(annotated_img)
 
 
