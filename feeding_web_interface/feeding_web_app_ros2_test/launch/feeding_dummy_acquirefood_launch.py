@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from launch_ros.substitutions import FindPackageShare
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, Shutdown
+from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import AnyLaunchDescriptionSource
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import (
@@ -62,7 +62,6 @@ def generate_launch_description():
             parameters=[
                 request_path,
             ],
-            on_exit=Shutdown(),
         )
     )
 
