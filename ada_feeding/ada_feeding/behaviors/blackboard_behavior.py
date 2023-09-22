@@ -30,7 +30,7 @@ class BlackboardBehavior(py_trees.behaviour.Behaviour):
         ns: Blackboard namespace (usually the name of the tree / subtree)
         """
         super().__init__(name=name)
-        self.blackboard = py_trees.blackboard.Client(name=name, namespace=ns)
+        self.blackboard = super().attach_blackboard_client(name=name, namespace=ns)
         self.remap = {}
         self.inputs = {}
         self.outputs = {}
