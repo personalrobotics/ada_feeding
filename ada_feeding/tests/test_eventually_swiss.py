@@ -299,8 +299,8 @@ def combined_test(
     for num_cycles in range(global_num_cycles):
         # The worker's count gets re-initialized at the beginning of every cycle.
         expected_counts[0] = 0
-        # The worker and on_success get reset to INVALID at the beginning of
-        # every cycle, since they are in the first sequence
+        # The worker, on_success, and on_failure get reset to INVALID at the
+        # beginning of every cycle.
         if num_cycles > 0:
             expected_statuses[0] = py_trees.common.Status.INVALID
             expected_termination_new_statuses[0] = py_trees.common.Status.INVALID
@@ -310,6 +310,12 @@ def combined_test(
             ):
                 expected_termination_new_statuses[1] = py_trees.common.Status.INVALID
                 expected_statuses[1] = py_trees.common.Status.INVALID
+            if (
+                worker_completion_status == py_trees.common.Status.FAILURE
+                and expected_statuses[2] != py_trees.common.Status.INVALID
+            ):
+                expected_termination_new_statuses[2] = py_trees.common.Status.INVALID
+                expected_statuses[2] = py_trees.common.Status.INVALID
         for num_ticks in range(1, num_ticks_to_terminate + 1):
             descriptor = f"num_ticks {num_ticks}, num_cycles {num_cycles}"
             # Tick the tree
@@ -336,15 +342,6 @@ def combined_test(
                     # The worker status gets set
                     expected_statuses[0] = worker_completion_status
                     expected_termination_new_statuses[0] = worker_completion_status
-                    # on_failure is only set to INVALID after the worker terminates
-                    if (
-                        num_cycles > 0
-                        and worker_completion_status == py_trees.common.Status.FAILURE
-                        and expected_statuses[2] != py_trees.common.Status.INVALID
-                    ):
-                        expected_termination_new_statuses[
-                            2
-                        ] = py_trees.common.Status.INVALID
                 elif worker_completion_status == py_trees.common.Status.FAILURE:
                     # The Selector with memory unnecessarily sets previous children to
                     # INVALID the tick after they fail, hence the below switch.
@@ -410,15 +407,9 @@ def combined_test(
             # Preempt if requested
             if preempt_times[num_cycles] == execution_case:
                 root.stop(py_trees.common.Status.INVALID)
+                descriptor += " after preemption"
 
-                # Update the expected counts, statuses, termination_new_statuses, and
-                # root status following the preemption.
-                expected_counts[3] = callback_duration + 1
-                # Update the expected termination of all non-invalid behaviors.
-                # We have separate termination orders for on_success and on_failure
-                # because we don't care about the relative order of the two, all
-                # we care is that worker terminates before them and `on_preempt`
-                # is run and terminates after them.
+                # Update the expected termination of all behaviors but `on_preempt`
                 termination_order_on_success = []
                 termination_order_on_failure = []
                 for i in range(3):
@@ -434,14 +425,26 @@ def combined_test(
                         else:
                             termination_order_on_success.append(behaviors[i])
                             termination_order_on_failure.append(behaviors[i])
-                # Because `on_preempt` also got preempted, its status is INVALID
-                # even though it ran to completion (as indicated by `expected_countsthe count`)
-                expected_statuses[3] = py_trees.common.Status.INVALID
-                expected_termination_new_statuses[3] = py_trees.common.Status.INVALID
                 root_expected_status = py_trees.common.Status.INVALID
-                termination_order_on_success.append(behaviors[3])
-                termination_order_on_failure.append(behaviors[3])
-                descriptor += " after preemption"
+                # `on_preempt` should only get ticked if the worker/callback
+                # have not yet terminated. If they have terminated, the root
+                # is considered complete and there is no reason to run `on_preempt`.
+                if execution_case in [
+                    ExecutionCase.WORKER_RUNNING,
+                    ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
+                ]:
+                    # `on_preempt` should get ticked to completion
+                    expected_counts[3] = callback_duration + 1
+
+                    # Because `on_preempt` is not officially a part of the tree,
+                    # it won't get called as part of the preemption. So it's
+                    # status will be its terminal status.
+                    expected_statuses[3] = other_callbacks_completion_status
+                    expected_termination_new_statuses[
+                        3
+                    ] = other_callbacks_completion_status
+                    termination_order_on_success.append(behaviors[3])
+                    termination_order_on_failure.append(behaviors[3])
 
                 # Run the preemption tests
                 check_count_status(
