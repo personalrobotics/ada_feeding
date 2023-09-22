@@ -23,5 +23,8 @@ from .set_joint_path_constraint import SetJointPathConstraint
 from .set_position_path_constraint import SetPositionPathConstraint
 from .set_orientation_path_constraint import SetOrientationPathConstraint
 
+# Force Status
+from .force_status import ForceStatus
+
 # On Preempt
 from .on_preempt import OnPreempt
