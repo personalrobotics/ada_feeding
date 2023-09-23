@@ -78,6 +78,8 @@ def eventually_swiss(
     # pylint: disable=too-many-arguments, too-many-locals
     # This is acceptable, to give users maximum control over how this swiss-knife
     # idiom behaves.
+    # pylint: disable=abstract-class-instantiated
+    # behaviours.Failure and behaviours.Success are valid instantiations
 
     workers_sequence = composites.Sequence(
         name="Workers",

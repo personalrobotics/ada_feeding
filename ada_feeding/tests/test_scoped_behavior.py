@@ -5,7 +5,8 @@ This module defines unit tests for the scoped_behaviour idiom.
 
 # Standard imports
 from enum import Enum
-from typing import List, Optional
+from functools import partial
+from typing import List
 
 # Third-party imports
 import py_trees
@@ -19,16 +20,25 @@ from .helpers import (
     check_termination_order,
 )
 
+# pylint: disable=duplicate-code
+# `test_scoped_behavior` and `test_eventually_swiss` have similar code because
+# they are similar idioms. That is okay.
+# pylint: disable=redefined-outer-name
+# When generating tests, we use global variables with the same names as
+# variables in the functions. That is okay, since the functions don't need
+# access to the global variables.
+
 
 class ExecutionCase(Enum):
     """
     Tree execution can broadly fall into one of the below three cases.
     """
 
-    PRE_RUNNING = 0
-    WORKERS_RUNNING = 1
-    POST_RUNNING = 2
-    TREE_TERMINATED = 3
+    NONE = 0
+    PRE_RUNNING = 1
+    WORKERS_RUNNING = 2
+    POST_RUNNING = 3
+    TREE_TERMINATED = 4
 
 
 def generate_test(
@@ -86,7 +96,7 @@ def combined_test(
     worker_completion_status: py_trees.common.Status,
     post_completion_status: py_trees.common.Status,
     global_num_cycles: int = 2,
-    preempt_times: List[Optional[ExecutionCase]] = [None, None],
+    preempt_times: List[ExecutionCase] = [ExecutionCase.NONE, ExecutionCase.NONE],
 ) -> None:
     """
     This function ticks the root to completion `global_num_cycles` times and checks
@@ -314,7 +324,7 @@ def combined_test(
                 root.stop(py_trees.common.Status.INVALID)
                 descriptor += " after preemption"
 
-                # Update the expected termination of all behaviors but `on_preempt`
+                # Update the expected termination of all behaviors but `post`
                 termination_order = []
                 for i in range(2):
                     if expected_statuses[i] != py_trees.common.Status.INVALID:
@@ -326,9 +336,9 @@ def combined_test(
                 root_expected_status = py_trees.common.Status.INVALID
                 # `post` should only get ticked on preemption if the worker/callback
                 # have not yet terminated. If they have terminated, the root
-                # is considered complete and there is no reason to run `post`.
+                # is considered complete and there is no reason to run `post` again.
                 if execution_case != ExecutionCase.TREE_TERMINATED:
-                    # `pose` should get ticked to completion
+                    # `post` should get ticked to completion
                     expected_counts[2] = post_duration + 1
 
                     # Because `post` is not officially a part of the tree,
@@ -336,7 +346,14 @@ def combined_test(
                     # status will be its terminal status.
                     expected_statuses[2] = post_completion_status
                     expected_termination_new_statuses[2] = post_completion_status
-                    termination_order.append(behaviors[2])
+                else:
+                    # Since `post` already ran, it will get called as part of preemption.
+                    if expected_statuses[2] != py_trees.common.Status.INVALID:
+                        expected_statuses[2] = py_trees.common.Status.INVALID
+                        expected_termination_new_statuses[
+                            2
+                        ] = py_trees.common.Status.INVALID
+                termination_order.append(behaviors[2])
 
                 # Run the preemption tests
                 check_count_status(
@@ -360,93 +377,44 @@ def combined_test(
 
 
 ################################################################################
-# Test execution without preemptions
+# Generate all tests with 2 cycles
 ################################################################################
 
-
-def test_pre_succeeds_worker_succeeds_post_succeeds():
-    """
-    See `combined_test` docstring.
-    """
-    combined_test(
-        pre_completion_status=py_trees.common.Status.SUCCESS,
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        post_completion_status=py_trees.common.Status.SUCCESS,
-    )
-
-
-def test_pre_succeeds_worker_succeeds_post_fails():
-    """
-    See `combined_test` docstring.
-    """
-    combined_test(
-        pre_completion_status=py_trees.common.Status.SUCCESS,
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        post_completion_status=py_trees.common.Status.FAILURE,
-    )
-
-
-def test_pre_succeeds_worker_fails_post_succeeds():
-    """
-    See `combined_test` docstring.
-    """
-    combined_test(
-        pre_completion_status=py_trees.common.Status.SUCCESS,
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        post_completion_status=py_trees.common.Status.SUCCESS,
-    )
-
-
-def test_pre_succeeds_worker_fails_post_fails():
-    """
-    See `combined_test` docstring.
-    """
-    combined_test(
-        pre_completion_status=py_trees.common.Status.SUCCESS,
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        post_completion_status=py_trees.common.Status.FAILURE,
-    )
-
-
-def test_pre_fails_worker_succeeds_post_succeeds():
-    """
-    See `combined_test` docstring.
-    """
-    combined_test(
-        pre_completion_status=py_trees.common.Status.FAILURE,
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        post_completion_status=py_trees.common.Status.SUCCESS,
-    )
-
-
-def test_pre_fails_worker_succeeds_post_fails():
-    """
-    See `combined_test` docstring.
-    """
-    combined_test(
-        pre_completion_status=py_trees.common.Status.FAILURE,
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        post_completion_status=py_trees.common.Status.FAILURE,
-    )
-
-
-def test_pre_fails_worker_fails_post_succeeds():
-    """
-    See `combined_test` docstring.
-    """
-    combined_test(
-        pre_completion_status=py_trees.common.Status.FAILURE,
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        post_completion_status=py_trees.common.Status.SUCCESS,
-    )
-
-
-def test_pre_fails_worker_fails_post_fails():
-    """
-    See `combined_test` docstring.
-    """
-    combined_test(
-        pre_completion_status=py_trees.common.Status.FAILURE,
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        post_completion_status=py_trees.common.Status.FAILURE,
-    )
+for pre_completion_status in [
+    py_trees.common.Status.SUCCESS,
+    py_trees.common.Status.FAILURE,
+]:
+    for worker_completion_status in [
+        py_trees.common.Status.SUCCESS,
+        py_trees.common.Status.FAILURE,
+    ]:
+        for post_completion_status in [
+            py_trees.common.Status.SUCCESS,
+            py_trees.common.Status.FAILURE,
+        ]:
+            for first_preempt in [
+                ExecutionCase.NONE,
+                ExecutionCase.PRE_RUNNING,
+                ExecutionCase.WORKERS_RUNNING,
+                ExecutionCase.POST_RUNNING,
+                ExecutionCase.TREE_TERMINATED,
+            ]:
+                for second_preempt in [
+                    ExecutionCase.NONE,
+                    ExecutionCase.PRE_RUNNING,
+                    ExecutionCase.WORKERS_RUNNING,
+                    ExecutionCase.POST_RUNNING,
+                    ExecutionCase.TREE_TERMINATED,
+                ]:
+                    test_name = (
+                        f"test_pre_{pre_completion_status.name}_worker_"
+                        f"{worker_completion_status.name}_post_{post_completion_status.name}_"
+                        f"first_preempt_{first_preempt.name}_second_preempt_{second_preempt.name}"
+                    )
+                    globals()[test_name] = partial(
+                        combined_test,
+                        pre_completion_status=pre_completion_status,
+                        worker_completion_status=worker_completion_status,
+                        post_completion_status=post_completion_status,
+                        preempt_times=[first_preempt, second_preempt],
+                    )

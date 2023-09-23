@@ -5,7 +5,8 @@ This module defines unit tests for the eventually_swiss idiom.
 
 # Standard imports
 from enum import Enum
-from typing import List, Optional
+from functools import partial
+from typing import List
 
 # Third-party imports
 import py_trees
@@ -19,15 +20,24 @@ from .helpers import (
     check_termination_order,
 )
 
+# pylint: disable=duplicate-code
+# `test_scoped_behavior` and `test_eventually_swiss` have similar code because
+# they are similar idioms. That is okay.
+# pylint: disable=redefined-outer-name
+# When generating tests, we use global variables with the same names as
+# variables in the functions. That is okay, since the functions don't need
+# access to the global variables.
+
 
 class ExecutionCase(Enum):
     """
     Tree execution can broadly fall into one of the below three cases.
     """
 
-    WORKER_RUNNING = 0
-    WORKER_TERMINATED_CALLBACK_RUNNING = 1
-    WORKER_TERMINATED_CALLBACK_TERMINATED = 2
+    NONE = 0
+    WORKER_RUNNING = 1
+    WORKER_TERMINATED_CALLBACK_RUNNING = 2
+    TREE_TERMINATED = 3
 
 
 def generate_test(
@@ -90,7 +100,7 @@ def combined_test(
     worker_completion_status: py_trees.common.Status,
     callback_completion_status: py_trees.common.Status,
     global_num_cycles: int = 2,
-    preempt_times: List[Optional[ExecutionCase]] = [None, None],
+    preempt_times: List[ExecutionCase] = [ExecutionCase.NONE, ExecutionCase.NONE],
 ) -> None:
     """
     This function ticks the root to completion `global_num_cycles` times and checks
@@ -106,7 +116,7 @@ def combined_test(
          - While `on_success` is RUNNING, `on_failure` and `on_preempt` should
            not be ticked, none of the functions should be terminated, and the
            root should be running.
-        Case WORKER_TERMINATED_CALLBACK_TERMINATED:
+        Case TREE_TERMINATED:
          - When `on_success` returns `callback_completion_status`, `on_failure`
            and `on_preempt` should not be ticked, none of the functions should
            be terminated, and the root should return `callback_completion_status`.
@@ -116,7 +126,7 @@ def combined_test(
          - While `on_failure` is RUNNING, `on_success` and `on_preempt` should
            not be ticked, none of the functions should be terminated, and the
            root should be running.
-        Case WORKER_TERMINATED_CALLBACK_TERMINATED:
+        Case TREE_TERMINATED:
          - When `on_failure` returns `callback_completion_status`, `on_success`
            and `on_preempt` should not be ticked, none of the functions should
            be terminated, and the root should return FAILURE.
@@ -129,7 +139,7 @@ def combined_test(
         is RUNNING.
       - WORKER_TERMINATED_CALLBACK_RUNNING: Terminate the tree after the first
         tick when the worker has terminated and the callback is RUNNING.
-      - WORKER_TERMINATED_CALLBACK_TERMINATED: Terminate the tree after the tick
+      - TREE_TERMINATED: Terminate the tree after the tick
         when the worker has terminated and the callback has terminated (i.e., after
         the tick where the root returns a non-RUNNING status).
     After terminating the tree, in the first two cases, this function checks that
@@ -261,9 +271,9 @@ def combined_test(
                     ), f"Unexpected worker_completion_status {worker_completion_status}."
                 root_expected_status = py_trees.common.Status.RUNNING
             # The success/failure callback has terminated.
-            # WORKER_TERMINATED_CALLBACK_TERMINATED case.
+            # TREE_TERMINATED case.
             elif num_ticks == num_ticks_to_terminate:
-                execution_case = ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED
+                execution_case = ExecutionCase.TREE_TERMINATED
                 if worker_completion_status == py_trees.common.Status.SUCCESS:
                     expected_counts[1] += 1
                     expected_statuses[1] = callback_completion_status
@@ -368,460 +378,37 @@ def combined_test(
 
 
 ################################################################################
-# Test execution without preemptions
+# Generate all tests with 2 cycles
 ################################################################################
 
-
-def test_worker_succeeds_on_success_succeeds():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-    )
-
-
-def test_worker_succeeds_on_success_fails():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-    )
-
-
-def test_worker_fails_on_failure_succeeds():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-    )
-
-
-def test_worker_fails_on_failure_fails():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-    )
-
-
-################################################################################
-# Test execution with one preemption, followed by a full run-through
-################################################################################
-
-
-def test_first_preempt_while_worker_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[ExecutionCase.WORKER_RUNNING, None],
-    )
-
-
-def test_first_preempt_while_callback_running_success():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING, None],
-    )
-
-
-def test_first_preempt_while_callback_running_fail():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING, None],
-    )
-
-
-def test_first_preempt_while_callback_terminated_success_success():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED, None],
-    )
-
-
-def test_first_preempt_while_callback_terminated_success_fail():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED, None],
-    )
-
-
-def test_first_preempt_while_callback_terminated_fail_success():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED, None],
-    )
-
-
-def test_first_preempt_while_callback_terminated_fail_fail():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED, None],
-    )
-
-
-################################################################################
-# Test execution with a full run-through, followed by a preemption
-################################################################################
-
-
-def test_second_preempt_while_worker_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[None, ExecutionCase.WORKER_RUNNING],
-    )
-
-
-def test_second_preempt_while_callback_running_success():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[None, ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING],
-    )
-
-
-def test_second_preempt_while_callback_running_fail():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[None, ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING],
-    )
-
-
-def test_second_preempt_while_callback_terminated_success_success():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[None, ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED],
-    )
-
-
-def test_second_preempt_while_callback_terminated_success_fail():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[None, ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED],
-    )
-
-
-def test_second_preempt_while_callback_terminated_fail_success():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[None, ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED],
-    )
-
-
-def test_second_preempt_while_callback_terminated_fail_fail():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[None, ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED],
-    )
-
-
-################################################################################
-# Test execution with two consecutive preemptions
-################################################################################
-
-
-def test_success_preempt_while_worker_running_preempt_while_worker_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[ExecutionCase.WORKER_RUNNING, ExecutionCase.WORKER_RUNNING],
-    )
-
-
-def test_success_preempt_while_worker_running_preempt_while_callback_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[
+for worker_completion_status in [
+    py_trees.common.Status.SUCCESS,
+    py_trees.common.Status.FAILURE,
+]:
+    for callback_completion_status in [
+        py_trees.common.Status.SUCCESS,
+        py_trees.common.Status.FAILURE,
+    ]:
+        for first_preempt in [
+            ExecutionCase.NONE,
             ExecutionCase.WORKER_RUNNING,
             ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-        ],
-    )
-
-
-def test_success_preempt_while_worker_running_preempt_while_callback_terminated():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[
-            ExecutionCase.WORKER_RUNNING,
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED,
-        ],
-    )
-
-
-def test_success_preempt_while_callback_running_preempt_while_worker_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-            ExecutionCase.WORKER_RUNNING,
-        ],
-    )
-
-
-def test_success_preempt_while_callback_running_preempt_while_callback_running_success():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-        ],
-    )
-
-
-def test_success_preempt_while_callback_running_preempt_while_callback_terminated():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED,
-        ],
-    )
-
-
-def test_success_preempt_while_callback_terminated_preempt_while_worker_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED,
-            ExecutionCase.WORKER_RUNNING,
-        ],
-    )
-
-
-def test_success_preempt_while_callback_terminated_preempt_while_callback_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED,
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-        ],
-    )
-
-
-def test_success_preempt_while_callback_terminated_preempt_while_callback_terminated():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.SUCCESS,
-        callback_completion_status=py_trees.common.Status.SUCCESS,
-        preempt_times=[
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED,
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED,
-        ],
-    )
-
-
-def test_fail_preempt_while_worker_running_preempt_while_worker_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[ExecutionCase.WORKER_RUNNING, ExecutionCase.WORKER_RUNNING],
-    )
-
-
-def test_fail_preempt_while_worker_running_preempt_while_callback_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[
-            ExecutionCase.WORKER_RUNNING,
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-        ],
-    )
-
-
-def test_fail_preempt_while_worker_running_preempt_while_callback_terminated():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[
-            ExecutionCase.WORKER_RUNNING,
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED,
-        ],
-    )
-
-
-def test_fail_preempt_while_callback_running_preempt_while_worker_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-            ExecutionCase.WORKER_RUNNING,
-        ],
-    )
-
-
-def test_fail_preempt_while_callback_running_preempt_while_callback_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-        ],
-    )
-
-
-def test_fail_preempt_while_callback_running_preempt_while_callback_terminated():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED,
-        ],
-    )
-
-
-def test_fail_preempt_while_callback_terminated_preempt_while_worker_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED,
-            ExecutionCase.WORKER_RUNNING,
-        ],
-    )
-
-
-def test_fail_preempt_while_callback_terminated_preempt_while_callback_running():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED,
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-        ],
-    )
-
-
-def test_fail_preempt_while_callback_terminated_preempt_while_callback_terminated():
-    """
-    See docsting for `combined_test`.
-    """
-    combined_test(
-        worker_completion_status=py_trees.common.Status.FAILURE,
-        callback_completion_status=py_trees.common.Status.FAILURE,
-        preempt_times=[
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED,
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED,
-        ],
-    )
+            ExecutionCase.TREE_TERMINATED,
+        ]:
+            for second_preempt in [
+                ExecutionCase.NONE,
+                ExecutionCase.WORKER_RUNNING,
+                ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
+                ExecutionCase.TREE_TERMINATED,
+            ]:
+                test_name = (
+                    f"test_worker_{worker_completion_status.name}_callback_"
+                    f"{callback_completion_status.name}_first_preempt_{first_preempt.name}_"
+                    f"second_preempt_{second_preempt.name}"
+                )
+                globals()[test_name] = partial(
+                    combined_test,
+                    worker_completion_status=worker_completion_status,
+                    callback_completion_status=callback_completion_status,
+                    preempt_times=[first_preempt, second_preempt],
+                )
