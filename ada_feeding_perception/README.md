@@ -103,12 +103,31 @@ Launch the web app along with all the other nodes (real or dummy) as documented 
 - `offline.point_ys` (list of ints, required): The y-coordinates of the seed points. Must be the same length as `offline.images`.
 
 ## Food on Fork
-Food on Fork currently uses Logistic Regression model and takes in a particular depth image to output a probability of whether or not Food is on the Fork.
+There are two models that can be used to determine Food on Fork. They are as follows:
+- Logistic Regression
+  - This model uses a single feature (number of pixels within the specified frustum). Based on that, it outputs a confidence on whether or not there is a presence of food on fork.
+- Categorical Naive Bayes (Currently, Food On Fork node uses this model!)
+  - This model uses depth images that are already cropped to a specified frustum. And, it treats each "voxel" in the depth image as a feature by itself. So, in essence there are over 10K features on which the Categorical NB is trained on.
 
 ### Training Food on Fork Logisitic Regression model
 - Navigate to `food_on_fork_logistic_reg_training.py` within `/ada_feeding_perception` package.
 - Make sure to update the `csv_to_read_from` with an updated training set. Note that the current training set is located in `ada_feeding_perception/datasets`.
   - Make sure to change the name of the model by updating `model_save_filename` variable in this file
 - Then, run `food_on_fork_logistic_reg_training.py`, making sure its dependencies are installed
-- Additionally, after training, make sure to update the right model to use in `food_on_fork.py` node
-  - The location of the model can be updated by updating the variable `self.model`
+- After the completion of training, be sure to navigate to `food_on_fork.yaml` and change the model location so that the correct model is being used.
+
+### Training Food on Fork Categorical Naive Bayes model
+- Navigate to `food_on_fork_categorical_naive_bayes_training.py` within `/ada_feeding_perception` package.
+- Make sure to load the dataset! Since the dataset contains actual depth images, it becomes to large to be committed onto GitHub. As such, it has been uploaded onto the drive. Make sure to download the dataset of your choice and use it as indicated below.
+  - [Dataset1](https://drive.google.com/file/d/1KuZonyrz4440pHjgPvTqeinP3aju0xTK/view?usp=sharing) (model is currently trained on this!), [Dataset2](https://drive.google.com/file/d/1XEIx9CipqyAJqEuqukIb9eiTW1ee8Nyu/view?usp=sharing). [Dataset3](https://drive.google.com/file/d/16Gbn360WE5RXOgbfESxNhWbb9SsEgdC7/view?usp=sharing): Note that all three of these datasets are using the same data and have 80/20 train-test split. The difference is that each of them have different images in train/test datasets.
+  - Based on what dataset you download, store, and use, make sure to update the variable `zip_file_path = "<location>"` accordingly.
+- There are a few things to update based on what you wish to do:
+  - Suppose you want to use 80/20 train-test split and check the accuracy of the model:
+    - In this instance, make sure the variables are as follows:
+      - `use_entire_dataset = False`
+      - The value for the variable, `model_save_filename` does not matter because there will be no model created
+  - Suppose you want to train and generate a `.pkl` model:
+    - In this instance, make sure the variables are as follows:
+      - `use_entire_dataset = True` so that the entire dataset is used for training.
+      - Make sure to set a value for the variable, `model_save_filename` because that will be the name given to the created model
+- Make sure to install all dependencies and run the python file. After running, based on the method executed, there maybe a new model created. Be sure to update the `food_on_fork.yaml` file's model location variable to use the correct model.

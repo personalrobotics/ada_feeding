@@ -8,6 +8,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.naive_bayes import CategoricalNB
 import joblib
+from matplotlib.patches import Rectangle
 
 
 def unzip_file(zip_path, extract_dir):
@@ -47,7 +48,12 @@ def normalize_to_uint8(img):
 
 def plt_show_depth_img(img, show=True, title=""):
     # Plot the depth image
+    fig, ax = plt.subplots()
+    for i in range(0, 128, 8):
+        for j in range(0, 84, 4):
+            ax.add_patch(Rectangle((i, j), 8, 4, edgecolor="r", linewidth=1, fill=None))
     plt.imshow(img)
+
     plt.title(title)
     plt.colorbar()
     if show: plt.show()
@@ -63,7 +69,9 @@ if "__main__" == __name__:
 
     # unzip the files into a temporary folder
     temp_dir = tempfile.mkdtemp()
-    zip_file_path = "./train_test_data.zip"
+    # file to unzip (make sure you load it into the folder to actually train -> this file is not committed because of
+    # size)
+    zip_file_path = "./train_test_data_no_hand_8-30-23.zip"
     unzip_file(zip_file_path, temp_dir)
 
     # use the extracted folders for operations!
@@ -72,23 +80,31 @@ if "__main__" == __name__:
 
     X_train = []
     y_train = []
+    indexToFilePath = {}
+    index = 0
     for label in train_labels_folder:
+        print(label)
         for filename in train_labels_folder[label]:
             filepath = os.path.join(train_path, label, filename)
+            indexToFilePath[index] = filepath
             img = cv.imread(filepath, cv.IMREAD_UNCHANGED)
             shape = img.shape
+            # print(shape)
             # cv.imshow("image", normalize_to_uint8(img))
             # cv.waitKey(10)
 
             # convert the image such that anything outside the depth bounds specified above will be 0
             img_converted = np.where(np.logical_or(img < min_dist, img > max_dist), 0, 1).astype('uint8')
             # plt_show_depth_img(img_converted, title=filepath + "-" + label)
+            # if label == 'food':
+            #     plt_show_depth_img(img_converted, title=filepath + "-" + label)
 
             X_train.append(img_converted.flatten())
             if label == 'no_food':
                 y_train.append(0)
             else:
                 y_train.append(1)
+            index += 1
 
     if not use_entire_dataset:
         X_test = []
@@ -113,6 +129,24 @@ if "__main__" == __name__:
 
         X_test = np.array(X_test)
         y_test = np.array(y_test)
+    else:
+        for label in test_labels_folder:
+            for filename in test_labels_folder[label]:
+                filepath = os.path.join(test_path, label, filename)
+                img = cv.imread(filepath, cv.IMREAD_UNCHANGED)
+                shape = img.shape
+                # cv.imshow("image", normalize_to_uint8(img))
+                # cv.waitKey(10)
+
+                # convert the image such that anything outside the depth bounds specified above will be 0
+                img_converted = np.where(np.logical_or(img < min_dist, img > max_dist), 0, 1).astype('uint8')
+                # plt_show_depth_img(img_converted, title=filepath + "-" + label)
+
+                X_train.append(img_converted.flatten())
+                if label == 'no_food':
+                    y_train.append(0)
+                else:
+                    y_train.append(1)
 
     X_train = np.array(X_train)
     y_train = np.array(y_train)
@@ -124,15 +158,22 @@ if "__main__" == __name__:
     # Train Naive Bayes Classifier
     clf = CategoricalNB(min_categories=2)
     clf.fit(X_train, y_train)
+    for val in [0, 1]:
+        prob = clf.predict_proba(val*np.ones((1, 128*84), dtype=np.uint8))
+        print(f"All {val}'s proba is {prob}")
 
     # Get the predictions on the train set
     print("X_train", X_train.shape)
     y_pred_train = clf.predict(X_train)
+    y_pred_train_proba = clf.predict_proba(X_train)
+    print(y_pred_train_proba)
 
     # Get the predictions on the test set
     if not use_entire_dataset:
         print("X_test", X_test.shape)
         y_pred_test = clf.predict(X_test)
+        y_pred_test_proba = clf.predict_proba(X_test)
+        print(y_pred_test_proba)
 
     # Get the train accuracy
     acc_train = accuracy_score(y_train, y_pred_train)
@@ -174,7 +215,8 @@ if "__main__" == __name__:
 
     # save model
     if use_entire_dataset:
-        model_save_filename = 'categorical_naive_bayes_model.pkl'
+        # make sure to type the right name to save the model
+        model_save_filename = 'categorical_naive_bayes_without_hand_8-30-23.pkl'
         joblib.dump(clf, model_save_filename)
         print("model saved!!")
     # delete the folder with the unzipped files
