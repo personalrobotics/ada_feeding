@@ -35,10 +35,11 @@ class ExecutionCase(Enum):
     """
 
     NONE = 0
-    PRE_RUNNING = 1
-    WORKERS_RUNNING = 2
-    POST_RUNNING = 3
-    TREE_TERMINATED = 4
+    HASNT_STARTED = 1
+    PRE_RUNNING = 2
+    WORKERS_RUNNING = 3
+    POST_RUNNING = 4
+    TREE_TERMINATED = 5
 
 
 def generate_test(
@@ -57,7 +58,6 @@ def generate_test(
     # Necessary to create a versatile test generation function.
 
     # Setup the test
-    post_ns = "/post"
     pre = TickCounterWithTerminateTimestamp(
         name="Pre",
         duration=pre_duration,
@@ -71,24 +71,20 @@ def generate_test(
         ns="/worker",
     )
 
-    def post_fn():
-        """
-        Return the post behavior.
-        """
-        return TickCounterWithTerminateTimestamp(
-            name="Post",
-            duration=post_duration,
-            completion_status=post_completion_status,
-            ns=post_ns,
-        )
+    post = TickCounterWithTerminateTimestamp(
+        name="Post",
+        duration=post_duration,
+        completion_status=post_completion_status,
+        ns="/post",
+    )
 
     root = scoped_behavior(
         name="Root",
         pre_behavior=pre,
-        main_behaviors=[worker],
-        post_behavior_fn=post_fn,
+        workers=[worker],
+        post_behavior=post,
     )
-    return root, pre, worker, post_ns
+    return root, pre, worker, post
 
 
 def combined_test(
@@ -158,7 +154,7 @@ def combined_test(
     pre_duration = 3
     worker_duration = 2
     post_duration = 6
-    root, pre, worker, post_ns = generate_test(
+    root, pre, worker, post = generate_test(
         pre_duration=pre_duration,
         pre_completion_status=pre_completion_status,
         worker_duration=worker_duration,
@@ -181,7 +177,7 @@ def combined_test(
 
     # Initialize the expected counts, statuses, termination_new_statuses, and
     # root status for the tests
-    behaviors = [pre, worker, post_ns]
+    behaviors = [pre, worker, post]
     expected_counts = [0, 0, 0]
     expected_statuses = [
         py_trees.common.Status.INVALID,
@@ -191,20 +187,105 @@ def combined_test(
     expected_termination_new_statuses = [None, None, None]
 
     # Tick the tree
+    preempted_in_previous_cycle = False
     for num_cycles in range(global_num_cycles):
-        # The pre's count gets re-initialized at the beginning of every cycle.
-        expected_counts[0] = 0
-        # The pre, worker, and post get reset to INVALID at the
-        # beginning of every cycle.
-        if num_cycles > 0:
-            for i in range(3):
-                expected_statuses[i] = py_trees.common.Status.INVALID
-                if expected_termination_new_statuses[i] is not None:
-                    expected_termination_new_statuses[
-                        i
-                    ] = py_trees.common.Status.INVALID
-        for num_ticks in range(1, num_ticks_to_terminate + 1):
+        execution_case = ExecutionCase.HASNT_STARTED
+        for num_ticks in range(1, num_ticks_to_terminate + 2):
             descriptor = f"num_ticks {num_ticks}, num_cycles {num_cycles}"
+
+            # Preempt if requested
+            if preempt_times[num_cycles] == execution_case:
+                root.stop(py_trees.common.Status.INVALID)
+                descriptor += " after preemption"
+
+                # Update the expected termination of all behaviors but `post`
+                termination_order = []
+                for i in range(2):
+                    if expected_statuses[i] != py_trees.common.Status.INVALID:
+                        expected_statuses[i] = py_trees.common.Status.INVALID
+                        expected_termination_new_statuses[
+                            i
+                        ] = py_trees.common.Status.INVALID
+                        termination_order.append(behaviors[i])
+                root_expected_status = py_trees.common.Status.INVALID
+                # `post` should only get ticked on preemption if the worker/callback
+                # have not yet terminated. If they have terminated, the root
+                # is considered complete and there is no reason to run `post` again.
+                if execution_case == ExecutionCase.HASNT_STARTED:
+                    # In this cases, `post` should not get ticked as part of
+                    # preemption. Its status will only be set to INVALID if neither
+                    # it nor its parent is INVALID. The only case where `post` is
+                    # not INVALID but its parent is is if the tree was preempted
+                    # in the previous cycle.
+                    if (
+                        expected_statuses[2] != py_trees.common.Status.INVALID
+                        and not preempted_in_previous_cycle
+                    ):
+                        expected_statuses[2] = py_trees.common.Status.INVALID
+                        expected_termination_new_statuses[
+                            2
+                        ] = py_trees.common.Status.INVALID
+                    preempted_in_previous_cycle = False
+                elif execution_case == ExecutionCase.TREE_TERMINATED:
+                    # In this cases, `post` should not get ticked as part of
+                    # preemption. Its status will be set to INVALID through the
+                    # normal termination process.
+                    expected_statuses[2] = py_trees.common.Status.INVALID
+                    expected_termination_new_statuses[
+                        2
+                    ] = py_trees.common.Status.INVALID
+                else:
+                    preempted_in_previous_cycle = True
+                    # `post` should get ticked to completion
+                    expected_counts[2] = post_duration + 1
+
+                    # Because `post` is not officially a part of the tree,
+                    # it won't get called as part of the preemption. So it's
+                    # status will be its terminal status.
+                    expected_statuses[2] = post_completion_status
+                    expected_termination_new_statuses[2] = post_completion_status
+                termination_order.append(behaviors[2])
+
+                # Run the preemption tests
+                check_count_status(
+                    behaviors=behaviors,
+                    counts=expected_counts,
+                    statuses=expected_statuses,
+                    descriptor=descriptor,
+                )
+                check_termination_new_statuses(
+                    behaviors=behaviors,
+                    statuses=expected_termination_new_statuses,
+                    descriptor=descriptor,
+                )
+                check_termination_order(termination_order, descriptor)
+                assert (
+                    root.status == root_expected_status
+                ), f"root status {root.status} is not {root_expected_status}, {descriptor}"
+
+                # End this cycle
+                break
+
+            if num_ticks == num_ticks_to_terminate + 1:
+                # End this cycle. We only go past the ticks to terminate in case
+                # the tree is preempted after termination.
+                preempted_in_previous_cycle = False
+                break
+            if num_ticks == 1:
+                # The pre's count gets re-initialized at the beginning of every cycle.
+                expected_counts[0] = 0
+                # The pre and worker get reset to INVALID at the
+                # beginning of every cycle. Post gets reset to INVALID only if the
+                # last cycle was not preempted.
+                if num_cycles > 0:
+                    for i in range(3):
+                        if i < 2 or preempt_times[num_cycles - 1] == ExecutionCase.NONE:
+                            expected_statuses[i] = py_trees.common.Status.INVALID
+                            if expected_termination_new_statuses[i] is not None:
+                                expected_termination_new_statuses[
+                                    i
+                                ] = py_trees.common.Status.INVALID
+
             # Tick the tree
             root.tick_once()
             # Get the expected counts, statuses, termination_new_statuses, and
@@ -248,15 +329,6 @@ def combined_test(
                     # The worker status gets set
                     expected_statuses[1] = worker_completion_status
                     expected_termination_new_statuses[1] = worker_completion_status
-                elif worker_completion_status == py_trees.common.Status.FAILURE:
-                    # The Selector with memory unnecessarily sets previous children to
-                    # INVALID the tick after they fail, hence the below switch.
-                    # https://github.com/splintered-reality/py_trees/blob/0d5b39f2f6333c504406d8a63052c456c6bd1ce5/py_trees/composites.py#L427
-                    for i in range(2):
-                        expected_statuses[i] = py_trees.common.Status.INVALID
-                        expected_termination_new_statuses[
-                            i
-                        ] = py_trees.common.Status.INVALID
                 expected_counts[2] += 1
                 expected_statuses[2] = py_trees.common.Status.RUNNING
                 root_expected_status = py_trees.common.Status.RUNNING
@@ -275,14 +347,6 @@ def combined_test(
                     # The pre's status gets set
                     expected_statuses[0] = pre_completion_status
                     expected_termination_new_statuses[0] = pre_completion_status
-                else:
-                    # The Selector with memory unnecessarily sets previous children to
-                    # INVALID the tick after they fail, hence the below switch.
-                    # https://github.com/splintered-reality/py_trees/blob/0d5b39f2f6333c504406d8a63052c456c6bd1ce5/py_trees/composites.py#L427
-                    expected_statuses[0] = py_trees.common.Status.INVALID
-                    expected_termination_new_statuses[
-                        0
-                    ] = py_trees.common.Status.INVALID
                 expected_counts[2] += 1
                 expected_statuses[2] = py_trees.common.Status.RUNNING
                 root_expected_status = py_trees.common.Status.RUNNING
@@ -319,93 +383,28 @@ def combined_test(
                 root.status == root_expected_status
             ), f"root status {root.status} is not {root_expected_status}, {descriptor}"
 
-            # Preempt if requested
-            if preempt_times[num_cycles] == execution_case:
-                root.stop(py_trees.common.Status.INVALID)
-                descriptor += " after preemption"
-
-                # Update the expected termination of all behaviors but `post`
-                termination_order = []
-                for i in range(2):
-                    if expected_statuses[i] != py_trees.common.Status.INVALID:
-                        expected_statuses[i] = py_trees.common.Status.INVALID
-                        expected_termination_new_statuses[
-                            i
-                        ] = py_trees.common.Status.INVALID
-                        termination_order.append(behaviors[i])
-                root_expected_status = py_trees.common.Status.INVALID
-                # `post` should only get ticked on preemption if the worker/callback
-                # have not yet terminated. If they have terminated, the root
-                # is considered complete and there is no reason to run `post` again.
-                if execution_case != ExecutionCase.TREE_TERMINATED:
-                    # `post` should get ticked to completion
-                    expected_counts[2] = post_duration + 1
-
-                    # Because `post` is not officially a part of the tree,
-                    # it won't get called as part of the preemption. So it's
-                    # status will be its terminal status.
-                    expected_statuses[2] = post_completion_status
-                    expected_termination_new_statuses[2] = post_completion_status
-                else:
-                    # Since `post` already ran, it will get called as part of preemption.
-                    if expected_statuses[2] != py_trees.common.Status.INVALID:
-                        expected_statuses[2] = py_trees.common.Status.INVALID
-                        expected_termination_new_statuses[
-                            2
-                        ] = py_trees.common.Status.INVALID
-                termination_order.append(behaviors[2])
-
-                # Run the preemption tests
-                check_count_status(
-                    behaviors=behaviors,
-                    counts=expected_counts,
-                    statuses=expected_statuses,
-                    descriptor=descriptor,
-                )
-                check_termination_new_statuses(
-                    behaviors=behaviors,
-                    statuses=expected_termination_new_statuses,
-                    descriptor=descriptor,
-                )
-                check_termination_order(termination_order, descriptor)
-                assert (
-                    root.status == root_expected_status
-                ), f"root status {root.status} is not {root_expected_status}, {descriptor}"
-
-                # End this cycle
-                break
-
 
 ################################################################################
 # Generate all tests with 2 cycles
 ################################################################################
 
-for pre_completion_status in [
-    py_trees.common.Status.SUCCESS,
-    py_trees.common.Status.FAILURE,
-]:
-    for worker_completion_status in [
-        py_trees.common.Status.SUCCESS,
-        py_trees.common.Status.FAILURE,
-    ]:
-        for post_completion_status in [
-            py_trees.common.Status.SUCCESS,
-            py_trees.common.Status.FAILURE,
-        ]:
-            for first_preempt in [
-                ExecutionCase.NONE,
-                ExecutionCase.PRE_RUNNING,
-                ExecutionCase.WORKERS_RUNNING,
-                ExecutionCase.POST_RUNNING,
-                ExecutionCase.TREE_TERMINATED,
-            ]:
-                for second_preempt in [
-                    ExecutionCase.NONE,
-                    ExecutionCase.PRE_RUNNING,
-                    ExecutionCase.WORKERS_RUNNING,
-                    ExecutionCase.POST_RUNNING,
-                    ExecutionCase.TREE_TERMINATED,
-                ]:
+# Set the status cases to iterate over
+status_cases = [py_trees.common.Status.SUCCESS, py_trees.common.Status.FAILURE]
+for pre_completion_status in status_cases:
+    # Set the preempt cases to iterate over
+    preempt_cases = [
+        ExecutionCase.NONE,
+        ExecutionCase.HASNT_STARTED,
+        ExecutionCase.PRE_RUNNING,
+    ]
+    if pre_completion_status == py_trees.common.Status.SUCCESS:
+        preempt_cases.append(ExecutionCase.WORKERS_RUNNING)
+    preempt_cases += [ExecutionCase.POST_RUNNING, ExecutionCase.TREE_TERMINATED]
+
+    for worker_completion_status in status_cases:
+        for post_completion_status in status_cases:
+            for first_preempt in preempt_cases:
+                for second_preempt in preempt_cases:
                     test_name = (
                         f"test_pre_{pre_completion_status.name}_worker_"
                         f"{worker_completion_status.name}_post_{post_completion_status.name}_"
