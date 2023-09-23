@@ -30,13 +30,18 @@ Note the following nuances:
 """
 
 # Standard imports
-from typing import Callable, List, Optional
+from typing import List, Optional
 
 # Third-party imports
 import py_trees
+from py_trees.behaviours import BlackboardToStatus, UnsetBlackboardVariable
+from py_trees.decorators import (
+    FailureIsSuccess,
+    StatusToBlackboard,
+)
 
 # Local imports
-from .eventually_swiss import eventually_swiss
+from ada_feeding.decorators import OnPreempt
 
 
 # pylint: disable=too-many-arguments
@@ -44,10 +49,11 @@ from .eventually_swiss import eventually_swiss
 def scoped_behavior(
     name: str,
     pre_behavior: py_trees.behaviour.Behaviour,
-    main_behaviors: List[py_trees.behaviour.Behaviour],
-    post_behavior_fn: Callable[[], py_trees.behaviour.Behaviour],
+    workers: List[py_trees.behaviour.Behaviour],
+    post_behavior: py_trees.behaviour.Behaviour,
     on_preempt_period_ms: int = 0,
     on_preempt_timeout: Optional[float] = None,
+    status_blackboard_key: Optional[str] = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Returns a behavior that runs the main behavior within the scope of the pre
@@ -57,25 +63,70 @@ def scoped_behavior(
     ----------
     name: The name to associate with this behavior.
     pre_behavior: The behavior to run before the main behavior.
-    main_behaviors: The behaviors to run in the middle.
-    post_behavior_fn: A function that returns the behavior to run after the main
-        behavior. This must be a function because the post behavior will be
-        reused at multiple locations in the tree.
+    workers: The behaviors to run in the middle.
+    post_behavior: The behavior to run after the main behavior.
     on_preempt_period_ms: How long to sleep between ticks (in milliseconds)
         if the behavior gets preempted. If 0, then do not sleep.
     on_preempt_timeout: How long (sec) to wait for the behavior to reach a
         terminal status if the behavior gets preempted. If None, then do not
         timeout.
+    status_blackboard_key: The blackboard key to use to store the status of
+        the behavior. If None, use `/{name}/scoped_behavior_status`.
     """
-    return eventually_swiss(
-        name=name,
-        workers=[pre_behavior] + main_behaviors,
-        on_failure=post_behavior_fn(),
-        on_success=post_behavior_fn(),
-        on_preempt=post_behavior_fn(),
-        on_preempt_single_tick=False,
-        on_preempt_period_ms=on_preempt_period_ms,
-        on_preempt_timeout=on_preempt_timeout,
-        return_on_success_status=False,
-        return_on_failure_status=False,
+    if status_blackboard_key is None:
+        status_blackboard_key = f"/{name}/scoped_behavior_status"
+
+    main_sequence = py_trees.composites.Sequence(
+        name="Scoped Behavior",
+        memory=True,
     )
+
+    # First, unset the status variable.
+    unset_status = UnsetBlackboardVariable(
+        name="Unset Status", key=status_blackboard_key
+    )
+    main_sequence.children.append(unset_status)
+
+    # Then, execute the pre behavior and the workers
+    pre_and_workers_sequence = py_trees.composites.Sequence(
+        name="Pre & Workers",
+        children=[pre_behavior] + workers,
+        memory=True,
+    )
+    write_workers_status = StatusToBlackboard(
+        name="Write Pre & Workers Status",
+        child=pre_and_workers_sequence,
+        variable_name=status_blackboard_key,
+    )
+    workers_branch = FailureIsSuccess(
+        name="Pre & Workers Branch",
+        child=write_workers_status,
+    )
+    main_sequence.children.append(workers_branch)
+
+    # Then, execute the post behavior
+    post_branch = FailureIsSuccess(
+        name="Post Branch",
+        child=post_behavior,
+    )
+    main_sequence.children.append(post_branch)
+
+    # Finally, write the status of the main behavior to the blackboard.
+    write_status = BlackboardToStatus(
+        name="Write Status",
+        variable_name=status_blackboard_key,
+    )
+    main_sequence.children.append(write_status)
+
+    # To handle preemptions, we place the main behavior into an OnPreempt
+    # decorator, with `post` as the preemption behavior.
+    root = OnPreempt(
+        name=name,
+        child=main_sequence,
+        on_preempt=post_behavior,
+        single_tick=False,
+        period_ms=on_preempt_period_ms,
+        timeout=on_preempt_timeout,
+    )
+
+    return root

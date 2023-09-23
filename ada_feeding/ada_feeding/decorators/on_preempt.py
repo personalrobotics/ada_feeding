@@ -19,7 +19,8 @@ class OnPreempt(Decorator):
     while its status is :data:`~py_trees.common.Status.RUNNING`, it will
     tick `on_preempt` either: (a) for a single tick; or (b) until `on_preempt`
     reaches a status other than :data:`~py_trees.common.Status.RUNNING` or
-    times out.
+    times out. Note that `on_preempt` may be a behavior that exists elsewhere
+    in the tree, or it may be a separate behavior.
 
     This is useful to cleanup, restore a context switch or to
     implement a finally-like behaviour.
@@ -78,7 +79,8 @@ class OnPreempt(Decorator):
         in that it *first* stops the child, and *then* stops the decorator.
 
         Args:
-            new_status (:class:`~py_trees.common.Status`): the behaviour is transitioning to this new status
+            new_status (:class:`~py_trees.common.Status`): the behaviour is transitioning
+            to this new status
         """
         self.logger.debug(f"{self.__class__.__name__}.stop({new_status})")
         # priority interrupt handling
