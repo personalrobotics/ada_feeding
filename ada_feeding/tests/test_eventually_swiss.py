@@ -49,6 +49,7 @@ def generate_test(
     on_failure_completion_status: py_trees.common.Status,
     on_preempt_duration: int,
     on_preempt_completion_status: py_trees.common.Status,
+    return_on_success_status: bool,
 ):
     """
     Generates a worker, on_success, on_failure, and on_preempt behavior with the
@@ -92,6 +93,7 @@ def generate_test(
         on_failure=on_failure,
         on_preempt=on_preempt,
         on_preempt_single_tick=False,
+        return_on_success_status=return_on_success_status,
     )
     return root, worker, on_success, on_failure, on_preempt
 
@@ -101,6 +103,7 @@ def combined_test(
     callback_completion_status: py_trees.common.Status,
     global_num_cycles: int = 2,
     preempt_times: List[ExecutionCase] = [ExecutionCase.NONE, ExecutionCase.NONE],
+    return_on_success_status: bool = True,
 ) -> None:
     """
     This function ticks the root to completion `global_num_cycles` times and checks
@@ -158,7 +161,7 @@ def combined_test(
         don't preempt the tree during that cycle.
     """
     # pylint: disable=too-many-locals, too-many-branches, too-many-statements
-    # pylint: disable=too-many-nested-blocks
+    # pylint: disable=too-many-nested-blocks, too-many-arguments
     # This is where the bulk of the work to test eventually_swiss is done, so
     # it's hard to reduce the number of locals, branches, and statements.
     # pylint: disable=dangerous-default-value
@@ -187,6 +190,7 @@ def combined_test(
         ),
         on_preempt_duration=callback_duration,
         on_preempt_completion_status=other_callbacks_completion_status,
+        return_on_success_status=return_on_success_status,
     )
 
     # Get the number of ticks it should take to terminate this tree.
@@ -286,11 +290,17 @@ def combined_test(
                     assert (
                         False
                     ), f"Unexpected worker_completion_status {worker_completion_status}."
-                root_expected_status = (
-                    callback_completion_status
-                    if worker_completion_status == py_trees.common.Status.SUCCESS
-                    else py_trees.common.Status.FAILURE
-                )
+                if worker_completion_status == py_trees.common.Status.SUCCESS:
+                    if return_on_success_status:
+                        root_expected_status = callback_completion_status
+                    else:
+                        root_expected_status = py_trees.common.Status.SUCCESS
+                elif worker_completion_status == py_trees.common.Status.FAILURE:
+                    root_expected_status = py_trees.common.Status.FAILURE
+                else:
+                    assert (
+                        False
+                    ), f"Unexpected worker_completion_status {worker_completion_status}."
             else:
                 assert False, (
                     f"Should not get here, num_ticks {num_ticks}, "
@@ -389,26 +399,30 @@ for worker_completion_status in [
         py_trees.common.Status.SUCCESS,
         py_trees.common.Status.FAILURE,
     ]:
-        for first_preempt in [
-            ExecutionCase.NONE,
-            ExecutionCase.WORKER_RUNNING,
-            ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
-            ExecutionCase.TREE_TERMINATED,
-        ]:
-            for second_preempt in [
+        for return_on_success_status in [True, False]:
+            for first_preempt in [
                 ExecutionCase.NONE,
                 ExecutionCase.WORKER_RUNNING,
                 ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
                 ExecutionCase.TREE_TERMINATED,
             ]:
-                test_name = (
-                    f"test_worker_{worker_completion_status.name}_callback_"
-                    f"{callback_completion_status.name}_first_preempt_{first_preempt.name}_"
-                    f"second_preempt_{second_preempt.name}"
-                )
-                globals()[test_name] = partial(
-                    combined_test,
-                    worker_completion_status=worker_completion_status,
-                    callback_completion_status=callback_completion_status,
-                    preempt_times=[first_preempt, second_preempt],
-                )
+                for second_preempt in [
+                    ExecutionCase.NONE,
+                    ExecutionCase.WORKER_RUNNING,
+                    ExecutionCase.WORKER_TERMINATED_CALLBACK_RUNNING,
+                    ExecutionCase.TREE_TERMINATED,
+                ]:
+                    test_name = (
+                        f"test_worker_{worker_completion_status.name}_callback_"
+                        f"{callback_completion_status.name}_ret_succ_"
+                        f"{return_on_success_status}_"
+                        f"first_preempt_{first_preempt.name}_second_preempt_"
+                        f"{second_preempt.name}"
+                    )
+                    globals()[test_name] = partial(
+                        combined_test,
+                        worker_completion_status=worker_completion_status,
+                        callback_completion_status=callback_completion_status,
+                        preempt_times=[first_preempt, second_preempt],
+                        return_on_success_status=return_on_success_status,
+                    )

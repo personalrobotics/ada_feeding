@@ -22,7 +22,6 @@ def eventually_swiss(
     on_preempt_period_ms: int = 0,
     on_preempt_timeout: typing.Optional[float] = None,
     return_on_success_status: bool = True,
-    return_on_failure_status: bool = False,
 ) -> behaviour.Behaviour:
     """
     Implement a multi-tick, general purpose 'try-except-else'-like pattern.
@@ -43,11 +42,7 @@ def eventually_swiss(
           returned from this idiom is status of `on_success`.
         - If `return_on_success_status` is False, then the status of the root behaviour
           returned from this idiom is :data:`~py_trees.common.Status.SUCCESS`.
-    - If at least one worker returns FAILURE:
-        - If `return_on_failure_status` is True, then the status of the root behaviour
-          returned from this idiom is status of `on_failure`.
-        - If `return_on_failure_status` is False, then the status of the root behaviour
-          returned from this idiom is :data:`~py_trees.common.Status.FAILURE`.
+    - If at least one worker returns FAILURE, return :data:`~py_trees.common.Status.FAILURE`.
 
     .. graphviz:: dot/eventually-swiss.dot
 
@@ -67,8 +62,6 @@ def eventually_swiss(
             if `on_preempt_single_tick` is False. If None, then do not timeout.
         return_on_success_status: if True, pass the `on_success` status to the
             root, else return :data:`~py_trees.common.Status.SUCCESS`.
-        return_on_failure_status: if True, pass the `on_failure` status to the
-            root, else return :data:`~py_trees.common.Status.FAILURE`.
 
     Returns:
         :class:`~py_trees.behaviour.Behaviour`: the root of the eventually_swiss subtree
@@ -86,14 +79,11 @@ def eventually_swiss(
         memory=True,
         children=workers,
     )
-    if return_on_failure_status:
-        on_failure_return_status = on_failure
-    else:
-        on_failure_return_status = composites.Sequence(
-            name="On Failure Return Failure",
-            memory=True,
-            children=[on_failure, behaviours.Failure(name="Failure")],
-        )
+    on_failure_return_status = composites.Sequence(
+        name="On Failure Return Failure",
+        memory=True,
+        children=[on_failure, behaviours.Failure(name="Failure")],
+    )
     on_failure_subtree = composites.Selector(
         name="On Failure",
         memory=True,
