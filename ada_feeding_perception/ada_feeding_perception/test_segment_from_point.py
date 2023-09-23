@@ -39,6 +39,11 @@ class TestSegmentFromPoint(Node):
         images and points and saves the resultant masks.
     """
 
+    # pylint: disable=too-many-instance-attributes
+    # Although we have many more instance attributes (28) than recommended (7),
+    # this class contains a lot of functionalities including online and offline
+    # testing, which justifies the large number of attributes.
+
     def __init__(self) -> None:
         """
         Initializes the TestSegmentFromPoint node. This function reads the
@@ -104,13 +109,13 @@ class TestSegmentFromPoint(Node):
             self.latest_img_msg = None
             self.create_subscription(
                 Image,
-                self.image_topic.value,
+                "~/image",
                 self.image_callback,
                 1,
             )
         else:  # Configure offline mode
             # Create a publisher to publish the images to
-            self.image_pub = self.create_publisher(Image, self.image_topic.value, 1)
+            self.image_pub = self.create_publisher(Image, "~/image", 1)
 
             # Make the directory to save the segmented images in
             os.makedirs(
@@ -123,7 +128,7 @@ class TestSegmentFromPoint(Node):
         each parameter for more information.
         """
         # Get the required parameters, mode and action_server_name
-        self.mode, self.action_server_name, self.image_topic = self.declare_parameters(
+        self.mode, self.action_server_name = self.declare_parameters(
             "",
             [
                 (
@@ -132,7 +137,10 @@ class TestSegmentFromPoint(Node):
                     ParameterDescriptor(
                         name="mode",
                         type=ParameterType.PARAMETER_STRING,
-                        description="What mode to run the node in. Options are 'online' and 'offline'",
+                        description=(
+                            "What mode to run the node in. "
+                            "Options are 'online' and 'offline'"
+                        ),
                         read_only=True,
                     ),
                 ),
@@ -143,16 +151,6 @@ class TestSegmentFromPoint(Node):
                         name="action_server_name",
                         type=ParameterType.PARAMETER_STRING,
                         description="The name of the action server to connect to.",
-                        read_only=True,
-                    ),
-                ),
-                (
-                    "image_topic",
-                    None,
-                    ParameterDescriptor(
-                        name="image_topic",
-                        type=ParameterType.PARAMETER_STRING,
-                        description="The topic to subscribe/publish to for images.",
                         read_only=True,
                     ),
                 ),
@@ -177,7 +175,10 @@ class TestSegmentFromPoint(Node):
                         ParameterDescriptor(
                             name="base_dir",
                             type=ParameterType.PARAMETER_STRING,
-                            description="The base directory that all paths in offline mode are relative to.",
+                            description=(
+                                "The base directory that all paths "
+                                "in offline mode are relative to."
+                            ),
                             read_only=True,
                         ),
                     ),
@@ -197,7 +198,10 @@ class TestSegmentFromPoint(Node):
                         ParameterDescriptor(
                             name="sleep_time",
                             type=ParameterType.PARAMETER_DOUBLE,
-                            description="How long (secs) to sleep after publishing an image before sending a goal to the action server.",
+                            description=(
+                                "How long (secs) to sleep after publishing an image "
+                                "before sending a goal to the action server."
+                            ),
                             read_only=True,
                         ),
                     ),
@@ -233,7 +237,7 @@ class TestSegmentFromPoint(Node):
                     ),
                 ],
             )
-        else:
+        elif self.mode.value != "online":
             raise ValueError(
                 "Invalid mode parameter. Must be either 'online' or 'offline'"
             )
@@ -318,9 +322,7 @@ class TestSegmentFromPoint(Node):
         self.get_logger().info(f"Clicked at {x}, {y}")
         with self.latest_img_msg_lock:
             latest_img_msg = self.latest_img_msg
-            self.get_logger().info(
-                "Latest image header: {}".format(self.latest_img_msg.header)
-            )
+            self.get_logger().info(f"Latest image header: {self.latest_img_msg.header}")
 
         # Call the action server if we aren't waiting for the result of another call
         with self.waiting_for_goal_lock:
@@ -378,14 +380,14 @@ class TestSegmentFromPoint(Node):
         future: the future that contains the result from the action server.
         """
         result = future.result().result
-        self.get_logger().info("Result: {}".format(result))
+        self.get_logger().info(f"Result: {result}")
 
         # Get the image that matches the result header
-        self.get_logger().info("Result header: {}".format(result.header))
+        self.get_logger().info(f"Result header: {result.header}")
         segmented_image_msg = None
         with self.stored_image_msgs_lock:
             for image_msg in self.stored_image_msgs:
-                self.get_logger().info("Image header: {}".format(image_msg.header))
+                self.get_logger().info(f"Image header: {image_msg.header}")
                 if image_msg.header.stamp == result.header.stamp:
                     segmented_image_msg = image_msg
                     break
@@ -471,10 +473,12 @@ class TestSegmentFromPoint(Node):
 
             # Render the confidence of the mask
             if render_confidence:
-                y_offset = 24  # An estimate of how tall the text will be, since the coordinates are for the *bottom*-left corner
+                # y_offset is an estimate of how tall the text will be, since
+                # the coordinates are for the *bottom*-left corner
+                y_offset = 24
                 cv2.putText(
                     overlaid,
-                    "Conf: {:.3f}".format(mask_raw.confidence),
+                    f"Conf: {mask_raw.confidence:.3f}",
                     (x, y + y_offset),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1,
@@ -496,15 +500,12 @@ class TestSegmentFromPoint(Node):
         point_xs = self.point_xs.value
         point_ys = self.point_ys.value
 
-        n_images = min((len(images), len(point_xs), len(point_ys)))
-
         # For every image, call the action server
-        for i in range(n_images):
+        for i in range(min((len(images), len(point_xs), len(point_ys)))):
             # Load the image and publish it
             image_path = os.path.join(self.base_dir.value, images[i])
-            image_filename = os.path.splitext(os.path.split(image_path)[-1])[0]
             image = cv2.imread(image_path)
-            self.get_logger().info("Loaded image {}".format(image_path))
+            self.get_logger().info(f"Loaded image {image_path}")
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             image_msg = self.bridge.cv2_to_imgmsg(image, encoding="bgr8")
             self.image_pub.publish(image_msg)
@@ -512,39 +513,34 @@ class TestSegmentFromPoint(Node):
             # before we send the goal
             time.sleep(self.sleep_time.value)
 
-            # Get the point
-            point_x = point_xs[i]
-            point_y = point_ys[i]
-
             # Create the goal message
             goal_msg = SegmentFromPoint.Goal()
             goal_msg.seed_point.header.stamp = self.get_clock().now().to_msg()
-            goal_msg.seed_point.point.x = float(point_x)
-            goal_msg.seed_point.point.y = float(point_y)
+            goal_msg.seed_point.point.x = float(point_xs[i])
+            goal_msg.seed_point.point.y = float(point_ys[i])
 
             # Call the action server
             self.get_logger().info("Waiting for action server")
             self._action_client.wait_for_server()
-            self.get_logger().info(
-                "Calling action server with goal: {}".format(goal_msg)
-            )
+            self.get_logger().info(f"Calling action server with goal: {goal_msg}")
             result = self._action_client.send_goal(goal_msg)
 
             # Process the result
-            image_with_point = self.overlay_point_on_image(point_x, point_y, image)
             overlaid_images = self.get_overlaid_images(
-                image_with_point, result.result, render_confidence=True
+                self.overlay_point_on_image(point_xs[i], point_ys[i], image),
+                result.result,
+                render_confidence=True,
             )
 
             # Save them
+            image_filename = os.path.splitext(os.path.split(image_path)[-1])[0]
             for j, overlaid_image in enumerate(overlaid_images):
                 save_path = os.path.join(
                     self.base_dir.value,
                     self.save_dir.value,
                     f"image_{i}_{image_filename}_mask_{j}.png",
                 )
-                overlaid_image = cv2.cvtColor(overlaid_image, cv2.COLOR_RGB2BGR)
-                cv2.imwrite(save_path, overlaid_image)
+                cv2.imwrite(save_path, cv2.cvtColor(overlaid_image, cv2.COLOR_RGB2BGR))
 
         self.get_logger().info("Done!")
 

@@ -34,16 +34,19 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="Bernie Zhu, Amal Nanavati",
-    maintainer_email="{haozhu, amaln}@cs.washington.edu",
+    maintainer="Bernie Zhu, Amal Nanavati, Taylor Kessler Faulkner",
+    maintainer_email="{haozhu, amaln, taylorkf}@cs.washington.edu",
     description="This package contains all the perception code (face and food perception) for the robot feeding system.",
     license="BSD-3-Clause",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
+            "republisher = ada_feeding_perception.republisher:main",
             "segment_from_point = ada_feeding_perception.segment_from_point:main",
             "test_segment_from_point = ada_feeding_perception.test_segment_from_point:main",
             "food_on_fork = ada_feeding_perception.food_on_fork:main",
+            "face_detection = ada_feeding_perception.face_detection:main",
+            "test_realsense = ada_feeding_perception.test_realsense:main",
         ],
     },
 )

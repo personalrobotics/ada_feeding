@@ -1,0 +1,14 @@
+# NOTE: You have to change this node name if you change the node name in the launchfile.
+republisher:
+  ros__parameters:
+    # The name of the topics to republish from
+    from_topics:
+      - /camera/color/image_raw/compressed
+      - /camera/color/camera_info
+      - /camera/aligned_depth_to_color/image_raw
+
+    # The types of topics to republish from
+    topic_types:
+      - sensor_msgs.msg.CompressedImage
+      - sensor_msgs.msg.CameraInfo
+      - sensor_msgs.msg.Image

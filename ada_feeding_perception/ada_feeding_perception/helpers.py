@@ -4,14 +4,117 @@ This file contains helper functions for the ada_feeding_perception package.
 # Standard imports
 import os
 import pprint
-from typing import Tuple
+from typing import Optional, Tuple, Union
 from urllib.parse import urljoin
 from urllib.request import urlretrieve
 
 # Third-party imports
 import cv2
+from cv_bridge import CvBridge
 import numpy as np
+import numpy.typing as npt
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import CompressedImage, Image
 from skimage.morphology import flood_fill
+
+
+def ros_msg_to_cv2_image(
+    msg: Union[Image, CompressedImage], bridge: Optional[CvBridge] = None
+) -> npt.NDArray:
+    """
+    Convert a ROS Image or CompressedImage message to a cv2 image. By default,
+    this will maintain the depth of the image (e.g., 16-bit depth for depth
+    images) and maintain the format. Any conversions should be done outside
+    of this function.
+
+    NOTE: This has been tested with color messages that are Image and CompressedImage
+    and depth messages that are Image. It has not been tested with depth messages
+    that are CompressedImage.
+
+    Parameters
+    ----------
+    msg: the ROS Image or CompressedImage message to convert
+    bridge: the CvBridge to use for the conversion. This is only used if `msg`
+        is a ROS Image message. If `bridge` is None, a new CvBridge will be
+        created.
+    """
+    if isinstance(msg, Image):
+        if bridge is None:
+            bridge = CvBridge()
+        return bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
+    if isinstance(msg, CompressedImage):
+        return cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_UNCHANGED)
+    raise ValueError("msg must be a ROS Image or CompressedImage")
+
+
+def cv2_image_to_ros_msg(
+    image: npt.NDArray, compress: bool, bridge: Optional[CvBridge] = None
+) -> Union[Image, CompressedImage]:
+    """
+    Convert a cv2 image to a ROS Image or CompressedImage message. Note that this
+    does not set the header of the message; that must be done outside of this
+    function.
+
+    NOTE: This has been tested with converting an 8-bit greyscale image to a
+    CompressedImage message. It has not been tested in any other circumstance.
+
+    Parameters
+    ----------
+    image: the cv2 image to convert
+    compress: whether or not to compress the image. If True, a CompressedImage
+        message will be returned. If False, an Image message will be returned.
+    bridge: the CvBridge to use for the conversion. This is only used if `msg`
+        is a ROS Image message. If `bridge` is None, a new CvBridge will be
+        created.
+    """
+    if bridge is None:
+        bridge = CvBridge()
+    if compress:
+        success, compressed_image = cv2.imencode(".jpg", image)
+        if success:
+            return CompressedImage(
+                format="jpeg",
+                data=compressed_image.tostring(),
+            )
+        raise RuntimeError("Failed to compress image")
+    # If we get here, we're not compressing the image
+    return bridge.cv2_to_imgmsg(image, encoding="passthrough")
+
+
+def get_img_msg_type(topic: str, node: Node) -> type:
+    """
+    Get the type of the image message on the given topic.
+
+    Parameters
+    ----------
+    topic: the topic to get the image message type for
+    node: the node to use to get the topic type
+
+    Returns
+    -------
+    the type of the image message on the given topic, either Image or CompressedImage
+    """
+    # Spin the node once to get the publishers list
+    rclpy.spin_once(node)
+
+    # Resolve the topic name (e.g., handle remappings)
+    final_topic = node.resolve_topic_name(topic)
+
+    # Get the publishers on the topic
+    topic_endpoints = node.get_publishers_info_by_topic(final_topic)
+
+    # Return the type of the first publisher on this topic that publishes
+    # an image message
+    for endpoint in topic_endpoints:
+        if endpoint.topic_type == "sensor_msgs/msg/CompressedImage":
+            return CompressedImage
+        if endpoint.topic_type == "sensor_msgs/msg/Image":
+            return Image
+    raise ValueError(
+        f"No publisher found with img type for topic {final_topic}. "
+        "Publishers: {[str(endpoint) for endpoint in topic_endpoints]}"
+    )
 
 
 def download_checkpoint(
@@ -45,6 +148,9 @@ class BoundingBox:
     A class representing a bounding box on an image
     """
 
+    # pylint: disable=too-few-public-methods
+    # This is a data class
+
     def __init__(self, xmin: int, ymin: int, xmax: int, ymax: int):
         """
         Parameters
@@ -60,7 +166,7 @@ class BoundingBox:
         self.ymax = ymax
 
 
-def bbox_from_mask(mask: np.ndarray[bool]) -> BoundingBox:
+def bbox_from_mask(mask: npt.NDArray[np.bool_]) -> BoundingBox:
     """
     Takes in a binary mask and returns the smallest axis-aligned bounding box
     that contains all the True pixels in the mask.
@@ -83,8 +189,11 @@ def bbox_from_mask(mask: np.ndarray[bool]) -> BoundingBox:
 
 
 def crop_image_mask_and_point(
-    image: np.ndarray, mask: np.ndarray[bool], point: Tuple[int, int], bbox: BoundingBox
-) -> Tuple[np.ndarray, np.ndarray[bool], Tuple[int, int]]:
+    image: npt.NDArray,
+    mask: npt.NDArray[np.bool_],
+    point: Tuple[int, int],
+    bbox: BoundingBox,
+) -> Tuple[npt.NDArray, npt.NDArray[np.bool_], Tuple[int, int]]:
     """
     Crop the image and mask to the bounding box.
 
@@ -111,8 +220,8 @@ def crop_image_mask_and_point(
 
 
 def overlay_mask_on_image(
-    image: np.ndarray,
-    mask: np.ndarray[bool],
+    image: npt.NDArray,
+    mask: npt.NDArray[np.bool_],
     alpha: float = 0.5,
     color: Tuple[int, int, int] = (0, 255, 0),
 ):
@@ -140,8 +249,8 @@ def overlay_mask_on_image(
 
 
 def get_connected_component(
-    mask: np.ndarray[bool], point: Tuple[int, int]
-) -> np.ndarray[bool]:
+    mask: npt.NDArray[np.bool_], point: Tuple[int, int]
+) -> npt.NDArray[np.bool_]:
     """
     Takes in a binary mask and returns a new mask that has only the connected
     component that contains the given point.
@@ -166,16 +275,14 @@ def get_connected_component(
     """
     # Check that the point and mask satisfy the constraints
     if len(mask.shape) != 2:
-        raise ValueError(
-            "Mask must be a 2D array, it instead has shape {}".format(mask.shape)
-        )
+        raise ValueError(f"Mask must be a 2D array, it instead has shape {mask.shape}")
     if (
         point[1] < 0
         or point[1] >= mask.shape[0]
         or point[0] < 0
         or point[0] >= mask.shape[1]
     ):
-        raise IndexError("Point %s is not in mask of shape %s" % (point, mask.shape))
+        raise IndexError(f"Point {point} is not in mask of shape {mask.shape}")
     # Convert mask to uint8
     mask_uint = mask.astype(np.uint8)
     # Flood fill the mask with 3. Swap x and y because flood_fill expects

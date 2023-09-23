@@ -5,6 +5,8 @@
 
 # The header for the image that the mask corresponds to
 std_msgs/Header header
+# The camera intrinsics
+sensor_msgs/CameraInfo camera_info
 # The mask for the food item the robot should acquire
 ada_feeding_msgs/Mask detected_food
 ---
@@ -17,6 +19,18 @@ uint8 STATUS_UNKNOWN=99
 
 # Whether the planning and motion succeeded and if not, why
 uint8 status
+
+## Information to send to AcquisitionSelect service
+# Action Taken
+uint8 action_index
+
+# Posthoc context
+float64[] posthoc
+
+# AcquisitionSelect call id
+# Used in AcquisitionReport
+string selection_id
+
 ---
 # Whether the robot is currently planning or moving (required)
 bool is_planning

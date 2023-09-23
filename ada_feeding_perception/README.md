@@ -3,10 +3,13 @@ This code performs image segmentation using the [Segment Anything](https://githu
 
 ## Installation
 1. Clone this directory into the `src` folder of your ROS2 workspace.
-2. Install the dependencies:
+2. Install the Python dependencies:
 ```
-chmod +x install.sh
-./install.sh
+source install.sh
+```
+3. Install the system dependencies:
+```
+sudo apt install ros-humble-image-transport ros-humble-compressed-image-transport
 ```
 
 For testing, be sure to unzip `test/food_img.zip`.
@@ -18,12 +21,13 @@ For testing, be sure to unzip `test/food_img.zip`.
 
 1. Build your workspace: `colcon build`
 2. Source your workspace: `source install/setup.bash`
-3. Run the action servers: `ros2 launch ada_feeding_perception ada_feeding_perception_launch.xml`
+3. Run the perception nodes: `ros2 launch ada_feeding_perception ada_feeding_perception.launch.py`
 4. Launch the motion nodes:
-    1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_real_sense:=false run_perception:=false`
+    1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_real_sense:=false run_face_detection:=false run_food_detection:=false`
     2. Real nodes: `ros2 launch ada_feeding ada_feeding_launch.xml`
 5. Launch the RealSense node:
-    1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false run_perception:=false`
+    1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false run_face_detection:=false run_food_detection:=false`
+        1. NOTE: SegmentFromPoint will no longer work with only the dummy RealSense node, since the dummy RealSense only publishes a color image, whereas SegmentFromPoint also expects a depth image.
     2. Real nodes:
         1. SSH into the `nano` user of `nano`: On a pre-configured lab computer, this should be `ssh nano`. Else, look here for [the IP address of nano](https://github.com/personalrobotics/pr_docs/wiki/Networking-and-SSH-Information).
         2. On `nano`:
@@ -59,17 +63,21 @@ See `config/test_segment_from_point.yaml` for other sample images and points. No
 
 #### Option B: Interactively Testing the ROS Action Server
 
+**NOTE**: On some machines Option B does not work (more generally, matplotlib interactive graphics don't work).
+
 We have provided a ROS node that displays the live image stream from a topic, let's users click on it, and sends that point click to the SegmentFromPoint action server.
 
-Run this script with: `ros2 launch ada_feeding_perception test_segment_from_point_launch.xml`
+Run this script with: `ros2 launch ada_feeding_perception test_food_segmentation_launch.xml`
 
 Note that because we are rendering a live image stream in matplotlib, this script can be very resource intensive. As an example, on one non-GPU machine it **slowed SegmentAnything down by 10x** (since so many resources were going to rendering the video's live stream).
 
 #### Option C: Testing the ROS Action Server on Saved Images
 
+Option C is now **DEPRECATED** because SegmentFromPoint requires aligned depth images, and we don't have aligned depth images for any of the offline images. The below instructions are kept only for legacy purposes.
+
 To facilitate the testing of a large number of stored images, we have provided a script that reads in a list of images and points and sends then to the SegmentFromPoint action server one-at-a-time, saving the results.
 
-To run this script, change the `mode` parameter in `config/test_segment_from_point.yaml` to `offline`. Then run `ros2 launch ada_feeding_perception test_segment_from_point_launch.xml`.
+To run this script, change the `mode` parameter in `config/test_segment_from_point.yaml` to `offline`. Then run `ros2 launch ada_feeding_perception test_food_segmentation_launch.xml`.
 
 This script should save the output images in `<path/to/your/workspace>/install/ada_feeding_perception/share/ada_feeding_perception/test_img/output`.
 

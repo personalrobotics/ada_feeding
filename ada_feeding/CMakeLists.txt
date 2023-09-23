@@ -11,6 +11,7 @@ find_package(ament_cmake_python REQUIRED)
 find_package(rcl_interfaces REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(pymoveit2 REQUIRED)
+find_package(std_srvs REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
@@ -33,7 +34,9 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   scripts/create_action_servers.py
   scripts/ada_watchdog.py
+  scripts/ada_planning_scene.py
   scripts/dummy_ft_sensor.py
+  scripts/save_image.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -46,6 +49,12 @@ install(DIRECTORY
 # Install config files.
 install(DIRECTORY
   config
+  DESTINATION share/${PROJECT_NAME}/
+)
+
+# Install assets.
+install(DIRECTORY
+  assets
   DESTINATION share/${PROJECT_NAME}/
 )
 

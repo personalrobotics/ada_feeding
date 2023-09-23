@@ -3,122 +3,41 @@
 This module contains a node, ADAWatchdog, which does the following:
     1. Monitors the state of the force-torque sensor, to ensure it is still
        publishing and its data is not zero-variance.
-    2. (TODO) Monitors the state of the physical e-stop button, to ensure it is
-       not pressed.
+    2. Monitors the state of the physical e-stop button, to ensure it is
+       plugged in (has received at least one click) and has not been pressed
+       since then (has not received a second click).
 This node publishes an output to the /ada_watchdog topic. Any node that moves
 the robot should subscribe to this topic and immediately stop if any of the
 watchdog conditions fail, or if the watchdog stops publishing.
 """
 
 # Standard imports
-from threading import Lock
+from typing import List
 
 # Third-party imports
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
-from geometry_msgs.msg import WrenchStamped
-import numpy as np
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
-from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from rclpy.time import Time
+from std_msgs.msg import Header
 
 # Local imports
-
-
-class FTSensorCondition:
-    """
-    The FTSensorCondition class accumulates all force-torque sensor readings and
-    checks that the sensor is still publishing and its data is not zero-variance.
-    """
-
-    def __init__(self, timeout: Duration) -> None:
-        """
-        Initialize the force-torque sensor condition.
-
-        Parameters
-        ----------
-        timeout: the maximum time (s) that the force-torque sensor can go without
-            publishing or changing its data before the condition fails
-        """
-        # Configure parameters
-        self.timeout = timeout
-
-        # For each dimension of a single force-torque datapoint, store the most
-        # recent unique value and the time at which that value was received.
-        self.last_unique_values = None
-        self.last_unique_values_timestamp = None
-
-    def update(self, ft_msg: WrenchStamped) -> None:
-        """
-        Update the accumulators with the latest force-torque sensor reading.
-
-        Parameters
-        ----------
-        ft_msg: the message from the force-torque sensor
-        """
-        # Get the data from the message
-        ft_array = np.array(
-            [
-                ft_msg.wrench.force.x,
-                ft_msg.wrench.force.y,
-                ft_msg.wrench.force.z,
-                ft_msg.wrench.torque.x,
-                ft_msg.wrench.torque.y,
-                ft_msg.wrench.torque.z,
-            ]
-        )
-        ft_time = Time.from_msg(ft_msg.header.stamp)
-
-        # Update the last unique values
-        if self.last_unique_values is None:
-            self.last_unique_values = ft_array
-            self.last_unique_values_timestamp = np.repeat(ft_time, 6)
-        else:
-            # Update the last unique values
-            dimensions_that_havent_changed = np.isclose(
-                self.last_unique_values, ft_array
-            )
-            self.last_unique_values = np.where(
-                dimensions_that_havent_changed,
-                self.last_unique_values,
-                ft_array,
-            )
-            self.last_unique_values_timestamp = np.where(
-                dimensions_that_havent_changed,
-                self.last_unique_values_timestamp,
-                ft_time,
-            )
-
-    def check(self, now: Time) -> bool:
-        """
-        Check if the force-torque sensor is still publishing and its data is not
-        zero-variance.
-
-        Specifically, it returns True if over that last `self.timeout` seconds,
-        every dimension of the force-torque sensor data has changed. Inversely,
-        it returns False if either the force-torque sensor has not published
-        data within the last `timeout` seconds, or at least one dimension
-        of that data has not changed.
-
-        Parameters
-        ----------
-        now: the current time
-
-        Returns
-        -------
-        True if the force-torque sensor is still publishing and its data is not
-        zero-variance, False otherwise.
-        """
-        return np.all((now - self.last_unique_values_timestamp) <= self.timeout)
+from ada_feeding.watchdog import (
+    EStopCondition,
+    FTSensorCondition,
+)
 
 
 class ADAWatchdog(Node):
     """
     A watchdog node for the ADA robot. This node monitors the state of the
     force-torque sensor and the physical e-stop button (TODO), and publishes its
-    output to the /ada_watchdog topic.
+    output to the watchdog topic.
     """
+
+    # pylint: disable=too-many-instance-attributes
+    # Eleven is fine in this case.
 
     def __init__(self) -> None:
         """
@@ -126,92 +45,42 @@ class ADAWatchdog(Node):
         """
         super().__init__("ada_watchdog")
 
+        self._default_callback_group = rclpy.callback_groups.ReentrantCallbackGroup()
+
         # Load parameters
-        self.load_parameters()
+        self.__load_parameters()
+
+        # Create the conditions
+        self.conditions = [
+            FTSensorCondition(self),
+        ]
+        if self.use_estop.value:
+            self.conditions.insert(0, EStopCondition(self))
+        self.has_passed_startup_conditions = False
 
         # Create a watchdog publisher
         self.watchdog_publisher = self.create_publisher(
             DiagnosticArray,
-            self.watchdog_topic.value,
+            "~/watchdog",
             1,
         )
 
-        # Parameters for the force-torque conditions
-        self.ft_sensor_condition = FTSensorCondition(
-            Duration(seconds=self.ft_timeout_sec.value)
-        )
-        self.recv_first_ft_msg = False
-        self.ft_sensor_condition_lock = Lock()
-        ft_sensor_ok_message = (
-            "Over the last %f sec, the force-torque sensor has published data with nonzero variance"
-            % self.ft_timeout_sec.value
-        )
-        self.ft_ok_status = DiagnosticStatus(
-            level=DiagnosticStatus.OK,
-            name=self.ft_topic.value,
-            message=ft_sensor_ok_message,
-        )
-        ft_sensor_error_message = (
-            "Over the last %f sec, the force-torque sensor has either not published data or its data is zero-variance"
-            % self.ft_timeout_sec.value
-        )
-        self.ft_error_status = DiagnosticStatus(
-            level=DiagnosticStatus.ERROR,
-            name=self.ft_topic.value,
-            message=ft_sensor_error_message,
-        )
-
-        # Create the watchdog output
-        self.watchdog_output = DiagnosticArray()
-
-        # Subscribe to the force-torque sensor topic
-        self.ft_sensor_subscription = self.create_subscription(
-            WrenchStamped,
-            self.ft_topic.value,
-            self.ft_sensor_callback,
-            rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value,
-        )
-
         # Publish at the specified rate
+        # TODO: Consider making this a separate thread that runs at a fixed rate,
+        # to avoid the callback queue getting backed up if the function takes
+        # longer than the specified rate to run.
+        self.timer_callback_group = (
+            rclpy.callback_groups.MutuallyExclusiveCallbackGroup()
+        )
         timer_period = 1.0 / self.publish_rate_hz.value  # seconds
         self.timer = self.create_timer(
-            timer_period, self.check_and_publish_watchdog_output
+            timer_period, self.__check_conditions, self.timer_callback_group
         )
 
-    def load_parameters(self) -> None:
+    def __load_parameters(self) -> None:
         """
         Load parameters from the parameter server.
         """
-        self.ft_topic = self.declare_parameter(
-            "ft_topic",
-            "/wireless_ft/ftSensor1",
-            ParameterDescriptor(
-                name="ft_topic",
-                type=ParameterType.PARAMETER_STRING,
-                description="The name of topic that the force-torque sensor is publishing on",
-                read_only=True,
-            ),
-        )
-        self.ft_timeout_sec = self.declare_parameter(
-            "ft_timeout_sec",
-            0.5,
-            ParameterDescriptor(
-                name="ft_timeout_sec",
-                type=ParameterType.PARAMETER_DOUBLE,
-                description="The number of seconds within which the force-torque sensor must have: (a) published messages; and (b) had them be nonzero-variance",
-                read_only=True,
-            ),
-        )
-        self.watchdog_topic = self.declare_parameter(
-            "watchdog_topic",
-            "/ada_watchdog",
-            ParameterDescriptor(
-                name="watchdog_topic",
-                type=ParameterType.PARAMETER_STRING,
-                description="The name of the topic for the watchdog to publish on",
-                read_only=True,
-            ),
-        )
         self.publish_rate_hz = self.declare_parameter(
             "publish_rate_hz",
             30.0,
@@ -222,50 +91,113 @@ class ADAWatchdog(Node):
                 read_only=True,
             ),
         )
+        self.use_estop = self.declare_parameter(
+            "use_estop",
+            True,
+            ParameterDescriptor(
+                name="use_estop",
+                type=ParameterType.PARAMETER_BOOL,
+                description=(
+                    "Whether to check the state of the physical e-stop button. "
+                    "This should only be set False in sim, since we currently "
+                    "have no way of simulating the e-stop button."
+                ),
+                read_only=True,
+            ),
+        )
 
-    def ft_sensor_callback(self, ft_msg: WrenchStamped) -> None:
+    def __generate_diagnostic_status(
+        self, status: bool, name: str, message: str
+    ) -> DiagnosticStatus:
         """
-        Callback function for the force-torque sensor topic. This function
-        stores the latest force-torque sensor reading, to be checked in
-        check_watchdog_conditions().
+        Generate a diagnostic status message.
 
         Parameters
         ----------
-        ft_msg: the message from the force-torque sensor
-        """
-        with self.ft_sensor_condition_lock:
-            self.ft_sensor_condition.update(ft_msg)
-            self.recv_first_ft_msg = True
+        status: bool
+            The status of the condition.
+        name: str
+            The name of the condition.
+        message: str
+            The message to include in the status.
 
-    def check_and_publish_watchdog_output(self) -> None:
+        Returns
+        -------
+        DiagnosticStatus
+            The diagnostic status message.
+        """
+        return DiagnosticStatus(
+            level=DiagnosticStatus.OK if status else DiagnosticStatus.ERROR,
+            name=name,
+            message=message,
+        )
+
+    def __generate_diagnostic_array(
+        self, diagnostic_statuses: List[DiagnosticStatus]
+    ) -> DiagnosticArray:
+        """
+        Generate a diagnostic array message.
+
+        Parameters
+        ----------
+        diagnostic_statuses: List[DiagnosticStatus]
+            The diagnostic statuses to include in the message.
+
+        Returns
+        -------
+        DiagnosticArray
+            The diagnostic array message.
+        """
+        return DiagnosticArray(
+            header=Header(
+                stamp=self.get_clock().now().to_msg(),
+                frame_id="",
+            ),
+            status=diagnostic_statuses,
+        )
+
+    def __check_conditions(self) -> None:
         """
         Checks the watchdog conditions and publishes its output.
         """
-        # Only publish if we've received the first force-torque sensor message
-        recv_first_ft_msg = False
-        with self.ft_sensor_condition_lock:
-            recv_first_ft_msg = self.recv_first_ft_msg
+        # First, check the startup conditions
+        if not self.has_passed_startup_conditions:
+            diagnostic_statuses = []
+            passed = True
+            for condition in self.conditions:
+                condition_status = condition.check_startup()
+                for status, name, message in condition_status:
+                    passed = passed and status  # Fail as soon as one status is False
+                    diagnostic_statuses.append(
+                        self.__generate_diagnostic_status(status, name, message)
+                    )
+            if not passed:  # At least one startup condition failed
+                watchdog_output = self.__generate_diagnostic_array(diagnostic_statuses)
+                self.watchdog_publisher.publish(watchdog_output)
+            else:  # All startup conditions passed
+                self.has_passed_startup_conditions = True
 
-        # Configure the output message
-        now = self.get_clock().now()
-        self.watchdog_output.header.stamp = now.to_msg()
-        self.watchdog_output.status = []
+        # If the startup conditions have passed, check the status conditions
+        if self.has_passed_startup_conditions:
+            diagnostic_statuses = []
+            passed = True
+            for condition in self.conditions:
+                condition_status = condition.check_status()
+                for status, name, message in condition_status:
+                    passed = passed and status
+                    diagnostic_statuses.append(
+                        self.__generate_diagnostic_status(status, name, message)
+                    )
+            # Publish the watchdog status
+            watchdog_output = self.__generate_diagnostic_array(diagnostic_statuses)
+            self.watchdog_publisher.publish(watchdog_output)
 
-        # Return the output
-        if recv_first_ft_msg:
-            # Check the force-torque sensor conditions
-            ft_condition = self.ft_sensor_condition.check(now)
-
-            # Generate the watchdog output
-            if ft_condition:
-                self.watchdog_output.status.append(self.ft_ok_status)
-            else:
-                self.watchdog_output.status.append(self.ft_error_status)
-        else:
-            self.watchdog_output.status.append(self.ft_error_status)
-
-        # Publish the watchdog output
-        self.watchdog_publisher.publish(self.watchdog_output)
+    def terminate(self) -> None:
+        """
+        Terminate the watchdog node.
+        """
+        for condition in self.conditions:
+            condition.terminate()
 
 
 def main(args=None):
@@ -274,8 +206,19 @@ def main(args=None):
     """
     rclpy.init(args=args)
 
+    # Use a MultiThreadedExecutor to enable processing topics concurrently
+    executor = MultiThreadedExecutor(num_threads=3)
+
+    # Create and spin the node
     ada_watchdog = ADAWatchdog()
-    rclpy.spin(ada_watchdog)
+    rclpy.spin(ada_watchdog, executor=executor)
+
+    # Destroy the node explicitly
+    # (optional - otherwise it will be done automatically
+    # when the garbage collector destroys the node object)
+    ada_watchdog.terminate()
+    ada_watchdog.destroy_node()
+    rclpy.shutdown()
 
 
 if __name__ == "__main__":

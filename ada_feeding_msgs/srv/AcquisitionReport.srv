@@ -1,0 +1,24 @@
+# The interface for a service that takes in acquisition
+# success/failure and updates the AcquisitonSelect policy.
+
+# ID of AcquisitionSelect Call
+string hash
+
+# Arbitrary Post Hoc Context
+# Example: First 50ms of Haptics during Grasp
+float64[] posthoc
+
+# Index of Action Taken
+uint8 action_index
+
+# Loss
+# Canonically: 1 == failure, 0 == success
+float64 loss
+
+---
+
+# Success/Failure
+bool success
+
+# Status Message
+string status
