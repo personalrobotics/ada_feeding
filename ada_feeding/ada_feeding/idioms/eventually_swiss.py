@@ -21,6 +21,8 @@ def eventually_swiss(
     on_preempt_single_tick: bool = True,
     on_preempt_period_ms: int = 0,
     on_preempt_timeout: typing.Optional[float] = None,
+    return_on_success_status: bool = True,
+    return_on_failure_status: bool = False,
 ) -> behaviour.Behaviour:
     """
     Implement a multi-tick, general purpose 'try-except-else'-like pattern.
@@ -34,6 +36,18 @@ def eventually_swiss(
     3. The on_preempt behaviour is ticked only if `stop(INVALID)` is called on the
        root behaviour returned from this idiom while the root behaviour's status is
        :data:`~py_trees.common.Status.RUNNING`.
+
+    The return status of this idiom in non-preemption cases is:
+    - If the workers all return SUCCESS:
+        - If `return_on_success_status` is True, then the status of the root behaviour
+          returned from this idiom is status of `on_success`.
+        - If `return_on_success_status` is False, then the status of the root behaviour
+          returned from this idiom is :data:`~py_trees.common.Status.SUCCESS`.
+    - If at least one worker returns FAILURE:
+        - If `return_on_failure_status` is True, then the status of the root behaviour
+          returned from this idiom is status of `on_failure`.
+        - If `return_on_failure_status` is False, then the status of the root behaviour
+          returned from this idiom is :data:`~py_trees.common.Status.FAILURE`.
 
     .. graphviz:: dot/eventually-swiss.dot
 
@@ -51,13 +65,17 @@ def eventually_swiss(
         on_preempt_timeout: how long (sec) to wait for the on_preempt behaviour
             to reach a status other than :data:`~py_trees.common.Status.RUNNING`
             if `on_preempt_single_tick` is False. If None, then do not timeout.
+        return_on_success_status: if True, pass the `on_success` status to the
+            root, else return :data:`~py_trees.common.Status.SUCCESS`.
+        return_on_failure_status: if True, pass the `on_failure` status to the
+            root, else return :data:`~py_trees.common.Status.FAILURE`.
 
     Returns:
-        :class:`~py_trees.behaviour.Behaviour`: the root of the oneshot subtree
+        :class:`~py_trees.behaviour.Behaviour`: the root of the eventually_swiss subtree
 
     .. seealso:: :meth:`py_trees.idioms.eventually`, :ref:`py-trees-demo-eventually-swiss-program`
     """
-    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-arguments, too-many-locals
     # This is acceptable, to give users maximum control over how this swiss-knife
     # idiom behaves.
 
@@ -66,20 +84,31 @@ def eventually_swiss(
         memory=True,
         children=workers,
     )
-    on_failure_return_failure = composites.Sequence(
-        name="On Failure Return Failure",
-        memory=True,
-        children=[on_failure, behaviours.Failure(name="Failure")],
-    )
+    if return_on_failure_status:
+        on_failure_return_status = on_failure
+    else:
+        on_failure_return_status = composites.Sequence(
+            name="On Failure Return Failure",
+            memory=True,
+            children=[on_failure, behaviours.Failure(name="Failure")],
+        )
     on_failure_subtree = composites.Selector(
         name="On Failure",
         memory=True,
-        children=[workers_sequence, on_failure_return_failure],
+        children=[workers_sequence, on_failure_return_status],
     )
+    if return_on_success_status:
+        on_success_return_status = on_success
+    else:
+        on_success_return_status = composites.Selector(
+            name="On Success Return Success",
+            memory=True,
+            children=[on_success, behaviours.Success(name="Success")],
+        )
     on_success_subtree = composites.Sequence(
         name="On Success",
         memory=True,
-        children=[on_failure_subtree, on_success],
+        children=[on_failure_subtree, on_success_return_status],
     )
     root = OnPreempt(
         name=name,

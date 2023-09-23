@@ -5,7 +5,6 @@ This module defines unit tests for the eventually_swiss idiom.
 
 # Standard imports
 from enum import Enum
-import time
 from typing import List, Optional
 
 # Third-party imports
@@ -13,119 +12,22 @@ import py_trees
 
 # Local imports
 from ada_feeding.idioms import eventually_swiss
+from .helpers import (
+    TickCounterWithTerminateTimestamp,
+    check_count_status,
+    check_termination_new_statuses,
+    check_termination_order,
+)
 
 
-class TickCounterWithTerminateTimestamp(py_trees.behaviours.TickCounter):
+class ExecutionCase(Enum):
     """
-    This class is identical to TickCounter, except that it also stores the
-    timestamp when the behavior terminated.
+    Tree execution can broadly fall into one of the below three cases.
     """
 
-    def __init__(
-        self, name: str, duration: int, completion_status: py_trees.common.Status
-    ):
-        """
-        Initialise the behavior.
-        """
-        super().__init__(
-            name=name, duration=duration, completion_status=completion_status
-        )
-        self.termination_new_status = None
-        self.termination_timestamp = None
-
-    def terminate(self, new_status: py_trees.common.Status) -> None:
-        """
-        Terminate the behavior.
-        """
-        self.termination_new_status = new_status
-        self.termination_timestamp = time.time()
-
-
-def check_count_status(
-    behaviors: List[py_trees.behaviours.TickCounter],
-    counts: List[int],
-    statuses: List[py_trees.common.Status],
-    descriptor: str = "",
-) -> None:
-    """
-    Takes in a list of TickCounter behaviors and checks that their counts and
-    statuses are correct.
-
-    Parameters
-    ----------
-    behaviors: The list of behaviors to check.
-    counts: The expected counts for each behavior.
-    statuses: The expected statuses for each behavior.
-    """
-    assert (
-        len(behaviors) == len(counts) == len(statuses)
-    ), "lengths of behaviors, counts, and statuses must be equal"
-    for i, behavior in enumerate(behaviors):
-        assert behavior.counter == counts[i], (
-            f"behavior '{behavior.name}' actual count {behavior.counter}, "
-            f"expected count {counts[i]}, "
-            f"{descriptor}"
-        )
-        assert behavior.status == statuses[i], (
-            f"behavior '{behavior.name}' actual status {behavior.status}, "
-            f"expected status {statuses[i]}, "
-            f"{descriptor}"
-        )
-
-
-def check_termination_new_statuses(
-    behaviors: List[TickCounterWithTerminateTimestamp],
-    statuses: List[Optional[py_trees.common.Status]],
-    descriptor: str = "",
-) -> None:
-    """
-    Checkes that `terminate` either has not been called on the behavior, or
-    that it has been called with the correct new status.
-
-    Parameters
-    ----------
-    behaviors: The list of behaviors to check.
-    statuses: The expected new statuses for each behavior when `terminate` was
-        called, or `None` if `terminate` was not expected to be called.
-    """
-    assert len(behaviors) == len(
-        statuses
-    ), "lengths of behaviors and statuses must be equal"
-    for i, behavior in enumerate(behaviors):
-        if statuses[i] is None:
-            assert behavior.termination_new_status is None, (
-                f"behavior '{behavior.name}' expected termination_new_status None, actual "
-                f"termination_new_status {behavior.termination_new_status}, "
-                f"{descriptor}"
-            )
-        else:
-            assert behavior.termination_new_status == statuses[i], (
-                f"behavior '{behavior.name}' actual termination_new_status "
-                f"{behavior.termination_new_status}, expected termination_new_status "
-                f"{statuses[i]}, {descriptor}"
-            )
-
-
-def check_termination_order(
-    behaviors: List[TickCounterWithTerminateTimestamp],
-    descriptor: str = "",
-) -> None:
-    """
-    Checks that the behaviors terminated in the correct order.
-
-    Parameters
-    ----------
-    behaviors: The list of behaviors to check, in the order that `terminate`
-        should have been called on them.
-    """
-    for i in range(len(behaviors) - 1):
-        assert (
-            behaviors[i].termination_timestamp <= behaviors[i + 1].termination_timestamp
-        ), (
-            f"behavior '{behaviors[i].name}' terminated after behavior "
-            f"'{behaviors[i + 1].name}', when it should have terminated before, "
-            f"{descriptor}"
-        )
+    WORKER_RUNNING = 0
+    WORKER_TERMINATED_CALLBACK_RUNNING = 1
+    WORKER_TERMINATED_CALLBACK_TERMINATED = 2
 
 
 def generate_test(
@@ -142,7 +44,8 @@ def generate_test(
     Generates a worker, on_success, on_failure, and on_preempt behavior with the
     specified durations and completion statuses.
 
-    Note that this always generates the multi-tick version of eventually_swiss.
+    Note that this always generates the multi-tick version of eventually_swiss,
+    where it returns `on_success` status but not `on_failure` status.
     """
     # pylint: disable=too-many-arguments
     # Necessary to create a versatile test generation function.
@@ -152,21 +55,25 @@ def generate_test(
         name="Worker",
         duration=worker_duration,
         completion_status=worker_completion_status,
+        ns="/worker",
     )
     on_success = TickCounterWithTerminateTimestamp(
         name="On Success",
         duration=on_success_duration,
         completion_status=on_success_completion_status,
+        ns="/on_success",
     )
     on_failure = TickCounterWithTerminateTimestamp(
         name="On Failure",
         duration=on_failure_duration,
         completion_status=on_failure_completion_status,
+        ns="/on_failure",
     )
     on_preempt = TickCounterWithTerminateTimestamp(
         name="On Preempt",
         duration=on_preempt_duration,
         completion_status=on_preempt_completion_status,
+        ns="/on_preempt",
     )
     root = eventually_swiss(
         name="Eventually Swiss",
@@ -177,16 +84,6 @@ def generate_test(
         on_preempt_single_tick=False,
     )
     return root, worker, on_success, on_failure, on_preempt
-
-
-class ExecutionCase(Enum):
-    """
-    Tree execution can broadly fall into one of the below three cases.
-    """
-
-    WORKER_RUNNING = 0
-    WORKER_TERMINATED_CALLBACK_RUNNING = 1
-    WORKER_TERMINATED_CALLBACK_TERMINATED = 2
 
 
 def combined_test(
@@ -235,10 +132,12 @@ def combined_test(
       - WORKER_TERMINATED_CALLBACK_TERMINATED: Terminate the tree after the tick
         when the worker has terminated and the callback has terminated (i.e., after
         the tick where the root returns a non-RUNNING status).
-    After terminating the tree, this function checks that the tree has not ticked
-    `worker`, `on_success`, or `on_failure` any more, but has ticked `on_preempt`
-    to completion. It also checks that the tree has terminated in the correct order:
-    `worker` -> `on_success`/`on_failure` -> `on_preempt`.
+    After terminating the tree, in the first two cases, this function checks that
+    the tree has not ticked `worker`, `on_success`, or `on_failure` any more, but
+    has ticked `on_preempt` to completion. It also checks that the tree has
+    terminated in the correct order: `worker` -> `on_success`/`on_failure` -> `on_preempt`.
+    In the third case, since the tree has already reached a non-RUNNING status,
+    `on_preempt` should not be run, and this function verifies that.
 
     Parameters
     ----------
@@ -363,7 +262,7 @@ def combined_test(
                 root_expected_status = py_trees.common.Status.RUNNING
             # The success/failure callback has terminated.
             # WORKER_TERMINATED_CALLBACK_TERMINATED case.
-            elif num_ticks == worker_duration + callback_duration + 1:
+            elif num_ticks == num_ticks_to_terminate:
                 execution_case = ExecutionCase.WORKER_TERMINATED_CALLBACK_TERMINATED
                 if worker_completion_status == py_trees.common.Status.SUCCESS:
                     expected_counts[1] += 1

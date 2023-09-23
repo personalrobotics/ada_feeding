@@ -12,6 +12,8 @@ resources. The idiom guarentees the following:
        other words, regardless of whether the main behavior returns SUCCESS,
        FAILURE, or if the idiom is preempted (e.g., had `stop(INVALID)` called
        on it), the post behavior will still be ticked till a terminal status.
+    3. The root behavior's terminal status will be FAILURE if the pre behavior
+       returns FAILURE, else it will be the main behavior's terminal status.
 
 Note the following nuances:
     1. If the main behaviour reaches SUCCESS or FAILURE, the post behaviour will
@@ -74,4 +76,6 @@ def scoped_behavior(
         on_preempt_single_tick=False,
         on_preempt_period_ms=on_preempt_period_ms,
         on_preempt_timeout=on_preempt_timeout,
+        return_on_success_status=False,
+        return_on_failure_status=False,
     )
