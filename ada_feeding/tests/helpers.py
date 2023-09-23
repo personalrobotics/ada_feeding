@@ -33,12 +33,17 @@ class TickCounterWithTerminateTimestamp(py_trees.behaviours.TickCounter):
         )
         self.termination_new_status = None
         self.termination_timestamp = None
+        self.num_times_ticked_to_non_running_status = 0
 
         # Create a blackboard client to store this behavior's status,
         # counter, termination_new_status, and termination_timestamp.
         self.blackboard = self.attach_blackboard_client(name=name, namespace=ns)
         self.blackboard.register_key(key="status", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key="counter", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(
+            key="num_times_ticked_to_non_running_status",
+            access=py_trees.common.Access.WRITE,
+        )
         self.blackboard.register_key(
             key="termination_new_status", access=py_trees.common.Access.WRITE
         )
@@ -68,9 +73,15 @@ class TickCounterWithTerminateTimestamp(py_trees.behaviours.TickCounter):
         """
         new_status = super().update()
 
+        if new_status != py_trees.common.Status.RUNNING:
+            self.num_times_ticked_to_non_running_status += 1
+
         # Update the blackboard.
         self.blackboard.status = new_status
         self.blackboard.counter = self.counter
+        self.blackboard.num_times_ticked_to_non_running_status = (
+            self.num_times_ticked_to_non_running_status
+        )
 
         return new_status
 
@@ -93,6 +104,7 @@ def check_count_status(
     behaviors: List[Union[TickCounterWithTerminateTimestamp, str]],
     counts: List[int],
     statuses: List[py_trees.common.Status],
+    num_times_ticked_to_non_running_statuses: List[int],
     descriptor: str = "",
 ) -> None:
     """
@@ -107,6 +119,8 @@ def check_count_status(
         stored its attributes.
     counts: The expected counts for each behavior.
     statuses: The expected statuses for each behavior.
+    num_times_ticked_to_non_running_statuses: The expected number of times each
+        behavior had a tick resulting in a non-running status.
     """
     assert (
         len(behaviors) == len(counts) == len(statuses)
@@ -122,10 +136,18 @@ def check_count_status(
             actual_status = Blackboard().get(
                 Blackboard.separator.join([behavior, "status"])
             )
+            actual_num_times_ticked_to_non_running_statuses = Blackboard().get(
+                Blackboard.separator.join(
+                    [behavior, "num_times_ticked_to_non_running_status"]
+                )
+            )
         else:
             name = behavior.name
             actual_count = behavior.counter
             actual_status = behavior.status
+            actual_num_times_ticked_to_non_running_statuses = (
+                behavior.num_times_ticked_to_non_running_status
+            )
 
         # Check the actual count and status against the expected ones
         assert actual_count == counts[i], (
@@ -136,6 +158,16 @@ def check_count_status(
         assert actual_status == statuses[i], (
             f"behavior '{name}' actual status {actual_status}, "
             f"expected status {statuses[i]}, "
+            f"{descriptor}"
+        )
+        assert (
+            actual_num_times_ticked_to_non_running_statuses
+            == num_times_ticked_to_non_running_statuses[i]
+        ), (
+            f"behavior '{name}' actual num_times_ticked_to_non_running_statuses "
+            f"{actual_num_times_ticked_to_non_running_statuses}, "
+            f"expected num_times_ticked_to_non_running_statuses "
+            f"{num_times_ticked_to_non_running_statuses[i]}, "
             f"{descriptor}"
         )
 

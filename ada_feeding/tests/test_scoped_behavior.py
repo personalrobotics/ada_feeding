@@ -6,7 +6,7 @@ This module defines unit tests for the scoped_behaviour idiom.
 # Standard imports
 from enum import Enum
 from functools import partial
-from typing import List
+from typing import List, Optional
 
 # Third-party imports
 import py_trees
@@ -31,7 +31,7 @@ from .helpers import (
 
 class ExecutionCase(Enum):
     """
-    Tree execution can broadly fall into one of the below three cases.
+    Tree execution can broadly fall into one of the below cases.
     """
 
     NONE = 0
@@ -49,37 +49,53 @@ def generate_test(
     worker_completion_status: py_trees.common.Status,
     post_duration: int,
     post_completion_status: py_trees.common.Status,
+    worker_override: Optional[py_trees.behaviour.Behaviour] = None,
+    suffix: str = ",",
 ):
     """
     Generates a worker, pre, and post behavior with the
     specified durations and completion statuses.
+
+    Parameters
+    ----------
+    pre_duration: The duration of the pre behavior.
+    pre_completion_status: The completion status of the pre behavior.
+    worker_duration: The duration of the worker behavior.
+    worker_completion_status: The completion status of the worker behavior.
+    post_duration: The duration of the post behavior.
+    post_completion_status: The completion status of the post behavior.
+    worker_override: If not None, this behavior will be used instead of the
+        default worker behavior.
     """
     # pylint: disable=too-many-arguments
     # Necessary to create a versatile test generation function.
 
     # Setup the test
     pre = TickCounterWithTerminateTimestamp(
-        name="Pre",
+        name="Pre" + suffix,
         duration=pre_duration,
         completion_status=pre_completion_status,
-        ns="/pre",
+        ns="/pre" + suffix,
     )
-    worker = TickCounterWithTerminateTimestamp(
-        name="Worker",
-        duration=worker_duration,
-        completion_status=worker_completion_status,
-        ns="/worker",
-    )
+    if worker_override is None:
+        worker = TickCounterWithTerminateTimestamp(
+            name="Worker" + suffix,
+            duration=worker_duration,
+            completion_status=worker_completion_status,
+            ns="/worker" + suffix,
+        )
+    else:
+        worker = worker_override
 
     post = TickCounterWithTerminateTimestamp(
-        name="Post",
+        name="Post" + suffix,
         duration=post_duration,
         completion_status=post_completion_status,
-        ns="/post",
+        ns="/post" + suffix,
     )
 
     root = scoped_behavior(
-        name="Root",
+        name="Root" + suffix,
         pre_behavior=pre,
         workers=[worker],
         post_behavior=post,
@@ -184,6 +200,7 @@ def combined_test(
         py_trees.common.Status.INVALID,
         py_trees.common.Status.INVALID,
     ]
+    expected_num_times_ticked_to_non_running_statuses = [0, 0, 0]
     expected_termination_new_statuses = [None, None, None]
 
     # Tick the tree
@@ -243,6 +260,7 @@ def combined_test(
                     # it won't get called as part of the preemption. So it's
                     # status will be its terminal status.
                     expected_statuses[2] = post_completion_status
+                    expected_num_times_ticked_to_non_running_statuses[2] += 1
                     expected_termination_new_statuses[2] = post_completion_status
                 termination_order.append(behaviors[2])
 
@@ -251,6 +269,9 @@ def combined_test(
                     behaviors=behaviors,
                     counts=expected_counts,
                     statuses=expected_statuses,
+                    num_times_ticked_to_non_running_statuses=(
+                        expected_num_times_ticked_to_non_running_statuses
+                    ),
                     descriptor=descriptor,
                 )
                 check_termination_new_statuses(
@@ -310,6 +331,7 @@ def combined_test(
                     expected_counts[1] = 0
                     # The pre's status gets set
                     expected_statuses[0] = pre_completion_status
+                    expected_num_times_ticked_to_non_running_statuses[0] += 1
                     expected_termination_new_statuses[0] = pre_completion_status
                 expected_counts[1] += 1
                 expected_statuses[1] = py_trees.common.Status.RUNNING
@@ -328,6 +350,7 @@ def combined_test(
                     expected_counts[2] = 0
                     # The worker status gets set
                     expected_statuses[1] = worker_completion_status
+                    expected_num_times_ticked_to_non_running_statuses[1] += 1
                     expected_termination_new_statuses[1] = worker_completion_status
                 expected_counts[2] += 1
                 expected_statuses[2] = py_trees.common.Status.RUNNING
@@ -346,6 +369,7 @@ def combined_test(
                     expected_counts[2] = 0
                     # The pre's status gets set
                     expected_statuses[0] = pre_completion_status
+                    expected_num_times_ticked_to_non_running_statuses[0] += 1
                     expected_termination_new_statuses[0] = pre_completion_status
                 expected_counts[2] += 1
                 expected_statuses[2] = py_trees.common.Status.RUNNING
@@ -355,6 +379,7 @@ def combined_test(
                 execution_case = ExecutionCase.TREE_TERMINATED
                 expected_counts[2] += 1
                 expected_statuses[2] = post_completion_status
+                expected_num_times_ticked_to_non_running_statuses[2] += 1
                 expected_termination_new_statuses[2] = post_completion_status
                 root_expected_status = (
                     py_trees.common.Status.FAILURE
@@ -372,6 +397,9 @@ def combined_test(
                 behaviors=behaviors,
                 counts=expected_counts,
                 statuses=expected_statuses,
+                num_times_ticked_to_non_running_statuses=(
+                    expected_num_times_ticked_to_non_running_statuses
+                ),
                 descriptor=descriptor,
             )
             check_termination_new_statuses(
@@ -417,3 +445,255 @@ for pre_completion_status in status_cases:
                         post_completion_status=post_completion_status,
                         preempt_times=[first_preempt, second_preempt],
                     )
+
+################################################################################
+# Test Nested Scoped Behaviors
+################################################################################
+
+
+class NestedExecutionCase(Enum):
+    """
+    With a single nested sequence, execution can broadly fall into one of the
+    below cases.
+    """
+
+    NONE = 0
+    HASNT_STARTED = 1
+    PRE1_RUNNING = 2
+    PRE2_RUNNING = 3
+    WORKERS_RUNNING = 4
+    POST1_RUNNING = 5
+    POST2_RUNNING = 6
+    TREE_TERMINATED = 7
+
+
+def nested_behavior_tests(
+    preempt_time: NestedExecutionCase,
+):
+    """
+    In the test of nested scope, we will assume all behaviors succeed, because
+    success/failure was already tested above. We will also only tick the tree
+    for one cycle, because multiple cycles were tested above. The main goal of
+    this test is to ensure the following:
+    - NONE: If the tree is not preempted, both post-behaviors should be ticked
+      to completion.
+    - PRE1_RUNNING: If the tree is preempted while pre1 is running, post1 should
+      be ticked to completion, and post2 should not be ticked.
+    - PRE2_RUNNING, WORKERS_RUNNING, POST1_RUNNING, POST2_RUNNING: In all of
+      these cases, post1 and post2 should be ticked to completion.
+    - TREE_TERMINATED: If the tree is preempted after the tree has terminated,
+      post1 and post2 should not be ticked.
+    """
+    # pylint: disable=too-many-branches, too-many-statements
+    # Necessary to test all the cases
+
+    pre1_duration = 3
+    pre2_duration = 2
+    worker_duration = 2
+    post1_duration = 6
+    post2_duration = 4
+    worker_override, pre2, worker, post2 = generate_test(
+        pre_duration=pre2_duration,
+        pre_completion_status=py_trees.common.Status.SUCCESS,
+        worker_duration=worker_duration,
+        worker_completion_status=py_trees.common.Status.SUCCESS,
+        post_duration=post2_duration,
+        post_completion_status=py_trees.common.Status.SUCCESS,
+        suffix="2",
+    )
+    root, pre1, _, post1 = generate_test(
+        pre_duration=pre1_duration,
+        pre_completion_status=py_trees.common.Status.SUCCESS,
+        worker_duration=0,
+        worker_completion_status=py_trees.common.Status.INVALID,
+        post_duration=post1_duration,
+        post_completion_status=py_trees.common.Status.SUCCESS,
+        worker_override=worker_override,
+        suffix="1",
+    )
+    behaviors = [pre1, pre2, worker, post2, post1]
+
+    # Get the number of ticks to terminate the tree
+    num_ticks_to_terminate = (
+        pre1_duration
+        + pre2_duration
+        + worker_duration
+        + post1_duration
+        + post2_duration
+        + 1
+    )
+
+    if preempt_time == NestedExecutionCase.NONE:
+        for _ in range(num_ticks_to_terminate):
+            root.tick_once()
+        check_count_status(
+            behaviors=behaviors,
+            counts=[
+                pre1_duration + 1,
+                pre2_duration + 1,
+                worker_duration + 1,
+                post2_duration + 1,
+                post1_duration + 1,
+            ],
+            statuses=[py_trees.common.Status.SUCCESS] * 5,
+            num_times_ticked_to_non_running_statuses=[1] * 5,
+        )
+        check_termination_new_statuses(
+            behaviors=behaviors,
+            statuses=[py_trees.common.Status.SUCCESS] * 5,
+        )
+        check_termination_order(behaviors)
+        assert (
+            root.status == py_trees.common.Status.SUCCESS
+        ), f"root status {root.status} is not SUCCESS"
+    elif preempt_time == NestedExecutionCase.HASNT_STARTED:
+        root.stop(py_trees.common.Status.INVALID)
+        check_count_status(
+            behaviors=behaviors,
+            counts=[0] * 5,
+            statuses=[py_trees.common.Status.INVALID] * 5,
+            num_times_ticked_to_non_running_statuses=[0] * 5,
+        )
+        check_termination_new_statuses(
+            behaviors=behaviors,
+            statuses=[None] * 5,
+        )
+    elif preempt_time == NestedExecutionCase.PRE1_RUNNING:
+        for _ in range(1):
+            root.tick_once()
+        root.stop(py_trees.common.Status.INVALID)
+        check_count_status(
+            behaviors=behaviors,
+            counts=[1, 0, 0, 0, post1_duration + 1],
+            statuses=[py_trees.common.Status.INVALID] * 4
+            + [py_trees.common.Status.SUCCESS],
+            num_times_ticked_to_non_running_statuses=[0] * 4 + [1],
+        )
+        check_termination_new_statuses(
+            behaviors=behaviors,
+            statuses=[py_trees.common.Status.INVALID]
+            + [None] * 3
+            + [py_trees.common.Status.SUCCESS],
+        )
+        check_termination_order([pre1, post1])
+    elif preempt_time == NestedExecutionCase.PRE2_RUNNING:
+        for _ in range(pre1_duration + 1):
+            root.tick_once()
+        root.stop(py_trees.common.Status.INVALID)
+        check_count_status(
+            behaviors=behaviors,
+            counts=[pre1_duration + 1, 1, 0, post2_duration + 1, post1_duration + 1],
+            statuses=[py_trees.common.Status.INVALID] * 3
+            + [py_trees.common.Status.SUCCESS] * 2,
+            num_times_ticked_to_non_running_statuses=[1] + [0] * 2 + [1] * 2,
+        )
+        check_termination_new_statuses(
+            behaviors=behaviors,
+            statuses=[py_trees.common.Status.INVALID] * 2
+            + [None]
+            + [py_trees.common.Status.SUCCESS] * 2,
+        )
+        check_termination_order([pre2, post2, post1])
+    elif preempt_time == NestedExecutionCase.WORKERS_RUNNING:
+        for _ in range(pre1_duration + pre2_duration + 1):
+            root.tick_once()
+        root.stop(py_trees.common.Status.INVALID)
+        check_count_status(
+            behaviors=behaviors,
+            counts=[
+                pre1_duration + 1,
+                pre2_duration + 1,
+                1,
+                post2_duration + 1,
+                post1_duration + 1,
+            ],
+            statuses=[py_trees.common.Status.INVALID] * 3
+            + [py_trees.common.Status.SUCCESS] * 2,
+            num_times_ticked_to_non_running_statuses=[1] * 2 + [0] + [1] * 2,
+        )
+        check_termination_new_statuses(
+            behaviors=behaviors,
+            statuses=[py_trees.common.Status.INVALID] * 3
+            + [py_trees.common.Status.SUCCESS] * 2,
+        )
+        check_termination_order([pre1, pre2, worker, post2, post1])
+    elif preempt_time == NestedExecutionCase.POST2_RUNNING:
+        for _ in range(pre1_duration + pre2_duration + worker_duration + 1):
+            root.tick_once()
+        root.stop(py_trees.common.Status.INVALID)
+        check_count_status(
+            behaviors=behaviors,
+            counts=[
+                pre1_duration + 1,
+                pre2_duration + 1,
+                worker_duration + 1,
+                post2_duration + 1,
+                post1_duration + 1,
+            ],
+            statuses=[py_trees.common.Status.INVALID] * 3
+            + [py_trees.common.Status.SUCCESS] * 2,
+            num_times_ticked_to_non_running_statuses=[1] * 3 + [1] * 2,
+        )
+        check_termination_new_statuses(
+            behaviors=behaviors,
+            statuses=[py_trees.common.Status.INVALID] * 3
+            + [py_trees.common.Status.SUCCESS] * 2,
+        )
+        check_termination_order([pre1, pre2, worker, post2, post1])
+    elif preempt_time == NestedExecutionCase.POST1_RUNNING:
+        for _ in range(
+            pre1_duration + pre2_duration + worker_duration + post2_duration + 1
+        ):
+            root.tick_once()
+        root.stop(py_trees.common.Status.INVALID)
+        check_count_status(
+            behaviors=behaviors,
+            counts=[
+                pre1_duration + 1,
+                pre2_duration + 1,
+                worker_duration + 1,
+                post2_duration + 1,
+                post1_duration + 1,
+            ],
+            # This is crucial -- POST2 should get terminated through the standard means,
+            # not through OnPreempt.
+            statuses=[py_trees.common.Status.INVALID] * 4
+            + [py_trees.common.Status.SUCCESS],
+            # This is crucial -- POST2 should only get ticked to completion once.
+            num_times_ticked_to_non_running_statuses=[1] * 5,
+        )
+        check_termination_new_statuses(
+            behaviors=behaviors,
+            statuses=[py_trees.common.Status.INVALID] * 4
+            + [py_trees.common.Status.SUCCESS],
+        )
+        check_termination_order([pre1, pre2, worker, post2, post1])
+    elif preempt_time == NestedExecutionCase.TREE_TERMINATED:
+        for _ in range(num_ticks_to_terminate):
+            root.tick_once()
+        root.stop(py_trees.common.Status.INVALID)
+        check_count_status(
+            behaviors=behaviors,
+            counts=[
+                pre1_duration + 1,
+                pre2_duration + 1,
+                worker_duration + 1,
+                post2_duration + 1,
+                post1_duration + 1,
+            ],
+            statuses=[py_trees.common.Status.INVALID] * 5,
+            num_times_ticked_to_non_running_statuses=[1] * 5,
+        )
+        check_termination_new_statuses(
+            behaviors=behaviors,
+            statuses=[py_trees.common.Status.INVALID] * 5,
+        )
+        check_termination_order([pre1, pre2, worker, post2, post1])
+
+
+for preempt_time in NestedExecutionCase:
+    test_name = f"test_nested_{preempt_time.name}"
+    globals()[test_name] = partial(
+        nested_behavior_tests,
+        preempt_time=preempt_time,
+    )

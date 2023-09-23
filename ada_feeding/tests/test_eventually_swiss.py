@@ -31,7 +31,7 @@ from .helpers import (
 
 class ExecutionCase(Enum):
     """
-    Tree execution can broadly fall into one of the below three cases.
+    Tree execution can broadly fall into one of the below cases.
     """
 
     NONE = 0
@@ -56,8 +56,19 @@ def generate_test(
     Generates a worker, on_success, on_failure, and on_preempt behavior with the
     specified durations and completion statuses.
 
-    Note that this always generates the multi-tick version of eventually_swiss,
-    where it returns `on_success` status but not `on_failure` status.
+    Note that this always generates the multi-tick version of eventually_swiss.
+
+    Parameters
+    ----------
+    worker_duration: The number of ticks it takes for the worker to terminate.
+    worker_completion_status: The completion status of the worker.
+    on_success_duration: The number of ticks it takes for `on_success` to terminate.
+    on_success_completion_status: The completion status of `on_success`.
+    on_failure_duration: The number of ticks it takes for `on_failure` to terminate.
+    on_failure_completion_status: The completion status of `on_failure`.
+    on_preempt_duration: The number of ticks it takes for `on_preempt` to terminate.
+    on_preempt_completion_status: The completion status of `on_preempt`.
+    return_on_success_status: If True, return `on_success` status. Else, return
     """
     # pylint: disable=too-many-arguments
     # Necessary to create a versatile test generation function.
@@ -207,6 +218,7 @@ def combined_test(
         py_trees.common.Status.INVALID,
         py_trees.common.Status.INVALID,
     ]
+    expected_num_times_ticked_to_non_running_statuses = [0, 0, 0, 0]
     expected_termination_new_statuses = [None, None, None, None]
 
     # Tick the tree
@@ -246,6 +258,7 @@ def combined_test(
                 ]:
                     # `on_preempt` should get ticked to completion
                     expected_counts[3] = callback_duration + 1
+                    expected_num_times_ticked_to_non_running_statuses[3] += 1
 
                     # Because `on_preempt` is not officially a part of the tree,
                     # it won't get called as part of the preemption. So it's
@@ -262,6 +275,9 @@ def combined_test(
                     behaviors=behaviors,
                     counts=expected_counts,
                     statuses=expected_statuses,
+                    num_times_ticked_to_non_running_statuses=(
+                        expected_num_times_ticked_to_non_running_statuses
+                    ),
                     descriptor=descriptor,
                 )
                 check_termination_new_statuses(
@@ -327,6 +343,7 @@ def combined_test(
                 if num_ticks == worker_duration + 1:
                     # The worker terminates on the first tick after `worker_duration`
                     expected_counts[0] += 1
+                    expected_num_times_ticked_to_non_running_statuses[0] += 1
                     # on_success and on_failure only gets reinitialized after the
                     # worker terminates.
                     expected_counts[1] = 0
@@ -360,10 +377,12 @@ def combined_test(
                 if worker_completion_status == py_trees.common.Status.SUCCESS:
                     expected_counts[1] += 1
                     expected_statuses[1] = callback_completion_status
+                    expected_num_times_ticked_to_non_running_statuses[1] += 1
                     expected_termination_new_statuses[1] = callback_completion_status
                 elif worker_completion_status == py_trees.common.Status.FAILURE:
                     expected_counts[2] += 1
                     expected_statuses[2] = callback_completion_status
+                    expected_num_times_ticked_to_non_running_statuses[2] += 1
                     expected_termination_new_statuses[2] = callback_completion_status
                 else:
                     assert (
@@ -391,6 +410,9 @@ def combined_test(
                 behaviors=behaviors,
                 counts=expected_counts,
                 statuses=expected_statuses,
+                num_times_ticked_to_non_running_statuses=(
+                    expected_num_times_ticked_to_non_running_statuses
+                ),
                 descriptor=descriptor,
             )
             check_termination_new_statuses(
