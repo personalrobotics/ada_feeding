@@ -117,17 +117,15 @@ There are two models that can be used to determine Food on Fork. They are as fol
 - After the completion of training, be sure to navigate to `food_on_fork.yaml` and change the model location so that the correct model is being used.
 
 ### Training Food on Fork Categorical Naive Bayes model
-- Navigate to `food_on_fork_categorical_naive_bayes_training.py` within `/ada_feeding_perception` package.
+- Change directory into `ada_feeding_perception/ada_feeding_perception`.
 - Make sure to load the dataset! Since the dataset contains actual depth images, it becomes to large to be committed onto GitHub. As such, it has been uploaded onto the drive. Make sure to download the dataset of your choice and use it as indicated below.
-  - [Dataset1](https://drive.google.com/file/d/1KuZonyrz4440pHjgPvTqeinP3aju0xTK/view?usp=sharing) (model is currently trained on this!), [Dataset2](https://drive.google.com/file/d/1XEIx9CipqyAJqEuqukIb9eiTW1ee8Nyu/view?usp=sharing). [Dataset3](https://drive.google.com/file/d/16Gbn360WE5RXOgbfESxNhWbb9SsEgdC7/view?usp=sharing): Note that all three of these datasets are using the same data and have 80/20 train-test split. The difference is that each of them have different images in train/test datasets.
-  - Based on what dataset you download, store, and use, make sure to update the variable `zip_file_path = "<location>"` accordingly.
-- There are a few things to update based on what you wish to do:
+  - [Dataset1](https://drive.google.com/file/d/1KuZonyrz4440pHjgPvTqeinP3aju0xTK/view?usp=sharing), [Dataset2](https://drive.google.com/file/d/1XEIx9CipqyAJqEuqukIb9eiTW1ee8Nyu/view?usp=sharing), [Dataset3](https://drive.google.com/file/d/16Gbn360WE5RXOgbfESxNhWbb9SsEgdC7/view?usp=sharing): Note that all three of these datasets are using the same data and have 80/20 train-test split. The difference is that each of them have different images in train/test datasets.
+  - Make sure to simply download the dataset into the folder `ada_feeding_perception/ada_feeding_perception`. Please don't unzip the file because the code unzips it at runtime.
+- To train CategoricalNB, there are a few required arguments:
   - Suppose you want to use 80/20 train-test split and check the accuracy of the model:
-    - In this instance, make sure the variables are as follows:
-      - `use_entire_dataset = False`
-      - The value for the variable, `model_save_filename` does not matter because there will be no model created
+    - `python food_on_fork_categorical_naive_bayes_training.py "False" "./train_test_data_no_hand_8-30-23.zip"`:
+      - Make sure to specify the correct zipfile and the boolean argument will be false since we want to only train on the trainset and check its accuracy on the testset.
   - Suppose you want to train and generate a `.pkl` model:
-    - In this instance, make sure the variables are as follows:
-      - `use_entire_dataset = True` so that the entire dataset is used for training.
-      - Make sure to set a value for the variable, `model_save_filename` because that will be the name given to the created model
+    - `python food_on_fork_categorical_naive_bayes_training.py "True" "./train_test_data_no_hand_8-30-23.zip" --model_save_file "categorical_naive_bayes_without_hand_8-30-23.pkl"`:
+      - This will train on the entire dataset and create a model based on that.
 - Make sure to install all dependencies and run the python file. After running, based on the method executed, there maybe a new model created. Be sure to update the `food_on_fork.yaml` file's model location variable to use the correct model.

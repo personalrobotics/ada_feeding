@@ -134,7 +134,7 @@ def generate_launch_description():
         package="ada_feeding_perception",
         name="food_on_fork",
         executable="food_on_fork",
-        parameters=[food_on_fork_config]
+        parameters=[food_on_fork_config],
     )
     launch_description.add_action(food_on_fork)
 
