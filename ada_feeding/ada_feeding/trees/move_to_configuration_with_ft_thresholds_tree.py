@@ -6,7 +6,6 @@ tree and provides functions to wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
-from functools import partial
 from typing import List, Set
 
 # Third-party imports
@@ -187,8 +186,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             # the watchdog listener back on
             # pylint: disable=duplicate-code
             # This is similar to any other tree that needs to cleanup pre_moveto_config
-            turn_watchdog_listener_on_fn = partial(
-                get_toggle_watchdog_listener_behavior,
+            turn_watchdog_listener_on = get_toggle_watchdog_listener_behavior(
                 name,
                 turn_watchdog_listener_on_prefix,
                 True,
@@ -199,7 +197,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 name=name + " ToggleWatchdogListenerOffScope",
                 pre_behavior=pre_moveto_behavior,
                 workers=[move_to_configuration_root],
-                post_behavior=turn_watchdog_listener_on_fn(),
+                post_behavior=turn_watchdog_listener_on,
             )
         else:
             # Combine them in a sequence with memory
