@@ -362,14 +362,14 @@ class MoveFromMouthTree(MoveToTree):
                 scoped_behavior(
                     name=name + " AllowWheelchairCollisionScope",
                     pre_behavior=allow_wheelchair_collision,
-                    main_behaviors=[move_to_staging_configuration],
-                    post_behavior_fn=gen_disallow_wheelchair_collision,
+                    workers=[move_to_staging_configuration],
+                    post_behavior=gen_disallow_wheelchair_collision(),
                 ),
                 scoped_behavior(
                     name=name + " AddInFrontOfWheelchairWallScope",
                     pre_behavior=add_in_front_of_wheelchair_wall,
-                    main_behaviors=[move_to_end_configuration],
-                    post_behavior_fn=gen_remove_in_front_of_wheelchair_wall,
+                    workers=[move_to_end_configuration],
+                    post_behavior=gen_remove_in_front_of_wheelchair_wall(),
                 ),
             ],
         )

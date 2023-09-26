@@ -203,8 +203,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             root = scoped_behavior(
                 name=name + " ToggleWatchdogListenerOffScope",
                 pre_behavior=pre_moveto_behavior,
-                main_behaviors=[move_to_configuration_root],
-                post_behavior_fn=turn_watchdog_listener_on_fn,
+                workers=[move_to_configuration_root],
+                post_behavior=turn_watchdog_listener_on_fn(),
             )
             root.logger = logger
         else:

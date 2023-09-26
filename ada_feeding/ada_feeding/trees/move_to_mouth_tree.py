@@ -451,16 +451,16 @@ class MoveToMouthTree(MoveToTree):
                 scoped_behavior(
                     name=name + " FaceDetectionOnScope",
                     pre_behavior=turn_face_detection_on,
-                    main_behaviors=[detect_face],
-                    post_behavior_fn=gen_turn_face_detection_off,
+                    workers=[detect_face],
+                    post_behavior=gen_turn_face_detection_off(),
                 ),
                 compute_target_position,
                 move_head,
                 scoped_behavior(
                     name=name + " AllowWheelchairCollisionScope",
                     pre_behavior=allow_wheelchair_collision,
-                    main_behaviors=[move_to_target_pose],
-                    post_behavior_fn=gen_disallow_wheelchair_collision,
+                    workers=[move_to_target_pose],
+                    post_behavior=gen_disallow_wheelchair_collision(),
                 ),
             ],
         )
