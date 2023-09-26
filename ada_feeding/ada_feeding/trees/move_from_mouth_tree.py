@@ -20,7 +20,7 @@ from rclpy.node import Node
 
 # Local imports
 from ada_feeding.behaviors import ModifyCollisionObject, ModifyCollisionObjectOperation
-from ada_feeding.idioms import pre_moveto_config
+from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import (
     get_toggle_collision_object_behavior,
 )
@@ -352,45 +352,24 @@ class MoveFromMouthTree(MoveToTree):
             return retval
 
         # Link all the behaviours together in a sequence with memory
-        move_from_mouth = py_trees.composites.Sequence(
+        root = py_trees.composites.Sequence(
             name=name + " Main",
             memory=True,
             children=[
                 # For now, we only re-tare the F/T sensor once, since no large forces
                 # are expected during transfer.
                 pre_moveto_config_behavior,
-                allow_wheelchair_collision,
-                move_to_staging_configuration,
-                gen_disallow_wheelchair_collision(),
-                add_in_front_of_wheelchair_wall,
-                move_to_end_configuration,
-                gen_remove_in_front_of_wheelchair_wall(),
-            ],
-        )
-        move_from_mouth.logger = logger
-
-        # Create a cleanup branch for the behaviors that should get executed if
-        # the main tree has a failure
-        cleanup_tree = py_trees.composites.Sequence(
-            name=name + " Cleanup",
-            memory=True,
-            children=[
-                gen_disallow_wheelchair_collision(),
-                gen_remove_in_front_of_wheelchair_wall(),
-            ],
-        )
-
-        # If move_from_mouth fails, we still want to do some cleanup (e.g., turn
-        # face detection off).
-        root = py_trees.composites.Selector(
-            name=name,
-            memory=True,
-            children=[
-                move_from_mouth,
-                # Even though we are cleaning up the tree, it should still
-                # pass the failure up.
-                py_trees.decorators.SuccessIsFailure(
-                    name + " Cleanup Root", cleanup_tree
+                scoped_behavior(
+                    name=name + " AllowWheelchairCollisionScope",
+                    pre_behavior=allow_wheelchair_collision,
+                    main_behaviors=[move_to_staging_configuration],
+                    post_behavior_fn=gen_disallow_wheelchair_collision,
+                ),
+                scoped_behavior(
+                    name=name + " AddInFrontOfWheelchairWallScope",
+                    pre_behavior=add_in_front_of_wheelchair_wall,
+                    main_behaviors=[move_to_end_configuration],
+                    post_behavior_fn=gen_remove_in_front_of_wheelchair_wall,
                 ),
             ],
         )
