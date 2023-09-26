@@ -9,7 +9,6 @@ wrap that behaviour tree in a ROS2 action server.
 # that they have similar code.
 
 # Standard imports
-from functools import partial
 from typing import List, Tuple
 
 # Third-party imports
@@ -30,8 +29,10 @@ from ada_feeding.helpers import (
 )
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import (
+    get_add_in_front_of_wheelchair_wall_behavior,
     get_toggle_collision_object_behavior,
     get_toggle_face_detection_behavior,
+    get_remove_in_front_of_wheelchair_wall_behavior,
 )
 from ada_feeding.trees import (
     MoveToTree,
@@ -209,7 +210,9 @@ class MoveToMouthTree(MoveToTree):
         # Separate the namespace of each sub-behavior
         turn_face_detection_on_prefix = "turn_face_detection_on"
         pre_moveto_config_prefix = "pre_moveto_config"
+        add_wheelchair_wall_prefix = "add_wheelchair_wall"
         move_to_staging_configuration_prefix = "move_to_staging_configuration"
+        remove_wheelchair_wall_prefix = "remove_wheelchair_wall"
         get_face_prefix = "get_face"
         check_face_prefix = "check_face"
         compute_target_position_prefix = "compute_target_position"
@@ -237,6 +240,15 @@ class MoveToMouthTree(MoveToTree):
             t_mag=self.torque_threshold,
         )
 
+        # Create the behavior to add the wall in front of the wheelchair
+        in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
+        add_in_front_of_wheelchair_wall = get_add_in_front_of_wheelchair_wall_behavior(
+            name,
+            add_wheelchair_wall_prefix,
+            in_front_of_wheelchair_wall_id,
+            node,
+            self.blackboard,
+        )
         # Create the behaviour to move the robot to the staging configuration
         move_to_staging_configuration_name = Blackboard.separator.join(
             [name, move_to_staging_configuration_prefix]
@@ -261,6 +273,16 @@ class MoveToMouthTree(MoveToTree):
                 node,
             )
             .root
+        )
+
+        # Create the behavior to remove the collision wall between the staging pose and the user.
+        remove_in_front_of_wheelchair_wall = (
+            get_remove_in_front_of_wheelchair_wall_behavior(
+                name,
+                remove_wheelchair_wall_prefix,
+                in_front_of_wheelchair_wall_id,
+                node,
+            )
         )
 
         # Create the behaviour to subscribe to the face detection topic until
@@ -408,8 +430,7 @@ class MoveToMouthTree(MoveToTree):
 
         # Create the behavior to disallow collisions between the robot and the
         # wheelchair collision object.
-        gen_disallow_wheelchair_collision = partial(
-            get_toggle_collision_object_behavior,
+        disallow_wheelchair_collision = get_toggle_collision_object_behavior(
             name,
             disallow_wheelchair_collision_prefix,
             node,
@@ -418,8 +439,7 @@ class MoveToMouthTree(MoveToTree):
         )
 
         # Create the behaviour to turn face detection off
-        gen_turn_face_detection_off = partial(
-            get_toggle_face_detection_behavior,
+        turn_face_detection_off = get_toggle_face_detection_behavior(
             name,
             turn_face_detection_off_prefix,
             False,
@@ -433,12 +453,17 @@ class MoveToMouthTree(MoveToTree):
                 # For now, we only re-tare the F/T sensor once, since no large forces
                 # are expected during transfer.
                 pre_moveto_config_behavior,
-                move_to_staging_configuration,
+                scoped_behavior(
+                    name=name + " InFrontOfWheelchairWallScope",
+                    pre_behavior=add_in_front_of_wheelchair_wall,
+                    workers=[move_to_staging_configuration],
+                    post_behavior=remove_in_front_of_wheelchair_wall,
+                ),
                 scoped_behavior(
                     name=name + " FaceDetectionOnScope",
                     pre_behavior=turn_face_detection_on,
                     workers=[detect_face],
-                    post_behavior=gen_turn_face_detection_off(),
+                    post_behavior=turn_face_detection_off,
                 ),
                 compute_target_position,
                 move_head,
@@ -446,7 +471,7 @@ class MoveToMouthTree(MoveToTree):
                     name=name + " AllowWheelchairCollisionScope",
                     pre_behavior=allow_wheelchair_collision,
                     workers=[move_to_target_pose],
-                    post_behavior=gen_disallow_wheelchair_collision(),
+                    post_behavior=disallow_wheelchair_collision,
                 ),
             ],
         )
