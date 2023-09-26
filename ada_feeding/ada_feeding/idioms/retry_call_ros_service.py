@@ -7,7 +7,6 @@ number of times if there is a failure.
 """
 
 # Standard imports
-import logging
 from typing import Any, List, Optional
 
 # Third-party imports

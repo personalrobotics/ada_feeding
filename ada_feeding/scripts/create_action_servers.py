@@ -362,7 +362,7 @@ class CreateActionServers(Node):
         tree_action_server = self._tree_classes[tree_class](**tree_kwargs)
         # Create and setup the tree once
         tree = tree_action_server.create_tree(
-            server_name, action_type, server_name, self.get_logger(), self
+            server_name, action_type, server_name, self
         )
         self.setup_tree(tree)
         self._trees.append(tree)

@@ -7,7 +7,6 @@ on it, and adds a SetPositionPathConstraint and/or SetOrientationPathConstraint.
 """
 
 # Standard imports
-import logging
 from typing import Set, Tuple, Optional, Union
 
 # Third-party imports

@@ -10,7 +10,6 @@ wrap that behaviour tree in a ROS2 action server.
 
 # Standard imports
 from functools import partial
-import logging
 from typing import List, Tuple
 
 # Third-party imports

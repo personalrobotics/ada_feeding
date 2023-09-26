@@ -6,7 +6,6 @@ wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
-import logging
 from overrides import override
 
 # Third-party imports

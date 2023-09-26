@@ -15,9 +15,7 @@ Specifically, it does the following:
 """
 
 # Standard imports
-import logging
 import operator
-from typing import Optional
 
 # Third-part_y imports
 import py_trees

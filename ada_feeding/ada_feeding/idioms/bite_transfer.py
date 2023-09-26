@@ -6,7 +6,6 @@ transfer, e.g., the MoveToMouth and MoveFromMouth behaviors.
 """
 
 # Standard imports
-import logging
 import operator
 from typing import List
 

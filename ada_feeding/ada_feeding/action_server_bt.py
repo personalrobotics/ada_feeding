@@ -4,7 +4,6 @@ servers with py_trees.
 """
 # Standard imports
 from abc import ABC, abstractmethod
-import logging
 import traceback
 
 # Third-party imports

@@ -6,7 +6,6 @@ wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
-import logging
 
 # Third-party imports
 import py_trees

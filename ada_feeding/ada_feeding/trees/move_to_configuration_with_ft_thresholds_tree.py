@@ -7,7 +7,6 @@ tree and provides functions to wrap that behavior tree in a ROS2 action server.
 
 # Standard imports
 from functools import partial
-import logging
 from typing import List, Set
 
 # Third-party imports

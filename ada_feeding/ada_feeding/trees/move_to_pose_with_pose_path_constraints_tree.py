@@ -6,7 +6,6 @@ provides functions to wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
-import logging
 from typing import Optional, Set, Tuple, Union
 
 # Third-party imports
