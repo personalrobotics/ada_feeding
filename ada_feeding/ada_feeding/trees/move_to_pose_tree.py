@@ -6,7 +6,6 @@ wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
-import logging
 from typing import Optional, Set, Tuple, Union
 
 # Third-party imports
@@ -137,7 +136,6 @@ class MoveToPoseTree(MoveToTree):
         self,
         name: str,
         tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -149,7 +147,6 @@ class MoveToPoseTree(MoveToTree):
         tree_root_name: The name of the tree. This is necessary because sometimes
             trees create subtrees, but still need to track the top-level tree
             name to read/write the correct blackboard variables.
-        logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
 
@@ -427,7 +424,6 @@ class MoveToPoseTree(MoveToTree):
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])
         move_to = MoveTo(move_to_name, tree_root_name, node)
-        move_to.logger = logger
 
         # Add the position goal constraint to the MoveTo behavior
         if self.position is not None:
@@ -437,7 +433,6 @@ class MoveToPoseTree(MoveToTree):
             position_constraint = SetPositionGoalConstraint(
                 position_goal_constaint_name, move_to, node
             )
-            position_constraint.logger = logger
         else:
             position_constraint = move_to
 
@@ -449,7 +444,6 @@ class MoveToPoseTree(MoveToTree):
             orientation_constraint = SetOrientationGoalConstraint(
                 orientation_goal_constraint_name, position_constraint, node
             )
-            orientation_constraint.logger = logger
         else:
             orientation_constraint = position_constraint
 
@@ -461,7 +455,6 @@ class MoveToPoseTree(MoveToTree):
             root = ClearConstraints(
                 clear_constraints_name, orientation_constraint, node
             )
-            root.logger = logger
         else:
             root = orientation_constraint
 

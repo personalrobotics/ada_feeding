@@ -4,7 +4,6 @@ servers with py_trees.
 """
 # Standard imports
 from abc import ABC, abstractmethod
-import logging
 import traceback
 
 # Third-party imports
@@ -29,7 +28,6 @@ class ActionServerBT(ABC):
         name: str,
         action_type: type,
         tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -44,7 +42,6 @@ class ActionServerBT(ABC):
         tree_root_name: The name of the tree. This is necessary because sometimes
             trees create subtrees, but still need to track the top-level tree
             name to read/write the correct blackboard variables.
-        logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
         """

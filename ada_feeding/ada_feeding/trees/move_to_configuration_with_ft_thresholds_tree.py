@@ -7,7 +7,6 @@ tree and provides functions to wrap that behavior tree in a ROS2 action server.
 
 # Standard imports
 from functools import partial
-import logging
 from typing import List, Set
 
 # Third-party imports
@@ -132,7 +131,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self,
         name: str,
         tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -141,7 +139,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         Parameters
         ----------
         name: The name of the behavior tree.
-        logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
 
@@ -166,7 +163,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
                 clear_constraints=self.clear_constraints,
             )
-            .create_tree(name, self.action_type, tree_root_name, logger, node)
+            .create_tree(name, self.action_type, tree_root_name, node)
             .root
         )
 
@@ -183,7 +180,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             t_x=self.t_x,
             t_y=self.t_y,
             t_z=self.t_z,
-            logger=logger,
         )
 
         if self.toggle_watchdog_listener:
@@ -196,7 +192,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 name,
                 turn_watchdog_listener_on_prefix,
                 True,
-                logger,
             )
 
             # Create the main tree
@@ -206,7 +201,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 workers=[move_to_configuration_root],
                 post_behavior=turn_watchdog_listener_on_fn(),
             )
-            root.logger = logger
         else:
             # Combine them in a sequence with memory
             root = py_trees.composites.Sequence(
@@ -214,7 +208,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 memory=True,
                 children=[pre_moveto_behavior, move_to_configuration_root],
             )
-            root.logger = logger
 
         tree = py_trees.trees.BehaviourTree(root)
         return tree

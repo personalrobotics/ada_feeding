@@ -6,7 +6,6 @@ wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
-import logging
 from overrides import override
 
 # Third-party imports
@@ -20,14 +19,13 @@ from ada_feeding import ActionServerBT
 class AcquireFoodTree(MoveToTree):
     """
     A behvaior tree to select and execute an acquisition
-    action (see ada_feeding_msgs.action.AcquisitionSchema) 
+    action (see ada_feeding_msgs.action.AcquisitionSchema)
     for a given food mask in ada_feeding_msgs.action.AcquireFood.
     """
 
     # pylint: disable=too-many-instance-attributes, too-many-arguments
     # Many arguments is fine for this class since it has to be able to configure all parameters
     # of its constraints.
-
 
     def __init__(
         self,
@@ -56,7 +54,6 @@ class AcquireFoodTree(MoveToTree):
     def create_move_to_tree(
         self,
         name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -65,7 +62,6 @@ class AcquireFoodTree(MoveToTree):
         Parameters
         ----------
         name: The name of the behavior tree.
-        logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
 
@@ -86,7 +82,6 @@ class AcquireFoodTree(MoveToTree):
         # TODO: fix is_planning / planning_time in non-MoveTo Behavior
         return feedback_msg
 
-
     # Override result to add other elements to result msg
     @override
     def get_result(self, tree: py_trees.trees.BehaviourTree) -> object:
@@ -95,8 +90,3 @@ class AcquireFoodTree(MoveToTree):
 
         # TODO: add action_index, posthoc, action_select_hash
         return result_msg
-
-
-
-
-        
