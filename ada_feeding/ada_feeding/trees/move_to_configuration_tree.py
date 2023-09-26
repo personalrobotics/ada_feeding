@@ -101,7 +101,6 @@ class MoveToConfigurationTree(MoveToTree):
         self,
         name: str,
         tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -113,7 +112,6 @@ class MoveToConfigurationTree(MoveToTree):
         tree_root_name: The name of the tree. This is necessary because sometimes
             trees create subtrees, but still need to track the top-level tree
             name to read/write the correct blackboard variables.
-        logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
 
@@ -232,7 +230,6 @@ class MoveToConfigurationTree(MoveToTree):
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])
         move_to = MoveTo(move_to_name, tree_root_name, node)
-        move_to.logger = logger
 
         # Add the joint goal constraint to the MoveTo behavior
         joint_goal_constaint_name = Blackboard.separator.join(
@@ -241,7 +238,6 @@ class MoveToConfigurationTree(MoveToTree):
         joint_constraints = SetJointGoalConstraint(
             joint_goal_constaint_name, move_to, node
         )
-        joint_constraints.logger = logger
 
         # Clear the constraints
         if self.clear_constraints:
@@ -249,7 +245,6 @@ class MoveToConfigurationTree(MoveToTree):
                 [name, clear_constraints_namespace_prefix]
             )
             root = ClearConstraints(clear_constraints_name, joint_constraints, node)
-            root.logger = logger
         else:
             root = joint_constraints
 

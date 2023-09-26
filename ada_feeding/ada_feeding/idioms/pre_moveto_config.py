@@ -53,7 +53,6 @@ def pre_moveto_config(
     t_x: float = 0.0,
     t_y: float = 0.0,
     t_z: float = 0.0,
-    logger: Optional[logging.Logger] = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Returns a behavior that calls the ROS services that should be called before
@@ -81,7 +80,6 @@ def pre_moveto_config(
     t_x: The magnitude of the x component of the torque threshold. No threshold if 0.0.
     t_y: The magnitude of the y component of the torque threshold. No threshold if 0.0.
     t_z: The magnitude of the z component of the torque threshold. No threshold if 0.0.
-    logger: The logger for the tree that this behavior is in.
     """
 
     # pylint: disable=too-many-arguments, too-many-locals
@@ -103,7 +101,6 @@ def pre_moveto_config(
                 name,
                 turn_watchdog_listener_off_prefix,
                 False,
-                logger,
             )
             children.append(turn_watchdog_listener_off)
 
@@ -128,7 +125,6 @@ def pre_moveto_config(
                     operator=operator.eq,
                 )
             ],
-            logger=logger,
         )
         children.append(re_tare_ft_sensor)
 
@@ -138,7 +134,6 @@ def pre_moveto_config(
                 name,
                 turn_watchdog_listener_on_prefix,
                 True,
-                logger,
             )
             children.append(turn_watchdog_listener_on)
 
@@ -184,12 +179,10 @@ def pre_moveto_config(
             )
             for i in range(len(ft_threshold_request.parameters))
         ],
-        logger=logger,
     )
     children.append(set_force_torque_thresholds)
 
     # Link all the behaviours together in a sequence with memory
     root = py_trees.composites.Sequence(name=name, memory=True, children=children)
-    root.logger = logger
 
     return root

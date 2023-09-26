@@ -161,7 +161,6 @@ class MoveFromMouthTree(MoveToTree):
         self,
         name: str,
         tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -173,7 +172,6 @@ class MoveFromMouthTree(MoveToTree):
         tree_root_name: The name of the tree. This is necessary because sometimes
             trees create subtrees, but still need to track the top-level tree
             name to read/write the correct blackboard variables.
-        logger: The logger to use for the behaviour tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviours within the tree connect to ROS topics/services/actions.
 
@@ -200,7 +198,6 @@ class MoveFromMouthTree(MoveToTree):
             toggle_watchdog_listener=False,
             f_mag=self.force_threshold,
             t_mag=self.torque_threshold,
-            logger=logger,
         )
 
         # Create the behavior to allow collisions between the robot and the
@@ -214,7 +211,6 @@ class MoveFromMouthTree(MoveToTree):
             node,
             [self.wheelchair_collision_object_id],
             True,
-            logger,
         )
 
         # Create the behaviour to move the robot to the staging configuration
@@ -247,7 +243,6 @@ class MoveFromMouthTree(MoveToTree):
                 move_to_staging_configuration_name,
                 self.action_type,
                 tree_root_name,
-                logger,
                 node,
             )
             .root
@@ -262,7 +257,6 @@ class MoveFromMouthTree(MoveToTree):
             node,
             [self.wheelchair_collision_object_id],
             False,
-            logger,
         )
 
         # Create the behavior to add a collision wall between the staging pose and the user,
@@ -286,7 +280,6 @@ class MoveFromMouthTree(MoveToTree):
             prim_type=in_front_of_wheelchair_wall_prim_type,
             dims=in_front_of_wheelchair_wall_dims,
         )
-        add_in_front_of_wheelchair_wall.logger = logger
         # Write the position, orientation, and frame_id to the blackboard
         position_key = Blackboard.separator.join(
             [add_wheelchair_wall_prefix, "position"]
@@ -334,7 +327,6 @@ class MoveFromMouthTree(MoveToTree):
                 move_to_end_configuration_name,
                 self.action_type,
                 tree_root_name,
-                logger,
                 node,
             )
             .root
@@ -348,7 +340,6 @@ class MoveFromMouthTree(MoveToTree):
                 operation=ModifyCollisionObjectOperation.REMOVE,
                 collision_object_id=in_front_of_wheelchair_wall_id,
             )
-            retval.logger = logger
             return retval
 
         # Link all the behaviours together in a sequence with memory
@@ -373,7 +364,6 @@ class MoveFromMouthTree(MoveToTree):
                 ),
             ],
         )
-        root.logger = logger
 
         # raise Exception(py_trees.display.unicode_blackboard())
 

@@ -57,7 +57,6 @@ class MoveToDummyTree(ActionServerBT):
         name: str,
         action_type: type,
         tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -74,7 +73,6 @@ class MoveToDummyTree(ActionServerBT):
         tree_root_name: The name of the tree. This is necessary because sometimes
             trees create subtrees, but still need to track the top-level tree
             name to read/write the correct blackboard variables.
-        logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
 
@@ -92,7 +90,6 @@ class MoveToDummyTree(ActionServerBT):
         # Create the behaviors in the tree
         if self.tree is None:
             root = MoveToDummy(name, self.dummy_plan_time, self.dummy_motion_time)
-            root.logger = logger
             # Create the tree
             self.tree = py_trees.trees.BehaviourTree(root)
             # Create the blackboard

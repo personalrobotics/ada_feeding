@@ -27,7 +27,6 @@ def get_toggle_collision_object_behavior(
     node: Node,
     collision_object_ids: List[str],
     allow: bool,
-    logger: logging.Logger,
 ) -> py_trees.behaviour.Behaviour:
     """
     Creates a behaviour that toggles a collision object.
@@ -39,7 +38,6 @@ def get_toggle_collision_object_behavior(
     node: The ROS2 node that this behaviour belongs to.
     collision_object_ids: The IDs of the collision object to toggle.
     allow: Whether to allow or disallow the collision object.
-    logger: The logger to use for the behaviour.
 
     Returns
     -------
@@ -56,7 +54,6 @@ def get_toggle_collision_object_behavior(
         collision_object_ids=collision_object_ids,
         allow=allow,
     )
-    toggle_collision_object.logger = logger
     return toggle_collision_object
 
 
@@ -64,7 +61,6 @@ def get_toggle_face_detection_behavior(
     tree_name: str,
     behavior_name_prefix: str,
     request_data: bool,
-    logger: logging.Logger,
 ) -> py_trees.behaviour.Behaviour:
     """
     Creates a behaviour that toggles face detection.
@@ -75,7 +71,6 @@ def get_toggle_face_detection_behavior(
     behavior_name_prefix: The prefix for the name of the behaviour.
     request_data: The request data to send to the toggle_face_detection service.
         True to turn it on, False otherwise.
-    logger: The logger to use for the behaviour.
 
     Returns
     -------
@@ -97,7 +92,6 @@ def get_toggle_face_detection_behavior(
                 operator=operator.eq,
             )
         ],
-        logger=logger,
     )
     return toggle_face_detection_behavior
 
@@ -106,7 +100,6 @@ def get_toggle_watchdog_listener_behavior(
     tree_name: str,
     behavior_name_prefix: str,
     request_data: bool,
-    logger: logging.Logger,
 ) -> py_trees.behaviour.Behaviour:
     """
     Creates a behaviour that toggles the watchdog listener.
@@ -117,7 +110,6 @@ def get_toggle_watchdog_listener_behavior(
     behavior_name_prefix: The prefix for the name of the behaviour.
     request_data: The request data to send to the toggle_watchdog_listener service.
         True to turn it on, False otherwise.
-    logger: The logger to use for the behaviour.
 
     Returns
     -------
@@ -143,6 +135,5 @@ def get_toggle_watchdog_listener_behavior(
                 operator=operator.eq,
             )
         ],
-        logger=logger,
     )
     return toggle_watchdog_listener

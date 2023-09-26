@@ -130,7 +130,6 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         self,
         name: str,
         tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -142,7 +141,6 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         tree_root_name: The name of the tree. This is necessary because sometimes
             trees create subtrees, but still need to track the top-level tree
             name to read/write the correct blackboard variables.
-        logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
 
@@ -165,7 +163,7 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
                 clear_constraints=False,
             )
-            .create_tree(name, self.action_type, tree_root_name, logger, node)
+            .create_tree(name, self.action_type, tree_root_name, node)
             .root
         )
 
@@ -174,7 +172,6 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
             child=move_to_configuration_root,
             name=name,
             blackboard=self.blackboard,
-            logger=logger,
             keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
             position_path=self.position_path,
             quat_xyzw_path=self.quat_xyzw_path,

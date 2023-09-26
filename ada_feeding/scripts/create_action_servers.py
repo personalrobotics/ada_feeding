@@ -310,6 +310,26 @@ class CreateActionServers(Node):
         self.get_logger().info("Received cancel request, accepting")
         return CancelResponse.ACCEPT
 
+    def setup_tree(self, tree: py_trees.trees.BehaviourTree) -> None:
+        """
+        Runs the initial setup on a behavior tree after creating it.
+
+        Specifically, this function: (1) sets every behavior's logger
+        to be the node's logger; and (2) calls teh tree's `setup` function.
+
+        Parameters
+        ----------
+        tree: The behavior tree to setup.
+        """
+
+        # Set every behavior's logger to be the node's logger
+        for node in tree.root.iterate():
+            node.logger = self.get_logger()
+
+        # Call the tree's setup function
+        # TODO: consider adding a timeout here
+        tree.setup(node=self)
+
     # pylint: disable=too-many-arguments
     # This is appropriate
     def get_execute_callback(
@@ -344,7 +364,7 @@ class CreateActionServers(Node):
         tree = tree_action_server.create_tree(
             server_name, action_type, server_name, self.get_logger(), self
         )
-        tree.setup(node=self)  # TODO: consider adding a timeout here
+        self.setup_tree(tree)
         self._trees.append(tree)
 
         async def execute_callback(goal_handle: ServerGoalHandle) -> Awaitable:
