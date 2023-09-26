@@ -38,6 +38,7 @@ class ClearConstraints(MoveToConstraint):
         ----------
         name: The name of the behavior.
         child: The child behavior.
+        node: The ROS node to associate the service call with.
         """
         # Initiatilize the decorator
         super().__init__(name=name, child=child)

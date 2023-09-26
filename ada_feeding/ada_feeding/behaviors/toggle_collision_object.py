@@ -51,7 +51,6 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
         super().__init__(name=name)
 
         # Store parameters
-        self.node = node
         self.collision_object_ids = collision_object_ids
         self.allow = allow
 
@@ -61,7 +60,7 @@ class ToggleCollisionObject(py_trees.behaviour.Behaviour):
         )
         self.moveit2, self.moveit2_lock = get_moveit2_object(
             self.blackboard,
-            self.node,
+            node,
         )
 
     # pylint: disable=attribute-defined-outside-init
