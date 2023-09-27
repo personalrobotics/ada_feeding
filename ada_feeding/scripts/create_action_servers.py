@@ -203,7 +203,7 @@ class CreateActionServers(Node):
                 tree_kwargs = {}
 
             if action_type.value is None or tree_class.value is None:
-                self.get_logger().warn(
+                self.get_logger().warning(
                     f"Skipping action server {server_name} "
                     "because it has no action type or tree class"
                 )
@@ -256,7 +256,7 @@ class CreateActionServers(Node):
                     self._tree_classes[params.tree_class], ActionServerBT
                 ), f"Tree {params.tree_class} must subclass ActionServerBT"
             except AssertionError:
-                self.get_logger().warn(
+                self.get_logger().warning(
                     f"{traceback.format_exc()}\nSKIPPING THIS ACTION SERVER"
                 )
 
@@ -407,7 +407,7 @@ class CreateActionServers(Node):
 
                         # Check if the watchdog has failed
                         if not self.watchdog_listener.ok():
-                            self.get_logger().warn("Watchdog failed, aborting goal")
+                            self.get_logger().warning("Watchdog failed, aborting goal")
                             tree_action_server.preempt_goal(
                                 tree
                             )  # blocks until the preempt succeeds

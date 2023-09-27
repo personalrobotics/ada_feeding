@@ -87,7 +87,7 @@ class ActionServerBT(ABC):
             tree.root.stop(py_trees.common.Status.INVALID)
             return True
         except Exception:
-            tree.root.logger.warn(f"Failed to preempt goal \n{traceback.format_exc()}")
+            tree.root.logger.warning(f"Failed to preempt goal \n{traceback.format_exc()}")
             return False
 
     @abstractmethod

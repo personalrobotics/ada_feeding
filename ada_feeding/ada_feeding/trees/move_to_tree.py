@@ -225,7 +225,7 @@ class MoveToTree(ActionServerBT, ABC):
         # If the tree is running, the fact that `get_result` was called is
         # indicative of an error. Return unknown error.
         else:
-            tree.root.logger.warn(
+            tree.root.logger.warning(
                 f"Called get_result with status RUNNING: {tree.root.status}"
             )
             result.status = result.STATUS_UNKNOWN
