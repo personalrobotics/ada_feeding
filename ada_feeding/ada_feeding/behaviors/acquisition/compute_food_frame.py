@@ -35,10 +35,11 @@ class ComputeFoodFrame(py_trees.behaviour.Behaviour):
     def update(self) -> py_trees.common.Status:
         pass
 
+
 class FlipFoodFrame(py_trees.behavior.Behavior):
     """
     TODO
-    Take the food frame from the blackboard and 
+    Take the food frame from the blackboard and
     rotate it PI about the world frame +Z axis.
     """
 
