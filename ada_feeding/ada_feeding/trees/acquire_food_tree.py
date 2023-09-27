@@ -36,6 +36,7 @@ class AcquireFoodTree(MoveToTree):
     def create_move_to_tree(
         self,
         name: str,
+        tree_root_name: str,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -43,7 +44,10 @@ class AcquireFoodTree(MoveToTree):
 
         Parameters
         ----------
-        name: The name of the behavior tree.
+        name: The name of the behavior tree. (DEPRECATED)
+        tree_root_name: The name of the tree. This is necessary because sometimes
+            trees create subtrees, but still need to track the top-level tree
+            name to read/write the correct blackboard variables. (DEPRECATED)
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
 
@@ -95,7 +99,6 @@ class AcquireFoodTree(MoveToTree):
         )
 
         ### Return tree
-        root_seq.logger = logger
         return py_trees.trees.BehaviourTree(root_seq)
 
     # Override goal to read arguments into local blackboard

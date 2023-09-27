@@ -131,7 +131,7 @@ class ComputeFoodFrame(BlackboardBehavior):
         elif camera_info.distortion_model == "equidistant":
             self.intrinsics.model = pyrealsense2.distortion.kannala_brandt4
         else:
-            self.get_logger().warn(f"Unsupported camera distortion model: {camera_info.distortion_model}")
+            self.logger.warn(f"Unsupported camera distortion model: {camera_info.distortion_model}")
             self.intrinsics.model = pyrealsense2.distortion.none
         self.intrinsics.coeffs = list(camera_info.d)
 
@@ -172,7 +172,6 @@ class ComputeFoodFrame(BlackboardBehavior):
                 camera_frame,
                 rclpy.time.Time(),
             )
-        debug_start_time = node.get_clock().now()
 
         # Set up return objects
         world_to_food_transform = TransformStamped()
@@ -255,8 +254,5 @@ class ComputeFoodFrame(BlackboardBehavior):
         request = AcquisitionSelect.Request()
         request.food_context = mask
         self.blackboard_set("action_select_request", request)
-
-        debug_duration = node.get_clock().now() - debug_start_time
-        self.get_logger().error(f"Debug Duration: {debug_duration}")
 
         return py_trees.common.Status.SUCCESS
