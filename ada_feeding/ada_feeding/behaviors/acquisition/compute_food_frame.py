@@ -17,14 +17,12 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo
 import tf2_ros
-from tf2_ros.buffer import Buffer
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
-from tf2_ros.transform_listener import TransformListener
 
 # Local imports
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_msgs.srv import AcquisitionSelect
-from ada_feeding.helpers import BlackboardKey, quat_between_vectors
+from ada_feeding.helpers import BlackboardKey, quat_between_vectors, get_tf_object
 from ada_feeding.behaviors import BlackboardBehavior
 from ada_feeding_perception.helpers import ros_msg_to_cv2_image
 
@@ -32,6 +30,7 @@ from ada_feeding_perception.helpers import ros_msg_to_cv2_image
 class ComputeFoodFrame(BlackboardBehavior):
     """
     Computes the food reference frame.
+    See definition in AcquisitionSchema.msg
     """
 
     # pylint: disable=arguments-differ
@@ -96,19 +95,19 @@ class ComputeFoodFrame(BlackboardBehavior):
             **{key: value for key, value in locals().items() if key != "self"}
         )
 
-    # pylint: disable=attribute-defined-outside-init
-    # It is okay for attributes in behaviors to be
-    # defined in the setup / initialise functions.
-
     def setup(self, **kwargs):
         """
         Middleware (i.e. TF) setup
         """
 
-        # Create TF Tree
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(
-            self.tf_buffer, self.blackboard_get("ros2_node")
+        # pylint: disable=attribute-defined-outside-init
+        # It is okay for attributes in behaviors to be
+        # defined in the setup / initialise functions.
+
+        # Get TF Listener from blackboard
+        self.tf_buffer, _, self.tf_lock = get_tf_object(
+            self.blackboard, 
+            self.blackboard_get("ros2_node")
         )
 
     def initialise(self):
@@ -132,6 +131,7 @@ class ComputeFoodFrame(BlackboardBehavior):
         elif camera_info.distortion_model == "equidistant":
             self.intrinsics.model = pyrealsense2.distortion.kannala_brandt4
         else:
+            self.get_logger().warn(f"Unsupported camera distortion model: {camera_info.distortion_model}")
             self.intrinsics.model = pyrealsense2.distortion.none
         self.intrinsics.coeffs = list(camera_info.d)
 
@@ -149,26 +149,35 @@ class ComputeFoodFrame(BlackboardBehavior):
 
         camera_frame = self.blackboard_get("camera_info").header.frame_id
         node = self.blackboard_get("ros2_node")
+        world_frame = self.blackboard_get("world_frame")
 
-        # Check if we have the camera transform
-        if not self.tf_buffer.can_transform(
-            self.blackboard_get("world_frame"),
-            camera_frame,
-            rclpy.time.Time(),
-        ):
+        # Lock TF Buffer
+        if self.tf_lock.locked():
             # Not yet, wait for it
             # Use a Timeout decorator to determine failure.
             return py_trees.common.Status.RUNNING
-        transform = self.tf_buffer.lookup_transform(
-            self.blackboard_get("world_frame"),
-            camera_frame,
-            rclpy.time.Time(),
-        )
+        transform = None
+        with self.tf_lock:
+            # Check if we have the camera transform
+            if not self.tf_buffer.can_transform(
+                world_frame,
+                camera_frame,
+                rclpy.time.Time(),
+            ):
+                # Not yet, wait for it
+                # Use a Timeout decorator to determine failure.
+                return py_trees.common.Status.RUNNING
+            transform = self.tf_buffer.lookup_transform(
+                world_frame,
+                camera_frame,
+                rclpy.time.Time(),
+            )
+        debug_start_time = node.get_clock().now()
 
         # Set up return objects
         world_to_food_transform = TransformStamped()
         world_to_food_transform.header.stamp = node.get_clock().now().to_msg()
-        world_to_food_transform.header.frame_id = self.blackboard_get("world_frame")
+        world_to_food_transform.header.frame_id = world_frame
         world_to_food_transform.child_frame_id = self.blackboard_get("debug_food_frame")
 
         # De-project center of ROI
@@ -241,10 +250,13 @@ class ComputeFoodFrame(BlackboardBehavior):
         if len(self.blackboard_get("debug_food_frame")) > 0:
             stb = StaticTransformBroadcaster(self.blackboard_get("ros2_node"))
             stb.sendTransform(world_to_food_transform)
-            self.blackboard_write("debug_tf_publisher", stb)
-        self.blackboard_write("food_frame", world_to_food_transform)
+            self.blackboard_set("debug_tf_publisher", stb)
+        self.blackboard_set("food_frame", world_to_food_transform)
         request = AcquisitionSelect.Request()
         request.food_context = mask
-        self.blackboard_write("action_select_request", request)
+        self.blackboard_set("action_select_request", request)
+
+        debug_duration = node.get_clock().now() - debug_start_time
+        self.get_logger().error(f"Debug Duration: {debug_duration}")
 
         return py_trees.common.Status.SUCCESS
