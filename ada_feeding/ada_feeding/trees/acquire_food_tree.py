@@ -6,7 +6,6 @@ wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
-import logging
 from overrides import override
 
 # Third-party imports
@@ -30,14 +29,13 @@ class AcquireFoodTree(MoveToTree):
     # pylint: disable=too-many-instance-attributes, too-many-arguments
     # Many arguments is fine for this class since it has to be able to configure all parameters
     # of its constraints.
+
     # pylint: disable=too-many-locals
     # Unfortunately, many local variables are required here to isolate the keys
     # of similar constraints in the blackboard.
     def create_move_to_tree(
         self,
         name: str,
-        tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -45,9 +43,7 @@ class AcquireFoodTree(MoveToTree):
 
         Parameters
         ----------
-        name: The name of the behavior tree. (DEPRECATED)
-        tree_root_name: Name of the parent root tree (DEPRECATED)
-        logger: The logger to use for the behavior tree.
+        name: The name of the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
 

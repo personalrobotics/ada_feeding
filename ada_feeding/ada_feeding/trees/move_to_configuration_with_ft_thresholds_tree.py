@@ -6,7 +6,6 @@ tree and provides functions to wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
-import logging
 from typing import List, Set
 
 # Third-party imports
@@ -14,7 +13,7 @@ import py_trees
 from rclpy.node import Node
 
 # Local imports
-from ada_feeding.idioms import pre_moveto_config
+from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import get_toggle_watchdog_listener_behavior
 from ada_feeding.trees import MoveToTree, MoveToConfigurationTree
 
@@ -23,6 +22,9 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
     """
     A behavior tree that moves the robot to a specified configuration, after
     re-taring the FT sensor and setting specific FT thresholds.
+
+    TODO: Add the ability to pass force-torque thresholds to revert after the
+    motion, and then set the force-torque thresholds in the scoped behavior.
     """
 
     # pylint: disable=too-many-instance-attributes, too-many-arguments
@@ -128,7 +130,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self,
         name: str,
         tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -137,7 +138,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         Parameters
         ----------
         name: The name of the behavior tree.
-        logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
 
@@ -162,7 +162,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
                 clear_constraints=self.clear_constraints,
             )
-            .create_tree(name, self.action_type, tree_root_name, logger, node)
+            .create_tree(name, self.action_type, tree_root_name, node)
             .root
         )
 
@@ -179,16 +179,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             t_x=self.t_x,
             t_y=self.t_y,
             t_z=self.t_z,
-            logger=logger,
         )
-
-        # Combine them in a sequence with memory
-        main_tree = py_trees.composites.Sequence(
-            name=name,
-            memory=True,
-            children=[pre_moveto_behavior, move_to_configuration_root],
-        )
-        main_tree.logger = logger
 
         if self.toggle_watchdog_listener:
             # If there was a failure in the main tree, we want to ensure to turn
@@ -199,29 +190,22 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 name,
                 turn_watchdog_listener_on_prefix,
                 True,
-                logger,
             )
 
-            # Create a cleanup branch for the behaviors that should get executed if
-            # the main tree has a failure
-            cleanup_tree = turn_watchdog_listener_on
-
-            # If main_tree fails, we still want to do some cleanup.
-            root = py_trees.composites.Selector(
+            # Create the main tree
+            root = scoped_behavior(
+                name=name + " ToggleWatchdogListenerOffScope",
+                pre_behavior=pre_moveto_behavior,
+                workers=[move_to_configuration_root],
+                post_behavior=turn_watchdog_listener_on,
+            )
+        else:
+            # Combine them in a sequence with memory
+            root = py_trees.composites.Sequence(
                 name=name,
                 memory=True,
-                children=[
-                    main_tree,
-                    # Even though we are cleaning up the tree, it should still
-                    # pass the failure up.
-                    py_trees.decorators.SuccessIsFailure(
-                        name + " Cleanup Root", cleanup_tree
-                    ),
-                ],
+                children=[pre_moveto_behavior, move_to_configuration_root],
             )
-            root.logger = logger
-        else:
-            root = main_tree
 
         tree = py_trees.trees.BehaviourTree(root)
         return tree

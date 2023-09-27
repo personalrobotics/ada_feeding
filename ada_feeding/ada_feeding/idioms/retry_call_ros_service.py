@@ -7,7 +7,6 @@ number of times if there is a failure.
 """
 
 # Standard imports
-import logging
 from typing import Any, List, Optional
 
 # Third-party imports
@@ -26,7 +25,6 @@ def retry_call_ros_service(
     response_checks: Optional[List[py_trees.common.ComparisonExpression]] = None,
     max_retries: int = 3,
     wait_for_server_timeout_sec: float = 0.0,
-    logger: Optional[logging.Logger] = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Creates a behavior that calls a ROS service and optionally checkes the response.
@@ -53,7 +51,6 @@ def retry_call_ros_service(
     max_retries: The maximum number of retries.
     wait_for_server_timeout_sec: The timeout for waiting for the server to be
         available.
-    logger: The logger for the tree that this behavior is in.
     """
 
     # pylint: disable=too-many-arguments, too-many-locals
@@ -92,8 +89,6 @@ def retry_call_ros_service(
             **call_ros_service_behavior_params,
             key_request=key_request,
         )
-    if logger is not None:
-        call_ros_service_behavior.logger = logger
 
     # Create the check response behavior
     if response_checks is not None:
@@ -107,8 +102,6 @@ def retry_call_ros_service(
                 name=check_response_behavior_name,
                 check=response_check,
             )
-            if logger is not None:
-                check_response_behavior.logger = logger
             children.append(check_response_behavior)
 
         # Chain the behaviours together in a sequence
@@ -117,8 +110,6 @@ def retry_call_ros_service(
             memory=True,
             children=children,
         )
-        if logger is not None:
-            child.logger = logger
     else:
         child = call_ros_service_behavior
 
@@ -128,6 +119,4 @@ def retry_call_ros_service(
         child=child,
         num_failures=max_retries,
     )
-    if logger is not None:
-        retry_behavior.logger = logger
     return retry_behavior

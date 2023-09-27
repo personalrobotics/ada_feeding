@@ -11,7 +11,6 @@ Subclasses should only need to define create_move_to_tree.
 
 # Standard imports
 from abc import ABC, abstractmethod
-import logging
 
 # Third-party imports
 import py_trees
@@ -36,7 +35,6 @@ class MoveToTree(ActionServerBT, ABC):
         name: str,
         action_type: type,
         tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -49,7 +47,6 @@ class MoveToTree(ActionServerBT, ABC):
         tree_root_name: The name of the tree. This is necessary because sometimes
             trees create subtrees, but still need to track the top-level tree
             name to read/write the correct blackboard variables.
-        logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
 
@@ -66,7 +63,7 @@ class MoveToTree(ActionServerBT, ABC):
         # Import the action type
         self.action_type = action_type
 
-        return self.create_move_to_tree(name, tree_root_name, logger, node)
+        return self.create_move_to_tree(name, tree_root_name, node)
 
     def create_blackboard(self, name: str, tree_root_name: str) -> None:
         """
@@ -114,7 +111,6 @@ class MoveToTree(ActionServerBT, ABC):
         self,
         name: str,
         tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -130,7 +126,6 @@ class MoveToTree(ActionServerBT, ABC):
         tree_root_name: The name of the tree. This is necessary because sometimes
             trees create subtrees, but still need to track the top-level tree
             name to read/write the correct blackboard variables.
-        logger: The logger to use for the behavior tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviors within the tree connect to ROS topics/services/actions.
 

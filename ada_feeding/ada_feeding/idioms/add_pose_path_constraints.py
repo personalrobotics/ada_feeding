@@ -7,7 +7,6 @@ on it, and adds a SetPositionPathConstraint and/or SetOrientationPathConstraint.
 """
 
 # Standard imports
-import logging
 from typing import Set, Tuple, Optional, Union
 
 # Third-party imports
@@ -40,7 +39,6 @@ def add_pose_path_constraints(
     child: py_trees.behaviour.Behaviour,
     name: str,
     blackboard: py_trees.blackboard.Blackboard,
-    logger: logging.Logger,
     node: Node,
     keys_to_not_write_to_blackboard: Set[str] = set(),
     # Optional parameters for the pose path constraint
@@ -66,7 +64,6 @@ def add_pose_path_constraints(
     child: The child behavior. Must be an instance of MoveTo or MoveToConstraint.
     name: The name for the tree that this behavior is in.
     blackboard: The blackboard for the tree that this behavior is in.
-    logger: The logger for the tree that this behavior is in.
     node: The ROS2 node that the MoveIt2 object is associated with.
     keys_to_not_write_to_blackboard: the keys to not write to the blackboard.
         Note that the keys need to be exact e.g., "move_to.cartesian,"
@@ -242,7 +239,6 @@ def add_pose_path_constraints(
         position_constraint = SetPositionPathConstraint(
             position_path_constaint_name, child, node
         )
-        position_constraint.logger = logger
     else:
         position_constraint = child
 
@@ -254,7 +250,6 @@ def add_pose_path_constraints(
         orientation_constraint = SetOrientationPathConstraint(
             orientation_goal_constaint_name, position_constraint, node
         )
-        orientation_constraint.logger = logger
     else:
         orientation_constraint = position_constraint
 
@@ -266,7 +261,6 @@ def add_pose_path_constraints(
         clear_constraints_behavior = ClearConstraints(
             clear_constraints_name, orientation_constraint, node
         )
-        clear_constraints_behavior.logger = logger
     else:
         clear_constraints_behavior = orientation_constraint
 

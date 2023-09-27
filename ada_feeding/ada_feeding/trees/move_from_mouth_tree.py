@@ -9,8 +9,6 @@ wrap that behaviour tree in a ROS2 action server.
 # that they have similar code.
 
 # Standard imports
-from functools import partial
-import logging
 from typing import List, Tuple
 
 # Third-party imports
@@ -19,9 +17,11 @@ from py_trees.blackboard import Blackboard
 from rclpy.node import Node
 
 # Local imports
-from ada_feeding.idioms import pre_moveto_config
+from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import (
+    get_add_in_front_of_wheelchair_wall_behavior,
     get_toggle_collision_object_behavior,
+    get_remove_in_front_of_wheelchair_wall_behavior,
 )
 from ada_feeding.trees import (
     MoveToTree,
@@ -160,7 +160,6 @@ class MoveFromMouthTree(MoveToTree):
         self,
         name: str,
         tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -172,7 +171,6 @@ class MoveFromMouthTree(MoveToTree):
         tree_root_name: The name of the tree. This is necessary because sometimes
             trees create subtrees, but still need to track the top-level tree
             name to read/write the correct blackboard variables.
-        logger: The logger to use for the behaviour tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviours within the tree connect to ROS topics/services/actions.
 
@@ -185,8 +183,10 @@ class MoveFromMouthTree(MoveToTree):
         pre_moveto_config_prefix = "pre_moveto_config"
         allow_wheelchair_collision_prefix = "allow_wheelchair_collision"
         move_to_staging_configuration_prefix = "move_to_staging_configuration"
+        add_wheelchair_wall_prefix = "add_wheelchair_wall"
         disallow_wheelchair_collision_prefix = "disallow_wheelchair_collision"
         move_to_end_configuration_prefix = "move_to_end_configuration"
+        remove_wheelchair_wall_prefix = "remove_wheelchair_wall"
 
         # Configure the force-torque sensor and thresholds before moving
         pre_moveto_config_name = Blackboard.separator.join(
@@ -197,7 +197,6 @@ class MoveFromMouthTree(MoveToTree):
             toggle_watchdog_listener=False,
             f_mag=self.force_threshold,
             t_mag=self.torque_threshold,
-            logger=logger,
         )
 
         # Create the behavior to allow collisions between the robot and the
@@ -209,9 +208,8 @@ class MoveFromMouthTree(MoveToTree):
             name,
             allow_wheelchair_collision_prefix,
             node,
-            self.wheelchair_collision_object_id,
+            [self.wheelchair_collision_object_id],
             True,
-            logger,
         )
 
         # Create the behaviour to move the robot to the staging configuration
@@ -244,7 +242,6 @@ class MoveFromMouthTree(MoveToTree):
                 move_to_staging_configuration_name,
                 self.action_type,
                 tree_root_name,
-                logger,
                 node,
             )
             .root
@@ -252,14 +249,22 @@ class MoveFromMouthTree(MoveToTree):
 
         # Create the behavior to disallow collisions between the robot and the
         # wheelchair collision object.
-        gen_disallow_wheelchair_collision = partial(
-            get_toggle_collision_object_behavior,
+        disallow_wheelchair_collision = get_toggle_collision_object_behavior(
             name,
             disallow_wheelchair_collision_prefix,
             node,
-            self.wheelchair_collision_object_id,
+            [self.wheelchair_collision_object_id],
             False,
-            logger,
+        )
+
+        # Create the behavior to add the wall in front of the wheelchair
+        in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
+        add_in_front_of_wheelchair_wall = get_add_in_front_of_wheelchair_wall_behavior(
+            name,
+            add_wheelchair_wall_prefix,
+            in_front_of_wheelchair_wall_id,
+            node,
+            self.blackboard,
         )
 
         # Create the behaviour to move the robot to the end configuration
@@ -283,47 +288,43 @@ class MoveFromMouthTree(MoveToTree):
                 move_to_end_configuration_name,
                 self.action_type,
                 tree_root_name,
-                logger,
                 node,
             )
             .root
         )
 
+        # Create the behavior to remove the collision wall between the staging pose and the user.
+        remove_in_front_of_wheelchair_wall = (
+            get_remove_in_front_of_wheelchair_wall_behavior(
+                name,
+                remove_wheelchair_wall_prefix,
+                in_front_of_wheelchair_wall_id,
+                node,
+            )
+        )
+
         # Link all the behaviours together in a sequence with memory
-        move_from_mouth = py_trees.composites.Sequence(
+        root = py_trees.composites.Sequence(
             name=name + " Main",
             memory=True,
             children=[
                 # For now, we only re-tare the F/T sensor once, since no large forces
                 # are expected during transfer.
                 pre_moveto_config_behavior,
-                allow_wheelchair_collision,
-                move_to_staging_configuration,
-                gen_disallow_wheelchair_collision(),
-                move_to_end_configuration,
-            ],
-        )
-        move_from_mouth.logger = logger
-
-        # Create a cleanup branch for the behaviors that should get executed if
-        # the main tree has a failure
-        cleanup_tree = gen_disallow_wheelchair_collision()
-
-        # If move_from_mouth fails, we still want to do some cleanup (e.g., turn
-        # face detection off).
-        root = py_trees.composites.Selector(
-            name=name,
-            memory=True,
-            children=[
-                move_from_mouth,
-                # Even though we are cleaning up the tree, it should still
-                # pass the failure up.
-                py_trees.decorators.SuccessIsFailure(
-                    name + " Cleanup Root", cleanup_tree
+                scoped_behavior(
+                    name=name + " AllowWheelchairCollisionScope",
+                    pre_behavior=allow_wheelchair_collision,
+                    workers=[move_to_staging_configuration],
+                    post_behavior=disallow_wheelchair_collision,
+                ),
+                scoped_behavior(
+                    name=name + " AddInFrontOfWheelchairWallScope",
+                    pre_behavior=add_in_front_of_wheelchair_wall,
+                    workers=[move_to_end_configuration],
+                    post_behavior=remove_in_front_of_wheelchair_wall,
                 ),
             ],
         )
-        root.logger = logger
 
         # raise Exception(py_trees.display.unicode_blackboard())
 

@@ -9,8 +9,6 @@ wrap that behaviour tree in a ROS2 action server.
 # that they have similar code.
 
 # Standard imports
-from functools import partial
-import logging
 from typing import List, Tuple
 
 # Third-party imports
@@ -23,15 +21,18 @@ from rclpy.node import Node
 from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding.behaviors import (
     ComputeMoveToMouthPosition,
-    MoveCollisionObject,
+    ModifyCollisionObject,
+    ModifyCollisionObjectOperation,
 )
 from ada_feeding.helpers import (
     POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
 )
-from ada_feeding.idioms import pre_moveto_config
+from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import (
+    get_add_in_front_of_wheelchair_wall_behavior,
     get_toggle_collision_object_behavior,
     get_toggle_face_detection_behavior,
+    get_remove_in_front_of_wheelchair_wall_behavior,
 )
 from ada_feeding.trees import (
     MoveToTree,
@@ -183,7 +184,6 @@ class MoveToMouthTree(MoveToTree):
         self,
         name: str,
         tree_root_name: str,
-        logger: logging.Logger,
         node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
@@ -195,7 +195,6 @@ class MoveToMouthTree(MoveToTree):
         tree_root_name: The name of the tree. This is necessary because sometimes
             trees create subtrees, but still need to track the top-level tree
             name to read/write the correct blackboard variables.
-        logger: The logger to use for the behaviour tree.
         node: The ROS2 node that this tree is associated with. Necessary for
             behaviours within the tree connect to ROS topics/services/actions.
 
@@ -211,7 +210,9 @@ class MoveToMouthTree(MoveToTree):
         # Separate the namespace of each sub-behavior
         turn_face_detection_on_prefix = "turn_face_detection_on"
         pre_moveto_config_prefix = "pre_moveto_config"
+        add_wheelchair_wall_prefix = "add_wheelchair_wall"
         move_to_staging_configuration_prefix = "move_to_staging_configuration"
+        remove_wheelchair_wall_prefix = "remove_wheelchair_wall"
         get_face_prefix = "get_face"
         check_face_prefix = "check_face"
         compute_target_position_prefix = "compute_target_position"
@@ -226,7 +227,6 @@ class MoveToMouthTree(MoveToTree):
             name,
             turn_face_detection_on_prefix,
             True,
-            logger,
         )
 
         # Configure the force-torque sensor and thresholds before moving
@@ -238,9 +238,17 @@ class MoveToMouthTree(MoveToTree):
             toggle_watchdog_listener=False,
             f_mag=self.force_threshold,
             t_mag=self.torque_threshold,
-            logger=logger,
         )
 
+        # Create the behavior to add the wall in front of the wheelchair
+        in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
+        add_in_front_of_wheelchair_wall = get_add_in_front_of_wheelchair_wall_behavior(
+            name,
+            add_wheelchair_wall_prefix,
+            in_front_of_wheelchair_wall_id,
+            node,
+            self.blackboard,
+        )
         # Create the behaviour to move the robot to the staging configuration
         move_to_staging_configuration_name = Blackboard.separator.join(
             [name, move_to_staging_configuration_prefix]
@@ -262,10 +270,19 @@ class MoveToMouthTree(MoveToTree):
                 move_to_staging_configuration_name,
                 self.action_type,
                 tree_root_name,
-                logger,
                 node,
             )
             .root
+        )
+
+        # Create the behavior to remove the collision wall between the staging pose and the user.
+        remove_in_front_of_wheelchair_wall = (
+            get_remove_in_front_of_wheelchair_wall_behavior(
+                name,
+                remove_wheelchair_wall_prefix,
+                in_front_of_wheelchair_wall_id,
+                node,
+            )
         )
 
         # Create the behaviour to subscribe to the face detection topic until
@@ -283,7 +300,6 @@ class MoveToMouthTree(MoveToTree):
                 "face_detection": FaceDetection(),
             },
         )
-        get_face.logger = logger
         check_face_name = Blackboard.separator.join([name, check_face_prefix])
         check_face = py_trees.decorators.FailureIsRunning(
             name=check_face_name,
@@ -296,7 +312,6 @@ class MoveToMouthTree(MoveToTree):
                 ),
             ),
         )
-        check_face.logger = logger
         detect_face = py_trees.composites.Sequence(
             name=name,
             memory=False,
@@ -305,7 +320,6 @@ class MoveToMouthTree(MoveToTree):
                 check_face,
             ],
         )
-        detect_face.logger = logger
 
         # Create the behaviour to compute the target pose for the robot's end
         # effector
@@ -330,20 +344,19 @@ class MoveToMouthTree(MoveToTree):
             target_position_frame_id="j2n6s200_link_base",
             target_position_offset=target_position_offset,
         )
-        compute_target_position.logger = logger
 
         # Create the behavior to move the head in the collision scene to the mouth
         # position. For now, assume the head is always perpendicular to the back
         # of the wheelchair.
-        move_head = MoveCollisionObject(
+        move_head = ModifyCollisionObject(
             name=Blackboard.separator.join([name, move_head_prefix]),
             node=node,
+            operation=ModifyCollisionObjectOperation.MOVE,
             collision_object_id=self.head_object_id,
             collision_object_position_input_key=target_position_output_key,
             collision_object_orientation_input_key="quat_xyzw",
-            reverse_position_offset=target_position_offset,
+            position_offset=tuple(-1.0 * p for p in target_position_offset),
         )
-        move_head.logger = logger
         # The frame_id for the position outputted by the ComputeMoveToMouthPosition
         # behaviour is the base frame of the robot.
         frame_id_key = Blackboard.separator.join([move_head_prefix, "frame_id"])
@@ -352,7 +365,7 @@ class MoveToMouthTree(MoveToTree):
             access=py_trees.common.Access.WRITE,
         )
         self.blackboard.set(frame_id_key, "j2n6s200_link_base")
-        # Hardcode head orientation to be perpendiculaf to the back of the wheelchair.
+        # Hardcode head orientation to be perpendicular to the back of the wheelchair.
         quat_xyzw_key = Blackboard.separator.join([move_head_prefix, "quat_xyzw"])
         self.blackboard.register_key(
             key=quat_xyzw_key,
@@ -371,9 +384,8 @@ class MoveToMouthTree(MoveToTree):
             name,
             allow_wheelchair_collision_prefix,
             node,
-            self.wheelchair_collision_object_id,
+            [self.wheelchair_collision_object_id],
             True,
-            logger,
         )
 
         # Create the behaviour to move the robot to the target pose
@@ -411,79 +423,58 @@ class MoveToMouthTree(MoveToTree):
                 },
             )
             .create_tree(
-                move_to_target_pose_name, self.action_type, tree_root_name, logger, node
+                move_to_target_pose_name, self.action_type, tree_root_name, node
             )
             .root
         )
 
         # Create the behavior to disallow collisions between the robot and the
         # wheelchair collision object.
-        gen_disallow_wheelchair_collision = partial(
-            get_toggle_collision_object_behavior,
+        disallow_wheelchair_collision = get_toggle_collision_object_behavior(
             name,
             disallow_wheelchair_collision_prefix,
             node,
-            self.wheelchair_collision_object_id,
+            [self.wheelchair_collision_object_id],
             False,
-            logger,
         )
 
         # Create the behaviour to turn face detection off
-        gen_turn_face_detection_off = partial(
-            get_toggle_face_detection_behavior,
+        turn_face_detection_off = get_toggle_face_detection_behavior(
             name,
             turn_face_detection_off_prefix,
             False,
-            logger,
         )
 
         # Link all the behaviours together in a sequence with memory
-        move_to_mouth = py_trees.composites.Sequence(
+        root = py_trees.composites.Sequence(
             name=name + " Main",
             memory=True,
             children=[
-                turn_face_detection_on,
                 # For now, we only re-tare the F/T sensor once, since no large forces
                 # are expected during transfer.
                 pre_moveto_config_behavior,
-                move_to_staging_configuration,
-                detect_face,
+                scoped_behavior(
+                    name=name + " InFrontOfWheelchairWallScope",
+                    pre_behavior=add_in_front_of_wheelchair_wall,
+                    workers=[move_to_staging_configuration],
+                    post_behavior=remove_in_front_of_wheelchair_wall,
+                ),
+                scoped_behavior(
+                    name=name + " FaceDetectionOnScope",
+                    pre_behavior=turn_face_detection_on,
+                    workers=[detect_face],
+                    post_behavior=turn_face_detection_off,
+                ),
                 compute_target_position,
                 move_head,
-                allow_wheelchair_collision,
-                move_to_target_pose,
-                gen_disallow_wheelchair_collision(),
-                gen_turn_face_detection_off(),
-            ],
-        )
-        move_to_mouth.logger = logger
-
-        # Create a cleanup branch for the behaviors that should get executed if
-        # the main tree has a failure
-        cleanup_tree = py_trees.composites.Sequence(
-            name=name + " Cleanup",
-            memory=True,
-            children=[
-                gen_disallow_wheelchair_collision(),
-                gen_turn_face_detection_off(),
-            ],
-        )
-
-        # If move_to_mouth fails, we still want to do some cleanup (e.g., turn
-        # face detection off).
-        root = py_trees.composites.Selector(
-            name=name,
-            memory=True,
-            children=[
-                move_to_mouth,
-                # Even though we are cleaning up the tree, it should still
-                # pass the failure up.
-                py_trees.decorators.SuccessIsFailure(
-                    name + " Cleanup Root", cleanup_tree
+                scoped_behavior(
+                    name=name + " AllowWheelchairCollisionScope",
+                    pre_behavior=allow_wheelchair_collision,
+                    workers=[move_to_target_pose],
+                    post_behavior=disallow_wheelchair_collision,
                 ),
             ],
         )
-        root.logger = logger
 
         # raise Exception(py_trees.display.unicode_blackboard())
 
