@@ -51,6 +51,8 @@ def add_pose_path_constraints(
     parameterization_orientation_path: int = 0,
     weight_position_path: float = 1.0,
     weight_orientation_path: float = 1.0,
+    fk_poses_key: Optional[str] = None,
+    fk_links_key: Optional[str] = None,
     clear_constraints: bool = True,
 ) -> py_trees.behaviour.Behaviour:
     """
@@ -81,6 +83,12 @@ def add_pose_path_constraints(
         orientation tolerance.
     weight_position_path: the weight for the position path.
     weight_orientation_path: the weight for the orientation path.
+    fk_poses_key: the key for the forward kinematics poses on the blackboard.
+        If set, the path constraint will not be set if the starting configuration
+        doesn't satisfy it.
+    fk_links_key: the key for the forward kinematics links on the blackboard.
+        If set, the path constraint will not be set if the starting configuration
+        doesn't satisfy it.
     clear_constraints: Whether or not to put a ClearConstraints decorator at the top
         of this branch. If you will be adding additional Constraints on top of this
         tree, this should be False. Else (e.g., if this is a standalone tree), True.
@@ -248,7 +256,7 @@ def add_pose_path_constraints(
             [name, orientation_path_constraint_namespace_prefix]
         )
         orientation_constraint = SetOrientationPathConstraint(
-            orientation_goal_constaint_name, position_constraint, node
+            orientation_goal_constaint_name, position_constraint, node, fk_poses_key, fk_links_key
         )
     else:
         orientation_constraint = position_constraint

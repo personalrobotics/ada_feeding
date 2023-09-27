@@ -20,6 +20,7 @@ from rclpy.node import Node
 # Local imports
 from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding.behaviors import (
+    ComputeFK,
     ComputeMoveToMouthPosition,
     ModifyCollisionObject,
     ModifyCollisionObjectOperation,
@@ -210,6 +211,7 @@ class MoveToMouthTree(MoveToTree):
         # Separate the namespace of each sub-behavior
         turn_face_detection_on_prefix = "turn_face_detection_on"
         pre_moveto_config_prefix = "pre_moveto_config"
+        compute_fk_prefix = "compute_fk"
         add_wheelchair_wall_prefix = "add_wheelchair_wall"
         move_to_staging_configuration_prefix = "move_to_staging_configuration"
         remove_wheelchair_wall_prefix = "remove_wheelchair_wall"
@@ -240,6 +242,17 @@ class MoveToMouthTree(MoveToTree):
             t_mag=self.torque_threshold,
         )
 
+        # Configure the behavior to compute the forward kinematics
+        compute_fk_name = Blackboard.separator.join([name, compute_fk_prefix])
+        fk_poses_key = Blackboard.separator.join([name, compute_fk_prefix, "poses"])
+        fk_links_key = Blackboard.separator.join([name, compute_fk_prefix, "links"])
+        compute_fk = ComputeFK(
+            name=compute_fk_name,
+            node=node,
+            poses_output_key=fk_poses_key,
+            links_output_key=fk_links_key,
+        )
+
         # Create the behavior to add the wall in front of the wheelchair
         in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
         add_in_front_of_wheelchair_wall = get_add_in_front_of_wheelchair_wall_behavior(
@@ -265,6 +278,8 @@ class MoveToMouthTree(MoveToTree):
                 quat_xyzw_path=self.orientation_constraint_quaternion,
                 tolerance_orientation_path=self.orientation_constraint_tolerances,
                 parameterization_orientation_path=1,  # Rotation vector
+                fk_poses_key=fk_poses_key,
+                fk_links_key=fk_links_key,
             )
             .create_tree(
                 move_to_staging_configuration_name,

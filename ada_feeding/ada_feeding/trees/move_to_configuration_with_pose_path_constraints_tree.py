@@ -55,6 +55,8 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         parameterization_orientation_path: int = 0,
         weight_position_path: float = 1.0,
         weight_orientation_path: float = 1.0,
+        fk_poses_key: Optional[str] = None,
+        fk_links_key: Optional[str] = None,
         keys_to_not_write_to_blackboard: Set[str] = set(),
         clear_constraints: bool = True,
     ):
@@ -89,6 +91,12 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
             rotation vector.
         weight_position_path: the weight for the end effector position path constraint.
         weight_orientation_path: the weight for the end effector orientation path constraint.
+        fk_poses_key: the key to the FK poses in the blackboard. If set, the path
+            constraints will not be set if the starting configuration doesn't satisfy
+            them.
+        fk_links_key: the key to the FK links in the blackboard. If set, the path
+            constraints will not be set if the starting configuration doesn't satisfy
+            them.
         keys_to_not_write_to_blackboard: the keys to not write to the blackboard.
             Note that the keys need to be exact e.g., "move_to.cartesian,"
             "position_goal_constraint.tolerance," "orientation_goal_constraint.tolerance,"
@@ -121,6 +129,8 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
         self.parameterization_orientation_path = parameterization_orientation_path
         self.weight_position_path = weight_position_path
         self.weight_orientation_path = weight_orientation_path
+        self.fk_poses_key = fk_poses_key
+        self.fk_links_key = fk_links_key
 
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
         self.clear_constraints = clear_constraints
@@ -181,6 +191,8 @@ class MoveToConfigurationWithPosePathConstraintsTree(MoveToTree):
             parameterization_orientation_path=self.parameterization_orientation_path,
             weight_position_path=self.weight_position_path,
             weight_orientation_path=self.weight_orientation_path,
+            fk_poses_key=self.fk_poses_key,
+            fk_links_key=self.fk_links_key,
             node=node,
             clear_constraints=self.clear_constraints,
         )
