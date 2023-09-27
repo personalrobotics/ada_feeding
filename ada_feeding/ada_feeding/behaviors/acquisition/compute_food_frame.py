@@ -106,14 +106,17 @@ class ComputeFoodFrame(BlackboardBehavior):
 
         # Get TF Listener from blackboard
         self.tf_buffer, _, self.tf_lock = get_tf_object(
-            self.blackboard, 
-            self.blackboard_get("ros2_node")
+            self.blackboard, self.blackboard_get("ros2_node")
         )
 
     def initialise(self):
         """
         Behavior initialization
         """
+
+        # pylint: disable=attribute-defined-outside-init
+        # It is okay for attributes in behaviors to be
+        # defined in the setup / initialise functions.
 
         # Construct camera intrinsics
         # See: https://medium.com/@yasuhirachiba/converting-2d-image-coordinates-
@@ -131,7 +134,9 @@ class ComputeFoodFrame(BlackboardBehavior):
         elif camera_info.distortion_model == "equidistant":
             self.intrinsics.model = pyrealsense2.distortion.kannala_brandt4
         else:
-            self.logger.warn(f"Unsupported camera distortion model: {camera_info.distortion_model}")
+            self.logger.warning(
+                f"Unsupported camera distortion model: {camera_info.distortion_model}"
+            )
             self.intrinsics.model = pyrealsense2.distortion.none
         self.intrinsics.coeffs = list(camera_info.d)
 

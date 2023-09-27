@@ -91,6 +91,7 @@ def quat_between_vectors(vec_from: Vector3, vec_to: Vector3) -> Quaternion:
     ret.w = vec_quat[3]
     return ret
 
+
 def get_tf_object(
     blackboard: py_trees.blackboard.Client,
     node: Optional[Node] = None,
@@ -111,7 +112,7 @@ def get_tf_object(
     Returns
     -------
     buffer: the TF Buffer object.
-    listener: the TF Listener object. 
+    listener: the TF Listener object.
     lock: The lock for the TF objects.
 
     Raises
@@ -154,15 +155,14 @@ def get_tf_object(
         blackboard.register_key(tf_listener_blackboard_key, Access.WRITE)
         blackboard.register_key(tf_lock_blackboard_key, Access.WRITE)
         buffer = Buffer()
-        listener = TransformListener(
-            buffer, node
-        )
+        listener = TransformListener(buffer, node)
         lock = Lock()
         blackboard.set(tf_buffer_blackboard_key, buffer)
         blackboard.set(tf_listener_blackboard_key, listener)
         blackboard.set(tf_lock_blackboard_key, lock)
 
     return buffer, listener, lock
+
 
 def get_moveit2_object(
     blackboard: py_trees.blackboard.Client,

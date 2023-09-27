@@ -25,11 +25,13 @@ class BlackboardBehavior(py_trees.behaviour.Behaviour):
     but in general reads/writes should go through the function API.
     """
 
-    def __init__(self, 
-        name: str, 
+    def __init__(
+        self,
+        name: str,
         ns: str = "/",
         inputs: Optional[Dict[str, Union[BlackboardKey, Any]]] = None,
-        outputs: Optional[Dict[str, Optional[BlackboardKey]]] = None) -> None:
+        outputs: Optional[Dict[str, Optional[BlackboardKey]]] = None,
+    ) -> None:
         """
         Initialize the behavior and blackboard
 
@@ -54,11 +56,11 @@ class BlackboardBehavior(py_trees.behaviour.Behaviour):
         """
         Define and register all blackboard input keys.
 
-        Each key of the kwargs is a str specifying the location on the blackboard 
+        Each key of the kwargs is a str specifying the location on the blackboard
         for that variable to be stored. Each value of kwargs is either `BlackboardKey`,
-        in which case it represents a blackboard location to remap the key to, 
-        or another type, in which case it represents a constant value to store at that key. 
-        Note that as opposed to setting constants on the blackboard, 
+        in which case it represents a blackboard location to remap the key to,
+        or another type, in which case it represents a constant value to store at that key.
+        Note that as opposed to setting constants on the blackboard,
         this behavior stores it in a local dict.
 
         Generally this is done in the subclass as follows:
