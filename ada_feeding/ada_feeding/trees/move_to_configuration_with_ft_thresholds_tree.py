@@ -9,6 +9,7 @@ tree and provides functions to wrap that behavior tree in a ROS2 action server.
 from typing import List, Set
 
 # Third-party imports
+from overrides import override
 import py_trees
 from rclpy.node import Node
 
@@ -34,6 +35,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
     # A mutable default value is okay since we don't change it in this function.
     def __init__(
         self,
+        node: Node,
         # Required parameters for moving to a configuration
         joint_positions: List[float],
         # Optional parameters for moving to a configuration
@@ -98,7 +100,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         # One over is okay
 
         # Initialize MoveToTree
-        super().__init__()
+        super().__init__(node)
 
         # Store the parameters for the joint goal constraint
         self.joint_positions = joint_positions
@@ -126,31 +128,21 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
         self.clear_constraints = clear_constraints
 
+    @override
     def create_move_to_tree(
         self,
         name: str,
         tree_root_name: str,
-        node: Node,
     ) -> py_trees.trees.BehaviourTree:
-        """
-        Creates the MoveToConfigurationWithFTThresholdsTree behavior tree.
+        # Docstring copied from @override
 
-        Parameters
-        ----------
-        name: The name of the behavior tree.
-        node: The ROS2 node that this tree is associated with. Necessary for
-            behaviors within the tree connect to ROS topics/services/actions.
-
-        Returns
-        -------
-        tree: The behavior tree that moves the robot above the plate.
-        """
         turn_watchdog_listener_on_prefix = "turn_watchdog_listener_on"
 
         # First, create the MoveToConfiguration behavior tree, in the same
         # namespace as this tree
         move_to_configuration_root = (
             MoveToConfigurationTree(
+                self._node,
                 joint_positions=self.joint_positions,
                 tolerance=self.tolerance_joint,
                 weight=self.weight_joint,
@@ -162,7 +154,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
                 clear_constraints=self.clear_constraints,
             )
-            .create_tree(name, self.action_type, tree_root_name, node)
+            .create_tree(name, tree_root_name)
             .root
         )
 

@@ -9,6 +9,7 @@ wrap that behavior tree in a ROS2 action server.
 from typing import Optional, Set, Tuple, Union
 
 # Third-party imports
+from overrides import override
 import py_trees
 from py_trees.blackboard import Blackboard
 from rclpy.node import Node
@@ -47,6 +48,7 @@ class MoveToPoseTree(MoveToTree):
     # A mutable default value is okay since we don't change it in this function.
     def __init__(
         self,
+        node: Node,
         position: Optional[Tuple[float, float, float]] = None,
         quat_xyzw: Optional[Tuple[float, float, float, float]] = None,
         frame_id: Optional[str] = None,
@@ -105,7 +107,7 @@ class MoveToPoseTree(MoveToTree):
             tree, this should be False. Else (e.g., if this is a standalone tree), True.
         """
         # Initialize MoveTo
-        super().__init__()
+        super().__init__(node)
 
         # Store the parameters for the move to pose behavior
         self.position = position
@@ -129,31 +131,18 @@ class MoveToPoseTree(MoveToTree):
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
         self.clear_constraints = clear_constraints
 
-    # pylint: disable=too-many-locals, too-many-statements
-    # Unfortunately, many locals/statements are required here to isolate the keys
-    # of similar constraints in the blackboard.
+    @override
     def create_move_to_tree(
         self,
         name: str,
         tree_root_name: str,
-        node: Node,
     ) -> py_trees.trees.BehaviourTree:
-        """
-        Creates the MoveToPose behavior tree.
+        # Docstring copied from @override
 
-        Parameters
-        ----------
-        name: The name of the behavior tree.
-        tree_root_name: The name of the tree. This is necessary because sometimes
-            trees create subtrees, but still need to track the top-level tree
-            name to read/write the correct blackboard variables.
-        node: The ROS2 node that this tree is associated with. Necessary for
-            behaviors within the tree connect to ROS topics/services/actions.
+        # pylint: disable=too-many-locals, too-many-statements
+        # Unfortunately, many locals/statements are required here to isolate the keys
+        # of similar constraints in the blackboard.
 
-        Returns
-        -------
-        tree: The behavior tree that moves the robot above the plate.
-        """
         # Separate blackboard namespaces for children
         if self.position is not None:
             position_goal_constraint_namespace_prefix = (
@@ -423,7 +412,7 @@ class MoveToPoseTree(MoveToTree):
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])
-        move_to = MoveTo(move_to_name, tree_root_name, node)
+        move_to = MoveTo(move_to_name, tree_root_name, self._node)
 
         # Add the position goal constraint to the MoveTo behavior
         if self.position is not None:
@@ -431,7 +420,7 @@ class MoveToPoseTree(MoveToTree):
                 [name, position_goal_constraint_namespace_prefix]
             )
             position_constraint = SetPositionGoalConstraint(
-                position_goal_constaint_name, move_to, node
+                position_goal_constaint_name, move_to, self._node
             )
         else:
             position_constraint = move_to
@@ -442,7 +431,7 @@ class MoveToPoseTree(MoveToTree):
                 [name, orientation_goal_constraint_namespace_prefix]
             )
             orientation_constraint = SetOrientationGoalConstraint(
-                orientation_goal_constraint_name, position_constraint, node
+                orientation_goal_constraint_name, position_constraint, self._node
             )
         else:
             orientation_constraint = position_constraint
@@ -453,7 +442,7 @@ class MoveToPoseTree(MoveToTree):
                 [name, clear_constraints_namespace_prefix]
             )
             root = ClearConstraints(
-                clear_constraints_name, orientation_constraint, node
+                clear_constraints_name, orientation_constraint, self._node
             )
         else:
             root = orientation_constraint

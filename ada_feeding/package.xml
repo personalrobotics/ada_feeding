@@ -25,6 +25,7 @@
   <!-- Extra Python Deps -->
   <depend>pyrealsense2-pip</depend>
   <depend>overrides-pip</depend>
+  <depend>ros2_numpy-pip</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

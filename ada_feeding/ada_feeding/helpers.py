@@ -9,7 +9,7 @@ from typing import Any, Optional, Set, Tuple
 
 # Third-party imports
 import numpy as np
-from geometry_msgs.msg import Vector3, Quaternion
+from geometry_msgs.msg import TransformStamped, Vector3, Quaternion
 import py_trees
 from py_trees.common import Access
 from pymoveit2 import MoveIt2
@@ -17,6 +17,7 @@ from pymoveit2.robots import kinova
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from tf2_ros.buffer import Buffer
+from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros.transform_listener import TransformListener
 
 
@@ -92,6 +93,86 @@ def quat_between_vectors(vec_from: Vector3, vec_to: Vector3) -> Quaternion:
     return ret
 
 
+def set_static_tf(
+    transform_stamped: TransformStamped,
+    blackboard: py_trees.blackboard.Client,
+    node: Optional[Node] = None,
+) -> bool:
+    """
+    Adds a transform to the list sent to /tf_static.
+    This uses a StaticTransformBroadcaster on the global backboard.
+    Note this is *not* a resource-intensive operation, as both
+    publisher and subscribers to /tf_static use latching.
+    Do NOT call this function in a fast loop.
+    Since these transforms are assumed static until updated, they cannot be deleted.
+    More Info: https://answers.ros.org/question/226824/using-tf_static-for-almost-static-transforms/
+
+    Parameters
+    ----------
+    transform_stamped: Transform to publish (will overwrite a transform with an identical
+                        child_frame_id)
+    blackboard: Client in which to store the static transform broadcaster (STB) and mutex
+    node: The ROS2 node the STB is associated with. If None, this function will not create
+          the STB if it does exist, and will instead raise a KeyError.
+
+    Returns
+    ---------
+    False if the lock is held, else True
+
+    Raises
+    ------
+    KeyError: if the TF objects do not exist and node is None.
+    """
+
+    static_tf_broadcaster_blackboard_key = "/tf_static/stb"
+    static_tf_transforms_blackboard_key = "/tf_static/transforms"
+    static_tf_lock_blackboard_key = "/tf_static/lock"
+
+    # First, register the TF objects and their corresponding lock for READ access
+    if not blackboard.is_registered(static_tf_broadcaster_blackboard_key, Access.READ):
+        blackboard.register_key(static_tf_broadcaster_blackboard_key, Access.READ)
+    if not blackboard.is_registered(static_tf_transforms_blackboard_key, Access.WRITE):
+        blackboard.register_key(static_tf_transforms_blackboard_key, Access.WRITE)
+    if not blackboard.is_registered(static_tf_lock_blackboard_key, Access.READ):
+        blackboard.register_key(static_tf_lock_blackboard_key, Access.READ)
+
+    # Second, check if the MoveIt2 object and its corresponding lock exist on the
+    # blackboard. If they do not, register the blackboard for WRITE access to those
+    # keys and create them.
+    try:
+        stb = blackboard.get(static_tf_broadcaster_blackboard_key)
+        lock = blackboard.get(static_tf_lock_blackboard_key)
+    except KeyError as exc:
+        # If no node is passed in, raise an error.
+        if node is None:
+            raise KeyError("Static TF objects do not exist on the blackboard") from exc
+
+        # If a node is passed in, create a new MoveIt2 object and lock.
+        node.get_logger().info(
+            "Static TF objects and lock do not exist on the blackboard. Creating them now."
+        )
+        blackboard.register_key(static_tf_broadcaster_blackboard_key, Access.WRITE)
+        blackboard.register_key(static_tf_lock_blackboard_key, Access.WRITE)
+        stb = StaticTransformBroadcaster(node)
+        transforms = {}
+        lock = Lock()
+        blackboard.set(static_tf_broadcaster_blackboard_key, stb)
+        blackboard.set(static_tf_transforms_blackboard_key, transforms)
+        blackboard.set(static_tf_lock_blackboard_key, lock)
+
+    # Check and acquire the lock
+    if lock.locked():
+        return False
+
+    with lock:
+        transforms = blackboard.get(static_tf_transforms_blackboard_key)
+        transforms[transform_stamped.child_frame_id] = transform_stamped
+        blackboard.set(static_tf_transforms_blackboard_key, transforms)
+        stb.sendTransform(list(transforms.values()))
+
+    return True
+
+
 def get_tf_object(
     blackboard: py_trees.blackboard.Client,
     node: Optional[Node] = None,
@@ -135,7 +216,7 @@ def get_tf_object(
     if not blackboard.is_registered(tf_lock_blackboard_key, Access.READ):
         blackboard.register_key(tf_lock_blackboard_key, Access.READ)
 
-    # Second, check if the MoveIt2 object and its corresponding lock exist on the
+    # Second, check if the TF objects and its corresponding lock exist on the
     # blackboard. If they do not, register the blackboard for WRITE access to those
     # keys and create them.
     try:
@@ -147,7 +228,7 @@ def get_tf_object(
         if node is None:
             raise KeyError("TF objects do not exist on the blackboard") from exc
 
-        # If a node is passed in, create a new MoveIt2 object and lock.
+        # If a node is passed in, create new TF objects and lock.
         node.get_logger().info(
             "TF objects and lock do not exist on the blackboard. Creating them now."
         )

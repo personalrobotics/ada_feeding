@@ -13,8 +13,8 @@ Subclasses should only need to define create_move_to_tree.
 from abc import ABC, abstractmethod
 
 # Third-party imports
+from overrides import override
 import py_trees
-from rclpy.node import Node
 
 # Local imports
 from ada_feeding import ActionServerBT
@@ -30,40 +30,20 @@ class MoveToTree(ActionServerBT, ABC):
     # pylint: disable=attribute-defined-outside-init
     # It is reasonable for attributes that are tree-specific, or only relevant
     # after the tree is created, to be defined in `create_tree`.
+    @override
     def create_tree(
         self,
         name: str,
-        action_type: type,
         tree_root_name: str,
-        node: Node,
     ) -> py_trees.trees.BehaviourTree:
-        """
-        Create the behavior tree.
-
-        Parameters
-        ----------
-        name: The name of the behavior tree.
-        action_type: the type for the action, as a class.
-        tree_root_name: The name of the tree. This is necessary because sometimes
-            trees create subtrees, but still need to track the top-level tree
-            name to read/write the correct blackboard variables.
-        node: The ROS2 node that this tree is associated with. Necessary for
-            behaviors within the tree connect to ROS topics/services/actions.
-
-        Returns
-        -------
-        tree: The behavior tree that moves the robot above the plate.
-        """
+        # Docstring copied from @override
 
         # pylint: disable=too-many-arguments
         # One over is fine for this function.
 
         self.create_blackboard(name, tree_root_name)
 
-        # Import the action type
-        self.action_type = action_type
-
-        return self.create_move_to_tree(name, tree_root_name, node)
+        return self.create_move_to_tree(name, tree_root_name)
 
     def create_blackboard(self, name: str, tree_root_name: str) -> None:
         """
@@ -111,7 +91,6 @@ class MoveToTree(ActionServerBT, ABC):
         self,
         name: str,
         tree_root_name: str,
-        node: Node,
     ) -> py_trees.trees.BehaviourTree:
         """
         Create the behavior tree. By the time this function is called, the
@@ -126,8 +105,6 @@ class MoveToTree(ActionServerBT, ABC):
         tree_root_name: The name of the tree. This is necessary because sometimes
             trees create subtrees, but still need to track the top-level tree
             name to read/write the correct blackboard variables.
-        node: The ROS2 node that this tree is associated with. Necessary for
-            behaviors within the tree connect to ROS topics/services/actions.
 
         Returns
         -------
@@ -135,6 +112,7 @@ class MoveToTree(ActionServerBT, ABC):
         """
         raise NotImplementedError("create_move_to_tree not implemented")
 
+    @override
     def send_goal(self, tree: py_trees.trees.BehaviourTree, goal: object) -> bool:
         """
         Sends the goal from the action client to the behavior tree.
@@ -154,7 +132,10 @@ class MoveToTree(ActionServerBT, ABC):
         self.blackboard_tree_root.goal = goal
         return True
 
-    def get_feedback(self, tree: py_trees.trees.BehaviourTree) -> object:
+    @override
+    def get_feedback(
+        self, tree: py_trees.trees.BehaviourTree, action_type: type
+    ) -> object:
         """
         Traverses the tree to generate a feedback message for the MoveTo action.
 
@@ -168,7 +149,7 @@ class MoveToTree(ActionServerBT, ABC):
         -------
         feedback: The ROS feedback message to be sent to the action client.
         """
-        feedback_msg = self.action_type.Feedback()
+        feedback_msg = action_type.Feedback()
         if self.blackboard_tree_root.exists("is_planning"):
             feedback_msg.is_planning = self.blackboard_tree_root.is_planning
             planning_time = self.blackboard_tree_root.planning_time
@@ -192,7 +173,10 @@ class MoveToTree(ActionServerBT, ABC):
                 )
         return feedback_msg
 
-    def get_result(self, tree: py_trees.trees.BehaviourTree) -> object:
+    @override
+    def get_result(
+        self, tree: py_trees.trees.BehaviourTree, action_type: type
+    ) -> object:
         """
         Traverses the tree to generate a result message for the MoveTo action.
 
@@ -206,7 +190,7 @@ class MoveToTree(ActionServerBT, ABC):
         -------
         result: The ROS result message to be sent to the action client.
         """
-        result = self.action_type.Result()
+        result = action_type.Result()
         # If the tree succeeded, return success
         if tree.root.status == py_trees.common.Status.SUCCESS:
             result.status = result.STATUS_SUCCESS
