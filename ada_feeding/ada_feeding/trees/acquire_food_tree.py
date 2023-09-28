@@ -37,22 +37,6 @@ class AcquireFoodTree(ActionServerBT):
         # TODO: remove tree_root_name
         # Sub-trees in general should not need knowledge of their parent.
 
-        ### Define Tree Leaves and Subtrees
-
-        # Add ComputeFoodFrame
-        compute_food_frame = ComputeFoodFrame(
-            "ComputeFoodFrame",
-            name,
-            inputs={
-                "ros2_node": self._node,
-                "camera_info": BlackboardKey("camera_info"),
-                "mask": BlackboardKey("mask")
-                # Default food_frame_id = "food"
-                # Default world_frame = "world"
-            },
-            outputs={"action_select_request": None, "food_frame": None},
-        )
-
         ### Define Tree Logic
 
         # Root Sequence
@@ -60,7 +44,21 @@ class AcquireFoodTree(ActionServerBT):
             name=name,
             memory=True,
             children=[
-                compute_food_frame,
+                py_trees.decorators.Timeout(
+                    name="ComputeFoodFrameTimeout",
+                    child=ComputeFoodFrame(
+                        name="ComputeFoodFrame",
+                        ns=name,
+                        inputs={
+                            "ros2_node": self._node,
+                            "camera_info": BlackboardKey("camera_info"),
+                            "mask": BlackboardKey("mask")
+                            # Default food_frame_id = "food"
+                            # Default world_frame = "world"
+                        },
+                        outputs={"action_select_request": None, "food_frame": None},
+                    ),
+                )
             ],
         )
 

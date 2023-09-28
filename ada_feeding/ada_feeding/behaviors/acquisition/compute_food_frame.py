@@ -129,14 +129,15 @@ class ComputeFoodFrame(BlackboardBehavior):
         self.intrinsics.fy = camera_info.k[4]
         if camera_info.distortion_model == "plumb_bob":
             self.intrinsics.model = pyrealsense2.distortion.brown_conrady
+            self.intrinsics.coeffs = list(camera_info.d)
         elif camera_info.distortion_model == "equidistant":
             self.intrinsics.model = pyrealsense2.distortion.kannala_brandt4
+            self.intrinsics.coeffs = list(camera_info.d)
         else:
             self.logger.warning(
                 f"Unsupported camera distortion model: {camera_info.distortion_model}"
             )
             self.intrinsics.model = pyrealsense2.distortion.none
-        self.intrinsics.coeffs = list(camera_info.d)
 
     def update(self) -> py_trees.common.Status:
         """
