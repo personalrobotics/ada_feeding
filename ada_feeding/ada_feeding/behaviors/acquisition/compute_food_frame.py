@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 This module defines the ComputeFoodFrame behavior, which computes the
-food frame from 
+food frame from the Mask provided from a perception algorithm.
 """
 # Standard imports
 from typing import Union, Optional
@@ -17,12 +17,16 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo
 import tf2_ros
-from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 
 # Local imports
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_msgs.srv import AcquisitionSelect
-from ada_feeding.helpers import BlackboardKey, quat_between_vectors, get_tf_object
+from ada_feeding.helpers import (
+    BlackboardKey,
+    quat_between_vectors,
+    get_tf_object,
+    add_update_static_tf,
+)
 from ada_feeding.behaviors import BlackboardBehavior
 from ada_feeding_perception.helpers import ros_msg_to_cv2_image
 
@@ -47,8 +51,8 @@ class ComputeFoodFrame(BlackboardBehavior):
         ros2_node: Union[BlackboardKey, Node],
         camera_info: Union[BlackboardKey, CameraInfo],
         mask: Union[BlackboardKey, Mask],
+        food_frame_id: Union[BlackboardKey, str] = "food",
         world_frame: Union[BlackboardKey, str] = "world",
-        debug_food_frame: Union[BlackboardKey, str] = "food",
     ) -> None:
         """
         Blackboard Inputs
@@ -58,9 +62,9 @@ class ComputeFoodFrame(BlackboardBehavior):
         ros2_node (Node): ROS2 Node for reading/writing TFs
         camera_info (geometry_msgs/CameraInfo): camera intrinsics matrix
         mask (ada_feeding_msgs/Mask): food context, see Mask.msg
+        food_frame_id (string): If len>0, TF frame to publish static transform
+                                   (relative to world_frame)
         world_frame (string): ID of the TF frame to represent the food frame in
-        debug_food_frame (string): If len>0, TF frame to publish static transform
-                                   (relative to world_frame) for debugging purposes
         """
         # pylint: disable=unused-argument
         # Arguments are handled generically in base class.
@@ -72,9 +76,6 @@ class ComputeFoodFrame(BlackboardBehavior):
         self,
         action_select_request: Optional[BlackboardKey],  # AcquisitionSelect.Request
         food_frame: Optional[BlackboardKey],  # TransformStamped
-        debug_tf_publisher: Optional[
-            BlackboardKey
-        ] = None,  # StaticTransformBroadcaster
     ) -> None:
         """
         Blackboard Outputs
@@ -84,10 +85,7 @@ class ComputeFoodFrame(BlackboardBehavior):
         ----------
         action_select_request (AcquisitionSelect.Request): request to send to AcquisitionSelect
                                                            (copies mask input)
-        food_frame (geometry_msgs/TransformStamped): transform from world_frame to food frame
-        debug_tf_publisher (StaticTransformBroadcaster): If set, store
-                                                        static broadcaster here to keep it alive
-                                                        for debugging purposes.
+        food_frame (geometry_msgs/TransformStamped): transform from world_frame to food_frame
         """
         # pylint: disable=unused-argument
         # Arguments are handled generically in base class.
@@ -182,7 +180,7 @@ class ComputeFoodFrame(BlackboardBehavior):
         world_to_food_transform = TransformStamped()
         world_to_food_transform.header.stamp = node.get_clock().now().to_msg()
         world_to_food_transform.header.frame_id = world_frame
-        world_to_food_transform.child_frame_id = self.blackboard_get("debug_food_frame")
+        world_to_food_transform.child_frame_id = self.blackboard_get("food_frame_id")
 
         # De-project center of ROI
         mask = self.blackboard_get("mask")
@@ -251,10 +249,8 @@ class ComputeFoodFrame(BlackboardBehavior):
         )
 
         # Write to blackboard outputs
-        if len(self.blackboard_get("debug_food_frame")) > 0:
-            stb = StaticTransformBroadcaster(self.blackboard_get("ros2_node"))
-            stb.sendTransform(world_to_food_transform)
-            self.blackboard_set("debug_tf_publisher", stb)
+        if len(self.blackboard_get("food_frame_id")) > 0:
+            add_update_static_tf(world_to_food_transform, self.blackboard, node)
         self.blackboard_set("food_frame", world_to_food_transform)
         request = AcquisitionSelect.Request()
         request.food_context = mask

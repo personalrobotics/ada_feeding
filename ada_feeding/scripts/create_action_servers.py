@@ -12,6 +12,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 # Third-party imports
 from ada_watchdog_listener import ADAWatchdogListener
 import py_trees
+from py_trees.visitors import DebugVisitor
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
@@ -325,6 +326,10 @@ class CreateActionServers(Node):
         # Set every behavior's logger to be the node's logger
         for node in tree.root.iterate():
             node.logger = self.get_logger()
+
+        # Add a DebugVisitor to catch behavior debug messages
+        # Set --log-level create_action_servers:=info (or higher) to quiet.
+        tree.visitors.append(DebugVisitor())
 
         # Call the tree's setup function
         # TODO: consider adding a timeout here
