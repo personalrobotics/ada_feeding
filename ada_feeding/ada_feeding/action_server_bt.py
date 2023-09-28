@@ -126,6 +126,6 @@ class ActionServerBT(ABC):
 
         Returns
         -------
-        The ROS feedback message to be sent to the action client, type action_type.Result()
+        The ROS result message to be sent to the action client, type action_type.Result()
         """
         raise NotImplementedError("get_result not implemented")
