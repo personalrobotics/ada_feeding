@@ -7,9 +7,9 @@ provides functions to wrap that behavior tree in a ROS2 action server.
 
 # Standard imports
 from typing import Optional, Set, Tuple, Union
-from overrides import override
 
 # Third-party imports
+from overrides import override
 import py_trees
 from rclpy.node import Node
 
@@ -168,6 +168,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         # namespace as this tree
         move_to_pose_root = (
             MoveToPoseTree(
+                self._node,
                 position=self.position_goal,
                 quat_xyzw=self.quat_xyzw_goal,
                 frame_id=self.frame_id_goal,
@@ -189,7 +190,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
                 clear_constraints=False,
             )
-            .create_tree(name, self.action_type, tree_root_name, node)
+            .create_tree(name, tree_root_name)
             .root
         )
 
@@ -207,7 +208,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
             parameterization_orientation_path=self.parameterization_orientation_path,
             weight_position_path=self.weight_position_path,
             weight_orientation_path=self.weight_orientation_path,
-            node=node,
+            node=self._node,
             clear_constraints=self.clear_constraints,
         )
 

@@ -6,11 +6,10 @@ wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
-from overrides import override
 
 # Third-party imports
+from overrides import override
 import py_trees
-from rclpy.node import Node
 
 # Local imports
 from ada_feeding import ActionServerBT
@@ -81,13 +80,13 @@ class AcquireFoodTree(ActionServerBT):
         # Write tree inputs to blackboard
         name = tree.root.name
         blackboard = py_trees.blackboard.Client(name=name, namespace=name)
-        self.blackboard.mask = goal.detected_food
-        self.blackboard.camera_info = goal.camera_info
+        blackboard.register_key(key="mask", access=py_trees.common.Access.WRITE)
+        blackboard.mask = goal.detected_food
+        blackboard.register_key(key="camera_info", access=py_trees.common.Access.WRITE)
+        blackboard.camera_info = goal.camera_info
 
-        # Top level tree
-        # Add MoveIt2Visitor for Feedback:
-        self.feedback_visitor = MoveIt2Visitor(self._node)
-        tree.add_visitor(self.feedback_visitor)
+        # Add MoveIt2Visitor for Feedback
+        tree.add_visitor(MoveIt2Visitor(self._node))
 
         return True
 
@@ -98,19 +97,26 @@ class AcquireFoodTree(ActionServerBT):
     ) -> object:
         # Docstring copied by @override
         # Note: if here, tree is root, not a subtree
+        # TODO: This Feedback/Result logic w/ MoveIt2Visitor can exist in MoveToTree right now
         if action_type is not AcquireFood:
             return None
 
         feedback_msg = action_type.Feedback()
 
+        # Get Feedback Visitor
+        feedback_visitor = None
+        for visitor in tree.visitors:
+            if isinstance(visitor, MoveIt2Visitor):
+                feedback_visitor = visitor
+
         # Copy everything from the visitor
-        # TODO: This Feedback/Result logic w/ MoveIt2Visitor can exist in MoveToTree right now
-        feedback = self.feedback_visitor.get_feedback()
-        feedback_msg.is_planning = feedback.is_planning
-        feedback_msg.planning_time = feedback.planning_time
-        feedback_msg.motion_time = feedback.motion_time
-        feedback_msg.motion_initial_distance = feedback.motion_initial_distance
-        feedback_msg.motion_curr_distance = feedback.motion_curr_distance
+        if feedback_visitor is not None:
+            feedback = feedback_visitor.get_feedback()
+            feedback_msg.is_planning = feedback.is_planning
+            feedback_msg.planning_time = feedback.planning_time
+            feedback_msg.motion_time = feedback.motion_time
+            feedback_msg.motion_initial_distance = feedback.motion_initial_distance
+            feedback_msg.motion_curr_distance = feedback.motion_curr_distance
 
         return feedback_msg
 
@@ -131,11 +137,19 @@ class AcquireFoodTree(ActionServerBT):
             result_msg.status = result_msg.STATUS_SUCCESS
         # If the tree failed, detemine whether it was a planning or motion failure
         elif tree.root.status == py_trees.common.Status.FAILURE:
-            feedback = self.feedback_visitor.get_feedback()
-            if feedback.is_planning:
-                result_msg.status = result_msg.STATUS_PLANNING_FAILED
+            # Get Feedback Visitor to investigate failure cause
+            feedback_visitor = None
+            for visitor in tree.visitors:
+                if isinstance(visitor, MoveIt2Visitor):
+                    feedback_visitor = visitor
+            if feedback_visitor is None:
+                result_msg.status = result_msg.STATUS_UNKNOWN
             else:
-                result_msg.status = result_msg.STATUS_MOTION_FAILED
+                feedback = feedback_visitor.get_feedback()
+                if feedback.is_planning:
+                    result_msg.status = result_msg.STATUS_PLANNING_FAILED
+                else:
+                    result_msg.status = result_msg.STATUS_MOTION_FAILED
         # If the tree has an invalid status, return unknown
         elif tree.root.status == py_trees.common.Status.INVALID:
             result_msg.status = result_msg.STATUS_UNKNOWN

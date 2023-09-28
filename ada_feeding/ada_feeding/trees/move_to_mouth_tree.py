@@ -12,6 +12,7 @@ wrap that behaviour tree in a ROS2 action server.
 from typing import List, Tuple
 
 # Third-party imports
+from overrides import override
 import py_trees
 from py_trees.blackboard import Blackboard
 import py_trees_ros
@@ -181,28 +182,14 @@ class MoveToMouthTree(MoveToTree):
                 return True
         return False
 
+    @override
     def create_move_to_tree(
         self,
         name: str,
         tree_root_name: str,
-        node: Node,
     ) -> py_trees.trees.BehaviourTree:
-        """
-        Creates the MoveToMouth behaviour tree.
+        # Docstring copied from @override
 
-        Parameters
-        ----------
-        name: The name of the behaviour tree.
-        tree_root_name: The name of the tree. This is necessary because sometimes
-            trees create subtrees, but still need to track the top-level tree
-            name to read/write the correct blackboard variables.
-        node: The ROS2 node that this tree is associated with. Necessary for
-            behaviours within the tree connect to ROS topics/services/actions.
-
-        Returns
-        -------
-        tree: The behaviour tree that moves the robot above the plate.
-        """
         # pylint: disable=too-many-locals, too-many-statements
         # This function creates all the behaviors of the tree, which is why
         # it has so many locals/statements.
@@ -247,7 +234,7 @@ class MoveToMouthTree(MoveToTree):
             name,
             add_wheelchair_wall_prefix,
             in_front_of_wheelchair_wall_id,
-            node,
+            self._node,
             self.blackboard,
         )
         # Create the behaviour to move the robot to the staging configuration
@@ -256,6 +243,7 @@ class MoveToMouthTree(MoveToTree):
         )
         move_to_staging_configuration = (
             MoveToConfigurationWithPosePathConstraintsTree(
+                self._node,
                 joint_positions_goal=self.staging_configuration,
                 tolerance_joint_goal=self.staging_configuration_tolerance,
                 planner_id=self.planner_id,
@@ -269,9 +257,7 @@ class MoveToMouthTree(MoveToTree):
             )
             .create_tree(
                 move_to_staging_configuration_name,
-                self.action_type,
                 tree_root_name,
-                node,
             )
             .root
         )
@@ -282,7 +268,7 @@ class MoveToMouthTree(MoveToTree):
                 name,
                 remove_wheelchair_wall_prefix,
                 in_front_of_wheelchair_wall_id,
-                node,
+                self._node,
             )
         )
 
@@ -339,7 +325,7 @@ class MoveToMouthTree(MoveToTree):
         target_position_offset = (0.0, -0.05, 0.0)
         compute_target_position = ComputeMoveToMouthPosition(
             name=compute_target_position_name,
-            node=node,
+            node=self._node,
             face_detection_input_key="/face_detection",
             target_position_output_key=target_position_output_key,
             target_position_frame_id="j2n6s200_link_base",
@@ -351,7 +337,7 @@ class MoveToMouthTree(MoveToTree):
         # of the wheelchair.
         move_head = ModifyCollisionObject(
             name=Blackboard.separator.join([name, move_head_prefix]),
-            node=node,
+            node=self._node,
             operation=ModifyCollisionObjectOperation.MOVE,
             collision_object_id=self.head_object_id,
             collision_object_position_input_key=target_position_output_key,
@@ -384,7 +370,7 @@ class MoveToMouthTree(MoveToTree):
         allow_wheelchair_collision = get_toggle_collision_object_behavior(
             name,
             allow_wheelchair_collision_prefix,
-            node,
+            self._node,
             [self.wheelchair_collision_object_id],
             True,
         )
@@ -402,6 +388,7 @@ class MoveToMouthTree(MoveToTree):
         )
         move_to_target_pose = (
             MoveToPoseWithPosePathConstraintsTree(
+                self._node,
                 position_goal=(0.0, 0.0, 0.0),
                 quat_xyzw_goal=(0.0, 0.7071068, 0.7071068, 0.0),
                 tolerance_position_goal=self.mouth_pose_tolerance,
@@ -423,9 +410,7 @@ class MoveToMouthTree(MoveToTree):
                     ),
                 },
             )
-            .create_tree(
-                move_to_target_pose_name, self.action_type, tree_root_name, node
-            )
+            .create_tree(move_to_target_pose_name, tree_root_name)
             .root
         )
 
@@ -434,7 +419,7 @@ class MoveToMouthTree(MoveToTree):
         disallow_wheelchair_collision = get_toggle_collision_object_behavior(
             name,
             disallow_wheelchair_collision_prefix,
-            node,
+            self._node,
             [self.wheelchair_collision_object_id],
             False,
         )

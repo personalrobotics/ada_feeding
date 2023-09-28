@@ -11,11 +11,10 @@ Subclasses should only need to define create_move_to_tree.
 
 # Standard imports
 from abc import ABC, abstractmethod
-from overrides import override
 
 # Third-party imports
+from overrides import override
 import py_trees
-from rclpy.node import Node
 
 # Local imports
 from ada_feeding import ActionServerBT

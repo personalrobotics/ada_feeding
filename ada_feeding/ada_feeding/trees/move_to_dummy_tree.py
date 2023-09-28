@@ -6,9 +6,9 @@ wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
-from overrides import override
 
 # Third-party imports
+from overrides import override
 import py_trees
 from rclpy.node import Node
 

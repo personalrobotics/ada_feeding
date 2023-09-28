@@ -19,12 +19,12 @@ class ActionServerBT(ABC):
     `create_action_server.py`
     """
 
-    def __init__(self, node: Node, **kwargs) -> None:
+    def __init__(self, node: Node) -> None:
         """
         Store the ROS2 Node that created trees is associated with. Necessary for
         behaviors within the tree to connect to ROS topics/services/actions.
 
-        Subclasses should overwrite kwargs with tree-agnostic
+        Subclasses should add kwargs with tree-agnostic
         input parameters.
         """
         self._node = node
