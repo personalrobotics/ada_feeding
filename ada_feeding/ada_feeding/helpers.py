@@ -109,8 +109,8 @@ def set_static_tf(
 
     Parameters
     ----------
-    transform_stamped: Transform to publish (will overwrite any transform with identical
-                        transform_stamped.header.frame_id and transform_stamped.child_frame_id)
+    transform_stamped: Transform to publish (will overwrite a transform with an identical
+                        child_frame_id)
     blackboard: Client in which to store the static transform broadcaster (STB) and mutex
     node: The ROS2 node the STB is associated with. If None, this function will not create
           the STB if it does exist, and will instead raise a KeyError.
@@ -165,9 +165,8 @@ def set_static_tf(
         return False
 
     with lock:
-        key = f"{transform_stamped.header.frame_id}-{transform_stamped.child_frame_id}"
         transforms = blackboard.get(static_tf_transforms_blackboard_key)
-        transforms[key] = transform_stamped
+        transforms[transform_stamped.child_frame_id] = transform_stamped
         blackboard.set(static_tf_transforms_blackboard_key, transforms)
         stb.sendTransform(list(transforms.values()))
 

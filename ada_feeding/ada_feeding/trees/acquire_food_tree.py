@@ -24,6 +24,13 @@ class AcquireFoodTree(ActionServerBT):
     A behvaior tree to select and execute an acquisition
     action (see ada_feeding_msgs.action.AcquisitionSchema)
     for a given food mask in ada_feeding_msgs.action.AcquireFood.
+
+    Tree Blackboard Inputs:
+    - camera_info: See ComputeFoodFrame
+    - mask: See ComputeFoodFrame
+
+    Tree Blackboard Outputs:
+
     """
 
     @override
@@ -50,7 +57,6 @@ class AcquireFoodTree(ActionServerBT):
                         name="ComputeFoodFrame",
                         ns=name,
                         inputs={
-                            "ros2_node": self._node,
                             "camera_info": BlackboardKey("camera_info"),
                             "mask": BlackboardKey("mask")
                             # Default food_frame_id = "food"

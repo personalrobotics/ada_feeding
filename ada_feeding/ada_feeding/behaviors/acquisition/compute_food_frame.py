@@ -11,10 +11,10 @@ from typing import Union, Optional
 import cv2 as cv
 from geometry_msgs.msg import PointStamped, TransformStamped, Vector3Stamped
 import numpy as np
+from overrides import override
 import py_trees
 import pyrealsense2
 import rclpy
-from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo
 import tf2_ros
 
@@ -48,7 +48,6 @@ class ComputeFoodFrame(BlackboardBehavior):
 
     def blackboard_inputs(
         self,
-        ros2_node: Union[BlackboardKey, Node],
         camera_info: Union[BlackboardKey, CameraInfo],
         mask: Union[BlackboardKey, Mask],
         food_frame_id: Union[BlackboardKey, str] = "food",
@@ -59,7 +58,6 @@ class ComputeFoodFrame(BlackboardBehavior):
 
         Parameters
         ----------
-        ros2_node (Node): ROS2 Node for reading/writing TFs
         camera_info (geometry_msgs/CameraInfo): camera intrinsics matrix
         mask (ada_feeding_msgs/Mask): food context, see Mask.msg
         food_frame_id (string): If len>0, TF frame to publish static transform
@@ -93,6 +91,7 @@ class ComputeFoodFrame(BlackboardBehavior):
             **{key: value for key, value in locals().items() if key != "self"}
         )
 
+    @override
     def setup(self, **kwargs):
         """
         Middleware (i.e. TF) setup
@@ -102,11 +101,13 @@ class ComputeFoodFrame(BlackboardBehavior):
         # It is okay for attributes in behaviors to be
         # defined in the setup / initialise functions.
 
-        # Get TF Listener from blackboard
-        self.tf_buffer, _, self.tf_lock = get_tf_object(
-            self.blackboard, self.blackboard_get("ros2_node")
-        )
+        # Get Node from Kwargs
+        self.node = kwargs["node"]
 
+        # Get TF Listener from blackboard
+        self.tf_buffer, _, self.tf_lock = get_tf_object(self.blackboard, self.node)
+
+    @override
     def initialise(self):
         """
         Behavior initialization
@@ -139,6 +140,7 @@ class ComputeFoodFrame(BlackboardBehavior):
             )
             self.intrinsics.model = pyrealsense2.distortion.none
 
+    @override
     def update(self) -> py_trees.common.Status:
         """
         Behavior tick (DO NOT BLOCK)
@@ -152,7 +154,6 @@ class ComputeFoodFrame(BlackboardBehavior):
         # to ROS2 msg types, which take 3-4 statements each.
 
         camera_frame = self.blackboard_get("camera_info").header.frame_id
-        node = self.blackboard_get("ros2_node")
         world_frame = self.blackboard_get("world_frame")
 
         # Lock TF Buffer
@@ -179,7 +180,7 @@ class ComputeFoodFrame(BlackboardBehavior):
 
         # Set up return objects
         world_to_food_transform = TransformStamped()
-        world_to_food_transform.header.stamp = node.get_clock().now().to_msg()
+        world_to_food_transform.header.stamp = self.node.get_clock().now().to_msg()
         world_to_food_transform.header.frame_id = world_frame
         world_to_food_transform.child_frame_id = self.blackboard_get("food_frame_id")
 
@@ -251,7 +252,7 @@ class ComputeFoodFrame(BlackboardBehavior):
 
         # Write to blackboard outputs
         if len(self.blackboard_get("food_frame_id")) > 0:
-            set_static_tf(world_to_food_transform, self.blackboard, node)
+            set_static_tf(world_to_food_transform, self.blackboard, self.node)
         self.blackboard_set("food_frame", world_to_food_transform)
         request = AcquisitionSelect.Request()
         request.food_context = mask
