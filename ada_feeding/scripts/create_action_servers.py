@@ -366,7 +366,7 @@ class CreateActionServers(Node):
         # Initialize the ActionServerBT object once
         tree_action_server = self._tree_classes[tree_class](self, **tree_kwargs)
         # Create and setup the tree once
-        tree = tree_action_server.create_tree(server_name, server_name, self)
+        tree = tree_action_server.create_tree(server_name, server_name)
         self.setup_tree(tree)
         self._trees.append(tree)
 
