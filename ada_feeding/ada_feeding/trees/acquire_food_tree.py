@@ -15,7 +15,7 @@ import py_trees
 from ada_feeding import ActionServerBT
 from ada_feeding.behaviors.acquisition import ComputeFoodFrame
 from ada_feeding.helpers import BlackboardKey
-from ada_feeding.visitors import MoveIt2Visitor
+from ada_feeding.visitors import MoveToVisitor
 from ada_feeding_msgs.action import AcquireFood
 
 
@@ -85,8 +85,14 @@ class AcquireFoodTree(ActionServerBT):
         blackboard.register_key(key="camera_info", access=py_trees.common.Access.WRITE)
         blackboard.camera_info = goal.camera_info
 
-        # Add MoveIt2Visitor for Feedback
-        tree.add_visitor(MoveIt2Visitor(self._node))
+        # Add MoveToVisitor for Feedback
+        feedback_visitor = None
+        for visitor in tree.visitors:
+            if isinstance(visitor, MoveToVisitor):
+                visitor.reinit()
+                feedback_visitor = visitor
+        if feedback_visitor is None:
+            tree.add_visitor(MoveToVisitor(self._node))
 
         return True
 
@@ -97,7 +103,7 @@ class AcquireFoodTree(ActionServerBT):
     ) -> object:
         # Docstring copied by @override
         # Note: if here, tree is root, not a subtree
-        # TODO: This Feedback/Result logic w/ MoveIt2Visitor can exist in MoveToTree right now
+        # TODO: This Feedback/Result logic w/ MoveToVisitor can exist in MoveToTree right now
         if action_type is not AcquireFood:
             return None
 
@@ -106,7 +112,7 @@ class AcquireFoodTree(ActionServerBT):
         # Get Feedback Visitor
         feedback_visitor = None
         for visitor in tree.visitors:
-            if isinstance(visitor, MoveIt2Visitor):
+            if isinstance(visitor, MoveToVisitor):
                 feedback_visitor = visitor
 
         # Copy everything from the visitor
@@ -140,7 +146,7 @@ class AcquireFoodTree(ActionServerBT):
             # Get Feedback Visitor to investigate failure cause
             feedback_visitor = None
             for visitor in tree.visitors:
-                if isinstance(visitor, MoveIt2Visitor):
+                if isinstance(visitor, MoveToVisitor):
                     feedback_visitor = visitor
             if feedback_visitor is None:
                 result_msg.status = result_msg.STATUS_UNKNOWN

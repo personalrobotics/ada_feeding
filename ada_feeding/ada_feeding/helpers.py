@@ -93,13 +93,13 @@ def quat_between_vectors(vec_from: Vector3, vec_to: Vector3) -> Quaternion:
     return ret
 
 
-def add_update_static_tf(
+def set_static_tf(
     transform_stamped: TransformStamped,
     blackboard: py_trees.blackboard.Client,
     node: Optional[Node] = None,
 ) -> bool:
     """
-    Sends a given transform to /tf_static.
+    Adds a transform to the list sent to /tf_static.
     This uses a StaticTransformBroadcaster on the global backboard.
     Note this is *not* a resource-intensive operation, as both
     publisher and subscribers to /tf_static use latching.

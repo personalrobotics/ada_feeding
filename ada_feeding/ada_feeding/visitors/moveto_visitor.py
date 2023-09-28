@@ -20,7 +20,7 @@ import ada_feeding.behaviors
 from ada_feeding_msgs.action import MoveTo
 
 
-class MoveIt2Visitor(VisitorBase):
+class MoveToVisitor(VisitorBase):
     """
     A BT Visitor that computes the feedback used in MoveTo.action.
     Can be used in all actions that return similar information.
@@ -36,6 +36,15 @@ class MoveIt2Visitor(VisitorBase):
         self.start_time = None
 
         # To return with get_feedback
+        self.feedback = MoveTo.Feedback()
+        self.feedback.is_planning = True
+
+    def reinit(self) -> None:
+        """
+        Reset all local variables.
+        Can be called if a tree is run again.
+        """
+        self.start_time = None
         self.feedback = MoveTo.Feedback()
         self.feedback.is_planning = True
 

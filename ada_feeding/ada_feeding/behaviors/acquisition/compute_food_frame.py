@@ -25,7 +25,7 @@ from ada_feeding.helpers import (
     BlackboardKey,
     quat_between_vectors,
     get_tf_object,
-    add_update_static_tf,
+    set_static_tf,
 )
 from ada_feeding.behaviors import BlackboardBehavior
 from ada_feeding_perception.helpers import ros_msg_to_cv2_image
@@ -250,7 +250,7 @@ class ComputeFoodFrame(BlackboardBehavior):
 
         # Write to blackboard outputs
         if len(self.blackboard_get("food_frame_id")) > 0:
-            add_update_static_tf(world_to_food_transform, self.blackboard, node)
+            set_static_tf(world_to_food_transform, self.blackboard, node)
         self.blackboard_set("food_frame", world_to_food_transform)
         request = AcquisitionSelect.Request()
         request.food_context = mask
