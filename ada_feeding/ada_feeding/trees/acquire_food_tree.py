@@ -52,6 +52,7 @@ class AcquireFoodTree(ActionServerBT):
             memory=True,
             children=[
                 py_trees.decorators.Timeout(
+                    duration=1.0,
                     name="ComputeFoodFrameTimeout",
                     child=ComputeFoodFrame(
                         name="ComputeFoodFrame",
