@@ -10,6 +10,7 @@ wrap that behaviour tree in a ROS2 action server.
 
 # Standard imports
 from typing import List, Tuple
+from overrides import override
 
 # Third-party imports
 import py_trees
@@ -42,6 +43,7 @@ class MoveFromMouthTree(MoveToTree):
 
     def __init__(
         self,
+        node: Node,
         staging_configuration_position: Tuple[float, float, float],
         staging_configuration_quat_xyzw: Tuple[float, float, float, float],
         end_configuration: List[float],
@@ -112,7 +114,7 @@ class MoveFromMouthTree(MoveToTree):
             and to the mouth.
         """
         # Initialize MoveToTree
-        super().__init__()
+        super().__init__(node)
 
         # Store the parameters
         self.staging_configuration_position = staging_configuration_position
@@ -156,28 +158,13 @@ class MoveFromMouthTree(MoveToTree):
         self.force_threshold = force_threshold
         self.torque_threshold = torque_threshold
 
+    @override
     def create_move_to_tree(
         self,
         name: str,
         tree_root_name: str,
-        node: Node,
     ) -> py_trees.trees.BehaviourTree:
-        """
-        Creates the MoveToMouth behaviour tree.
-
-        Parameters
-        ----------
-        name: The name of the behaviour tree.
-        tree_root_name: The name of the tree. This is necessary because sometimes
-            trees create subtrees, but still need to track the top-level tree
-            name to read/write the correct blackboard variables.
-        node: The ROS2 node that this tree is associated with. Necessary for
-            behaviours within the tree connect to ROS topics/services/actions.
-
-        Returns
-        -------
-        tree: The behaviour tree that moves the robot above the plate.
-        """
+        # Docstring copied from @override
 
         # Separate the namespace of each sub-behavior
         pre_moveto_config_prefix = "pre_moveto_config"
@@ -207,7 +194,7 @@ class MoveFromMouthTree(MoveToTree):
         allow_wheelchair_collision = get_toggle_collision_object_behavior(
             name,
             allow_wheelchair_collision_prefix,
-            node,
+            self._node,
             [self.wheelchair_collision_object_id],
             True,
         )
@@ -218,6 +205,7 @@ class MoveFromMouthTree(MoveToTree):
         )
         move_to_staging_configuration = (
             MoveToPoseWithPosePathConstraintsTree(
+                self._node,
                 position_goal=self.staging_configuration_position,
                 quat_xyzw_goal=self.staging_configuration_quat_xyzw,
                 tolerance_position_goal=self.staging_configuration_tolerance,
@@ -240,9 +228,7 @@ class MoveFromMouthTree(MoveToTree):
             )
             .create_tree(
                 move_to_staging_configuration_name,
-                self.action_type,
                 tree_root_name,
-                node,
             )
             .root
         )
@@ -252,7 +238,7 @@ class MoveFromMouthTree(MoveToTree):
         disallow_wheelchair_collision = get_toggle_collision_object_behavior(
             name,
             disallow_wheelchair_collision_prefix,
-            node,
+            self._node,
             [self.wheelchair_collision_object_id],
             False,
         )
@@ -263,7 +249,7 @@ class MoveFromMouthTree(MoveToTree):
             name,
             add_wheelchair_wall_prefix,
             in_front_of_wheelchair_wall_id,
-            node,
+            self._node,
             self.blackboard,
         )
 
@@ -273,6 +259,7 @@ class MoveFromMouthTree(MoveToTree):
         )
         move_to_end_configuration = (
             MoveToConfigurationWithPosePathConstraintsTree(
+                self._node,
                 joint_positions_goal=self.end_configuration,
                 tolerance_joint_goal=self.end_configuration_tolerance,
                 planner_id=self.planner_id,
@@ -286,9 +273,7 @@ class MoveFromMouthTree(MoveToTree):
             )
             .create_tree(
                 move_to_end_configuration_name,
-                self.action_type,
                 tree_root_name,
-                node,
             )
             .root
         )
@@ -299,7 +284,7 @@ class MoveFromMouthTree(MoveToTree):
                 name,
                 remove_wheelchair_wall_prefix,
                 in_front_of_wheelchair_wall_id,
-                node,
+                self._node,
             )
         )
 

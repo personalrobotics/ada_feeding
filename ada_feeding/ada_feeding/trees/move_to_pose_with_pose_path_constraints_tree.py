@@ -7,6 +7,7 @@ provides functions to wrap that behavior tree in a ROS2 action server.
 
 # Standard imports
 from typing import Optional, Set, Tuple, Union
+from overrides import override
 
 # Third-party imports
 import py_trees
@@ -35,6 +36,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
     # A mutable default value is okay since we don't change it in this function.
     def __init__(
         self,
+        node: Node,
         # Required parameters for moving to a pose
         position_goal: Optional[Tuple[float, float, float]] = None,
         quat_xyzw_goal: Optional[Tuple[float, float, float, float]] = None,
@@ -118,7 +120,7 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
             tree, this should be False. Else (e.g., if this is a standalone tree), True.
         """
         # Initialize MoveToTree
-        super().__init__()
+        super().__init__(node)
 
         # Store the parameters for the move to pose behavior
         self.position_goal = position_goal
@@ -154,28 +156,14 @@ class MoveToPoseWithPosePathConstraintsTree(MoveToTree):
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
         self.clear_constraints = clear_constraints
 
+    @override
     def create_move_to_tree(
         self,
         name: str,
         tree_root_name: str,
-        node: Node,
     ) -> py_trees.trees.BehaviourTree:
-        """
-        Creates the MoveToPoseWithPosePathConstraintsTree behavior tree.
+        # Docstring Copied from @override
 
-        Parameters
-        ----------
-        name: The name of the behavior tree.
-        tree_root_name: The name of the tree. This is necessary because sometimes
-            trees create subtrees, but still need to track the top-level tree
-            name to read/write the correct blackboard variables.
-        node: The ROS2 node that this tree is associated with. Necessary for
-            behaviors within the tree connect to ROS topics/services/actions.
-
-        Returns
-        -------
-        tree: The behavior tree that moves the robot above the plate.
-        """
         # First, create the MoveToPose behavior tree, in the same
         # namespace as this tree
         move_to_pose_root = (

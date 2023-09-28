@@ -55,6 +55,7 @@ class MoveToMouthTree(MoveToTree):
 
     def __init__(
         self,
+        node: Node,
         staging_configuration: List[float],
         staging_configuration_tolerance: float = 0.001,
         mouth_pose_tolerance: float = 0.001,
@@ -120,7 +121,7 @@ class MoveToMouthTree(MoveToTree):
         # These are all necessary due to all the behaviors MoveToMouth contains
 
         # Initialize MoveToTree
-        super().__init__()
+        super().__init__(node)
 
         # Store the parameters
         self.staging_configuration = staging_configuration

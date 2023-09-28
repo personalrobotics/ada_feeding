@@ -7,6 +7,7 @@ wrap that behavior tree in a ROS2 action server.
 
 # Standard imports
 from typing import List, Set
+from overrides import override
 
 # Third-party imports
 import py_trees
@@ -42,6 +43,7 @@ class MoveToConfigurationTree(MoveToTree):
     # A mutable default value is okay since we don't change it in this function.
     def __init__(
         self,
+        node: Node,
         joint_positions: List[float],
         tolerance: float = 0.001,
         weight: float = 1.0,
@@ -78,7 +80,7 @@ class MoveToConfigurationTree(MoveToTree):
             tree, this should be False. Else (e.g., if this is a standalone tree), True.
         """
         # Initialize MoveToTree
-        super().__init__()
+        super().__init__(node)
 
         # Store the parameters
         self.joint_positions = joint_positions
@@ -96,28 +98,14 @@ class MoveToConfigurationTree(MoveToTree):
     # pylint: disable=too-many-locals
     # Unfortunately, many local variables are required here to isolate the keys
     # of similar constraints in the blackboard.
+    @override
     def create_move_to_tree(
         self,
         name: str,
         tree_root_name: str,
-        node: Node,
     ) -> py_trees.trees.BehaviourTree:
-        """
-        Creates the MoveToConfiguration behavior tree.
+        # Docstring copied from @override
 
-        Parameters
-        ----------
-        name: The name of the behavior tree.
-        tree_root_name: The name of the tree. This is necessary because sometimes
-            trees create subtrees, but still need to track the top-level tree
-            name to read/write the correct blackboard variables.
-        node: The ROS2 node that this tree is associated with. Necessary for
-            behaviors within the tree connect to ROS topics/services/actions.
-
-        Returns
-        -------
-        tree: The behavior tree that moves the robot above the plate.
-        """
         # Separate blackboard namespaces for children
         joint_constraint_namespace_prefix = JOINT_GOAL_CONSTRAINT_NAMESPACE_PREFIX
         clear_constraints_namespace_prefix = CLEAR_CONSTRAINTS_NAMESPACE_PREFIX
@@ -228,14 +216,14 @@ class MoveToConfigurationTree(MoveToTree):
 
         # Create the MoveTo behavior
         move_to_name = Blackboard.separator.join([name, move_to_namespace_prefix])
-        move_to = MoveTo(move_to_name, tree_root_name, node)
+        move_to = MoveTo(move_to_name, tree_root_name, self._node)
 
         # Add the joint goal constraint to the MoveTo behavior
         joint_goal_constaint_name = Blackboard.separator.join(
             [name, joint_constraint_namespace_prefix]
         )
         joint_constraints = SetJointGoalConstraint(
-            joint_goal_constaint_name, move_to, node
+            joint_goal_constaint_name, move_to, self._node
         )
 
         # Clear the constraints
@@ -243,7 +231,9 @@ class MoveToConfigurationTree(MoveToTree):
             clear_constraints_name = Blackboard.separator.join(
                 [name, clear_constraints_namespace_prefix]
             )
-            root = ClearConstraints(clear_constraints_name, joint_constraints, node)
+            root = ClearConstraints(
+                clear_constraints_name, joint_constraints, self._node
+            )
         else:
             root = joint_constraints
 

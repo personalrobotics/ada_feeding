@@ -364,11 +364,9 @@ class CreateActionServers(Node):
         execute_callback: The callback function for the action server.
         """
         # Initialize the ActionServerBT object once
-        tree_action_server = self._tree_classes[tree_class](**tree_kwargs)
+        tree_action_server = self._tree_classes[tree_class](self, **tree_kwargs)
         # Create and setup the tree once
-        tree = tree_action_server.create_tree(
-            server_name, action_type, server_name, self
-        )
+        tree = tree_action_server.create_tree(server_name, server_name, self)
         self.setup_tree(tree)
         self._trees.append(tree)
 
@@ -407,7 +405,7 @@ class CreateActionServers(Node):
                                 tree
                             )  # blocks until the preempt succeeds
                             goal_handle.canceled()
-                            result = tree_action_server.get_result(tree)
+                            result = tree_action_server.get_result(tree, action_type)
                             break
 
                         # Check if the watchdog has failed
@@ -417,12 +415,14 @@ class CreateActionServers(Node):
                                 tree
                             )  # blocks until the preempt succeeds
                             goal_handle.abort()
-                            result = tree_action_server.get_result(tree)
+                            result = tree_action_server.get_result(tree, action_type)
                             break
 
                         # Tick the tree once and publish feedback
                         tree.tick()
-                        feedback_msg = tree_action_server.get_feedback(tree)
+                        feedback_msg = tree_action_server.get_feedback(
+                            tree, action_type
+                        )
                         goal_handle.publish_feedback(feedback_msg)
                         self.get_logger().debug(f"Publishing feedback {feedback_msg}")
 
@@ -430,7 +430,7 @@ class CreateActionServers(Node):
                         if tree.root.status == py_trees.common.Status.SUCCESS:
                             self.get_logger().info("Goal succeeded")
                             goal_handle.succeed()
-                            result = tree_action_server.get_result(tree)
+                            result = tree_action_server.get_result(tree, action_type)
                             break
                         if tree.root.status in set(
                             (
@@ -440,7 +440,7 @@ class CreateActionServers(Node):
                         ):
                             self.get_logger().info("Goal failed")
                             goal_handle.abort()
-                            result = tree_action_server.get_result(tree)
+                            result = tree_action_server.get_result(tree, action_type)
                             break
 
                         # Sleep

@@ -27,56 +27,25 @@ class AcquireFoodTree(ActionServerBT):
     for a given food mask in ada_feeding_msgs.action.AcquireFood.
     """
 
-    def __init__(self):
-        """
-        Initializes tree-specific parameters.
-        """
-
-    # pylint: disable=too-many-instance-attributes, too-many-arguments
-    # Many arguments is fine for this class since it has to be able to configure all parameters
-    # of its constraints.
-
-    # pylint: disable=too-many-locals
-    # Unfortunately, many local variables are required here to isolate the keys
-    # of similar constraints in the blackboard.
-    # pylint: disable=attribute-defined-outside-init
-    # It is reasonable for attributes that are tree-specific, or only relevant
-    # after the tree is created, to be defined in `create_tree`.
     @override
     def create_tree(
         self,
         name: str,
-        action_type: type,
         tree_root_name: str,  # DEPRECATED
-        node: Node,
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied by @override
 
         # TODO: remove tree_root_name
         # Sub-trees in general should not need knowledge of their parent.
 
-        ## Create Local Variables
-        self.blackboard = py_trees.blackboard.Client(name=name, namespace=name)
-        self.action_type = action_type
-        self.node = node
-
-        ### Inputs we expect on the blackboard on initialization
-        # Note: WRITE access since send_goal could write to these
-        # Mask for ComputeFoodFrame
-        self.blackboard.register_key(key="mask", access=py_trees.common.Access.WRITE)
-        # CameraInfo for ComputeFoodFrame
-        self.blackboard.register_key(
-            key="camera_info", access=py_trees.common.Access.WRITE
-        )
-
         ### Define Tree Leaves and Subtrees
 
         # Add ComputeFoodFrame
         compute_food_frame = ComputeFoodFrame(
             "ComputeFoodFrame",
-            self.blackboard.namespace,
+            name,
             inputs={
-                "ros2_node": node,
+                "ros2_node": self._node,
                 "camera_info": BlackboardKey("camera_info"),
                 "mask": BlackboardKey("mask")
                 # Default food_frame_id = "food"
@@ -89,7 +58,7 @@ class AcquireFoodTree(ActionServerBT):
 
         # Root Sequence
         root_seq = py_trees.composites.Sequence(
-            name="RootSequence",
+            name=name,
             memory=True,
             children=[
                 compute_food_frame,
@@ -110,22 +79,29 @@ class AcquireFoodTree(ActionServerBT):
             return False
 
         # Write tree inputs to blackboard
+        name = tree.root.name
+        blackboard = py_trees.blackboard.Client(name=name, namespace=name)
         self.blackboard.mask = goal.detected_food
         self.blackboard.camera_info = goal.camera_info
 
         # Top level tree
         # Add MoveIt2Visitor for Feedback:
-        self.feedback_visitor = MoveIt2Visitor(self.node)
-        tree.visitors.append(self.feedback_visitor)
+        self.feedback_visitor = MoveIt2Visitor(self._node)
+        tree.add_visitor(self.feedback_visitor)
 
         return True
 
     # Override result to handle timing outside MoveTo Behaviors
     @override
-    def get_feedback(self, tree: py_trees.trees.BehaviourTree) -> object:
+    def get_feedback(
+        self, tree: py_trees.trees.BehaviourTree, action_type: type
+    ) -> object:
         # Docstring copied by @override
         # Note: if here, tree is root, not a subtree
-        feedback_msg = self.action_type.Feedback()
+        if action_type is not AcquireFood:
+            return None
+
+        feedback_msg = action_type.Feedback()
 
         # Copy everything from the visitor
         # TODO: This Feedback/Result logic w/ MoveIt2Visitor can exist in MoveToTree right now
@@ -140,10 +116,15 @@ class AcquireFoodTree(ActionServerBT):
 
     # Override result to add other elements to result msg
     @override
-    def get_result(self, tree: py_trees.trees.BehaviourTree) -> object:
+    def get_result(
+        self, tree: py_trees.trees.BehaviourTree, action_type: type
+    ) -> object:
         # Docstring copied by @override
         # Note: if here, tree is root, not a subtree
-        result_msg = self.action_type.Result()
+        if action_type is not AcquireFood:
+            return None
+
+        result_msg = action_type.Result()
 
         # If the tree succeeded, return success
         if tree.root.status == py_trees.common.Status.SUCCESS:
