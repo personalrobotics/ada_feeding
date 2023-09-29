@@ -65,7 +65,7 @@ class AcquireFoodTree(ActionServerBT):
                         },
                         outputs={"action_select_request": None, "food_frame": None},
                     ),
-                )
+                ),
             ],
         )
 

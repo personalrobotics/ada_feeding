@@ -21,6 +21,7 @@ from overrides import override
 import py_trees
 import ros2_numpy
 from scipy.spatial.transform import Rotation as R
+from sensor_msgs.msg import JointState
 import tf2_py as tf2
 from trajectory_msgs.msg import JointTrajectory
 
@@ -82,6 +83,9 @@ class MoveIt2Plan(BlackboardBehavior):
         cartesian_max_step: Union[BlackboardKey, float] = 0.0025,
         cartesian_jump_threshold: Union[BlackboardKey, float] = 0.0,
         cartesian_fraction_threshold: Union[BlackboardKey, float] = 0.0,
+        start_joint_state: Union[
+            BlackboardKey, Optional[Union[JointState, List[float]]]
+        ] = None,
         debug_trajectory_viz: Union[BlackboardKey, bool] = False,
     ) -> None:
         """
@@ -108,6 +112,8 @@ class MoveIt2Plan(BlackboardBehavior):
                                   will cause planning to stop
         cartesian_fraction_threshold: [0,1], % of the geodesic that must be planned collision-free
                                       to return success.
+        start_joint_state: JointState from which to start planning, useful for chaining
+                           planning calls
         debug_trajectory_viz: Whether to generate and save a visualization of the
             trajectory in joint space. This is useful for debugging, but should
             be disabled in production.
@@ -121,6 +127,7 @@ class MoveIt2Plan(BlackboardBehavior):
     def blackboard_outputs(
         self,
         trajectory: Optional[BlackboardKey],  # Optional[JointTrajectory]
+        end_joint_state: Optional[BlackboardKey] = None,  # Optional[JointState]
     ) -> None:
         """
         Blackboard Outputs
@@ -130,6 +137,8 @@ class MoveIt2Plan(BlackboardBehavior):
         ----------
         trajectory (JointTrajectory): planned, timed trajectory, or None if planning failed
                                       or goal is already satisfied
+        end_joint_state (JointState): get the last joint state of the planned trajectoy,
+                                      useful for chaining planning calls
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -234,6 +243,12 @@ class MoveIt2Plan(BlackboardBehavior):
 
                     # Write blackboard outputs and SUCCEED
                     self.blackboard_set("trajectory", traj)
+                    end_joint_state = JointState()
+                    end_joint_state.name = traj.joint_names.copy()
+                    end_joint_state.position = traj.points[-1].positions.copy()
+                    end_joint_state.velocity = traj.points[-1].velocities.copy()
+                    end_joint_state.effort = traj.points[-1].effort.copy()
+                    self.blackboard_set("end_joint_state", end_joint_state)
                     return py_trees.common.Status.SUCCESS
 
             ### New Plan
@@ -277,6 +292,7 @@ class MoveIt2Plan(BlackboardBehavior):
                 self.moveit2.clear_goal_constraints()
                 self.moveit2.clear_path_constraints()
                 self.blackboard_set("trajectory", None)
+                self.blackboard_set("end_joint_state", self.moveit2.joint_state)
                 return py_trees.common.Status.SUCCESS
 
             # Check all path constraints
@@ -333,6 +349,7 @@ class MoveIt2Plan(BlackboardBehavior):
             self.planning_future = self.moveit2.plan_async(
                 cartesian=self.blackboard_get("cartesian"),
                 max_step=self.blackboard_get("cartesian_max_step"),
+                start_joint_state=self.blackboard_get("start_joint_state"),
             )
             return py_trees.common.Status.RUNNING
 

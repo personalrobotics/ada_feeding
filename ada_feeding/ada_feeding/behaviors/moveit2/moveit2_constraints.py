@@ -119,6 +119,8 @@ class MoveIt2JointConstraint(BlackboardBehavior):
         constraints = self.blackboard_get("constraints")
         if constraints is None:
             constraints = []
+        else:
+            constraints = constraints.copy()
         constraints.append(constraint)
         self.blackboard_set("constraints", constraints)
         return py_trees.common.Status.SUCCESS
@@ -232,6 +234,8 @@ class MoveIt2PositionConstraint(BlackboardBehavior):
         constraints = self.blackboard_get("constraints")
         if constraints is None:
             constraints = []
+        else:
+            constraints = constraints.copy()
         constraints.append(constraint)
         self.blackboard_set("constraints", constraints)
         return py_trees.common.Status.SUCCESS
@@ -351,6 +355,8 @@ class MoveIt2OrientationConstraint(BlackboardBehavior):
         constraints = self.blackboard_get("constraints")
         if constraints is None:
             constraints = []
+        else:
+            constraints = constraints.copy()
         constraints.append(constraint)
         self.blackboard_set("constraints", constraints)
         return py_trees.common.Status.SUCCESS
@@ -502,6 +508,8 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
         constraints = self.blackboard_get("constraints")
         if constraints is None:
             constraints = []
+        else:
+            constraints = constraints.copy()
         constraints.append(constraint_orient)
         constraints.append(constraint_pos)
         self.blackboard_set("constraints", constraints)
