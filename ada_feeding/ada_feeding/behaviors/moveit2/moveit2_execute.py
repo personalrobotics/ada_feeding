@@ -14,6 +14,7 @@ from overrides import override
 from moveit_msgs.msg import MoveItErrorCodes
 import py_trees
 from pymoveit2 import MoveIt2State
+from rclpy.duration import Duration
 from trajectory_msgs.msg import JointTrajectory
 
 # Local imports
@@ -33,7 +34,10 @@ class MoveIt2Execute(BlackboardBehavior):
     # meant to be called in a generic setting.
 
     def blackboard_inputs(
-        self, trajectory: Union[BlackboardKey, Optional[JointTrajectory]]
+        self,
+        trajectory: Union[BlackboardKey, Optional[JointTrajectory]],
+        terminate_timeout: Union[BlackboardKey, Duration] = Duration(seconds=10.0),
+        terminate_rate_hz: Union[BlackboardKey, float] = 30.0,
     ) -> None:
         """
         Blackboard Inputs
@@ -41,6 +45,10 @@ class MoveIt2Execute(BlackboardBehavior):
         Parameters
         ----------
         trajectory: JointTrajectory to execute. If None, return SUCCESS immediately.
+        terminate_timeout: How long after a terminate is requested to wait for a
+            response from the MoveIt2 action server.
+        terminate_rate_hz: How often to check whether a terminate request has been
+            processed.
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -171,3 +179,36 @@ class MoveIt2Execute(BlackboardBehavior):
 
         # The goal is still executing
         return py_trees.common.Status.RUNNING
+
+    @override
+    def terminate(self, new_status: py_trees.common.Status) -> None:
+        # Docstring copied from @override
+
+        # Cancel execution of any active goals
+        #   - If we have requested a goal but it has not yet been accepted/rejected,
+        #     (i.e., MoveIt2State.REQUESTING) then wait until it is accepted/rejected.
+        #   - If a goal has been accepted and is therefore executing (i.e.,
+        #     MoveIt2State.EXECUTING), then cancel the goal and wait until it has canceled.
+        #   - If the goal has finished executing (i.e., MoveIt2State.IDLE), then do nothing.
+        terminate_requested_time = self.node.get_clock().now()
+        rate = self.node.create_rate(self.blackboard_get("terminate_rate_hz"))
+        # A termination request has not succeeded until the MoveIt2 action server is IDLE
+        with self.moveit2_lock:
+            while self.moveit2.query_state() != MoveIt2State.IDLE:
+                self.logger.info(
+                    f"MoveIt2State not Idle {self.node.get_clock().now()} "
+                    f"{terminate_requested_time} {self.blackboard_get('terminate_timeout')}"
+                )
+                # If the goal is executing, cancel it
+                if self.moveit2.query_state() == MoveIt2State.EXECUTING:
+                    self.moveit2.cancel_execution()
+
+                # Check for terminate timeout
+                if (
+                    self.node.get_clock().now() - terminate_requested_time
+                    > self.blackboard_get("terminate_timeout")
+                ):
+                    self.logger.error(f"{self.name} Terminate timed out!")
+                    break
+
+                rate.sleep()
