@@ -103,7 +103,7 @@ class SetOrientationPathConstraint(MoveToConstraint):
 
     def is_constraint_satisfied_at_start(
         self,
-        quat_xyzw: List[float],
+        quat_xyzw: Tuple[float, float, float, float],
         frame_id: Optional[str],
         target_link: Optional[str],
         tolerance: float,
@@ -146,7 +146,7 @@ class SetOrientationPathConstraint(MoveToConstraint):
             fk_poses = self.blackboard.get(self.fk_poses_key)
         except KeyError:
             self.logger.warning(
-                f"{self.name} [SetOrientationPathConstraint::set_constraint()] "
+                f"{self.name} [SetOrientationPathConstraint::is_constraint_satisfied_at_start()] "
                 "The forward kinematics links and poses were not found on the "
                 "blackboard. Setting the orientation path constraint regardless "
                 "of the starting FK."
@@ -223,7 +223,21 @@ class SetOrientationPathConstraint(MoveToConstraint):
         else:  # Rotation Vector
             diff_xyz = np.fabs(diff.as_rotvec())
         # Get the result
-        return np.all(diff_xyz <= abs_tolerance)
+        constraint_satisfied = np.all(diff_xyz <= abs_tolerance)
+        if constraint_satisfied:
+            self.logger.info(
+                f"{self.name} [SetOrientationPathConstraint::"
+                "is_constraint_satisfied_at_start()] "
+                "The orientation constraint is satisfied at start."
+            )
+        else:
+            self.logger.info(
+                f"{self.name} [SetOrientationPathConstraint::"
+                "is_constraint_satisfied_at_start()] "
+                "The orientation constraint is not satisfied at start. "
+                "Will not set the orientation path constraint."
+            )
+        return constraint_satisfied
 
     def set_constraint(self) -> None:
         """
