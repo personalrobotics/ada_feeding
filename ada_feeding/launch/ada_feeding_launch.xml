@@ -1,6 +1,7 @@
 <launch>
   <arg name="run_web_bridge" default="true" description="Whether to run the web bridge nodes" />
   <arg name="use_estop" default="true" description="Whether to use the e-stop. Should only be set false in sim, since we don't have a way of simulating the e-stop button." />
+  <arg name="log_level" default="info" description="Log Level to pass to create_action_servers: debug, info, warn" />
 
   <group if="$(var run_web_bridge)">
     <!-- The ROSBridge Node -->
@@ -17,7 +18,7 @@
   </node>
 
   <!-- Launch the action servers necessary to move the robot -->
-  <node pkg="ada_feeding" exec="create_action_servers.py" name="ada_feeding_action_servers" respawn="true">
+  <node pkg="ada_feeding" exec="create_action_servers.py" name="ada_feeding_action_servers" respawn="true" args="--ros-args --log-level $(var log_level) --log-level rcl:=INFO --log-level rmw_cyclonedds_cpp:=INFO">
     <param from="$(find-pkg-share ada_feeding)/config/ada_feeding_action_servers.yaml"/>
     <remap from="~/watchdog" to="/ada_watchdog/watchdog" />
     <remap from="~/toggle_watchdog_listener" to="/ada_watchdog_listener/toggle_watchdog_listener" />
