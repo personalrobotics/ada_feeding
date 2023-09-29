@@ -435,7 +435,7 @@ class MoveIt2Plan(BlackboardBehavior):
         # to copy the functionality of MoveIt constraints.
         # And this is read-only access.
 
-        tol = np.array(constraint_kwargs["tolerance"]) * np.ones(3)
+        tol = np.fabs(np.array(constraint_kwargs["tolerance"]) * np.ones(3))
 
         t_stamped = self.tf_buffer.lookup_transform(
             constraint_kwargs["frame_id"]
@@ -455,14 +455,22 @@ class MoveIt2Plan(BlackboardBehavior):
         else:
             desired = R.from_quat(list(constraint_kwargs["quat_xyzw"]))
 
-        diff = R.from_matrix(np.dot(current.as_matrix(), desired.as_matrix().T))
+        diff = R.from_matrix(np.dot(current.as_matrix().T, desired.as_matrix()))
 
         # For specifics, see:
         # https://github.com/ros-planning/moveit2/blob/f9989626491ca63e9f7f612964b03afcf0749bea/moveit_core/kinematic_constraints/src/kinematic_constraint.cpp
         if constraint_kwargs["parameterization"] == 0:  # Euler Angles
             diff_xyz = diff.as_euler("xyz", degrees=False)
+            if MoveIt2Plan.normalize_absolute_angle(diff_xyz[0]) > tol[2]:
+                diff_xyz[2] = diff_xyz[0]
+                diff_xyz[0] = 0.0
+            # Account for angle wrapping
+            diff_xyz = np.array(
+                [MoveIt2Plan.normalize_absolute_angle(angle) for angle in diff_xyz],
+                dtype=diff_xyz.dtype,
+            )
         else:  # Rotation Vector
-            diff_xyz = diff.as_rotvec()
+            diff_xyz = np.fabs(diff.as_rotvec())
 
         return np.all(diff_xyz <= tol)
 
@@ -499,6 +507,15 @@ class MoveIt2Plan(BlackboardBehavior):
             # Scale the accelerations
             for i in range(len(point.accelerations)):
                 point.accelerations[i] *= scale_factor**2
+
+    @staticmethod
+    def normalize_absolute_angle(angle: float) -> float:
+        """
+        Normalizes an angle to the interval [-pi, +pi] and then take the absolute value
+        The returned values will be in the following range [0, +pi]
+        """
+        normalized_angle = np.fmod(np.fabs(angle), 2 * np.pi)
+        return min(2 * np.pi - normalized_angle, normalized_angle)
 
     @staticmethod
     def visualize_trajectory(action_name: str, traj: JointTrajectory) -> None:
