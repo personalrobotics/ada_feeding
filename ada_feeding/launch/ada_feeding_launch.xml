@@ -2,6 +2,7 @@
   <arg name="run_web_bridge" default="true" description="Whether to run the web bridge nodes" />
   <arg name="use_estop" default="true" description="Whether to use the e-stop. Should only be set false in sim, since we don't have a way of simulating the e-stop button." />
   <arg name="log_level" default="info" description="Log Level to pass to create_action_servers: debug, info, warn" />
+  <arg name="default_action_select" default="true" description="Whether to use the default action select: constant policy 0" />
 
   <group if="$(var run_web_bridge)">
     <!-- The ROSBridge Node -->
@@ -26,7 +27,14 @@
     <remap from="~/set_force_gate_controller_parameters" to="/jaco_arm_controller/set_parameters" />
     <remap from="~/toggle_face_detection" to="/toggle_face_detection" />
     <remap from="~/face_detection" to="/face_detection" />
+    <remap from="~/action_select" to="/ada_feeding_action_select/action_select" />
+    <remap from="~/action_report" to="/ada_feeding_action_select/action_report" />
   </node>
+
+  <!-- Include Default Action Selection Server -->
+  <group if="$(var default_action_select)">
+    <include file="$(find-pkg-share ada_feeding_action_select)/launch/ada_feeding_action_select_launch.xml"/>
+  </group>
 
   <!-- Populate the planning scene -->
   <node pkg="ada_feeding" exec="ada_planning_scene.py" name="ada_planning_scene">

@@ -60,7 +60,7 @@ class MoveIt2Execute(BlackboardBehavior):
         self,
         error_code: Optional[
             BlackboardKey
-        ],  # Union[MoveItErrorCodes, GoalStatus] == int
+        ] = None,  # Union[MoveItErrorCodes, GoalStatus] == int
     ) -> None:
         """
         Blackboard Outputs

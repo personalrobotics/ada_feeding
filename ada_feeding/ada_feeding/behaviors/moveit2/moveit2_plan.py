@@ -19,6 +19,7 @@ from geometry_msgs.msg import Point, Quaternion
 import numpy as np
 from overrides import override
 import py_trees
+import rclpy
 import ros2_numpy
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import JointState
@@ -244,12 +245,14 @@ class MoveIt2Plan(BlackboardBehavior):
                     # Write blackboard outputs and SUCCEED
                     self.blackboard_set("trajectory", traj)
                     end_joint_state = JointState()
-                    end_joint_state.name = traj.joint_names.copy()
-                    end_joint_state.position = traj.points[-1].positions.copy()
-                    end_joint_state.velocity = traj.points[-1].velocities.copy()
-                    end_joint_state.effort = traj.points[-1].effort.copy()
+                    end_joint_state.name = traj.joint_names[:]
+                    end_joint_state.position = traj.points[-1].positions[:]
+                    end_joint_state.velocity = traj.points[-1].velocities[:]
+                    end_joint_state.effort = traj.points[-1].effort[:]
                     self.blackboard_set("end_joint_state", end_joint_state)
                     return py_trees.common.Status.SUCCESS
+                # Planning goal still running
+                return py_trees.common.Status.RUNNING
 
             ### New Plan
             ### Add Constraints to MoveIt Object
@@ -262,18 +265,21 @@ class MoveIt2Plan(BlackboardBehavior):
             ):
                 try:
                     if constraint_type == MoveIt2ConstraintType.JOINT:
-                        goals_satisfied = self.joint_constraint_satisfied(
-                            constraint_kwargs
+                        goals_satisfied = (
+                            goals_satisfied
+                            and self.joint_constraint_satisfied(constraint_kwargs)
                         )
                         self.moveit2.set_joint_goal(**constraint_kwargs)
                     elif constraint_type == MoveIt2ConstraintType.POSITION:
-                        goals_satisfied = self.position_constraint_satisfied(
-                            constraint_kwargs
+                        goals_satisfied = (
+                            goals_satisfied
+                            and self.position_constraint_satisfied(constraint_kwargs)
                         )
                         self.moveit2.set_position_goal(**constraint_kwargs)
                     elif constraint_type == MoveIt2ConstraintType.ORIENTATION:
-                        goals_satisfied = self.orientation_constraint_satisfied(
-                            constraint_kwargs
+                        goals_satisfied = (
+                            goals_satisfied
+                            and self.orientation_constraint_satisfied(constraint_kwargs)
                         )
                         self.moveit2.set_orientation_goal(**constraint_kwargs)
                 except tf2.LookupException:
@@ -283,9 +289,6 @@ class MoveIt2Plan(BlackboardBehavior):
                 except (IndexError, AttributeError):
                     self.logger.error(f"Malformed Goal Constraint: {constraint_kwargs}")
                     return py_trees.common.Status.FAILURE
-
-                if not goals_satisfied:
-                    break
 
             # If all goals are satisfied, return SUCCESS, no planning necessary
             if goals_satisfied:
@@ -297,52 +300,60 @@ class MoveIt2Plan(BlackboardBehavior):
 
             # Check all path constraints
             paths_satisfied = True
-            for constraint_type, constraint_kwargs in self.blackboard_get(
-                "path_constraints"
+            if (
+                self.blackboard_exists("path_constraints")
+                and self.blackboard_get("path_constraints") is not None
             ):
-                try:
-                    if constraint_type == MoveIt2ConstraintType.JOINT:
-                        if self.joint_constraint_satisfied(constraint_kwargs):
-                            self.moveit2.set_path_joint_constraint(**constraint_kwargs)
-                        elif not self.blackboard_get(
-                            "ignore_violated_path_constraints"
-                        ):
-                            paths_satisfied = False
-                            break
-                    elif constraint_type == MoveIt2ConstraintType.POSITION:
-                        if self.position_constraint_satisfied(constraint_kwargs):
-                            self.moveit2.set_path_position_constraint(
-                                **constraint_kwargs
-                            )
-                        elif not self.blackboard_get(
-                            "ignore_violated_path_constraints"
-                        ):
-                            paths_satisfied = False
-                            break
-                    elif constraint_type == MoveIt2ConstraintType.ORIENTATION:
-                        if self.orientation_constraint_satisfied(constraint_kwargs):
-                            self.moveit2.set_path_orientation_constraint(
-                                **constraint_kwargs
-                            )
-                        elif not self.blackboard_get(
-                            "ignore_violated_path_constraints"
-                        ):
-                            paths_satisfied = False
-                            break
-                except tf2.LookupException:
-                    # Wait on Frame Transform
-                    # Use Timeout decorator to fail
-                    return py_trees.common.Status.RUNNING
-                except (IndexError, AttributeError):
-                    self.logger.error(f"Malformed Goal Constraint: {constraint_kwargs}")
-                    return py_trees.common.Status.FAILURE
+                for constraint_type, constraint_kwargs in self.blackboard_get(
+                    "path_constraints"
+                ):
+                    try:
+                        if constraint_type == MoveIt2ConstraintType.JOINT:
+                            if self.joint_constraint_satisfied(constraint_kwargs):
+                                self.moveit2.set_path_joint_constraint(
+                                    **constraint_kwargs
+                                )
+                            elif not self.blackboard_get(
+                                "ignore_violated_path_constraints"
+                            ):
+                                paths_satisfied = False
+                                break
+                        elif constraint_type == MoveIt2ConstraintType.POSITION:
+                            if self.position_constraint_satisfied(constraint_kwargs):
+                                self.moveit2.set_path_position_constraint(
+                                    **constraint_kwargs
+                                )
+                            elif not self.blackboard_get(
+                                "ignore_violated_path_constraints"
+                            ):
+                                paths_satisfied = False
+                                break
+                        elif constraint_type == MoveIt2ConstraintType.ORIENTATION:
+                            if self.orientation_constraint_satisfied(constraint_kwargs):
+                                self.moveit2.set_path_orientation_constraint(
+                                    **constraint_kwargs
+                                )
+                            elif not self.blackboard_get(
+                                "ignore_violated_path_constraints"
+                            ):
+                                paths_satisfied = False
+                                break
+                    except tf2.LookupException:
+                        # Wait on Frame Transform
+                        # Use Timeout decorator to fail
+                        return py_trees.common.Status.RUNNING
+                    except (IndexError, AttributeError):
+                        self.logger.error(
+                            f"Malformed Goal Constraint: {constraint_kwargs}"
+                        )
+                        return py_trees.common.Status.FAILURE
 
-            # If any path constraints are unsatisfied, return FAILURE
-            if not paths_satisfied:
-                self.moveit2.clear_goal_constraints()
-                self.moveit2.clear_path_constraints()
-                self.blackboard_set("trajectory", None)
-                return py_trees.common.Status.FAILURE
+                # If any path constraints are unsatisfied, return FAILURE
+                if not paths_satisfied:
+                    self.moveit2.clear_goal_constraints()
+                    self.moveit2.clear_path_constraints()
+                    self.blackboard_set("trajectory", None)
+                    return py_trees.common.Status.FAILURE
 
             ### Begin Planning
             # pylint: disable=attribute-defined-outside-init
@@ -413,11 +424,11 @@ class MoveIt2Plan(BlackboardBehavior):
         t_stamped = self.tf_buffer.lookup_transform(
             constraint_kwargs["frame_id"]
             if constraint_kwargs["frame_id"] is not None
-            else self.moveit2.__base_link_name,
+            else self.moveit2._MoveIt2__base_link_name,
             constraint_kwargs["target_link"]
             if constraint_kwargs["target_link"] is not None
-            else self.moveit2.__end_effector_name,
-            self.node.get_clock().now(),
+            else self.moveit2._MoveIt2__end_effector_name,
+            rclpy.time.Time(),
         )
         current = ros2_numpy.numpify(t_stamped.transform.translation)
         desired = None
@@ -457,11 +468,11 @@ class MoveIt2Plan(BlackboardBehavior):
         t_stamped = self.tf_buffer.lookup_transform(
             constraint_kwargs["frame_id"]
             if constraint_kwargs["frame_id"] is not None
-            else self.moveit2.__base_link_name,
+            else self.moveit2._MoveIt2__base_link_name,
             constraint_kwargs["target_link"]
             if constraint_kwargs["target_link"] is not None
-            else self.moveit2.__end_effector_name,
-            self.node.get_clock().now(),
+            else self.moveit2._MoveIt2__end_effector_name,
+            rclpy.time.Time(),
         )
         current = R.from_quat(list(ros2_numpy.numpify(t_stamped.transform.rotation)))
         desired = None

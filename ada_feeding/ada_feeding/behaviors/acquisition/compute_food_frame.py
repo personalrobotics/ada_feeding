@@ -93,9 +93,7 @@ class ComputeFoodFrame(BlackboardBehavior):
 
     @override
     def setup(self, **kwargs):
-        """
-        Middleware (i.e. TF) setup
-        """
+        # Docstring copied from @override
 
         # pylint: disable=attribute-defined-outside-init
         # It is okay for attributes in behaviors to be
@@ -109,9 +107,7 @@ class ComputeFoodFrame(BlackboardBehavior):
 
     @override
     def initialise(self):
-        """
-        Behavior initialization
-        """
+        # Docstring copied from @override
 
         # pylint: disable=attribute-defined-outside-init
         # It is okay for attributes in behaviors to be
@@ -142,9 +138,8 @@ class ComputeFoodFrame(BlackboardBehavior):
 
     @override
     def update(self) -> py_trees.common.Status:
-        """
-        Behavior tick (DO NOT BLOCK)
-        """
+        # Docstring copied from @override
+
         # pylint: disable=too-many-locals
         # I think this is reasonable to understand
         # the logic of this function.

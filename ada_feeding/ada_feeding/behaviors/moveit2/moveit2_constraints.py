@@ -11,8 +11,8 @@ from typing import Any, Union, Optional, Dict, List, Tuple
 
 # Third-party imports
 from geometry_msgs.msg import (
-    TransformStamped,
-    Transform,
+    PoseStamped,
+    Pose,
     PointStamped,
     Point,
     QuaternionStamped,
@@ -22,7 +22,7 @@ from overrides import override
 import py_trees
 
 # Local imports
-from ada_feeding.behaviors.moveit2 import MoveIt2ConstraintType
+from ada_feeding.behaviors.moveit2.moveit2_plan import MoveIt2ConstraintType
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.behaviors import BlackboardBehavior
 
@@ -367,7 +367,7 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
     Adds Pose Constraint to Blackboard Dictionary
     See pymoveit2:set_pose_goal() for more info.
     This is a direct combo of position + orientation
-    useful for Transform/TransformStamped ROS objects.
+    useful for Pose/PoseStamped ROS objects.
     """
 
     # pylint: disable=arguments-differ
@@ -381,7 +381,7 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
 
     def blackboard_inputs(
         self,
-        transform: Union[BlackboardKey, Union[TransformStamped, Transform]],
+        pose: Union[BlackboardKey, Union[PoseStamped, Pose]],
         frame_id: Union[BlackboardKey, Optional[str]] = None,
         target_link: Union[BlackboardKey, Optional[str]] = None,
         tolerance_position: Union[BlackboardKey, float] = 0.001,
@@ -403,9 +403,9 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
           - `frame_id` defaults to the base link
           - `target_link` defaults to end effector
 
-        Note: if transform is TransformStamped:
-          - `frame_id` is transform.header.frame_id (if not "")
-          - `target_link` is transform.child_frame_id (if not "")
+        Note: if pose is PoseStamped:
+          - `frame_id` is pose.header.frame_id (if not "")
+          - `target_link` is pose.child_frame_id (if not "")
 
         Parameters
         ----------
@@ -445,7 +445,7 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
         # This is just checking all inputs, should be
         # easy to read.
         if (
-            not self.blackboard_exists("transform")
+            not self.blackboard_exists("pose")
             or not self.blackboard_exists("frame_id")
             or not self.blackboard_exists("target_link")
             or not self.blackboard_exists("tolerance_position")
@@ -457,24 +457,18 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
         ):
             return py_trees.common.Status.FAILURE
 
-        transform = self.blackboard_get("transform")
+        pose = self.blackboard_get("pose")
         constraint_orient = (
             MoveIt2ConstraintType.ORIENTATION,
             {
-                "quat_xyzw": transform.transform.rotation
-                if isinstance(transform, TransformStamped)
-                else transform.rotation,
-                "frame_id": transform.header.frame_id
-                if (
-                    isinstance(transform, TransformStamped)
-                    and len(transform.header.frame_id) > 0
-                )
+                "quat_xyzw": pose.pose.orientation
+                if isinstance(pose, PoseStamped)
+                else pose.orientation,
+                "frame_id": pose.header.frame_id
+                if (isinstance(pose, PoseStamped) and len(pose.header.frame_id) > 0)
                 else self.blackboard_get("frame_id"),
-                "target_link": transform.child_frame_id
-                if (
-                    isinstance(transform, TransformStamped)
-                    and len(transform.child_frame_id) > 0
-                )
+                "target_link": pose.child_frame_id
+                if (isinstance(pose, PoseStamped) and len(pose.child_frame_id) > 0)
                 else self.blackboard_get("target_link"),
                 "tolerance": self.blackboard_get("tolerance_orientation"),
                 "weight": self.blackboard_get("weight_orientation"),
@@ -485,20 +479,14 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
         constraint_pos = (
             MoveIt2ConstraintType.POSITION,
             {
-                "position": transform.transform.translation
-                if isinstance(transform, TransformStamped)
-                else transform.translation,
-                "frame_id": transform.header.frame_id
-                if (
-                    isinstance(transform, TransformStamped)
-                    and len(transform.header.frame_id) > 0
-                )
+                "position": pose.pose.position
+                if isinstance(pose, PoseStamped)
+                else pose.position,
+                "frame_id": pose.header.frame_id
+                if (isinstance(pose, PoseStamped) and len(pose.header.frame_id) > 0)
                 else self.blackboard_get("frame_id"),
-                "target_link": transform.child_frame_id
-                if (
-                    isinstance(transform, TransformStamped)
-                    and len(transform.child_frame_id) > 0
-                )
+                "target_link": pose.child_frame_id
+                if (isinstance(pose, PoseStamped) and len(pose.child_frame_id) > 0)
                 else self.blackboard_get("target_link"),
                 "tolerance": self.blackboard_get("tolerance_position"),
                 "weight": self.blackboard_get("weight_position"),
