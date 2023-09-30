@@ -364,6 +364,16 @@ class MoveIt2Plan(BlackboardBehavior):
             )
             return py_trees.common.Status.RUNNING
 
+    @override
+    def terminate(self, new_status: py_trees.common.Status) -> None:
+        # Docstring copied from @override
+
+        # Clear constraints just in case
+        # Note plan_async should already do this
+        with self.moveit2_lock:
+            self.moveit2.clear_goal_constraints()
+            self.moveit2.clear_path_constraints()
+
     def joint_constraint_satisfied(self, constraint_kwargs: Dict[str, Any]) -> bool:
         """
         Check if current joint state satisfies provided joint constraint.
