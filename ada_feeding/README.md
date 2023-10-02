@@ -6,7 +6,8 @@ The `ada_feeding` package contains the overarching code to run the robot-assiste
 
 This code has been developed and tested with the Kinova JACO Gen2 Arm, on computers running Ubuntu 22.04. To get started:
 - Install [ROS2 Humble](https://docs.ros.org/en/humble/Installation.html)
-- Install Python dependencies: `python3 -m pip install pyyaml py_trees pymongo tornado trimesh`
+- Install Python dependencies: `python3 -m pip install overrides pyrealsense2 pyyaml py_trees pymongo tornado trimesh`
+    - NOTE: [`pyrealsense2` is not released for ARM systems](https://github.com/IntelRealSense/librealsense/issues/6449#issuecomment-650784066), so ARM users will have to [build from source](https://github.com/IntelRealSense/librealsense/blob/master/wrappers/python/readme.md#building-from-source). When running `sudo make install`, pay close attention to which path `pyrealsense2` is installed to and add *that path* to the `PYTHONPATH` -- it should be `/use/local/lib` but may be `/usr/local/OFF`.
 - Install the code to command the real robot ([instructions here](https://github.com/personalrobotics/ada_ros2/blob/main/README.md))
 - Git clone the [PRL fork of pymoveit (branch: `amaln/move_collision`)](https://github.com/personalrobotics/pymoveit2/tree/amaln/move_collision) and the [PRL fork of py_trees_ros (branch: `amaln/service_client`)](https://github.com/personalrobotics/py_trees_ros/tree/amaln/service_client) into your ROS2 workspace's `src` folder.
 - Install additional dependencies: `sudo apt install ros-humble-py-trees-ros-interfaces`.
