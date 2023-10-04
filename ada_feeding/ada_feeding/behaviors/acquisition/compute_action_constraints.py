@@ -11,20 +11,20 @@ from copy import deepcopy
 from typing import Union, Optional
 
 # Third-party imports
-from geometry_msgs.msg import Point, Pose
+from geometry_msgs.msg import Point, Pose, Transform, TransformStamped
 import numpy as np
 from overrides import override
 import py_trees
-from rcl_interfaces.srv import SetParameters
 import ros2_numpy
 
 # Local imports
-from ada_feeding_msgs.srv import AcquisitionSelect
+from ada_feeding.behaviors import BlackboardBehavior
 from ada_feeding.helpers import (
     BlackboardKey,
     set_static_tf,
 )
-from ada_feeding.behaviors import BlackboardBehavior
+from ada_feeding.idioms.pre_moveto_config import create_ft_thresh_request
+from ada_feeding_msgs.srv import AcquisitionSelect
 
 
 class ComputeApproachConstraints(BlackboardBehavior):
@@ -47,6 +47,8 @@ class ComputeApproachConstraints(BlackboardBehavior):
         self,
         action_select_response: Union[BlackboardKey, AcquisitionSelect.Response],
         move_above_dist_m: Union[BlackboardKey, float] = 0.05,
+        food_frame_id: Union[BlackboardKey, str] = "food",
+        approach_frame_id: Union[BlackboardKey, str] = "approach",
     ) -> None:
         """
         Blackboard Inputs
@@ -94,29 +96,6 @@ class ComputeApproachConstraints(BlackboardBehavior):
         # Get Node from Kwargs
         self.node = kwargs["node"]
 
-    @staticmethod
-    def create_ft_thresh_request(f_mag: float, t_mag: float) -> SetParameters.Request:
-        parameters = []
-        for key, val in [
-            ("fMag", f_mag),
-            ("fx", 0.0),
-            ("fy", 0.0),
-            ("fz", 0.0),
-            ("tMag", t_mag),
-            ("tx", 0.0),
-            ("ty", 0.0),
-            ("tz", 0.0),
-        ]:
-            parameters.append(
-                Parameter(
-                    name=f"wrench_threshold.{key}",
-                    value=ParameterValue(
-                        type=ParameterType.PARAMETER_DOUBLE, double_value=val
-                    ),
-                )
-            )
-        return SetParameters.Request(parameters=parameters)
-
     @override
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
@@ -146,7 +125,7 @@ class ComputeApproachConstraints(BlackboardBehavior):
         # TODO: Calculate Approach Frame
         identity = TransformStamped()
         identity.transform = ros2_numpy.msgify(Transform, np.eye(4))
-        identity.header.stamp = self.node.get_clock().now()
+        identity.header.stamp = self.node.get_clock().now().to_msg()
         identity.header.frame_id = "food"
         identity.child_frame_id = "approach"
         set_static_tf(identity, self.blackboard, self.node)
@@ -177,10 +156,8 @@ class ComputeApproachConstraints(BlackboardBehavior):
 
         # Calculate Approach F/T Thresholds
         self.blackboard_set(
-            "approach_ft_thresh",
-            ComputeActionConstraints.create_ft_thresh_request(
-                action.pre_force, aciton.pre_torque
-            ),
+            "ft_thresh",
+            create_ft_thresh_request(action.pre_force, action.pre_torque),
         )
 
         return py_trees.common.Status.SUCCESS

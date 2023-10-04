@@ -12,6 +12,7 @@ from overrides import override
 import py_trees
 from py_trees.blackboard import Blackboard
 import py_trees_ros
+from rcl_interfaces.srv import SetParameters
 
 # Local imports
 from ada_feeding import ActionServerBT
@@ -24,9 +25,12 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2Plan,
     MoveIt2Execute,
 )
-from ada_feeding.decorators import OnPreempt
 from ada_feeding.helpers import BlackboardKey
-from ada_feeding.idioms import pre_moveto_config, scoped_behavior
+from ada_feeding.idioms import (
+    pre_moveto_config,
+    scoped_behavior,
+    retry_call_ros_service,
+)
 from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_success
 from ada_feeding.visitors import MoveToVisitor
 from ada_feeding_msgs.action import AcquireFood
@@ -111,10 +115,12 @@ class AcquireFoodTree(ActionServerBT):
                         "move_above_pose": BlackboardKey("move_above_pose"),
                         "move_into_pose": BlackboardKey("move_into_pose"),
                         "ft_thresh": BlackboardKey("ft_thresh"),
+                        # Default food_frame_id = "food"
+                        # Default approach_frame_id = "approach"
                     },
                 ),
                 # Re-Tare FT Sensor and default to 4N threshold
-                pre_moveto_config(),
+                pre_moveto_config(name="PreAquireFTTare"),
                 ### Move Above Food
                 MoveIt2PoseConstraint(
                     name="MoveAbovePose",
@@ -146,8 +152,12 @@ class AcquireFoodTree(ActionServerBT):
                 # If Anything goes wrong, reset FT to safe levels
                 scoped_behavior(
                     name="SafeFTPreempt",
-                    pre_behavior=py_trees.behaviours.success(),
-                    post_behavior=pre_moveto_config(re_tare=False),
+                    # pylint: disable=abstract-class-instantiated
+                    # It has trouble with py_trees meta classes
+                    pre_behavior=py_trees.behaviours.Success(),
+                    post_behavior=pre_moveto_config(
+                        name="PostAcquireFTSet", re_tare=False
+                    ),
                     on_preempt_timeout=5.0,
                     # Starts a new Sequence w/ Memory internally
                     workers=[

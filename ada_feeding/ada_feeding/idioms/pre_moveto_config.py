@@ -39,6 +39,54 @@ def set_parameter_response_all_success(
     return all(result.successful for result in blackboard_value.results)
 
 
+def create_ft_thresh_request(
+    f_mag: float = 0.0,
+    f_x: float = 0.0,
+    f_y: float = 0.0,
+    f_z: float = 0.0,
+    t_mag: float = 0.0,
+    t_x: float = 0.0,
+    t_y: float = 0.0,
+    t_z: float = 0.0,
+) -> SetParameters.Request:
+    """
+    Create a SetParameters request from requested force/torque thresholds
+
+    Parameters
+    ----------
+    f_mag: Max magnitude of the force on utensil
+    t_mag: Max magnitude of torque on utensil
+
+    Returns
+    -------
+    SetParameters ROS2 service request object
+    designed to operate with `forque_sensor_hardware`
+    """
+
+    # pylint: disable=too-many-arguments
+
+    parameters = []
+    for key, val in [
+        ("fMag", f_mag),
+        ("fx", f_x),
+        ("fy", f_y),
+        ("fz", f_z),
+        ("tMag", t_mag),
+        ("tx", t_x),
+        ("ty", t_y),
+        ("tz", t_z),
+    ]:
+        parameters.append(
+            Parameter(
+                name=f"wrench_threshold.{key}",
+                value=ParameterValue(
+                    type=ParameterType.PARAMETER_DOUBLE, double_value=val
+                ),
+            )
+        )
+    return SetParameters.Request(parameters=parameters)
+
+
 def pre_moveto_config(
     name: str,
     re_tare: bool = True,
@@ -134,26 +182,9 @@ def pre_moveto_config(
             children.append(turn_watchdog_listener_on)
 
     # Set FT Thresholds
-    parameters = []
-    for key, val in [
-        ("fMag", f_mag),
-        ("fx", f_x),
-        ("fy", f_y),
-        ("fz", f_z),
-        ("tMag", t_mag),
-        ("tx", t_x),
-        ("ty", t_y),
-        ("tz", t_z),
-    ]:
-        parameters.append(
-            Parameter(
-                name=f"wrench_threshold.{key}",
-                value=ParameterValue(
-                    type=ParameterType.PARAMETER_DOUBLE, double_value=val
-                ),
-            )
-        )
-    ft_threshold_request = SetParameters.Request(parameters=parameters)
+    ft_threshold_request = create_ft_thresh_request(
+        f_mag, f_x, f_y, f_z, t_mag, t_x, t_y, t_z
+    )
     set_force_torque_thresholds_name = Blackboard.separator.join(
         [name, set_force_torque_thresholds_prefix]
     )
