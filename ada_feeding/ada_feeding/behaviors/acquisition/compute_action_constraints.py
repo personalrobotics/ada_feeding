@@ -83,6 +83,7 @@ class ComputeActionConstraints(BlackboardBehavior):
 
         # Input Validation
         if not self.blackboard_exists("action_select_response"):
+            self.logger.error("Missing Action Select Response")
             return py_trees.common.Status.FAILURE
         response = self.blackboard_get("action_select_response")
         if response.status != "Success":

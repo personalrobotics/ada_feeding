@@ -6,7 +6,6 @@ to plan a path using the provided path and goal constraints.
 """
 
 # Standard imports
-import csv
 from enum import Enum
 import math
 import os
@@ -14,7 +13,6 @@ import time
 from typing import Any, Union, Optional, Dict, List, Tuple
 
 # Third-party imports
-from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Point, Quaternion
 import numpy as np
 from overrides import override
@@ -96,6 +94,7 @@ class MoveIt2Plan(BlackboardBehavior):
         ----------
         goal_constraints: list of constraints, each one is a pair mapping the type to the kwargs
                         passed to the corresponding pymoveit2 function. See moveit2.py:set_X_goal()
+                        Note: defines a goal region (i.e. "and" between constraints)
         path_constraints: list of constraints, each one is a pair mapping the type to the kwargs
                         passed to the corresponding pymoveit2 function.
                         See moveit2.py:set_path_X_constraint()
@@ -104,12 +103,15 @@ class MoveIt2Plan(BlackboardBehavior):
         pipeline_id: MoveIt2 Pipeline, usually "ompl"
         planner_id: MoveIt2 planner to use
         allowed_planning_time: Anytime planner timeout, passed to MoveIt2 Directly.
-                                NOTE: Not guaranteed, use a Timeout decorator for that.
-        max_velocity_scale: [0,1] determines max joint of the trajectory
+                                NOTE: Not guaranteed, use a Timeout decorator for that,
+                                but make sure Timeout > allowed_planning_time, otherwise
+                                the behavior will very likely fail
+        max_velocity_scale: [0,1] determines max joint velocity of the trajectory
         max_acceleration_scale: [0,1] determines max joint acceleration of the trajectory
         cartesian: True to use MoveIt2's cartesian planner, uses the below parameters
-        cartesian_max_step: % of the geodesic to step for each IK of the cartesian planner
-        cartesian_jump_threshold: If >0, large joint jumps between cartesian planner IKs
+        cartesian_max_step: m to step for each IK of the cartesian planner, note 1cm == 2deg
+                            for cartesian rotations
+        cartesian_jump_threshold: If >0, large relative joint jumps between cartesian planner IKs
                                   will cause planning to stop
         cartesian_fraction_threshold: [0,1], % of the geodesic that must be planned collision-free
                                       to return success.
@@ -119,6 +121,7 @@ class MoveIt2Plan(BlackboardBehavior):
             trajectory in joint space. This is useful for debugging, but should
             be disabled in production.
         """
+        # TODO: consider cartesian parameter struct
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
         super().blackboard_inputs(
@@ -285,21 +288,32 @@ class MoveIt2Plan(BlackboardBehavior):
                 except tf2.LookupException:
                     # Wait on Frame Transform
                     # Use Timeout decorator to fail
+                    # pylint: disable=unexpected-keyword-arg
+                    # We overwrite self.logger w/ node.get_logger()
+                    self.logger.warning(
+                        "Waiting on TF to test constraint satisfaction", once=True
+                    )
                     return py_trees.common.Status.RUNNING
-                except (IndexError, AttributeError):
+                except (IndexError, AttributeError, ValueError):
                     self.logger.error(f"Malformed Goal Constraint: {constraint_kwargs}")
                     return py_trees.common.Status.FAILURE
 
             # If all goals are satisfied, return SUCCESS, no planning necessary
-            if goals_satisfied:
-                self.moveit2.clear_goal_constraints()
-                self.moveit2.clear_path_constraints()
-                self.blackboard_set("trajectory", None)
-                self.blackboard_set("end_joint_state", self.moveit2.joint_state)
-                return py_trees.common.Status.SUCCESS
+            # Skip if a start position is defined
+            if (
+                self.blackboard_exists("start_joint_state")
+                and self.blackboard_get("start_joint_state") is not None
+            ):
+                if goals_satisfied:
+                    self.blackboard_set("trajectory", None)
+                    self.blackboard_set("end_joint_state", self.moveit2.joint_state)
+                    return py_trees.common.Status.SUCCESS
 
             # Check all path constraints
             paths_satisfied = True
+            ignore_violated_path_constraints = self.blackboard_get(
+                "ignore_violated_path_constraints"
+            )
             if (
                 self.blackboard_exists("path_constraints")
                 and self.blackboard_get("path_constraints") is not None
@@ -313,9 +327,9 @@ class MoveIt2Plan(BlackboardBehavior):
                                 self.moveit2.set_path_joint_constraint(
                                     **constraint_kwargs
                                 )
-                            elif not self.blackboard_get(
-                                "ignore_violated_path_constraints"
-                            ):
+                            elif ignore_violated_path_constraints:
+                                continue
+                            else:
                                 paths_satisfied = False
                                 break
                         elif constraint_type == MoveIt2ConstraintType.POSITION:
@@ -323,9 +337,9 @@ class MoveIt2Plan(BlackboardBehavior):
                                 self.moveit2.set_path_position_constraint(
                                     **constraint_kwargs
                                 )
-                            elif not self.blackboard_get(
-                                "ignore_violated_path_constraints"
-                            ):
+                            elif ignore_violated_path_constraints:
+                                continue
+                            else:
                                 paths_satisfied = False
                                 break
                         elif constraint_type == MoveIt2ConstraintType.ORIENTATION:
@@ -333,27 +347,36 @@ class MoveIt2Plan(BlackboardBehavior):
                                 self.moveit2.set_path_orientation_constraint(
                                     **constraint_kwargs
                                 )
-                            elif not self.blackboard_get(
-                                "ignore_violated_path_constraints"
-                            ):
+                            elif ignore_violated_path_constraints:
+                                continue
+                            else:
                                 paths_satisfied = False
                                 break
                     except tf2.LookupException:
                         # Wait on Frame Transform
                         # Use Timeout decorator to fail
+                        # pylint: disable=unexpected-keyword-arg
+                        # We overwrite self.logger w/ node.get_logger()
+                        self.logger.warning(
+                            "Waiting on TF to test constraint satisfaction", once=True
+                        )
                         return py_trees.common.Status.RUNNING
-                    except (IndexError, AttributeError):
+                    except (IndexError, AttributeError, ValueError):
                         self.logger.error(
                             f"Malformed Goal Constraint: {constraint_kwargs}"
                         )
                         return py_trees.common.Status.FAILURE
 
                 # If any path constraints are unsatisfied, return FAILURE
-                if not paths_satisfied:
-                    self.moveit2.clear_goal_constraints()
-                    self.moveit2.clear_path_constraints()
-                    self.blackboard_set("trajectory", None)
-                    return py_trees.common.Status.FAILURE
+                # Skip if a start position is defined
+                if (
+                    self.blackboard_exists("start_joint_state")
+                    and self.blackboard_get("start_joint_state") is not None
+                ):
+                    if not paths_satisfied:
+                        self.blackboard_set("end_joint_state", None)
+                        self.blackboard_set("trajectory", None)
+                        return py_trees.common.Status.FAILURE
 
             ### Begin Planning
             # pylint: disable=attribute-defined-outside-init
@@ -387,25 +410,35 @@ class MoveIt2Plan(BlackboardBehavior):
         Returns
         -------
         True if the constraint is satisfied
+
+
+        Raises
+        ------
+        ValueError: if the joint_names kwarg is non-None and doesn't match the
+        length of the joint_positions kwarg
         """
 
-        # pylint: disable=protected-access
-        # We effectively need to to introspection
-        # to copy the functionality of MoveIt constraints.
-        # And this is read-only access.
-
         curr_joint_state = self.moveit2.joint_state
-        tol = constraint_kwargs["tolerance"]
+        tol = np.fabs(constraint_kwargs["tolerance"])
 
-        for i, des_position in enumerate(constraint_kwargs["joint_positions"]):
-            curr_position = curr_joint_state.position[i]
-            if len(constraint_kwargs["joint_names"]) > i:
-                index = curr_joint_state.name.index(constraint_kwargs["joint_names"][i])
-                curr_position = curr_joint_state.position[index]
-            if abs(curr_position - des_position) > tol:
-                return False
+        curr_positions = curr_joint_state.position.copy()
+        des_positions = constraint_kwargs["joint_positions"].copy()
 
-        return True
+        # Remap current joints based on joint names
+        joint_names = constraint_kwargs["joint_names"]
+        if joint_names is None:
+            joint_names = []
+        if len(joint_names) == len(des_positions):
+            for i in range(len(des_positions)):
+                index = curr_joint_state.name.index(joint_names[i])
+                curr_positions[i] = curr_joint_state.position[index]
+        elif len(joint_names) > 0:
+            raise ValueError("Joint names array should match joint positions array.")
+
+        # Compare with desired joints
+        diff = np.fabs(np.array(curr_positions) - np.array(des_positions))
+
+        return np.all(diff < tol)
 
     def position_constraint_satisfied(self, constraint_kwargs: Dict[str, Any]) -> bool:
         """
@@ -424,20 +457,15 @@ class MoveIt2Plan(BlackboardBehavior):
         True if the constraint is satisfied
         """
 
-        # pylint: disable=protected-access
-        # We effectively need to to introspection
-        # to copy the functionality of MoveIt constraints.
-        # And this is read-only access.
-
-        tol = constraint_kwargs["tolerance"]
+        tol = np.fabs(constraint_kwargs["tolerance"])
 
         t_stamped = self.tf_buffer.lookup_transform(
             constraint_kwargs["frame_id"]
             if constraint_kwargs["frame_id"] is not None
-            else self.moveit2._MoveIt2__base_link_name,
+            else self.moveit2.base_link_name,
             constraint_kwargs["target_link"]
             if constraint_kwargs["target_link"] is not None
-            else self.moveit2._MoveIt2__end_effector_name,
+            else self.moveit2.end_effector_name,
             rclpy.time.Time(),
         )
         current = ros2_numpy.numpify(t_stamped.transform.translation)
@@ -468,20 +496,15 @@ class MoveIt2Plan(BlackboardBehavior):
         True if the constraint is satisfied
         """
 
-        # pylint: disable=protected-access
-        # We effectively need to to introspection
-        # to copy the functionality of MoveIt constraints.
-        # And this is read-only access.
-
         tol = np.fabs(np.array(constraint_kwargs["tolerance"]) * np.ones(3))
 
         t_stamped = self.tf_buffer.lookup_transform(
             constraint_kwargs["frame_id"]
             if constraint_kwargs["frame_id"] is not None
-            else self.moveit2._MoveIt2__base_link_name,
+            else self.moveit2.base_link_name,
             constraint_kwargs["target_link"]
             if constraint_kwargs["target_link"] is not None
-            else self.moveit2._MoveIt2__end_effector_name,
+            else self.moveit2.end_effector_name,
             rclpy.time.Time(),
         )
         current = R.from_quat(list(ros2_numpy.numpify(t_stamped.transform.rotation)))
@@ -574,6 +597,8 @@ class MoveIt2Plan(BlackboardBehavior):
 
         # pylint: disable=import-outside-toplevel
         # No need to import graphing libraries if we aren't saving the trajectory
+        import csv
+        from ament_index_python.packages import get_package_share_directory
         import matplotlib.pyplot as plt
 
         # Get the filepath, excluding the extension

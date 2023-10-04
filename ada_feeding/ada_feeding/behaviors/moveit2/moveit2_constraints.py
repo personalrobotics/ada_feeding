@@ -104,6 +104,7 @@ class MoveIt2JointConstraint(BlackboardBehavior):
             or not self.blackboard_exists("weight")
             or not self.blackboard_exists("constraints")
         ):
+            self.logger.error("MoveIt2Constraint: Missing input arguments.")
             return py_trees.common.Status.FAILURE
 
         constraint = (
@@ -210,6 +211,7 @@ class MoveIt2PositionConstraint(BlackboardBehavior):
             or not self.blackboard_exists("weight")
             or not self.blackboard_exists("constraints")
         ):
+            self.logger.error("MoveIt2Constraint: Missing input arguments.")
             return py_trees.common.Status.FAILURE
 
         position = self.blackboard_get("position")
@@ -284,6 +286,9 @@ class MoveIt2OrientationConstraint(BlackboardBehavior):
         Note: if quat_xyzw is QuaternionStamped,
               use quat_xyzw.header.frame_id for frame_id. (if not "")
 
+        Details on parameterization:
+        https://github.com/ros-planning/moveit_msgs/blob/master/msg/OrientationConstraint.msg
+
         Parameters
         ----------
         constraints: previous set of constraints to append to
@@ -330,6 +335,7 @@ class MoveIt2OrientationConstraint(BlackboardBehavior):
             or not self.blackboard_exists("constraints")
             or not self.blackboard_exists("parameterization")
         ):
+            self.logger.error("MoveIt2Constraint: Missing input arguments.")
             return py_trees.common.Status.FAILURE
 
         quat_xyzw = self.blackboard_get("quat_xyzw")
@@ -407,6 +413,9 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
           - `frame_id` is pose.header.frame_id (if not "")
           - `target_link` is pose.child_frame_id (if not "")
 
+        Details on parameterization:
+        https://github.com/ros-planning/moveit_msgs/blob/master/msg/OrientationConstraint.msg
+
         Parameters
         ----------
         constraints: previous set of constraints to append to
@@ -455,6 +464,7 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
             or not self.blackboard_exists("constraints")
             or not self.blackboard_exists("parameterization")
         ):
+            self.logger.error("MoveIt2Constraint: Missing input arguments.")
             return py_trees.common.Status.FAILURE
 
         pose = self.blackboard_get("pose")

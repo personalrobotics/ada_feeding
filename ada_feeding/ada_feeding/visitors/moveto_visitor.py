@@ -144,7 +144,7 @@ class MoveToVisitor(VisitorBase):
         # Docstring copied by @override
 
         # pylint: disable=too-many-branches
-        
+
         # We only care about leaf nodes
         if isinstance(behaviour, (Composite, Decorator)):
             return

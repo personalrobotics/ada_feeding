@@ -60,7 +60,7 @@ class MoveIt2Execute(BlackboardBehavior):
         self,
         error_code: Optional[
             BlackboardKey
-        ] = None,  # Union[MoveItErrorCodes, GoalStatus] == int
+        ] = None,  # Union[MoveItErrorCodes, GoalStatus]
     ) -> None:
         """
         Blackboard Outputs
@@ -70,6 +70,7 @@ class MoveIt2Execute(BlackboardBehavior):
         ----------
         error_code: specifies the manner of execution (or goal) failure
                     See actionlib_msgs/GoalStatus and moveit_msgs/MoveItErrorCodes for more info
+                    A Note on the int values returned by GoalStatus.status / MoveItErrorCodes.val
                     <0: MoveItErrorCodes Failure
                     0, 3: Never Returned (GoalStatus PENDING, SUCCEEDED)
                     1: MoveItErrorCodes Success (GoalStatus ACTIVE never returned)
@@ -125,12 +126,18 @@ class MoveIt2Execute(BlackboardBehavior):
         # It is okay for attributes in behaviors to be
         # defined in the setup / initialise functions.
 
-        # Handle empty trajectory
-        if (
-            not self.blackboard_exists("trajectory")
-            or self.blackboard_get("trajectory") is None
-        ):
-            self.blackboard_set("error_code", MoveItErrorCodes.SUCCESS)
+        # Missing trajectory is programmer error
+        if not self.blackboard_exists("trajectory"):
+            error_code = MoveItErrorCodes()
+            error_code.val = MoveItErrorCodes.INVALID_MOTION_PLAN
+            self.blackboard_set("error_code", error_code)
+            return py_trees.common.Status.FAILURE
+
+        # Empty trajectory auto-succeeds
+        if self.blackboard_get("trajectory") is None:
+            error_code = MoveItErrorCodes()
+            error_code.val = MoveItErrorCodes.SUCCESS
+            self.blackboard_set("error_code", error_code)
             return py_trees.common.Status.SUCCESS
 
         # Lock MoveIt2 Object
@@ -174,7 +181,7 @@ class MoveIt2Execute(BlackboardBehavior):
                     # The goal failed (execution)
                     return py_trees.common.Status.FAILURE
                 # The goal failed (actionlib)
-                self.blackboard_set("error_code", self.motion_future.result().status)
+                self.blackboard_set("error_code", self.motion_future.result())
                 return py_trees.common.Status.FAILURE
 
         # The goal is still executing
