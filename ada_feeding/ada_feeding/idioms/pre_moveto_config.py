@@ -173,7 +173,6 @@ def pre_moveto_config(
                 value=SetParameters.Response(),  # Unused
                 operator=set_parameter_response_all_success,
             )
-            for i in range(len(ft_threshold_request.parameters))
         ],
     )
     children.append(set_force_torque_thresholds)

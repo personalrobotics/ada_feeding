@@ -15,7 +15,10 @@ import py_trees_ros
 
 # Local imports
 from ada_feeding import ActionServerBT
-from ada_feeding.behaviors.acquisition import ComputeFoodFrame, ComputeActionConstraints
+from ada_feeding.behaviors.acquisition import (
+    ComputeFoodFrame,
+    ComputeApproachConstraints,
+)
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2PoseConstraint,
     MoveIt2Plan,
@@ -24,6 +27,7 @@ from ada_feeding.behaviors.moveit2 import (
 from ada_feeding.decorators import OnPreempt
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
+from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_success
 from ada_feeding.visitors import MoveToVisitor
 from ada_feeding_msgs.action import AcquireFood
 from ada_feeding_msgs.srv import AcquisitionSelect
@@ -96,7 +100,7 @@ class AcquireFoodTree(ActionServerBT):
                     wait_for_server_timeout_sec=0.0,
                 ),
                 # Get MoveIt2 Constraints
-                ComputeActionConstraints(
+                ComputeApproachConstraints(
                     name="ComputeActionConstraints",
                     ns=name,
                     inputs={
@@ -105,6 +109,8 @@ class AcquireFoodTree(ActionServerBT):
                     },
                     outputs={
                         "move_above_pose": BlackboardKey("move_above_pose"),
+                        "move_into_pose": BlackboardKey("move_into_pose"),
+                        "ft_thresh": BlackboardKey("ft_thresh"),
                     },
                 ),
                 # Re-Tare FT Sensor and default to 4N threshold
@@ -145,8 +151,58 @@ class AcquireFoodTree(ActionServerBT):
                     on_preempt_timeout=5.0,
                     # Starts a new Sequence w/ Memory internally
                     workers=[
-                        
-
+                        # Set Approach F/T Thresh
+                        retry_call_ros_service(
+                            name="ApproachFTThresh",
+                            service_type=SetParameters,
+                            service_name="~/set_force_gate_controller_parameters",
+                            # Blackboard, not Constant
+                            request=None,
+                            # Need absolute Blackboard name
+                            key_request=Blackboard.separator.join(
+                                [name, BlackboardKey("ft_thresh")]
+                            ),
+                            key_response=Blackboard.separator.join(
+                                [name, BlackboardKey("ft_response")]
+                            ),
+                            response_checks=[
+                                py_trees.common.ComparisonExpression(
+                                    variable=Blackboard.separator.join(
+                                        [name, BlackboardKey("ft_response")]
+                                    ),
+                                    value=SetParameters.Response(),  # Unused
+                                    operator=set_parameter_response_all_success,
+                                )
+                            ],
+                        ),
+                        ### Move Into Food
+                        MoveIt2PoseConstraint(
+                            name="MoveIntoPose",
+                            ns=name,
+                            inputs={
+                                "pose": BlackboardKey("move_into_pose"),
+                                "frame_id": "food",
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                        ),
+                        MoveIt2Plan(
+                            name="MoveIntoPlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("goal_constraints"),
+                                "max_velocity_scale": 0.8,
+                                "max_acceleration_scale": 0.8,
+                            },
+                            outputs={"trajectory": BlackboardKey("trajectory")},
+                        ),
+                        MoveIt2Execute(
+                            name="MoveInto",
+                            ns=name,
+                            inputs={"trajectory": BlackboardKey("trajectory")},
+                            outputs={},
+                        ),
                     ],
                 ),
             ],
