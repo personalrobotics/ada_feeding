@@ -42,7 +42,7 @@ def set_parameter_response_all_success(
 def pre_moveto_config(
     name: str,
     re_tare: bool = True,
-    toggle_watchdog_listener: bool = True,
+    toggle_watchdog_listener: bool = False,
     f_mag: float = 4.0,
     f_x: float = 0.0,
     f_y: float = 0.0,
@@ -56,9 +56,7 @@ def pre_moveto_config(
     Returns a behavior that calls the ROS services that should be called before
     any MoveTo behavior. Specifically, it does the following, in a Sequence:
         1. Re-tare the force-torque sensor.
-            a. Toggle the Watchdog Listener off. This is necessary because re-taring
-               the force-torque sensor will briefly stop force-torque sensor readings,
-               which would cause the watchdog to fail.
+            a. Toggle the Watchdog Listener off.
             b. Re-tare the force-torque sensor.
             c. Toggle the Watchdog Listener on.
         2. Set force-torque thresholds (so the ForceGateController will trip if
@@ -68,8 +66,8 @@ def pre_moveto_config(
     ----------
     name: The name to associate with this behavior.
     re_tare: Whether to re-tare the force-torque sensor.
-    toggle_watchdog_listener: Whether to toggle the watchdog listener on and off.
-        In practice, if the watchdog listener is on, you should toggle it.
+    toggle_watchdog_listener: Whether to toggle the watchdog listener on and off
+                                during re-taring.
     f_mag: The magnitude of the overall force threshold. No threshold if 0.0.
     f_x: The magnitude of the x component of the force threshold. No threshold if 0.0.
     f_y: The magnitude of the y component of the force threshold. No threshold if 0.0.

@@ -21,7 +21,9 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2Plan,
     MoveIt2Execute,
 )
+from ada_feeding.decorators import OnPreempt
 from ada_feeding.helpers import BlackboardKey
+from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.visitors import MoveToVisitor
 from ada_feeding_msgs.action import AcquireFood
 from ada_feeding_msgs.srv import AcquisitionSelect
@@ -105,7 +107,9 @@ class AcquireFoodTree(ActionServerBT):
                         "move_above_pose": BlackboardKey("move_above_pose"),
                     },
                 ),
-                # Move Above Food
+                # Re-Tare FT Sensor and default to 4N threshold
+                pre_moveto_config(),
+                ### Move Above Food
                 MoveIt2PoseConstraint(
                     name="MoveAbovePose",
                     ns=name,
@@ -132,6 +136,18 @@ class AcquireFoodTree(ActionServerBT):
                     ns=name,
                     inputs={"trajectory": BlackboardKey("trajectory")},
                     outputs={},
+                ),
+                # If Anything goes wrong, reset FT to safe levels
+                scoped_behavior(
+                    name="SafeFTPreempt",
+                    pre_behavior=py_trees.behaviours.success(),
+                    post_behavior=pre_moveto_config(re_tare=False),
+                    on_preempt_timeout=5.0,
+                    # Starts a new Sequence w/ Memory internally
+                    workers=[
+                        
+
+                    ],
                 ),
             ],
         )

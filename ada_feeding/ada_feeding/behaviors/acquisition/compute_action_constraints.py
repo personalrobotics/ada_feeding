@@ -60,6 +60,7 @@ class ComputeActionConstraints(BlackboardBehavior):
     def blackboard_outputs(
         self,
         move_above_pose: Optional[BlackboardKey],  # Pose, in Food Frame
+        move_into_pose: Optional[BlackboardKey], # Pose, in Food Frame
     ) -> None:
         """
         Blackboard Outputs
@@ -67,9 +68,8 @@ class ComputeActionConstraints(BlackboardBehavior):
 
         Parameters
         ----------
-        action_select_request (AcquisitionSelect.Request): request to send to AcquisitionSelect
-                                                           (copies mask input)
-        food_frame (geometry_msgs/TransformStamped): transform from world_frame to food_frame
+        move_above_pose: Pose constraint when moving above food
+        move_into_pose: Pose constraint when moving into food
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -118,5 +118,8 @@ class ComputeActionConstraints(BlackboardBehavior):
         )
         action.pre_transform.position = ros2_numpy.msgify(Point, position)
         self.blackboard_set("move_above_pose", action.pre_transform)
+
+        # Calculate Move-Into Target
+        offset = ros2_numpy.numpify(action.pre_offset)
 
         return py_trees.common.Status.SUCCESS
