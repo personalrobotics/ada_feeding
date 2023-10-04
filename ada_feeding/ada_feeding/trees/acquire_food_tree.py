@@ -10,13 +10,21 @@ wrap that behavior tree in a ROS2 action server.
 # Third-party imports
 from overrides import override
 import py_trees
+from py_trees.blackboard import Blackboard
+import py_trees_ros
 
 # Local imports
 from ada_feeding import ActionServerBT
-from ada_feeding.behaviors.acquisition import ComputeFoodFrame
+from ada_feeding.behaviors.acquisition import ComputeFoodFrame, ComputeActionConstraints
+from ada_feeding.behaviors.moveit2 import (
+    MoveIt2PoseConstraint,
+    MoveIt2Plan,
+    MoveIt2Execute,
+)
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.visitors import MoveToVisitor
 from ada_feeding_msgs.action import AcquireFood
+from ada_feeding_msgs.srv import AcquisitionSelect
 
 
 class AcquireFoodTree(ActionServerBT):
@@ -51,9 +59,10 @@ class AcquireFoodTree(ActionServerBT):
             name=name,
             memory=True,
             children=[
+                # Compute Food Frame
                 py_trees.decorators.Timeout(
-                    duration=1.0,
                     name="ComputeFoodFrameTimeout",
+                    duration=1.0,
                     child=ComputeFoodFrame(
                         name="ComputeFoodFrame",
                         ns=name,
@@ -63,9 +72,67 @@ class AcquireFoodTree(ActionServerBT):
                             # Default food_frame_id = "food"
                             # Default world_frame = "world"
                         },
-                        outputs={"action_select_request": None, "food_frame": None},
+                        outputs={
+                            "action_select_request": BlackboardKey("action_request"),
+                            "food_frame": None,
+                        },
                     ),
-                )
+                ),
+                # Get Action to Use
+                py_trees_ros.service_clients.FromBlackboard(
+                    name="AcquisitionSelect",
+                    service_name="~/action_select",
+                    service_type=AcquisitionSelect,
+                    # Need absolute Blackboard name
+                    key_request=Blackboard.separator.join(
+                        [name, BlackboardKey("action_request")]
+                    ),
+                    key_response=Blackboard.separator.join(
+                        [name, BlackboardKey("action_response")]
+                    ),
+                    # Default fail if service is down
+                    wait_for_server_timeout_sec=0.0,
+                ),
+                # Get MoveIt2 Constraints
+                ComputeActionConstraints(
+                    name="ComputeActionConstraints",
+                    ns=name,
+                    inputs={
+                        "action_select_response": BlackboardKey("action_response"),
+                        # Default move_above_dist_m = 0.05
+                    },
+                    outputs={
+                        "move_above_pose": BlackboardKey("move_above_pose"),
+                    },
+                ),
+                # Move Above Food
+                MoveIt2PoseConstraint(
+                    name="MoveAbovePose",
+                    ns=name,
+                    inputs={
+                        "pose": BlackboardKey("move_above_pose"),
+                        "frame_id": "food",
+                    },
+                    outputs={
+                        "constraints": BlackboardKey("goal_constraints"),
+                    },
+                ),
+                MoveIt2Plan(
+                    name="MoveAbovePlan",
+                    ns=name,
+                    inputs={
+                        "goal_constraints": BlackboardKey("goal_constraints"),
+                        "max_velocity_scale": 0.8,
+                        "max_acceleration_scale": 0.8,
+                    },
+                    outputs={"trajectory": BlackboardKey("trajectory")},
+                ),
+                MoveIt2Execute(
+                    name="MoveAbove",
+                    ns=name,
+                    inputs={"trajectory": BlackboardKey("trajectory")},
+                    outputs={},
+                ),
             ],
         )
 

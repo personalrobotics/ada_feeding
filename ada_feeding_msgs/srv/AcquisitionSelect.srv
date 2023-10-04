@@ -18,6 +18,7 @@ ada_feeding_msgs/AcquisitionSchema[] actions
 float64[] probabilities
 
 # Status Message
+# "Success" on success
 string status
 
 # Selection ID

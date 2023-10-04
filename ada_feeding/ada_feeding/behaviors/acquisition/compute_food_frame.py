@@ -64,7 +64,7 @@ class ComputeFoodFrame(BlackboardBehavior):
                                    (relative to world_frame)
         world_frame (string): ID of the TF frame to represent the food frame in
         """
-        # pylint: disable=unused-argument
+        # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
         super().blackboard_inputs(
             **{key: value for key, value in locals().items() if key != "self"}
@@ -85,7 +85,7 @@ class ComputeFoodFrame(BlackboardBehavior):
                                                            (copies mask input)
         food_frame (geometry_msgs/TransformStamped): transform from world_frame to food_frame
         """
-        # pylint: disable=unused-argument
+        # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
         super().blackboard_outputs(
             **{key: value for key, value in locals().items() if key != "self"}
@@ -93,9 +93,7 @@ class ComputeFoodFrame(BlackboardBehavior):
 
     @override
     def setup(self, **kwargs):
-        """
-        Middleware (i.e. TF) setup
-        """
+        # Docstring copied from @override
 
         # pylint: disable=attribute-defined-outside-init
         # It is okay for attributes in behaviors to be
@@ -109,9 +107,7 @@ class ComputeFoodFrame(BlackboardBehavior):
 
     @override
     def initialise(self):
-        """
-        Behavior initialization
-        """
+        # Docstring copied from @override
 
         # pylint: disable=attribute-defined-outside-init
         # It is okay for attributes in behaviors to be
@@ -142,9 +138,8 @@ class ComputeFoodFrame(BlackboardBehavior):
 
     @override
     def update(self) -> py_trees.common.Status:
-        """
-        Behavior tick (DO NOT BLOCK)
-        """
+        # Docstring copied from @override
+
         # pylint: disable=too-many-locals
         # I think this is reasonable to understand
         # the logic of this function.
