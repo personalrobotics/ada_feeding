@@ -91,7 +91,13 @@ public:
   }
   bool ready() {
     struct timeval tv;
-    if (select(kfd, NULL, NULL, NULL, &tv) <= 0)
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    fd_set readfds;
+    FD_SET(kfd, &readfds);
+    int retval = select(kfd + 1, &readfds, NULL, NULL, &tv);
+    RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "retval: %d", retval);
+    if (retval <= 0)
     {
       return false;
     }
@@ -189,8 +195,11 @@ int KeyboardServo::keyLoop()
   puts("Use 1|2|3|4|5|6|7 keys to joint jog. 'R' to reverse the direction of jogging.");
   puts("'Q' to quit.");
 
+  rclcpp::Rate loop_rate(10);
+
   for (;;)
   {
+    loop_rate.sleep();
     // get the next event from the keyboard
     try
     {
@@ -207,7 +216,7 @@ int KeyboardServo::keyLoop()
       return -1;
     }
 
-    RCLCPP_DEBUG(nh_->get_logger(), "value: 0x%02X\n", c);
+    RCLCPP_INFO(nh_->get_logger(), "value: 0x%02X", c);
 
     // // Create the messages we might publish
     auto twist_msg = std::make_unique<geometry_msgs::msg::TwistStamped>();
