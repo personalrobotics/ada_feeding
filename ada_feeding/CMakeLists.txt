@@ -50,6 +50,7 @@ install(PROGRAMS
   scripts/ada_planning_scene.py
   scripts/dummy_ft_sensor.py
   scripts/save_image.py
+  scripts/ada_keyboard_teleop.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
