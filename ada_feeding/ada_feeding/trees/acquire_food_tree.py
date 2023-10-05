@@ -6,6 +6,7 @@ wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
+from typing import List, Optional
 
 # Third-party imports
 from overrides import override
@@ -13,6 +14,7 @@ import py_trees
 from py_trees.blackboard import Blackboard
 import py_trees_ros
 from rcl_interfaces.srv import SetParameters
+from rclpy.node import Node
 
 # Local imports
 from ada_feeding import ActionServerBT
@@ -22,6 +24,7 @@ from ada_feeding.behaviors.acquisition import (
     ComputeExtractConstraints,
 )
 from ada_feeding.behaviors.moveit2 import (
+    MoveIt2JointConstraint,
     MoveIt2OrientationConstraint,
     MoveIt2PoseConstraint,
     MoveIt2PositionConstraint,
@@ -225,6 +228,9 @@ class AcquireFoodTree(ActionServerBT):
                                 "goal_constraints": BlackboardKey("goal_constraints"),
                                 "max_velocity_scale": 0.8,
                                 "max_acceleration_scale": 0.8,
+                                "cartesian": True,
+                                "cartesian_max_step": 0.001,
+                                "cartesian_fraction_threshold": 0.95,
                             },
                             outputs={"trajectory": BlackboardKey("trajectory")},
                         ),
@@ -281,6 +287,9 @@ class AcquireFoodTree(ActionServerBT):
                                 "goal_constraints": BlackboardKey("goal_constraints"),
                                 "max_velocity_scale": 0.8,
                                 "max_acceleration_scale": 0.8,
+                                "cartesian": True,
+                                "cartesian_max_step": 0.001,
+                                "cartesian_fraction_threshold": 0.95,
                             },
                             outputs={"trajectory": BlackboardKey("trajectory")},
                         ),
@@ -294,6 +303,40 @@ class AcquireFoodTree(ActionServerBT):
                 ),
             ],
         )
+
+        ### Add Resting Position
+        if self.resting_joint_positions is not None:
+            root_seq.add_children(
+                [
+                    # Move back to resting position
+                    MoveIt2JointConstraint(
+                        name="RestingConstraint",
+                        ns=name,
+                        inputs={
+                            "joint_positions": self.resting_joint_positions,
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("goal_constraints"),
+                        },
+                    ),
+                    MoveIt2Plan(
+                        name="RestingPlan",
+                        ns=name,
+                        inputs={
+                            "goal_constraints": BlackboardKey("goal_constraints"),
+                            "max_velocity_scale": 0.8,
+                            "max_acceleration_scale": 0.8,
+                        },
+                        outputs={"trajectory": BlackboardKey("trajectory")},
+                    ),
+                    MoveIt2Execute(
+                        name="Resting",
+                        ns=name,
+                        inputs={"trajectory": BlackboardKey("trajectory")},
+                        outputs={},
+                    ),
+                ]
+            )
 
         ### Return tree
         return py_trees.trees.BehaviourTree(root_seq)
