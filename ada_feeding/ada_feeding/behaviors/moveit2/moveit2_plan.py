@@ -301,8 +301,8 @@ class MoveIt2Plan(BlackboardBehavior):
             # If all goals are satisfied, return SUCCESS, no planning necessary
             # Skip if a start position is defined
             if (
-                self.blackboard_exists("start_joint_state")
-                and self.blackboard_get("start_joint_state") is not None
+                not self.blackboard_exists("start_joint_state")
+                or self.blackboard_get("start_joint_state") is None
             ):
                 if goals_satisfied:
                     self.blackboard_set("trajectory", None)
@@ -469,11 +469,13 @@ class MoveIt2Plan(BlackboardBehavior):
             rclpy.time.Time(),
         )
         current = ros2_numpy.numpify(t_stamped.transform.translation)
+        self.logger.info(f"Current Position: {current}")
         desired = None
         if isinstance(constraint_kwargs["position"], Point):
             desired = ros2_numpy.numpify(constraint_kwargs["position"])
         else:
             desired = np.array(constraint_kwargs["position"])
+        self.logger.info(f"Desired Position: {desired}")
 
         return np.linalg.norm(desired - current) <= tol
 

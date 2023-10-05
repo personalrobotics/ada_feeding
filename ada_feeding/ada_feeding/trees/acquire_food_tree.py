@@ -19,9 +19,12 @@ from ada_feeding import ActionServerBT
 from ada_feeding.behaviors.acquisition import (
     ComputeFoodFrame,
     ComputeApproachConstraints,
+    ComputeExtractConstraints,
 )
 from ada_feeding.behaviors.moveit2 import (
+    MoveIt2OrientationConstraint,
     MoveIt2PoseConstraint,
+    MoveIt2PositionConstraint,
     MoveIt2Plan,
     MoveIt2Execute,
 )
@@ -105,18 +108,19 @@ class AcquireFoodTree(ActionServerBT):
                 ),
                 # Get MoveIt2 Constraints
                 ComputeApproachConstraints(
-                    name="ComputeActionConstraints",
+                    name="ComputeApproachConstraints",
                     ns=name,
                     inputs={
                         "action_select_response": BlackboardKey("action_response"),
                         # Default move_above_dist_m = 0.05
+                        # Default food_frame_id = "food"
+                        # Default approach_frame_id = "approach"
                     },
                     outputs={
                         "move_above_pose": BlackboardKey("move_above_pose"),
                         "move_into_pose": BlackboardKey("move_into_pose"),
                         "ft_thresh": BlackboardKey("ft_thresh"),
-                        # Default food_frame_id = "food"
-                        # Default approach_frame_id = "approach"
+                        "action": BlackboardKey("action"),
                     },
                 ),
                 # Re-Tare FT Sensor and default to 4N threshold
@@ -209,6 +213,62 @@ class AcquireFoodTree(ActionServerBT):
                         ),
                         MoveIt2Execute(
                             name="MoveInto",
+                            ns=name,
+                            inputs={"trajectory": BlackboardKey("trajectory")},
+                            outputs={},
+                        ),
+                        ### Extraction
+                        ComputeExtractConstraints(
+                            name="ComputeExtractConstraints",
+                            ns=name,
+                            inputs={
+                                "action": BlackboardKey("action"),
+                                # Default approach_frame_id = "approach"
+                            },
+                            outputs={
+                                "extract_position": BlackboardKey("extract_position"),
+                                "extract_orientation": BlackboardKey(
+                                    "extract_orientation"
+                                ),
+                                "ft_thresh": BlackboardKey("ft_thresh"),
+                                "ee_frame_id": BlackboardKey("ee_frame_id"),
+                            },
+                        ),
+                        MoveIt2PositionConstraint(
+                            name="ExtractPosition",
+                            ns=name,
+                            inputs={
+                                "position": BlackboardKey("extract_position"),
+                                "frame_id": "approach",
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                        ),
+                        MoveIt2OrientationConstraint(
+                            name="ExtractOrientation",
+                            ns=name,
+                            inputs={
+                                "quat_xyzw": BlackboardKey("extract_orientation"),
+                                "frame_id": BlackboardKey("ee_frame_id"),
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                        ),
+                        MoveIt2Plan(
+                            name="ExtractPlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("goal_constraints"),
+                                "max_velocity_scale": 0.8,
+                                "max_acceleration_scale": 0.8,
+                            },
+                            outputs={"trajectory": BlackboardKey("trajectory")},
+                        ),
+                        MoveIt2Execute(
+                            name="Extraction",
                             ns=name,
                             inputs={"trajectory": BlackboardKey("trajectory")},
                             outputs={},

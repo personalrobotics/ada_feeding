@@ -218,6 +218,7 @@ class ComputeExtractConstraints(BlackboardBehavior):
         extract_position: Optional[BlackboardKey],  # Position, in approach frame
         extract_orientation: Optional[BlackboardKey],  # Quaternion, in forkTip frame
         ft_thresh: Optional[BlackboardKey],  # SetParameters.Request
+        ee_frame_id: Optional[BlackboardKey] = None,  # str
     ) -> None:
         """
         Blackboard Outputs
@@ -228,6 +229,7 @@ class ComputeExtractConstraints(BlackboardBehavior):
         extract_position: Postition constraint when moving out of food
         extract_orientation: Orientation constraint when moving out of food
         ft_thresh: SetParameters request to set thresholds pre-extraction
+        ee_frame_id: end-effector frame for the extract_orientation constraint
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -288,19 +290,21 @@ class ComputeExtractConstraints(BlackboardBehavior):
                 self.moveit2.end_effector_name,
                 rclpy.time.Time(),
             )
-            u2a_transform_np = ros2_numpy.numpify(utensil_to_approach_transform)
+            ee_position_np = ros2_numpy.numpify(
+                utensil_to_approach_transform.transform.translation
+            )
+            self.blackboard_set("ee_frame_id", self.moveit2.end_effector_name)
 
             ### Construct Constraints
 
             # Calculate Extract position (in approach frame)
-            position = ros2_numpy.numpify(action.ext_linear, hom=True)
+            position = ros2_numpy.numpify(action.ext_linear)
             dur_s = float(action.ext_duration.sec) + (
                 float(action.ext_duration.nanosec) / 10e9
             )
             position = position * dur_s
-            position[3] = 1.0  # Treat as Point
-            position = np.dot(u2a_transform_np, position)
-            extract_position = ros2_numpy.msgify(Point, position, hom=True)
+            position = position + ee_position_np  # Offset from current position
+            extract_position = ros2_numpy.msgify(Point, position[:3])
             self.blackboard_set("extract_position", extract_position)
 
             # Calculate extract orientation (in forktip frame)
