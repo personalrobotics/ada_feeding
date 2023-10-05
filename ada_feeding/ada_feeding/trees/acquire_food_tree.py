@@ -54,6 +54,23 @@ class AcquireFoodTree(ActionServerBT):
 
     """
 
+    def __init__(
+        self,
+        node: Node,
+        resting_joint_positions: Optional[List[float]] = None,
+    ):
+        """
+        Initializes tree-specific parameters.
+
+        Parameters
+        ----------
+        resting_joint_positions: Final joint position after acquisition
+        """
+        # Initialize ActionServerBT
+        super().__init__(node)
+
+        self.resting_joint_positions = resting_joint_positions
+
     @override
     def create_tree(
         self,
