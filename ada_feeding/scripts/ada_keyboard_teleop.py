@@ -71,6 +71,7 @@ def main(args=None):
     prev_key = ''
 
     try:
+        node.get_logger().info(msg)
         while(1):
             rclpy.spin_once(node, timeout_sec=0)
             key = getKey(settings)
