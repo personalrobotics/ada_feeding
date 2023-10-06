@@ -176,39 +176,36 @@ class AcquireFoodTree(ActionServerBT):
                 # If Anything goes wrong, reset FT to safe levels
                 scoped_behavior(
                     name="SafeFTPreempt",
-                    # pylint: disable=abstract-class-instantiated
-                    # It has trouble with py_trees meta classes
-                    pre_behavior=py_trees.behaviours.Success(),
+                    # Set Approach F/T Thresh
+                    pre_behavior=retry_call_ros_service(
+                        name="ApproachFTThresh",
+                        service_type=SetParameters,
+                        service_name="~/set_force_gate_controller_parameters",
+                        # Blackboard, not Constant
+                        request=None,
+                        # Need absolute Blackboard name
+                        key_request=Blackboard.separator.join(
+                            [name, BlackboardKey("ft_thresh")]
+                        ),
+                        key_response=Blackboard.separator.join(
+                            [name, BlackboardKey("ft_response")]
+                        ),
+                        response_checks=[
+                            py_trees.common.ComparisonExpression(
+                                variable=Blackboard.separator.join(
+                                    [name, BlackboardKey("ft_response")]
+                                ),
+                                value=SetParameters.Response(),  # Unused
+                                operator=set_parameter_response_all_success,
+                            )
+                        ],
+                    ),
                     post_behavior=pre_moveto_config(
                         name="PostAcquireFTSet", re_tare=False
                     ),
                     on_preempt_timeout=5.0,
                     # Starts a new Sequence w/ Memory internally
                     workers=[
-                        # Set Approach F/T Thresh
-                        retry_call_ros_service(
-                            name="ApproachFTThresh",
-                            service_type=SetParameters,
-                            service_name="~/set_force_gate_controller_parameters",
-                            # Blackboard, not Constant
-                            request=None,
-                            # Need absolute Blackboard name
-                            key_request=Blackboard.separator.join(
-                                [name, BlackboardKey("ft_thresh")]
-                            ),
-                            key_response=Blackboard.separator.join(
-                                [name, BlackboardKey("ft_response")]
-                            ),
-                            response_checks=[
-                                py_trees.common.ComparisonExpression(
-                                    variable=Blackboard.separator.join(
-                                        [name, BlackboardKey("ft_response")]
-                                    ),
-                                    value=SetParameters.Response(),  # Unused
-                                    operator=set_parameter_response_all_success,
-                                )
-                            ],
-                        ),
                         ### Move Into Food
                         MoveIt2PoseConstraint(
                             name="MoveIntoPose",
