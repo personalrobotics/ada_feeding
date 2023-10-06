@@ -13,7 +13,7 @@ import time
 from typing import Any, Union, Optional, Dict, List, Tuple
 
 # Third-party imports
-from geometry_msgs.msg import Point, Quaternion
+from geometry_msgs.msg import Point, PoseStamped, Quaternion
 import numpy as np
 from overrides import override
 import py_trees
@@ -278,12 +278,18 @@ class MoveIt2Plan(BlackboardBehavior):
                             goals_satisfied
                             and self.position_constraint_satisfied(constraint_kwargs)
                         )
+                        ## If Cartesian, transform to base link frame
+                        if self.blackboard_get("cartesian"):
+                            self.transform_goal_to_base_link(constraint_kwargs)
                         self.moveit2.set_position_goal(**constraint_kwargs)
                     elif constraint_type == MoveIt2ConstraintType.ORIENTATION:
                         goals_satisfied = (
                             goals_satisfied
                             and self.orientation_constraint_satisfied(constraint_kwargs)
                         )
+                        ## If Cartesian, transform to base link frame
+                        if self.blackboard_get("cartesian"):
+                            self.transform_goal_to_base_link(constraint_kwargs)
                         self.moveit2.set_orientation_goal(**constraint_kwargs)
                 except tf2.LookupException:
                     # Wait on Frame Transform
@@ -294,15 +300,17 @@ class MoveIt2Plan(BlackboardBehavior):
                         "Waiting on TF to test constraint satisfaction", once=True
                     )
                     return py_trees.common.Status.RUNNING
-                except (IndexError, AttributeError, ValueError):
-                    self.logger.error(f"Malformed Goal Constraint: {constraint_kwargs}")
+                except (IndexError, AttributeError, ValueError) as error:
+                    self.logger.error(
+                        f"Malformed Goal Constraint: {constraint_kwargs}; Error: {error}"
+                    )
                     return py_trees.common.Status.FAILURE
 
             # If all goals are satisfied, return SUCCESS, no planning necessary
             # Skip if a start position is defined
             if (
-                self.blackboard_exists("start_joint_state")
-                and self.blackboard_get("start_joint_state") is not None
+                not self.blackboard_exists("start_joint_state")
+                or self.blackboard_get("start_joint_state") is None
             ):
                 if goals_satisfied:
                     self.blackboard_set("trajectory", None)
@@ -397,6 +405,45 @@ class MoveIt2Plan(BlackboardBehavior):
             self.moveit2.clear_goal_constraints()
             self.moveit2.clear_path_constraints()
 
+    def transform_goal_to_base_link(self, constraint_kwargs: Dict[str, Any]) -> None:
+        """
+        Transforms the given constraint into the base link frame.
+
+        Necessary because MoveIt2 Cartesian Planner doesn't take in frame_id.
+
+        Parameters
+        ----------
+        constraint_kwargs: MODIFIED with transformed constraint
+        """
+        if constraint_kwargs["frame_id"] is None:
+            return
+
+        cons_pose = PoseStamped()
+        cons_pose.header.frame_id = constraint_kwargs["frame_id"]
+        if "quat_xyzw" in constraint_kwargs:
+            cons_pose.pose.orientation = (
+                constraint_kwargs["quat_xyzw"]
+                if isinstance(constraint_kwargs["quat_xyzw"], Quaternion)
+                else ros2_numpy.msgify(
+                    Quaternion, np.array(constraint_kwargs["quat_xyzw"])
+                )
+            )
+            constraint_kwargs["quat_xyzw"] = self.tf_buffer.transform(
+                cons_pose, self.moveit2.base_link_name
+            ).pose.orientation
+
+        if "position" in constraint_kwargs:
+            cons_pose.pose.position = (
+                constraint_kwargs["position"]
+                if isinstance(constraint_kwargs["position"], Point)
+                else ros2_numpy.msgify(Point, np.array(constraint_kwargs["position"]))
+            )
+            constraint_kwargs["position"] = self.tf_buffer.transform(
+                cons_pose, self.moveit2.base_link_name
+            ).pose.position
+
+        constraint_kwargs["frame_id"] = self.moveit2.base_link_name
+
     def joint_constraint_satisfied(self, constraint_kwargs: Dict[str, Any]) -> bool:
         """
         Check if current joint state satisfies provided joint constraint.
@@ -421,8 +468,8 @@ class MoveIt2Plan(BlackboardBehavior):
         curr_joint_state = self.moveit2.joint_state
         tol = np.fabs(constraint_kwargs["tolerance"])
 
-        curr_positions = curr_joint_state.position.copy()
-        des_positions = constraint_kwargs["joint_positions"].copy()
+        des_positions = list(constraint_kwargs["joint_positions"])
+        curr_positions = list(curr_joint_state.position)
 
         # Remap current joints based on joint names
         joint_names = constraint_kwargs["joint_names"]
@@ -436,6 +483,7 @@ class MoveIt2Plan(BlackboardBehavior):
             raise ValueError("Joint names array should match joint positions array.")
 
         # Compare with desired joints
+        curr_positions = curr_positions[: len(des_positions)]
         diff = np.fabs(np.array(curr_positions) - np.array(des_positions))
 
         return np.all(diff < tol)

@@ -211,7 +211,7 @@ class MoveIt2PositionConstraint(BlackboardBehavior):
             or not self.blackboard_exists("weight")
             or not self.blackboard_exists("constraints")
         ):
-            self.logger.error("MoveIt2Constraint: Missing input arguments.")
+            self.logger.error("MoveIt2PositionConstraint: Missing input arguments.")
             return py_trees.common.Status.FAILURE
 
         position = self.blackboard_get("position")
@@ -335,7 +335,7 @@ class MoveIt2OrientationConstraint(BlackboardBehavior):
             or not self.blackboard_exists("constraints")
             or not self.blackboard_exists("parameterization")
         ):
-            self.logger.error("MoveIt2Constraint: Missing input arguments.")
+            self.logger.error("MoveIt2OrientationConstraint: Missing input arguments.")
             return py_trees.common.Status.FAILURE
 
         quat_xyzw = self.blackboard_get("quat_xyzw")
