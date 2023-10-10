@@ -22,10 +22,6 @@
 
   <exec_depend>std_srvs</exec_depend>
 
-  <depend>rclcpp</depend>
-  <depend>geometry_msgs</depend>
-  <depend>control_msgs</depend>
-
   <!-- Extra Python Deps -->
   <depend>pyrealsense2-pip</depend>
   <depend>overrides-pip</depend>

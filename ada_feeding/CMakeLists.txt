@@ -11,23 +11,10 @@ find_package(ament_cmake_python REQUIRED)
 find_package(rcl_interfaces REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(pymoveit2 REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(geometry_msgs REQUIRED)
-find_package(control_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
-
-add_executable(servo_keyboard_input src/servo_keyboard_input.cpp)
-target_include_directories(servo_keyboard_input PUBLIC include)
-ament_target_dependencies(servo_keyboard_input rclcpp geometry_msgs control_msgs)
-
-install(
-  TARGETS
-  servo_keyboard_input
-  DESTINATION lib/${PROJECT_NAME}
-)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
