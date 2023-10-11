@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-# Adapted from https://github.com/turtlebot/turtlebot/blob/melodic/turtlebot_teleop/scripts/turtlebot_teleop_key
+# Adapted from:
+# https://github.com/turtlebot/turtlebot/blob/melodic/turtlebot_teleop/scripts/turtlebot_teleop_key
 """
+This module contains a ROS2 node to allow the user to teleoperate the ADA arm
+using the keyboard. Specifically, this node allows users to send linear cartesian
+velocities in the base frame, angular cartesian velocities in the end-effector
+frame, or joint velocities to the robot via MoveIt Servo.
 """
 
 # Standard imports
 import termios
-import time
 import tty
 import select
 import sys
@@ -20,7 +24,7 @@ import tf2_py as tf2
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 
-msg = """
+INSTRUCTION_MSG = """
 Control the ADA arm!
 ---------------------------
 Cartesian control (linear):
@@ -42,7 +46,8 @@ CTRL-C to quit
 BASE_FRAME = "j2n6s200_link_base"
 EE_FRAME = "forkTip"
 
-def getKey(settings):
+
+def get_key(settings):
     """
     Read a key from stdin without writing it to terminal.
     """
@@ -51,61 +56,68 @@ def getKey(settings):
     if rlist:
         key = sys.stdin.read(1)
     else:
-        key = ''
+        key = ""
 
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
     return key
 
+
 cartesian_control_linear_bindings = {
-    'w': ( 0.0, -1.0,  0.0), # forward
-    's': ( 0.0,  1.0,  0.0), # backwards
-    'a': ( 1.0,  0.0,  0.0), # left
-    'd': (-1.0,  0.0,  0.0), # right
-    'q': ( 0.0,  0.0,  1.0), # up
-    'e': ( 0.0,  0.0, -1.0), # down
+    "w": (0.0, -1.0, 0.0),  # forward
+    "s": (0.0, 1.0, 0.0),  # backwards
+    "a": (1.0, 0.0, 0.0),  # left
+    "d": (-1.0, 0.0, 0.0),  # right
+    "q": (0.0, 0.0, 1.0),  # up
+    "e": (0.0, 0.0, -1.0),  # down
 }
 cartesian_control_angular_bindings = {
-    'i': ( 1.0,  0.0,  0.0), # +pitch
-    'k': (-1.0,  0.0,  0.0), # -pitch
-    'j': ( 0.0,  1.0,  0.0), # +yaw
-    'l': ( 0.0, -1.0,  0.0), # -yaw
-    'u': ( 0.0,  0.0,  1.0), # +roll
-    'o': ( 0.0,  0.0, -1.0), # -roll
+    "i": (1.0, 0.0, 0.0),  # +pitch
+    "k": (-1.0, 0.0, 0.0),  # -pitch
+    "j": (0.0, 1.0, 0.0),  # +yaw
+    "l": (0.0, -1.0, 0.0),  # -yaw
+    "u": (0.0, 0.0, 1.0),  # +roll
+    "o": (0.0, 0.0, -1.0),  # -roll
 }
 joint_control_bindings = {
-    '1': 'j2n6s200_joint_1',
-    '2': 'j2n6s200_joint_2',
-    '3': 'j2n6s200_joint_3',
-    '4': 'j2n6s200_joint_4',
-    '5': 'j2n6s200_joint_5',
-    '6': 'j2n6s200_joint_6',
+    "1": "j2n6s200_joint_1",
+    "2": "j2n6s200_joint_2",
+    "3": "j2n6s200_joint_3",
+    "4": "j2n6s200_joint_4",
+    "5": "j2n6s200_joint_5",
+    "6": "j2n6s200_joint_6",
 }
-reverse_joint_direction_key = 'r'
+reverse_joint_direction_key = "r"  # pylint: disable=invalid-name
+
 
 def main(args=None):
     """
     Launch the ROS node and spin.
     """
+    # pylint: disable=too-many-locals, too-many-statements, too-many-branches
+    # pylint: disable=too-many-nested-blocks
+    # This function does the entire work of teleoperation, so it is expected
+    # to be somewhat complex.
+
     settings = termios.tcgetattr(sys.stdin)
 
     # Initialize the ROS context
     rclpy.init(args=args)
-    node = rclpy.create_node('ada_keyboard_teleop')
-    twist_pub = node.create_publisher(TwistStamped, '/servo_node/delta_twist_cmds', 1)
-    joint_pub = node.create_publisher(JointJog, '/servo_node/delta_joint_cmds', 1)
+    node = rclpy.create_node("ada_keyboard_teleop")
+    twist_pub = node.create_publisher(TwistStamped, "/servo_node/delta_twist_cmds", 1)
+    joint_pub = node.create_publisher(JointJog, "/servo_node/delta_joint_cmds", 1)
 
     # Initialize the tf2 buffer and listener
     tf_buffer = Buffer()
-    tf_listener = TransformListener(tf_buffer, node)
+    tf_listener = TransformListener(tf_buffer, node)  # pylint: disable=unused-variable
 
     # Create the cartesian control messages
     # The linear velocity is always in the base frame
     linear_msg = Vector3Stamped()
-    linear_msg.header.stamp = Time().to_msg() # use latest time
+    linear_msg.header.stamp = Time().to_msg()  # use latest time
     linear_msg.header.frame_id = BASE_FRAME
     # The angular velocity is always in the end effector frame
     angular_msg = Vector3Stamped()
-    angular_msg.header.stamp = Time().to_msg() # use latest time
+    angular_msg.header.stamp = Time().to_msg()  # use latest time
     angular_msg.header.frame_id = EE_FRAME
     # The final message should be either in the base or end effector frame.
     # It should match the `robot_link_command_frame`` servo param.
@@ -115,19 +127,19 @@ def main(args=None):
     # Create the joint control message
     joint_msg = JointJog()
     joint_msg.header.frame_id = BASE_FRAME
-    joint_velocity_command = 1.0 # rad/s
-    
-    prev_key = ''
+    joint_velocity_command = 1.0  # rad/s
+
+    prev_key = ""
 
     try:
-        node.get_logger().info(msg)
-        while(1):
+        node.get_logger().info(INSTRUCTION_MSG)
+        while 1:
             rclpy.spin_once(node, timeout_sec=0)
 
             publish_joint_msg = False
 
-            key = getKey(settings)
-            if key in cartesian_control_linear_bindings.keys():
+            key = get_key(settings)
+            if key in cartesian_control_linear_bindings:
                 # Due to keyboard delay before repeat, when the user holds down a
                 # key we will read it as the key, followed by some number of empty
                 # readings, followed by the key consecutively. To account for this,
@@ -149,11 +161,12 @@ def main(args=None):
                             twist_msg.twist.linear = linear_transformed.vector
                         except tf2.ExtrapolationException as exc:
                             node.get_logger().warning(
-                                f"Transform from {linear_msg.header.frame_id} to {twist_msg.header.frame_id} "
-                                f"failed: {type(exc)}: {exc}\n"
-                                f"Interpreting the linear velocity in {twist_msg.header.frame_id} without transforming."
+                                f"Transform from {linear_msg.header.frame_id} to "
+                                f"{twist_msg.header.frame_id} failed: {type(exc)}: {exc}\n"
+                                f"Interpreting the linear velocity in {twist_msg.header.frame_id} "
+                                "without transforming."
                             )
-            elif key in cartesian_control_angular_bindings.keys():
+            elif key in cartesian_control_angular_bindings:
                 if prev_key == key:
                     x, y, z = cartesian_control_angular_bindings[key]
                     angular_msg.vector.x = x
@@ -170,11 +183,12 @@ def main(args=None):
                             twist_msg.twist.angular = angular_transformed.vector
                         except tf2.ExtrapolationException as exc:
                             node.get_logger().warning(
-                                f"Transform from {angular_msg.header.frame_id} to {twist_msg.header.frame_id} "
-                                f"failed: {type(exc)}: {exc}\n"
-                                f"Interpreting the angular velocity in {twist_msg.header.frame_id} without transforming."
+                                f"Transform from {angular_msg.header.frame_id} to "
+                                f"{twist_msg.header.frame_id} failed: {type(exc)}: {exc}\n"
+                                f"Interpreting the angular velocity in {twist_msg.header.frame_id}"
+                                " without transforming."
                             )
-            elif key in joint_control_bindings.keys():
+            elif key in joint_control_bindings:
                 if prev_key == key:
                     joint_msg.joint_names = [joint_control_bindings[key]]
                     joint_msg.velocities = [joint_velocity_command]
@@ -190,7 +204,7 @@ def main(args=None):
                 twist_msg.twist.angular.z = 0.0
 
                 # Ctrl+C Interrupt
-                if (key == '\x03'):
+                if key == "\x03":
                     break
 
             # Publish the message
@@ -202,10 +216,14 @@ def main(args=None):
                 twist_pub.publish(twist_msg)
 
             prev_key = key
-    except Exception as e:
-        print(repr(e))
+    except Exception as exc:  # pylint: disable=broad-except
+        print(repr(exc))
 
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+    # Terminate this node
+    node.destroy_node()
+    rclpy.shutdown()
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     main()
