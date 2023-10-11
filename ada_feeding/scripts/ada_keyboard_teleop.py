@@ -14,8 +14,12 @@ import sys
 from control_msgs.msg import JointJog
 from geometry_msgs.msg import TwistStamped
 import rclpy
+from rclpy.time import Time
+from tf2_geometry_msgs import Vector3Stamped  # pylint: disable=unused-import
+import tf2_py as tf2
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
 
-# Features to consider adding: cartesian angular, joint control, modifying linear/angular speed.
 msg = """
 Control the ADA arm!
 ---------------------------
@@ -35,6 +39,8 @@ Joint control:
 
 CTRL-C to quit
 """
+BASE_FRAME = "j2n6s200_link_base"
+EE_FRAME = "forkTip"
 
 def getKey(settings):
     """
@@ -59,12 +65,12 @@ cartesian_control_linear_bindings = {
     'e': ( 0.0,  0.0, -1.0), # down
 }
 cartesian_control_angular_bindings = {
-    'i': ( 0.0,  1.0,  0.0), # +pitch
-    'k': ( 0.0, -1.0,  0.0), # -pitch
-    'j': ( 0.0,  0.0,  1.0), # +yaw
-    'l': ( 0.0,  0.0, -1.0), # -yaw
-    'u': ( 1.0,  0.0,  0.0), # +roll
-    'o': (-1.0,  0.0,  0.0), # -roll
+    'i': ( 1.0,  0.0,  0.0), # +pitch
+    'k': (-1.0,  0.0,  0.0), # -pitch
+    'j': ( 0.0,  1.0,  0.0), # +yaw
+    'l': ( 0.0, -1.0,  0.0), # -yaw
+    'u': ( 0.0,  0.0,  1.0), # +roll
+    'o': ( 0.0,  0.0, -1.0), # -roll
 }
 joint_control_bindings = {
     '1': 'j2n6s200_joint_1',
@@ -88,13 +94,27 @@ def main(args=None):
     twist_pub = node.create_publisher(TwistStamped, '/servo_node/delta_twist_cmds', 1)
     joint_pub = node.create_publisher(JointJog, '/servo_node/delta_joint_cmds', 1)
 
-    # Create the cartesian control message
+    # Initialize the tf2 buffer and listener
+    tf_buffer = Buffer()
+    tf_listener = TransformListener(tf_buffer, node)
+
+    # Create the cartesian control messages
+    # The linear velocity is always in the base frame
+    linear_msg = Vector3Stamped()
+    linear_msg.header.stamp = Time().to_msg() # use latest time
+    linear_msg.header.frame_id = BASE_FRAME
+    # The angular velocity is always in the end effector frame
+    angular_msg = Vector3Stamped()
+    angular_msg.header.stamp = Time().to_msg() # use latest time
+    angular_msg.header.frame_id = EE_FRAME
+    # The final message should be either in the base or end effector frame.
+    # It should match the `robot_link_command_frame`` servo param.
     twist_msg = TwistStamped()
-    twist_msg.header.frame_id = "j2n6s200_link_base" # "forkTip" #
+    twist_msg.header.frame_id = BASE_FRAME
 
     # Create the joint control message
     joint_msg = JointJog()
-    joint_msg.header.frame_id = "j2n6s200_link_base"
+    joint_msg.header.frame_id = BASE_FRAME
     joint_velocity_command = 1.0 # rad/s
     
     prev_key = ''
@@ -115,15 +135,45 @@ def main(args=None):
                 # publishing the velcoity commands.
                 if prev_key == key:
                     x, y, z = cartesian_control_linear_bindings[key]
-                    twist_msg.twist.linear.x = x
-                    twist_msg.twist.linear.y = y
-                    twist_msg.twist.linear.z = z
+                    linear_msg.vector.x = x
+                    linear_msg.vector.y = y
+                    linear_msg.vector.z = z
+
+                    # Transform the linear message to the overall twist message frame
+                    twist_msg.twist.linear = linear_msg.vector
+                    if linear_msg.header.frame_id != twist_msg.header.frame_id:
+                        try:
+                            linear_transformed = tf_buffer.transform(
+                                linear_msg, twist_msg.header.frame_id
+                            )
+                            twist_msg.twist.linear = linear_transformed.vector
+                        except tf2.ExtrapolationException as exc:
+                            node.get_logger().warning(
+                                f"Transform from {linear_msg.header.frame_id} to {twist_msg.header.frame_id} "
+                                f"failed: {type(exc)}: {exc}\n"
+                                f"Interpreting the linear velocity in {twist_msg.header.frame_id} without transforming."
+                            )
             elif key in cartesian_control_angular_bindings.keys():
                 if prev_key == key:
                     x, y, z = cartesian_control_angular_bindings[key]
-                    twist_msg.twist.angular.x = x
-                    twist_msg.twist.angular.y = y
-                    twist_msg.twist.angular.z = z
+                    angular_msg.vector.x = x
+                    angular_msg.vector.y = y
+                    angular_msg.vector.z = z
+
+                    # Transform the angular message to the overall twist message frame
+                    twist_msg.twist.angular = angular_msg.vector
+                    if angular_msg.header.frame_id != twist_msg.header.frame_id:
+                        try:
+                            angular_transformed = tf_buffer.transform(
+                                angular_msg, twist_msg.header.frame_id
+                            )
+                            twist_msg.twist.angular = angular_transformed.vector
+                        except tf2.ExtrapolationException as exc:
+                            node.get_logger().warning(
+                                f"Transform from {angular_msg.header.frame_id} to {twist_msg.header.frame_id} "
+                                f"failed: {type(exc)}: {exc}\n"
+                                f"Interpreting the angular velocity in {twist_msg.header.frame_id} without transforming."
+                            )
             elif key in joint_control_bindings.keys():
                 if prev_key == key:
                     joint_msg.joint_names = [joint_control_bindings[key]]
