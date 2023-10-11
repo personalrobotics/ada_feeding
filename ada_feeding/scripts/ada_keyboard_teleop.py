@@ -18,10 +18,15 @@ import rclpy
 msg = """
 Control the ADA arm!
 ---------------------------
-Cartesian control:
+Cartesian control (linear):
   w/s: forward/backwards
   a/d: left/right
   q/e: up/down
+
+Cartesian control (angular):
+  i/k: +pitch/-pitch
+  j/l: +yaw/-yaw
+  u/o: +roll/-roll
 
 Joint control (UNIMPLEMENTED):
   1-6: joint 1-6
@@ -44,13 +49,21 @@ def getKey(settings):
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
     return key
 
-cartesian_control_bindings = {
-    'w': ( 1.0,  0.0,  0.0), # forward
-    's': (-1.0,  0.0,  0.0), # backwards
-    'a': ( 0.0,  1.0,  0.0), # left
-    'd': ( 0.0, -1.0,  0.0), # right
+cartesian_control_linear_bindings = {
+    'w': ( 0.0, -1.0,  0.0), # forward
+    's': ( 0.0,  1.0,  0.0), # backwards
+    'a': ( 1.0,  0.0,  0.0), # left
+    'd': (-1.0,  0.0,  0.0), # right
     'q': ( 0.0,  0.0,  1.0), # up
     'e': ( 0.0,  0.0, -1.0), # down
+}
+cartesian_control_angular_bindings = {
+    'i': ( 0.0,  1.0,  0.0), # +pitch
+    'k': ( 0.0, -1.0,  0.0), # -pitch
+    'j': ( 0.0,  0.0,  1.0), # +yaw
+    'l': ( 0.0,  0.0, -1.0), # -yaw
+    'u': ( 1.0,  0.0,  0.0), # +roll
+    'o': (-1.0,  0.0,  0.0), # -roll
 }
 
 def main(args=None):
@@ -76,21 +89,30 @@ def main(args=None):
             rclpy.spin_once(node, timeout_sec=0)
             key = getKey(settings)
 
-            if key in cartesian_control_bindings.keys():
+            if key in cartesian_control_linear_bindings.keys():
                 # Due to keyboard delay before repeat, when the user holds down a
                 # key we will read it as the key, followed by some number of empty
                 # readings, followed by the key consecutively. To account for this,
                 # we require two consecutive readings of the same key before
                 # publishing the velcoity commands.
                 if prev_key == key:
-                    x, y, z = cartesian_control_bindings[key]
+                    x, y, z = cartesian_control_linear_bindings[key]
                     twist_msg.twist.linear.x = x
                     twist_msg.twist.linear.y = y
                     twist_msg.twist.linear.z = z
+            elif key in cartesian_control_angular_bindings.keys():
+                if prev_key == key:
+                    x, y, z = cartesian_control_angular_bindings[key]
+                    twist_msg.twist.angular.x = x
+                    twist_msg.twist.angular.y = y
+                    twist_msg.twist.angular.z = z
             else:
                 twist_msg.twist.linear.x = 0.0
                 twist_msg.twist.linear.y = 0.0
                 twist_msg.twist.linear.z = 0.0
+                twist_msg.twist.angular.x = 0.0
+                twist_msg.twist.angular.y = 0.0
+                twist_msg.twist.angular.z = 0.0
 
                 # Ctrl+C Interrupt
                 if (key == '\x03'):
