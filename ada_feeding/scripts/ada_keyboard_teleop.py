@@ -46,6 +46,9 @@ CTRL-C to quit
 """
 BASE_FRAME = "j2n6s200_link_base"
 EE_FRAME = "forkTip"
+LINEAR_VEL_CMD = 0.1  # m/s
+ANGULAR_VEL_CMD = 0.3  # rad/s
+JOINT_VEL_CMD = 0.5  # rad/s
 
 
 def get_key(settings):
@@ -129,9 +132,9 @@ def main(args=None):
     # Create the joint control message
     joint_msg = JointJog()
     joint_msg.header.frame_id = BASE_FRAME
-    joint_velocity_command = 1.0  # rad/s
 
     prev_key = ""
+    joint_direction = 1.0
 
     try:
         node.get_logger().info(INSTRUCTION_MSG)
@@ -149,9 +152,9 @@ def main(args=None):
                 # publishing the velcoity commands.
                 if prev_key == key:
                     x, y, z = cartesian_control_linear_bindings[key]
-                    linear_msg.vector.x = x
-                    linear_msg.vector.y = y
-                    linear_msg.vector.z = z
+                    linear_msg.vector.x = x * LINEAR_VEL_CMD
+                    linear_msg.vector.y = y * LINEAR_VEL_CMD
+                    linear_msg.vector.z = z * LINEAR_VEL_CMD
 
                     # Transform the linear message to the overall twist message frame
                     twist_msg.twist.linear = linear_msg.vector
@@ -171,9 +174,9 @@ def main(args=None):
             elif key in cartesian_control_angular_bindings:
                 if prev_key == key:
                     x, y, z = cartesian_control_angular_bindings[key]
-                    angular_msg.vector.x = x
-                    angular_msg.vector.y = y
-                    angular_msg.vector.z = z
+                    angular_msg.vector.x = x * ANGULAR_VEL_CMD
+                    angular_msg.vector.y = y * ANGULAR_VEL_CMD
+                    angular_msg.vector.z = z * ANGULAR_VEL_CMD
 
                     # Transform the angular message to the overall twist message frame
                     twist_msg.twist.angular = angular_msg.vector
@@ -193,10 +196,10 @@ def main(args=None):
             elif key in joint_control_bindings:
                 if prev_key == key:
                     joint_msg.joint_names = [joint_control_bindings[key]]
-                    joint_msg.velocities = [joint_velocity_command]
+                    joint_msg.velocities = [JOINT_VEL_CMD * joint_direction]
                     publish_joint_msg = True
             elif key == reverse_joint_direction_key:
-                joint_velocity_command *= -1.0
+                joint_direction *= -1.0
             elif key == toggle_linear_frame_key:
                 if linear_msg.header.frame_id == BASE_FRAME:
                     linear_msg.header.frame_id = EE_FRAME
