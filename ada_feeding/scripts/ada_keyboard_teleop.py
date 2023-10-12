@@ -31,6 +31,7 @@ Cartesian control (linear):
   w/s: forward/backwards
   a/d: left/right
   q/e: up/down
+  f: toggle between base frame (default) and end effector frame
 
 Cartesian control (angular):
   i/k: +pitch/-pitch
@@ -70,6 +71,7 @@ cartesian_control_linear_bindings = {
     "q": (0.0, 0.0, 1.0),  # up
     "e": (0.0, 0.0, -1.0),  # down
 }
+toggle_linear_frame_key = "f"  # pylint: disable=invalid-name
 cartesian_control_angular_bindings = {
     "i": (1.0, 0.0, 0.0),  # +pitch
     "k": (-1.0, 0.0, 0.0),  # -pitch
@@ -195,6 +197,11 @@ def main(args=None):
                     publish_joint_msg = True
             elif key == reverse_joint_direction_key:
                 joint_velocity_command *= -1.0
+            elif key == toggle_linear_frame_key:
+                if linear_msg.header.frame_id == BASE_FRAME:
+                    linear_msg.header.frame_id = EE_FRAME
+                else:
+                    linear_msg.header.frame_id = BASE_FRAME
             else:
                 twist_msg.twist.linear.x = 0.0
                 twist_msg.twist.linear.y = 0.0
