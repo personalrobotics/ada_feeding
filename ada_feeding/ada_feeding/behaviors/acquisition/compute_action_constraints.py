@@ -32,7 +32,7 @@ from ada_feeding_msgs.msg import AcquisitionSchema
 from ada_feeding_msgs.srv import AcquisitionSelect
 
 
-class ComputeApproachConstraints(BlackboardBehavior):
+class ComputeActionConstraints(BlackboardBehavior):
     """
     Checks AcquisitionSelect response, implements stochastic
     policy choice, and then decomposes into individual
@@ -77,7 +77,7 @@ class ComputeApproachConstraints(BlackboardBehavior):
         self,
         move_above_pose: Optional[BlackboardKey],  # Pose, in Food Frame
         move_into_pose: Optional[BlackboardKey],  # Pose, in Food Frame
-        ft_thresh: Optional[BlackboardKey],  # SetParameters.Request
+        approach_thresh: Optional[BlackboardKey],  # SetParameters.Request
         action: Optional[BlackboardKey],  # AcquisitionSchema.msg
     ) -> None:
         """
@@ -88,7 +88,7 @@ class ComputeApproachConstraints(BlackboardBehavior):
         ----------
         move_above_pose: Pose constraint when moving above food
         move_into_pose: Pose constraint when moving into food
-        ft_thresh: SetParameters request to set thresholds pre-approach
+        approach_thresh: SetParameters request to set thresholds pre-approach
         action: AcquisitionSchema object to use in later computations
         """
         # pylint: disable=unused-argument, duplicate-code
@@ -133,15 +133,6 @@ class ComputeApproachConstraints(BlackboardBehavior):
         index = np.random.choice(np.arange(prob.size), p=prob)
         action = response.actions[index]
 
-        ### Calculate Approach Frame
-        # TODO: Calculate Approach Frame
-        identity = TransformStamped()
-        identity.transform = ros2_numpy.msgify(Transform, np.eye(4))
-        identity.header.stamp = self.node.get_clock().now().to_msg()
-        identity.header.frame_id = "food"
-        identity.child_frame_id = "approach"
-        set_static_tf(identity, self.blackboard, self.node)
-
         ### Construct Constraints
 
         # Re-scale pre-transform to move_above_dist_m
@@ -166,21 +157,50 @@ class ComputeApproachConstraints(BlackboardBehavior):
         move_into_pose.position = ros2_numpy.msgify(Point, offset)
         self.blackboard_set("move_into_pose", move_into_pose)
 
-        # Calculate Approach F/T Thresholds
+        ### Calculate Approach Frame
+        approach_vec = offset - position
+        approach_frame = TransformStamped()
+        approach_mat = np.eye(4)
+        if not np.all(np.isclose(approach_vec[:2], np.zeros(2))):
+            approach_mat[:3, :3] = R.from_rotvec(
+                np.arctan2(approach_vec[1], approach_vec[0]) * np.array([0, 0, 1])
+            ).as_matrix()
+        approach_frame.transform = ros2_numpy.msgify(Transform, approach_mat)
+        approach_frame.header.stamp = self.node.get_clock().now().to_msg()
+        approach_frame.header.frame_id = "food"
+        approach_frame.child_frame_id = "approach"
+        set_static_tf(approach_frame, self.blackboard, self.node)
+
+        ### Calculate F/T Thresholds
         self.blackboard_set(
-            "ft_thresh",
+            "approach_thresh",
             create_ft_thresh_request(action.pre_force, action.pre_torque),
         )
+        self.blackboard_set(
+            "grasp_thresh",
+            create_ft_thresh_request(action.grasp_force, action.grasp_torque),
+        )
+        self.blackboard_set(
+            "ext_thresh",
+            create_ft_thresh_request(action.ext_force, action.ext_torque),
+        )
 
+        ### Final write to Blackboard
         self.blackboard_set("action", action)
         return py_trees.common.Status.SUCCESS
 
 
-# TODO: ComputeGraspConstraints
+class ComputeActionTwist(BlackboardBehavior):
+    """
+    DEPRECATED
+    Decomposes AcquisitionSchema msg into individual
+    BlackboardKey objects for MoveIt2 Extraction Behaviors.
+    """
 
 
 class ComputeExtractConstraints(BlackboardBehavior):
     """
+    DEPRECATED
     Decomposes AcquisitionSchema msg into individual
     BlackboardKey objects for MoveIt2 Extraction Behaviors.
     """
