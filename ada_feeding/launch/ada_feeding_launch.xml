@@ -27,6 +27,10 @@
     <remap from="~/set_force_gate_controller_parameters" to="/jaco_arm_controller/set_parameters" />
     <remap from="~/toggle_face_detection" to="/toggle_face_detection" />
     <remap from="~/face_detection" to="/face_detection" />
+    <remap from="~/switch_controller" to="/controller_manager/switch_controller" />
+    <remap from="~/start_servo" to="/servo_node/start_servo" />
+    <remap from="~/servo_twist_cmds" to="/servo_node/delta_twist_cmds" />
+    <remap from="~/stop_servo" to="/servo_node/stop_servo" />
     <remap from="~/action_select" to="/ada_feeding_action_select/action_select" />
     <remap from="~/action_report" to="/ada_feeding_action_select/action_report" />
   </node>

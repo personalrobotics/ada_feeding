@@ -22,7 +22,7 @@ from ada_feeding import ActionServerBT
 
 class MoveToTree(ActionServerBT, ABC):
     """
-    An abstract behvaior tree for any behavior that moves the robot and provides
+    An abstract behavior tree for any behavior that moves the robot and provides
     results and feedback as specified in ada_feeding_msgs.action.MoveTo or
     ada_feeding_msgs.action.AcquireFood.
     """

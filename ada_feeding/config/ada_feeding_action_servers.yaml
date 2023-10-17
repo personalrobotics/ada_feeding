@@ -16,6 +16,8 @@ ada_feeding_action_servers:
       - MoveToStowLocation
       - TestMoveToPose
       - TestMoveToPoseWithPosePathConstraints
+      - StartServo
+      - StopServo
 
     # Parameters for the MoveAbovePlate action
     MoveAbovePlate: # required
@@ -317,4 +319,16 @@ ada_feeding_action_servers:
         parameterization_orientation_path: 1 # 0: Euler, 1: Rotation Vector
         weight_orientation_path: 1.0
         max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
+      tick_rate: 10 # Hz, optional, default: 30
+
+    # Parameters for the StartServo action
+    StartServo: # required
+      action_type: ada_feeding_msgs.action.Trigger # required
+      tree_class: ada_feeding.trees.StartServoTree # required
+      tick_rate: 10 # Hz, optional, default: 30
+
+    # Parameters for the StartServo action
+    StopServo: # required
+      action_type: ada_feeding_msgs.action.Trigger # required
+      tree_class: ada_feeding.trees.StopServoTree # required
       tick_rate: 10 # Hz, optional, default: 30
