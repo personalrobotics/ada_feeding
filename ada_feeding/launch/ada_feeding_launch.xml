@@ -25,6 +25,9 @@
     <remap from="~/set_force_gate_controller_parameters" to="/jaco_arm_controller/set_parameters" />
     <remap from="~/toggle_face_detection" to="/toggle_face_detection" />
     <remap from="~/face_detection" to="/face_detection" />
+    <remap from="~/switch_controller" to="/controller_manager/switch_controller" />
+    <remap from="~/start_servo" to="/servo_node/start_servo" />
+    <remap from="~/stop_servo" to="/servo_node/stop_servo" />
   </node>
 
   <!-- Populate the planning scene -->
