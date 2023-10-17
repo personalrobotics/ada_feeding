@@ -135,4 +135,4 @@ class BlackboardBehavior(py_trees.behaviour.Behaviour):
         if self._outputs[key] is not None:
             self.blackboard.set(self._outputs[key], output)
         else:
-            self.logger.debug(f"Not writing to 'None' output key: {self._outputs[key]}")
+            self.logger.debug(f"Not writing to 'None' output key: {key}")

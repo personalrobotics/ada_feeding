@@ -12,7 +12,7 @@ actions:
       grasp_duration: 0.0
       grasp_force: 15.0
       grasp_torque: 4.0
-      ext_linear: [0.0, 0.0, 1.0]
+      ext_linear: [0.0, 0.0, 0.05]
       ext_angular: [0.0, 0.0, 0.0]
       ext_duration: 1.0
       ext_force: 50.0
@@ -28,7 +28,7 @@ actions:
       grasp_duration: 0.0
       grasp_force: 15.0
       grasp_torque: 4.0
-      ext_linear: [0.0, 0.0, 1.0]
+      ext_linear: [0.0, 0.0, 0.05]
       ext_angular: [0.0, 0.0, 0.0]
       ext_duration: 1.0
       ext_force: 50.0
@@ -44,7 +44,7 @@ actions:
       grasp_duration: 0.0
       grasp_force: 15.0
       grasp_torque: 4.0
-      ext_linear: [0.0, 0.0, 1.0]
+      ext_linear: [0.0, 0.0, 0.05]
       ext_angular: [0.0, 0.0, 0.0]
       ext_duration: 1.0
       ext_force: 50.0

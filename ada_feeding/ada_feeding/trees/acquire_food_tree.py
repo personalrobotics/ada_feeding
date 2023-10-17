@@ -6,17 +6,41 @@ wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
+from typing import List, Optional
 
 # Third-party imports
 from overrides import override
 import py_trees
+from py_trees.blackboard import Blackboard
+import py_trees_ros
+from rcl_interfaces.srv import SetParameters
+from rclpy.node import Node
 
 # Local imports
 from ada_feeding import ActionServerBT
-from ada_feeding.behaviors.acquisition import ComputeFoodFrame
+from ada_feeding.behaviors.acquisition import (
+    ComputeFoodFrame,
+    ComputeApproachConstraints,
+    ComputeExtractConstraints,
+)
+from ada_feeding.behaviors.moveit2 import (
+    MoveIt2JointConstraint,
+    MoveIt2OrientationConstraint,
+    MoveIt2PoseConstraint,
+    MoveIt2PositionConstraint,
+    MoveIt2Plan,
+    MoveIt2Execute,
+)
 from ada_feeding.helpers import BlackboardKey
+from ada_feeding.idioms import (
+    pre_moveto_config,
+    scoped_behavior,
+    retry_call_ros_service,
+)
+from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_success
 from ada_feeding.visitors import MoveToVisitor
 from ada_feeding_msgs.action import AcquireFood
+from ada_feeding_msgs.srv import AcquisitionSelect
 
 
 class AcquireFoodTree(ActionServerBT):
@@ -32,6 +56,23 @@ class AcquireFoodTree(ActionServerBT):
     Tree Blackboard Outputs:
 
     """
+
+    def __init__(
+        self,
+        node: Node,
+        resting_joint_positions: Optional[List[float]] = None,
+    ):
+        """
+        Initializes tree-specific parameters.
+
+        Parameters
+        ----------
+        resting_joint_positions: Final joint position after acquisition
+        """
+        # Initialize ActionServerBT
+        super().__init__(node)
+
+        self.resting_joint_positions = resting_joint_positions
 
     @override
     def create_tree(
@@ -51,9 +92,10 @@ class AcquireFoodTree(ActionServerBT):
             name=name,
             memory=True,
             children=[
+                # Compute Food Frame
                 py_trees.decorators.Timeout(
-                    duration=1.0,
                     name="ComputeFoodFrameTimeout",
+                    duration=1.0,
                     child=ComputeFoodFrame(
                         name="ComputeFoodFrame",
                         ns=name,
@@ -63,11 +105,235 @@ class AcquireFoodTree(ActionServerBT):
                             # Default food_frame_id = "food"
                             # Default world_frame = "world"
                         },
-                        outputs={"action_select_request": None, "food_frame": None},
+                        outputs={
+                            "action_select_request": BlackboardKey("action_request"),
+                            "food_frame": None,
+                        },
                     ),
-                )
+                ),
+                # Get Action to Use
+                py_trees_ros.service_clients.FromBlackboard(
+                    name="AcquisitionSelect",
+                    service_name="~/action_select",
+                    service_type=AcquisitionSelect,
+                    # Need absolute Blackboard name
+                    key_request=Blackboard.separator.join(
+                        [name, BlackboardKey("action_request")]
+                    ),
+                    key_response=Blackboard.separator.join(
+                        [name, BlackboardKey("action_response")]
+                    ),
+                    # Default fail if service is down
+                    wait_for_server_timeout_sec=0.0,
+                ),
+                # Get MoveIt2 Constraints
+                ComputeApproachConstraints(
+                    name="ComputeApproachConstraints",
+                    ns=name,
+                    inputs={
+                        "action_select_response": BlackboardKey("action_response"),
+                        # Default move_above_dist_m = 0.05
+                        # Default food_frame_id = "food"
+                        # Default approach_frame_id = "approach"
+                    },
+                    outputs={
+                        "move_above_pose": BlackboardKey("move_above_pose"),
+                        "move_into_pose": BlackboardKey("move_into_pose"),
+                        "ft_thresh": BlackboardKey("ft_thresh"),
+                        "action": BlackboardKey("action"),
+                    },
+                ),
+                # Re-Tare FT Sensor and default to 4N threshold
+                pre_moveto_config(name="PreAquireFTTare"),
+                ### Move Above Food
+                MoveIt2PoseConstraint(
+                    name="MoveAbovePose",
+                    ns=name,
+                    inputs={
+                        "pose": BlackboardKey("move_above_pose"),
+                        "frame_id": "food",
+                    },
+                    outputs={
+                        "constraints": BlackboardKey("goal_constraints"),
+                    },
+                ),
+                MoveIt2Plan(
+                    name="MoveAbovePlan",
+                    ns=name,
+                    inputs={
+                        "goal_constraints": BlackboardKey("goal_constraints"),
+                        "max_velocity_scale": 0.8,
+                        "max_acceleration_scale": 0.8,
+                    },
+                    outputs={"trajectory": BlackboardKey("trajectory")},
+                ),
+                MoveIt2Execute(
+                    name="MoveAbove",
+                    ns=name,
+                    inputs={"trajectory": BlackboardKey("trajectory")},
+                    outputs={},
+                ),
+                # If Anything goes wrong, reset FT to safe levels
+                scoped_behavior(
+                    name="SafeFTPreempt",
+                    # Set Approach F/T Thresh
+                    pre_behavior=retry_call_ros_service(
+                        name="ApproachFTThresh",
+                        service_type=SetParameters,
+                        service_name="~/set_force_gate_controller_parameters",
+                        # Blackboard, not Constant
+                        request=None,
+                        # Need absolute Blackboard name
+                        key_request=Blackboard.separator.join(
+                            [name, BlackboardKey("ft_thresh")]
+                        ),
+                        key_response=Blackboard.separator.join(
+                            [name, BlackboardKey("ft_response")]
+                        ),
+                        response_checks=[
+                            py_trees.common.ComparisonExpression(
+                                variable=Blackboard.separator.join(
+                                    [name, BlackboardKey("ft_response")]
+                                ),
+                                value=SetParameters.Response(),  # Unused
+                                operator=set_parameter_response_all_success,
+                            )
+                        ],
+                    ),
+                    post_behavior=pre_moveto_config(
+                        name="PostAcquireFTSet", re_tare=False
+                    ),
+                    on_preempt_timeout=5.0,
+                    # Starts a new Sequence w/ Memory internally
+                    workers=[
+                        ### Move Into Food
+                        MoveIt2PoseConstraint(
+                            name="MoveIntoPose",
+                            ns=name,
+                            inputs={
+                                "pose": BlackboardKey("move_into_pose"),
+                                "frame_id": "food",
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                        ),
+                        MoveIt2Plan(
+                            name="MoveIntoPlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("goal_constraints"),
+                                "max_velocity_scale": 0.8,
+                                "max_acceleration_scale": 0.8,
+                                "cartesian": True,
+                                "cartesian_max_step": 0.001,
+                                "cartesian_fraction_threshold": 0.95,
+                            },
+                            outputs={"trajectory": BlackboardKey("trajectory")},
+                        ),
+                        MoveIt2Execute(
+                            name="MoveInto",
+                            ns=name,
+                            inputs={"trajectory": BlackboardKey("trajectory")},
+                            outputs={},
+                        ),
+                        ### Extraction
+                        ComputeExtractConstraints(
+                            name="ComputeExtractConstraints",
+                            ns=name,
+                            inputs={
+                                "action": BlackboardKey("action"),
+                                # Default approach_frame_id = "approach"
+                            },
+                            outputs={
+                                "extract_position": BlackboardKey("extract_position"),
+                                "extract_orientation": BlackboardKey(
+                                    "extract_orientation"
+                                ),
+                                "ft_thresh": BlackboardKey("ft_thresh"),
+                                "ee_frame_id": BlackboardKey("ee_frame_id"),
+                            },
+                        ),
+                        MoveIt2PositionConstraint(
+                            name="ExtractPosition",
+                            ns=name,
+                            inputs={
+                                "position": BlackboardKey("extract_position"),
+                                "frame_id": "approach",
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                        ),
+                        MoveIt2OrientationConstraint(
+                            name="ExtractOrientation",
+                            ns=name,
+                            inputs={
+                                "quat_xyzw": BlackboardKey("extract_orientation"),
+                                "frame_id": BlackboardKey("ee_frame_id"),
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                        ),
+                        MoveIt2Plan(
+                            name="ExtractPlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("goal_constraints"),
+                                "max_velocity_scale": 0.8,
+                                "max_acceleration_scale": 0.8,
+                                "cartesian": True,
+                                "cartesian_max_step": 0.001,
+                                "cartesian_fraction_threshold": 0.95,
+                            },
+                            outputs={"trajectory": BlackboardKey("trajectory")},
+                        ),
+                        MoveIt2Execute(
+                            name="Extraction",
+                            ns=name,
+                            inputs={"trajectory": BlackboardKey("trajectory")},
+                            outputs={},
+                        ),
+                    ],
+                ),
             ],
         )
+
+        ### Add Resting Position
+        if self.resting_joint_positions is not None:
+            root_seq.add_children(
+                [
+                    # Move back to resting position
+                    MoveIt2JointConstraint(
+                        name="RestingConstraint",
+                        ns=name,
+                        inputs={
+                            "joint_positions": self.resting_joint_positions,
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("goal_constraints"),
+                        },
+                    ),
+                    MoveIt2Plan(
+                        name="RestingPlan",
+                        ns=name,
+                        inputs={
+                            "goal_constraints": BlackboardKey("goal_constraints"),
+                            "max_velocity_scale": 0.8,
+                            "max_acceleration_scale": 0.8,
+                        },
+                        outputs={"trajectory": BlackboardKey("trajectory")},
+                    ),
+                    MoveIt2Execute(
+                        name="Resting",
+                        ns=name,
+                        inputs={"trajectory": BlackboardKey("trajectory")},
+                        outputs={},
+                    ),
+                ]
+            )
 
         ### Return tree
         return py_trees.trees.BehaviourTree(root_seq)
