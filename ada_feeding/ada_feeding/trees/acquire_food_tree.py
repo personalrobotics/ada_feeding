@@ -9,28 +9,30 @@ wrap that behavior tree in a ROS2 action server.
 from typing import List, Optional
 
 # Third-party imports
+from geometry_msgs.msg import Twist, TwistStamped
 from overrides import override
 import py_trees
 from py_trees.blackboard import Blackboard
 import py_trees_ros
 from rcl_interfaces.srv import SetParameters
 from rclpy.node import Node
+from rclpy.qos import QoSProfile
+from std_msgs.msg import Header
 
 # Local imports
 from ada_feeding import ActionServerBT
 from ada_feeding.behaviors.acquisition import (
     ComputeFoodFrame,
-    ComputeApproachConstraints,
-    ComputeExtractConstraints,
+    ComputeActionConstraints,
+    ComputeActionTwist,
 )
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2JointConstraint,
-    MoveIt2OrientationConstraint,
     MoveIt2PoseConstraint,
-    MoveIt2PositionConstraint,
     MoveIt2Plan,
     MoveIt2Execute,
 )
+from ada_feeding.decorators import TimeoutFromBlackboard
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
     pre_moveto_config,
@@ -38,6 +40,7 @@ from ada_feeding.idioms import (
     retry_call_ros_service,
 )
 from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_success
+from ada_feeding.trees import StartServoTree, StopServoTree
 from ada_feeding.visitors import MoveToVisitor
 from ada_feeding_msgs.action import AcquireFood
 from ada_feeding_msgs.srv import AcquisitionSelect
@@ -85,6 +88,90 @@ class AcquireFoodTree(ActionServerBT):
         # TODO: remove tree_root_name
         # Sub-trees in general should not need knowledge of their parent.
 
+        ### Blackboard Constants
+        blackboard = py_trees.blackboard.Client(name=name, namespace=name)
+        blackboard.register_key(key="zero_twist", access=py_trees.common.Access.WRITE)
+        blackboard.zero_twist = TwistStamped(
+            header=Header(
+                stamp=self._node.get_clock().now().to_msg(),
+                frame_id="world",
+            ),
+            twist=Twist(),
+        )
+
+        ### Define Tree Leaf Nodes
+        start_servo_tree = StartServoTree(self._node)
+        stop_servo_tree = StopServoTree(self._node)
+
+        # FT Threshold Setting Nodes
+        approach_ft_behavior = retry_call_ros_service(
+            name="ApproachFTThresh",
+            service_type=SetParameters,
+            service_name="~/set_force_gate_controller_parameters",
+            # Blackboard, not Constant
+            request=None,
+            # Need absolute Blackboard name
+            key_request=Blackboard.separator.join(
+                [name, BlackboardKey("approach_thresh")]
+            ),
+            key_response=Blackboard.separator.join(
+                [name, BlackboardKey("ft_response")]
+            ),
+            response_checks=[
+                py_trees.common.ComparisonExpression(
+                    variable=Blackboard.separator.join(
+                        [name, BlackboardKey("ft_response")]
+                    ),
+                    value=SetParameters.Response(),  # Unused
+                    operator=set_parameter_response_all_success,
+                )
+            ],
+        )
+        grasp_ft_behavior = retry_call_ros_service(
+            name="GraspFTThresh",
+            service_type=SetParameters,
+            service_name="~/set_servo_controller_parameters",
+            # Blackboard, not Constant
+            request=None,
+            # Need absolute Blackboard name
+            key_request=Blackboard.separator.join(
+                [name, BlackboardKey("grasp_thresh")]
+            ),
+            key_response=Blackboard.separator.join(
+                [name, BlackboardKey("ft_response")]
+            ),
+            response_checks=[
+                py_trees.common.ComparisonExpression(
+                    variable=Blackboard.separator.join(
+                        [name, BlackboardKey("ft_response")]
+                    ),
+                    value=SetParameters.Response(),  # Unused
+                    operator=set_parameter_response_all_success,
+                )
+            ],
+        )
+        ext_ft_behavior = retry_call_ros_service(
+            name="ExtractionFTThresh",
+            service_type=SetParameters,
+            service_name="~/set_servo_controller_parameters",
+            # Blackboard, not Constant
+            request=None,
+            # Need absolute Blackboard name
+            key_request=Blackboard.separator.join([name, BlackboardKey("ext_thresh")]),
+            key_response=Blackboard.separator.join(
+                [name, BlackboardKey("ft_response")]
+            ),
+            response_checks=[
+                py_trees.common.ComparisonExpression(
+                    variable=Blackboard.separator.join(
+                        [name, BlackboardKey("ft_response")]
+                    ),
+                    value=SetParameters.Response(),  # Unused
+                    operator=set_parameter_response_all_success,
+                )
+            ],
+        )
+
         ### Define Tree Logic
 
         # Root Sequence
@@ -127,8 +214,8 @@ class AcquireFoodTree(ActionServerBT):
                     wait_for_server_timeout_sec=0.0,
                 ),
                 # Get MoveIt2 Constraints
-                ComputeApproachConstraints(
-                    name="ComputeApproachConstraints",
+                ComputeActionConstraints(
+                    name="ComputeActionConstraints",
                     ns=name,
                     inputs={
                         "action_select_response": BlackboardKey("action_response"),
@@ -139,7 +226,9 @@ class AcquireFoodTree(ActionServerBT):
                     outputs={
                         "move_above_pose": BlackboardKey("move_above_pose"),
                         "move_into_pose": BlackboardKey("move_into_pose"),
-                        "ft_thresh": BlackboardKey("ft_thresh"),
+                        "approach_thresh": BlackboardKey("approach_thresh"),
+                        "grasp_thresh": BlackboardKey("grasp_thresh"),
+                        "ext_thresh": BlackboardKey("ext_thresh"),
                         "action": BlackboardKey("action"),
                     },
                 ),
@@ -177,29 +266,7 @@ class AcquireFoodTree(ActionServerBT):
                 scoped_behavior(
                     name="SafeFTPreempt",
                     # Set Approach F/T Thresh
-                    pre_behavior=retry_call_ros_service(
-                        name="ApproachFTThresh",
-                        service_type=SetParameters,
-                        service_name="~/set_force_gate_controller_parameters",
-                        # Blackboard, not Constant
-                        request=None,
-                        # Need absolute Blackboard name
-                        key_request=Blackboard.separator.join(
-                            [name, BlackboardKey("ft_thresh")]
-                        ),
-                        key_response=Blackboard.separator.join(
-                            [name, BlackboardKey("ft_response")]
-                        ),
-                        response_checks=[
-                            py_trees.common.ComparisonExpression(
-                                variable=Blackboard.separator.join(
-                                    [name, BlackboardKey("ft_response")]
-                                ),
-                                value=SetParameters.Response(),  # Unused
-                                operator=set_parameter_response_all_success,
-                            )
-                        ],
-                    ),
+                    pre_behavior=approach_ft_behavior,
                     post_behavior=pre_moveto_config(
                         name="PostAcquireFTSet", re_tare=False
                     ),
@@ -237,69 +304,100 @@ class AcquireFoodTree(ActionServerBT):
                             inputs={"trajectory": BlackboardKey("trajectory")},
                             outputs={},
                         ),
-                        ### Extraction
-                        ComputeExtractConstraints(
-                            name="ComputeExtractConstraints",
-                            ns=name,
-                            inputs={
-                                "action": BlackboardKey("action"),
-                                # Default approach_frame_id = "approach"
-                            },
-                            outputs={
-                                "extract_position": BlackboardKey("extract_position"),
-                                "extract_orientation": BlackboardKey(
-                                    "extract_orientation"
+                        ### Scoped Behavior for Moveit2_Servo
+                        scoped_behavior(
+                            name="MoveIt2Servo",
+                            # Set Approach F/T Thresh
+                            pre_behavior=start_servo_tree.create_tree(
+                                name="StartServoScoped", tree_root_name=name
+                            ).root,
+                            # Reset FT and Stop Servo
+                            post_behavior=py_trees.composites.Sequence(
+                                name=name,
+                                memory=True,
+                                children=[
+                                    pre_moveto_config(
+                                        name="PostServoFTSet",
+                                        re_tare=False,
+                                        f_mag=1.0,
+                                        param_service_name="~/set_servo_controller_parameters",
+                                    ),
+                                    stop_servo_tree.create_tree(
+                                        name="StopServoScoped", tree_root_name=name
+                                    ).root,
+                                ],
+                            ),
+                            on_preempt_timeout=5.0,
+                            # Starts a new Sequence w/ Memory internally
+                            workers=[
+                                ### Grasp
+                                ComputeActionTwist(
+                                    name="ComputeGrasp",
+                                    ns=name,
+                                    inputs={
+                                        "action": BlackboardKey("action"),
+                                        "is_grasp": True,
+                                    },
+                                    outputs={
+                                        "twist": BlackboardKey("twist"),
+                                        "duration": BlackboardKey("duration"),
+                                    },
                                 ),
-                                "ft_thresh": BlackboardKey("ft_thresh"),
-                                "ee_frame_id": BlackboardKey("ee_frame_id"),
-                            },
-                        ),
-                        MoveIt2PositionConstraint(
-                            name="ExtractPosition",
-                            ns=name,
-                            inputs={
-                                "position": BlackboardKey("extract_position"),
-                                "frame_id": "approach",
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("goal_constraints"),
-                            },
-                        ),
-                        MoveIt2OrientationConstraint(
-                            name="ExtractOrientation",
-                            ns=name,
-                            inputs={
-                                "quat_xyzw": BlackboardKey("extract_orientation"),
-                                "frame_id": BlackboardKey("ee_frame_id"),
-                                "constraints": BlackboardKey("goal_constraints"),
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("goal_constraints"),
-                            },
-                        ),
-                        MoveIt2Plan(
-                            name="ExtractPlan",
-                            ns=name,
-                            inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
-                                "max_velocity_scale": 0.8,
-                                "max_acceleration_scale": 0.8,
-                                "cartesian": True,
-                                "cartesian_max_step": 0.001,
-                                "cartesian_fraction_threshold": 0.95,
-                            },
-                            outputs={"trajectory": BlackboardKey("trajectory")},
-                        ),
-                        MoveIt2Execute(
-                            name="Extraction",
-                            ns=name,
-                            inputs={"trajectory": BlackboardKey("trajectory")},
-                            outputs={},
-                        ),
-                    ],
-                ),
-            ],
-        )
+                                grasp_ft_behavior,
+                                TimeoutFromBlackboard(
+                                    name="MoveIt2ServoTimeout",
+                                    ns=name,
+                                    duration_key=BlackboardKey("duration"),
+                                    child=py_trees.decorators.SuccessIsRunning(
+                                        name="GraspRetryInfinite",
+                                        child=py_trees_ros.publishers.FromBlackboard(
+                                            name="GraspTwist",
+                                            topic_name="~/servo_twist_cmds",
+                                            topic_type=TwistStamped,
+                                            qos_profile=QoSProfile(depth=1),
+                                            blackboard_variable=Blackboard.separator.join(
+                                                [name, BlackboardKey("twist")]
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                                ### Extraction
+                                ComputeActionTwist(
+                                    name="ComputeGrasp",
+                                    ns=name,
+                                    inputs={
+                                        "action": BlackboardKey("action"),
+                                        "is_grasp": False,
+                                    },
+                                    outputs={
+                                        "twist": BlackboardKey("twist"),
+                                        "duration": BlackboardKey("duration"),
+                                    },
+                                ),
+                                ext_ft_behavior,
+                                TimeoutFromBlackboard(
+                                    name="MoveIt2ServoTimeout",
+                                    ns=name,
+                                    duration_key=BlackboardKey("duration"),
+                                    child=py_trees.decorators.SuccessIsRunning(
+                                        name="ExtractRetryInfinite",
+                                        child=py_trees_ros.publishers.FromBlackboard(
+                                            name="ExtractTwist",
+                                            topic_name="~/servo_twist_cmds",
+                                            topic_type=TwistStamped,
+                                            qos_profile=QoSProfile(depth=1),
+                                            blackboard_variable=Blackboard.separator.join(
+                                                [name, BlackboardKey("twist")]
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ],  # End MoveIt2Servo.workers
+                        ),  # End MoveIt2Servo
+                    ],  # End SafeFTPreempt.workers
+                ),  # End SafeFTPreempt
+            ],  # End root_seq.children
+        )  # End root_seq
 
         ### Add Resting Position
         if self.resting_joint_positions is not None:

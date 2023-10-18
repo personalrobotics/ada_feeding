@@ -11,7 +11,14 @@ from copy import deepcopy
 from typing import Union, Optional
 
 # Third-party imports
-from geometry_msgs.msg import Point, Pose, Quaternion, Transform, TransformStamped
+from geometry_msgs.msg import (
+    Point,
+    Pose,
+    Transform,
+    TransformStamped,
+    TwistStamped,
+    Vector3Stamped,
+)
 import numpy as np
 from overrides import override
 import py_trees
@@ -78,6 +85,8 @@ class ComputeActionConstraints(BlackboardBehavior):
         move_above_pose: Optional[BlackboardKey],  # Pose, in Food Frame
         move_into_pose: Optional[BlackboardKey],  # Pose, in Food Frame
         approach_thresh: Optional[BlackboardKey],  # SetParameters.Request
+        grasp_thresh: Optional[BlackboardKey],  # SetParameters.Request
+        ext_thresh: Optional[BlackboardKey],  # SetParameters.Request
         action: Optional[BlackboardKey],  # AcquisitionSchema.msg
     ) -> None:
         """
@@ -89,6 +98,8 @@ class ComputeActionConstraints(BlackboardBehavior):
         move_above_pose: Pose constraint when moving above food
         move_into_pose: Pose constraint when moving into food
         approach_thresh: SetParameters request to set thresholds pre-approach
+        grasp_thresh: SetParameters request to set thresholds in grasp
+        ext_thresh: SetParameters request to set thresholds for extraction
         action: AcquisitionSchema object to use in later computations
         """
         # pylint: disable=unused-argument, duplicate-code
@@ -192,17 +203,8 @@ class ComputeActionConstraints(BlackboardBehavior):
 
 class ComputeActionTwist(BlackboardBehavior):
     """
-    DEPRECATED
-    Decomposes AcquisitionSchema msg into individual
-    BlackboardKey objects for MoveIt2 Extraction Behaviors.
-    """
-
-
-class ComputeExtractConstraints(BlackboardBehavior):
-    """
-    DEPRECATED
-    Decomposes AcquisitionSchema msg into individual
-    BlackboardKey objects for MoveIt2 Extraction Behaviors.
+    Converts grasp/extraction parameters into a single
+    TwistStamped for use with moveit2_servo
     """
 
     # pylint: disable=arguments-differ
@@ -217,6 +219,7 @@ class ComputeExtractConstraints(BlackboardBehavior):
     def blackboard_inputs(
         self,
         action: Union[BlackboardKey, AcquisitionSchema],
+        is_grasp: Union[BlackboardKey, bool] = True,
         approach_frame_id: Union[BlackboardKey, str] = "approach",
     ) -> None:
         """
@@ -225,6 +228,7 @@ class ComputeExtractConstraints(BlackboardBehavior):
         Parameters
         ----------
         action: AcquisitionSchema msg object
+        is_grasp: if true, use the grasp action elements, else use extraction
         approach_frame_id: approach frame defined in AcquisitionSchema.msg
         """
         # pylint: disable=unused-argument, duplicate-code
@@ -235,10 +239,8 @@ class ComputeExtractConstraints(BlackboardBehavior):
 
     def blackboard_outputs(
         self,
-        extract_position: Optional[BlackboardKey],  # Position, in approach frame
-        extract_orientation: Optional[BlackboardKey],  # Quaternion, in forkTip frame
-        ft_thresh: Optional[BlackboardKey],  # SetParameters.Request
-        ee_frame_id: Optional[BlackboardKey] = None,  # str
+        twist: Optional[BlackboardKey],  # TwistStamped
+        duration: Optional[BlackboardKey],  # float
     ) -> None:
         """
         Blackboard Outputs
@@ -246,10 +248,8 @@ class ComputeExtractConstraints(BlackboardBehavior):
 
         Parameters
         ----------
-        extract_position: Postition constraint when moving out of food
-        extract_orientation: Orientation constraint when moving out of food
-        ft_thresh: SetParameters request to set thresholds pre-extraction
-        ee_frame_id: end-effector frame for the extract_orientation constraint
+        twist: twist to send to MoveIt2 Servo
+        duration: how long to twist in seconds
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -284,10 +284,21 @@ class ComputeExtractConstraints(BlackboardBehavior):
         # Docstring copied from @override
 
         # Input Validation
-        if not self.blackboard_exists("action"):
+        if (
+            not self.blackboard_exists("action")
+            or not self.blackboard_exists("is_grasp")
+            or not self.blackboard_exists("approach_frame_id")
+        ):
             self.logger.error("Missing AcquisitionSchema action")
             return py_trees.common.Status.FAILURE
         action = self.blackboard_get("action")
+        linear = action.ext_linear
+        angular = action.ext_angular
+        duration = action.ext_duration
+        if self.blackboard_get("is_grasp"):
+            linear = action.grasp_linear
+            angular = action.grasp_angular
+            duration = action.grasp_duration
         approach_frame_id = self.blackboard_get("approach_frame_id")
 
         ### Lock used objects
@@ -296,6 +307,12 @@ class ComputeExtractConstraints(BlackboardBehavior):
             # Use a Timeout decorator to determine failure.
             return py_trees.common.Status.RUNNING
         with self.tf_lock, self.moveit2_lock:
+            twist = TwistStamped()
+            twist.header.stamp = self.node.get_clock().now().to_msg()
+            twist.header.frame_id = approach_frame_id
+            twist.twist.linear = linear
+
+            ### Move Angular to Approach Frame
             # Get TF EE frame -> approach frame
             if not self.tf_buffer.can_transform(
                 approach_frame_id,
@@ -305,40 +322,16 @@ class ComputeExtractConstraints(BlackboardBehavior):
                 # Not yet, wait for it
                 # Use a Timeout decorator to determine failure.
                 return py_trees.common.Status.RUNNING
-            utensil_to_approach_transform = self.tf_buffer.lookup_transform(
-                approach_frame_id,
-                self.moveit2.end_effector_name,
-                rclpy.time.Time(),
-            )
-            ee_position_np = ros2_numpy.numpify(
-                utensil_to_approach_transform.transform.translation
-            )
-            self.blackboard_set("ee_frame_id", self.moveit2.end_effector_name)
 
-            ### Construct Constraints
+            angular_stamped = Vector3Stamped()
+            angular_stamped.header.frame_id = self.moveit2.end_effector_name
+            angular_stamped.vector = angular
+            twist.twist.angular = self.tf_buffer.transform(
+                angular_stamped, approach_frame_id
+            ).vector
+            self.blackboard_set("twist", twist)
 
-            # Calculate Extract position (in approach frame)
-            position = ros2_numpy.numpify(action.ext_linear)
-            dur_s = float(action.ext_duration.sec) + (
-                float(action.ext_duration.nanosec) / 10e9
-            )
-            position = position * dur_s
-            position = position + ee_position_np  # Offset from current position
-            extract_position = ros2_numpy.msgify(Point, position[:3])
-            self.blackboard_set("extract_position", extract_position)
-
-            # Calculate extract orientation (in forktip frame)
-            rot_vec = ros2_numpy.numpify(action.ext_angular)
-            rot_vec = rot_vec * dur_s
-            extract_orientation = ros2_numpy.msgify(
-                Quaternion, R.from_rotvec(rot_vec).as_quat()
-            )
-            self.blackboard_set("extract_orientation", extract_orientation)
-
-            # Calculate Approach F/T Thresholds
-            self.blackboard_set(
-                "ft_thresh",
-                create_ft_thresh_request(action.ext_force, action.ext_torque),
-            )
-
+            # Compute Duration
+            dur_s = float(duration.sec) + (float(duration.nanosec) / 10e9)
+            self.blackboard_set("duration", dur_s)
         return py_trees.common.Status.SUCCESS

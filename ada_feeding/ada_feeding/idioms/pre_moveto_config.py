@@ -99,6 +99,7 @@ def pre_moveto_config(
     t_x: float = 0.0,
     t_y: float = 0.0,
     t_z: float = 0.0,
+    param_service_name: str = "~/set_force_gate_controller_parameters",
 ) -> py_trees.behaviour.Behaviour:
     """
     Returns a behavior that calls the ROS services that should be called before
@@ -194,7 +195,7 @@ def pre_moveto_config(
     set_force_torque_thresholds = retry_call_ros_service(
         name=set_force_torque_thresholds_name,
         service_type=SetParameters,
-        service_name="~/set_force_gate_controller_parameters",
+        service_name=param_service_name,
         key_request=None,
         request=ft_threshold_request,
         key_response=set_force_torque_thresholds_key_response,
