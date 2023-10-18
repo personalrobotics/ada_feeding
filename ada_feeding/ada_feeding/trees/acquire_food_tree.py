@@ -344,21 +344,33 @@ class AcquireFoodTree(ActionServerBT):
                                     },
                                 ),
                                 grasp_ft_behavior,
-                                TimeoutFromBlackboard(
-                                    name="MoveIt2ServoTimeout",
-                                    ns=name,
-                                    duration_key=BlackboardKey("duration"),
-                                    child=py_trees.decorators.SuccessIsRunning(
-                                        name="GraspRetryInfinite",
-                                        child=py_trees_ros.publishers.FromBlackboard(
-                                            name="GraspTwist",
-                                            topic_name="~/servo_twist_cmds",
-                                            topic_type=TwistStamped,
-                                            qos_profile=QoSProfile(depth=1),
-                                            blackboard_variable=Blackboard.separator.join(
-                                                [name, BlackboardKey("twist")]
+                                py_trees.decorators.FailureIsSuccess(
+                                    name="GraspSuceed",
+                                    child=TimeoutFromBlackboard(
+                                        name="MoveIt2ServoTimeout",
+                                        ns=name,
+                                        duration_key=BlackboardKey("duration"),
+                                        child=py_trees.decorators.SuccessIsRunning(
+                                            name="GraspRetryInfinite",
+                                            child=py_trees_ros.publishers.FromBlackboard(
+                                                name="GraspTwist",
+                                                topic_name="~/servo_twist_cmds",
+                                                topic_type=TwistStamped,
+                                                qos_profile=QoSProfile(depth=1),
+                                                blackboard_variable=Blackboard.separator.join(
+                                                    [name, BlackboardKey("twist")]
+                                                ),
                                             ),
                                         ),
+                                    ),
+                                ),
+                                py_trees_ros.publishers.FromBlackboard(
+                                    name="StopTwist",
+                                    topic_name="~/servo_twist_cmds",
+                                    topic_type=TwistStamped,
+                                    qos_profile=QoSProfile(depth=1),
+                                    blackboard_variable=Blackboard.separator.join(
+                                        [name, BlackboardKey("zero_twist")]
                                     ),
                                 ),
                                 ### Extraction
@@ -375,21 +387,33 @@ class AcquireFoodTree(ActionServerBT):
                                     },
                                 ),
                                 ext_ft_behavior,
-                                TimeoutFromBlackboard(
-                                    name="MoveIt2ServoTimeout",
-                                    ns=name,
-                                    duration_key=BlackboardKey("duration"),
-                                    child=py_trees.decorators.SuccessIsRunning(
-                                        name="ExtractRetryInfinite",
-                                        child=py_trees_ros.publishers.FromBlackboard(
-                                            name="ExtractTwist",
-                                            topic_name="~/servo_twist_cmds",
-                                            topic_type=TwistStamped,
-                                            qos_profile=QoSProfile(depth=1),
-                                            blackboard_variable=Blackboard.separator.join(
-                                                [name, BlackboardKey("twist")]
+                                py_trees.decorators.FailureIsSuccess(
+                                    name="ExtractSucceed",
+                                    child=TimeoutFromBlackboard(
+                                        name="MoveIt2ServoTimeout",
+                                        ns=name,
+                                        duration_key=BlackboardKey("duration"),
+                                        child=py_trees.decorators.SuccessIsRunning(
+                                            name="ExtractRetryInfinite",
+                                            child=py_trees_ros.publishers.FromBlackboard(
+                                                name="ExtractTwist",
+                                                topic_name="~/servo_twist_cmds",
+                                                topic_type=TwistStamped,
+                                                qos_profile=QoSProfile(depth=1),
+                                                blackboard_variable=Blackboard.separator.join(
+                                                    [name, BlackboardKey("twist")]
+                                                ),
                                             ),
                                         ),
+                                    ),
+                                ),
+                                py_trees_ros.publishers.FromBlackboard(
+                                    name="StopTwist",
+                                    topic_name="~/servo_twist_cmds",
+                                    topic_type=TwistStamped,
+                                    qos_profile=QoSProfile(depth=1),
+                                    blackboard_variable=Blackboard.separator.join(
+                                        [name, BlackboardKey("zero_twist")]
                                     ),
                                 ),
                             ],  # End MoveIt2Servo.workers

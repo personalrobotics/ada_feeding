@@ -22,6 +22,7 @@ class TimeoutFromBlackboard(Timeout):
     parameter.
 
     """
+
     def __init__(
         self,
         name: str,
@@ -34,7 +35,9 @@ class TimeoutFromBlackboard(Timeout):
         Just store local blackboard client + duration
         """
         self._blackboard = py_trees.blackboard.Client(name=name, namespace=ns)
-        self._blackboard.register_key(key=duration_key, access=py_trees.common.Access.READ)
+        self._blackboard.register_key(
+            key=duration_key, access=py_trees.common.Access.READ
+        )
         self._duration_key = duration_key
 
         super().__init__(name=name, child=child)
