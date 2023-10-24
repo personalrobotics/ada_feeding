@@ -82,7 +82,9 @@ def cv2_image_to_ros_msg(
     return bridge.cv2_to_imgmsg(image, encoding="passthrough")
 
 
-def get_img_msg_type(topic: str, node: Node) -> type:
+def get_img_msg_type(
+    topic: str, node: Node, timeout_sec: Optional[float] = 1.0
+) -> type:
     """
     Get the type of the image message on the given topic.
 
@@ -90,13 +92,15 @@ def get_img_msg_type(topic: str, node: Node) -> type:
     ----------
     topic: the topic to get the image message type for
     node: the node to use to get the topic type
+    timeout_sec: the timeout to use when getting the topic type. If None, this
+        will wait forever.
 
     Returns
     -------
     the type of the image message on the given topic, either Image or CompressedImage
     """
     # Spin the node once to get the publishers list
-    rclpy.spin_once(node)
+    rclpy.spin_once(node, timeout_sec=timeout_sec)
 
     # Resolve the topic name (e.g., handle remappings)
     final_topic = node.resolve_topic_name(topic)
