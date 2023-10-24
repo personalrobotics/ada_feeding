@@ -14,10 +14,17 @@ from typing import List, Tuple
 # Third-party imports
 from overrides import override
 import py_trees
-from py_trees.blackboard import Blackboard
 from rclpy.node import Node
 
 # Local imports
+from ada_feeding.behaviors.moveit2 import (
+    MoveIt2Plan,
+    MoveIt2Execute,
+    MoveIt2JointConstraint,
+    MoveIt2PositionConstraint,
+    MoveIt2OrientationConstraint,
+)
+from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import (
     get_add_in_front_of_wheelchair_wall_behavior,
@@ -26,8 +33,8 @@ from ada_feeding.idioms.bite_transfer import (
 )
 from ada_feeding.trees import (
     MoveToTree,
-    MoveToConfigurationWithPosePathConstraintsTree,
-    MoveToPoseWithPosePathConstraintsTree,
+    # MoveToConfigurationWithPosePathConstraintsTree,
+    # MoveToPoseWithPosePathConstraintsTree,
 )
 
 
@@ -159,159 +166,207 @@ class MoveFromMouthTree(MoveToTree):
         self.torque_threshold = torque_threshold
 
     @override
-    def create_move_to_tree(
+    def create_tree(
         self,
         name: str,
         tree_root_name: str,
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied from @override
 
-        # Separate the namespace of each sub-behavior
-        pre_moveto_config_prefix = "pre_moveto_config"
+        # TODO: Remove these once I make everything a BlackboardBehavior!
+        self.blackboard = py_trees.blackboard.Client(
+            name=name + " Tree", namespace=name
+        )
         allow_wheelchair_collision_prefix = "allow_wheelchair_collision"
-        move_to_staging_configuration_prefix = "move_to_staging_configuration"
-        add_wheelchair_wall_prefix = "add_wheelchair_wall"
         disallow_wheelchair_collision_prefix = "disallow_wheelchair_collision"
-        move_to_end_configuration_prefix = "move_to_end_configuration"
+        add_wheelchair_wall_prefix = "add_wheelchair_wall"
         remove_wheelchair_wall_prefix = "remove_wheelchair_wall"
 
-        # Configure the force-torque sensor and thresholds before moving
-        pre_moveto_config_name = Blackboard.separator.join(
-            [name, pre_moveto_config_prefix]
-        )
-        pre_moveto_config_behavior = pre_moveto_config(
-            name=pre_moveto_config_name,
-            toggle_watchdog_listener=False,
-            f_mag=self.force_threshold,
-            t_mag=self.torque_threshold,
-        )
-
-        # Create the behavior to allow collisions between the robot and the
-        # wheelchair collision object. The wheelchair collision object is
-        # intentionally expanded to nsure the robot gets nowhere close to the
-        # user during acquisition, but during transfer the robot must get close
-        # to the user so the wheelchair collision object must be allowed.
-        allow_wheelchair_collision = get_toggle_collision_object_behavior(
-            name,
-            allow_wheelchair_collision_prefix,
-            self._node,
-            [self.wheelchair_collision_object_id],
-            True,
-        )
-
-        # Create the behaviour to move the robot to the staging configuration
-        move_to_staging_configuration_name = Blackboard.separator.join(
-            [name, move_to_staging_configuration_prefix]
-        )
-        move_to_staging_configuration = (
-            MoveToPoseWithPosePathConstraintsTree(
-                self._node,
-                position_goal=self.staging_configuration_position,
-                quat_xyzw_goal=self.staging_configuration_quat_xyzw,
-                tolerance_position_goal=self.staging_configuration_tolerance,
-                tolerance_orientation_goal=(0.6, 0.5, 0.5),
-                parameterization_orientation_goal=1,  # Rotation vector
-                cartesian=True,
-                cartesian_jump_threshold=self.cartesian_jump_threshold_to_staging_configuration,
-                cartesian_max_step=self.cartesian_max_step_to_staging_configuration,
-                cartesian_fraction_threshold=0.60,
-                planner_id=self.planner_id,
-                allowed_planning_time=self.allowed_planning_time_to_staging_configuration,
-                max_velocity_scaling_factor=(
-                    self.max_velocity_scaling_factor_to_staging_configuration
-                ),
-                quat_xyzw_path=self.orientation_constraint_to_staging_configuration_quaternion,
-                tolerance_orientation_path=(
-                    self.orientation_constraint_to_staging_configuration_tolerances
-                ),
-                parameterization_orientation_path=1,  # Rotation vector
-            )
-            .create_tree(
-                move_to_staging_configuration_name,
-                tree_root_name,
-            )
-            .root
-        )
-
-        # Create the behavior to disallow collisions between the robot and the
-        # wheelchair collision object.
-        disallow_wheelchair_collision = get_toggle_collision_object_behavior(
-            name,
-            disallow_wheelchair_collision_prefix,
-            self._node,
-            [self.wheelchair_collision_object_id],
-            False,
-        )
-
-        # Create the behavior to add the wall in front of the wheelchair
         in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
-        add_in_front_of_wheelchair_wall = get_add_in_front_of_wheelchair_wall_behavior(
-            name,
-            add_wheelchair_wall_prefix,
-            in_front_of_wheelchair_wall_id,
-            self._node,
-            self.blackboard,
-        )
 
-        # Create the behaviour to move the robot to the end configuration
-        move_to_end_configuration_name = Blackboard.separator.join(
-            [name, move_to_end_configuration_prefix]
-        )
-        move_to_end_configuration = (
-            MoveToConfigurationWithPosePathConstraintsTree(
-                self._node,
-                joint_positions_goal=self.end_configuration,
-                tolerance_joint_goal=self.end_configuration_tolerance,
-                planner_id=self.planner_id,
-                allowed_planning_time=self.allowed_planning_time_to_end_configuration,
-                max_velocity_scaling_factor=self.max_velocity_scaling_factor_to_end_configuration,
-                quat_xyzw_path=self.orientation_constraint_to_end_configuration_quaternion,
-                tolerance_orientation_path=(
-                    self.orientation_constraint_to_end_configuration_tolerances
-                ),
-                parameterization_orientation_path=1,  # Rotation vector
-            )
-            .create_tree(
-                move_to_end_configuration_name,
-                tree_root_name,
-            )
-            .root
-        )
-
-        # Create the behavior to remove the collision wall between the staging pose and the user.
-        remove_in_front_of_wheelchair_wall = (
-            get_remove_in_front_of_wheelchair_wall_behavior(
-                name,
-                remove_wheelchair_wall_prefix,
-                in_front_of_wheelchair_wall_id,
-                self._node,
-            )
-        )
-
-        # Link all the behaviours together in a sequence with memory
-        root = py_trees.composites.Sequence(
-            name=name + " Main",
+        # Root Sequence
+        root_seq = py_trees.composites.Sequence(
+            name=name,
             memory=True,
             children=[
-                # For now, we only re-tare the F/T sensor once, since no large forces
-                # are expected during transfer.
-                pre_moveto_config_behavior,
+                # Retare the F/T sensor and set the F/T Thresholds
+                pre_moveto_config(
+                    name=name + "PreMoveToConfig",
+                    toggle_watchdog_listener=False,
+                    f_mag=self.force_threshold,
+                    t_mag=self.torque_threshold,
+                ),
+                # Allow collisions between the robot and the expanded wheelchair
+                # collision object
                 scoped_behavior(
                     name=name + " AllowWheelchairCollisionScope",
-                    pre_behavior=allow_wheelchair_collision,
-                    workers=[move_to_staging_configuration],
-                    post_behavior=disallow_wheelchair_collision,
+                    pre_behavior=get_toggle_collision_object_behavior(
+                        name,
+                        allow_wheelchair_collision_prefix,
+                        self._node,
+                        [self.wheelchair_collision_object_id],
+                        True,
+                    ),
+                    workers=[
+                        # Goal configuration: target position
+                        MoveIt2PositionConstraint(
+                            name="MoveToStagingPosePositionGoalConstraint",
+                            ns=name,
+                            inputs={
+                                "position": self.staging_configuration_position,
+                                "tolerance": self.staging_configuration_tolerance,
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                        ),
+                        # Goal configuration: target orientation
+                        MoveIt2OrientationConstraint(
+                            name="MoveToStagingPoseOrientationGoalConstraint",
+                            ns=name,
+                            inputs={
+                                "quat_xyzw": self.staging_configuration_quat_xyzw,
+                                "tolerance": (0.6, 0.5, 0.5),
+                                "parameterization": 1,  # Rotation vector
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                        ),
+                        # Orientation path constraint to keep the fork straight
+                        MoveIt2OrientationConstraint(
+                            name="KeepForkStraightPathConstraint",
+                            ns=name,
+                            inputs={
+                                "quat_xyzw": (
+                                    self.orientation_constraint_to_staging_configuration_quaternion
+                                ),
+                                "tolerance": (
+                                    self.orientation_constraint_to_staging_configuration_tolerances
+                                ),
+                                "parameterization": 1,  # Rotation vector
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("path_constraints"),
+                            },
+                        ),
+                        # Plan
+                        MoveIt2Plan(
+                            name="MoveToStagingPosePlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("goal_constraints"),
+                                "path_constraints": BlackboardKey("path_constraints"),
+                                "planner_id": self.planner_id,
+                                "allowed_planning_time": (
+                                    self.allowed_planning_time_to_staging_configuration
+                                ),
+                                "max_velocity_scale": (
+                                    self.max_velocity_scaling_factor_to_staging_configuration
+                                ),
+                                "cartesian": True,
+                                "cartesian_jump_threshold": (
+                                    self.cartesian_jump_threshold_to_staging_configuration
+                                ),
+                                "cartesian_fraction_threshold": 0.60,
+                                "cartesian_max_step": (
+                                    self.cartesian_max_step_to_staging_configuration
+                                ),
+                            },
+                            outputs={"trajectory": BlackboardKey("trajectory")},
+                        ),
+                        # Execute
+                        MoveIt2Execute(
+                            name="MoveToStagingPoseExecute",
+                            ns=name,
+                            inputs={"trajectory": BlackboardKey("trajectory")},
+                            outputs={},
+                        ),
+                    ],
+                    post_behavior=get_toggle_collision_object_behavior(
+                        name,
+                        disallow_wheelchair_collision_prefix,
+                        self._node,
+                        [self.wheelchair_collision_object_id],
+                        False,
+                    ),
                 ),
+                # Add the wall in front of the wheelchair to prevent the arm from
+                # Moving closer to the user than it currently is.
                 scoped_behavior(
                     name=name + " AddInFrontOfWheelchairWallScope",
-                    pre_behavior=add_in_front_of_wheelchair_wall,
-                    workers=[move_to_end_configuration],
-                    post_behavior=remove_in_front_of_wheelchair_wall,
+                    pre_behavior=get_add_in_front_of_wheelchair_wall_behavior(
+                        name,
+                        add_wheelchair_wall_prefix,
+                        in_front_of_wheelchair_wall_id,
+                        self._node,
+                        self.blackboard,
+                    ),
+                    workers=[
+                        # Goal configuration: staging configuration
+                        MoveIt2JointConstraint(
+                            name="EndingConfigurationGoalConstraint",
+                            ns=name,
+                            inputs={
+                                "joint_positions": self.end_configuration,
+                                "tolerance": self.end_configuration_tolerance,
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                        ),
+                        # Orientation path constraint to keep the fork straight
+                        MoveIt2OrientationConstraint(
+                            name="KeepForkStraightPathConstraint",
+                            ns=name,
+                            inputs={
+                                "quat_xyzw": (
+                                    self.orientation_constraint_to_end_configuration_quaternion
+                                ),
+                                "tolerance": (
+                                    self.orientation_constraint_to_end_configuration_tolerances
+                                ),
+                                "parameterization": 1,  # Rotation vector
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("path_constraints"),
+                            },
+                        ),
+                        # Plan
+                        MoveIt2Plan(
+                            name="MoveToEndingConfigurationPlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("goal_constraints"),
+                                "path_constraints": BlackboardKey("path_constraints"),
+                                "planner_id": self.planner_id,
+                                "allowed_planning_time": (
+                                    self.allowed_planning_time_to_end_configuration
+                                ),
+                                "max_velocity_scale": (
+                                    self.max_velocity_scaling_factor_to_end_configuration
+                                ),
+                            },
+                            outputs={"trajectory": BlackboardKey("trajectory")},
+                        ),
+                        # Execute
+                        MoveIt2Execute(
+                            name="MoveToEndingConfigurationExecute",
+                            ns=name,
+                            inputs={"trajectory": BlackboardKey("trajectory")},
+                            outputs={},
+                        ),
+                    ],
+                    post_behavior=get_remove_in_front_of_wheelchair_wall_behavior(
+                        name,
+                        remove_wheelchair_wall_prefix,
+                        in_front_of_wheelchair_wall_id,
+                        self._node,
+                    ),
                 ),
             ],
         )
 
-        # raise Exception(py_trees.display.unicode_blackboard())
-
-        tree = py_trees.trees.BehaviourTree(root)
-        return tree
+        ### Return tree
+        return py_trees.trees.BehaviourTree(root_seq)

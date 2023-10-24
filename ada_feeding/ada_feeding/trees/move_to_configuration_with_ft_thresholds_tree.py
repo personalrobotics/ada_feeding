@@ -129,7 +129,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self.clear_constraints = clear_constraints
 
     @override
-    def create_move_to_tree(
+    def create_tree(
         self,
         name: str,
         tree_root_name: str,
