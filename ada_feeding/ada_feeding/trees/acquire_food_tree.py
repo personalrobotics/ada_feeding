@@ -21,6 +21,7 @@ from std_msgs.msg import Header
 
 # Local imports
 from ada_feeding import ActionServerBT
+from ada_feeding.behaviors import ToggleCollisionObject
 from ada_feeding.behaviors.acquisition import (
     ComputeFoodFrame,
     ComputeActionConstraints,
@@ -308,9 +309,21 @@ class AcquireFoodTree(ActionServerBT):
                         scoped_behavior(
                             name="MoveIt2Servo",
                             # Set Approach F/T Thresh
-                            pre_behavior=start_servo_tree.create_tree(
-                                name="StartServoScoped", tree_root_name=name
-                            ).root,
+                            pre_behavior=py_trees.composites.Sequence(
+                                name=name,
+                                memory=True,
+                                children=[
+                                    start_servo_tree.create_tree(
+                                        name="StartServoScoped", tree_root_name=name
+                                    ).root,
+                                    ToggleCollisionObject(
+                                        name="AllowTable",
+                                        node=self._node,
+                                        collision_object_ids=["table"],
+                                        allow=True,
+                                    ),
+                                ],
+                            ),
                             # Reset FT and Stop Servo
                             post_behavior=py_trees.composites.Sequence(
                                 name=name,
@@ -325,6 +338,12 @@ class AcquireFoodTree(ActionServerBT):
                                     stop_servo_tree.create_tree(
                                         name="StopServoScoped", tree_root_name=name
                                     ).root,
+                                    ToggleCollisionObject(
+                                        name="DisallowTable",
+                                        node=self._node,
+                                        collision_object_ids=["table"],
+                                        allow=False,
+                                    ),
                                 ],
                             ),
                             on_preempt_timeout=5.0,
