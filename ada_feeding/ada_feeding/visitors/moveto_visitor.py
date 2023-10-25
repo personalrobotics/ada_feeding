@@ -13,6 +13,7 @@ import math
 from overrides import override
 
 # Third-party imports
+from ada_feeding_msgs.action import MoveTo
 import py_trees
 from py_trees.composites import Composite
 from py_trees.decorators import Decorator
@@ -21,10 +22,8 @@ from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory
 
 # Local imports
-import ada_feeding.behaviors
 from ada_feeding.behaviors.moveit2 import MoveIt2Execute
 from ada_feeding.helpers import get_moveit2_object
-from ada_feeding_msgs.action import MoveTo
 
 
 class MoveToVisitor(VisitorBase):

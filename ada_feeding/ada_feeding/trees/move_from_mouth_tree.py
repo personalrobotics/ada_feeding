@@ -31,11 +31,7 @@ from ada_feeding.idioms.bite_transfer import (
     get_toggle_collision_object_behavior,
     get_remove_in_front_of_wheelchair_wall_behavior,
 )
-from ada_feeding.trees import (
-    MoveToTree,
-    # MoveToConfigurationWithPosePathConstraintsTree,
-    # MoveToPoseWithPosePathConstraintsTree,
-)
+from ada_feeding.trees import MoveToTree
 
 
 class MoveFromMouthTree(MoveToTree):
@@ -173,14 +169,7 @@ class MoveFromMouthTree(MoveToTree):
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied from @override
 
-        # TODO: Remove these once I make everything a BlackboardBehavior!
-        self.blackboard = py_trees.blackboard.Client(
-            name=name + " Tree", namespace=name
-        )
-        allow_wheelchair_collision_prefix = "allow_wheelchair_collision"
-        disallow_wheelchair_collision_prefix = "disallow_wheelchair_collision"
-        add_wheelchair_wall_prefix = "add_wheelchair_wall"
-        remove_wheelchair_wall_prefix = "remove_wheelchair_wall"
+        ### Define tree logic
 
         in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
 
@@ -201,9 +190,7 @@ class MoveFromMouthTree(MoveToTree):
                 scoped_behavior(
                     name=name + " AllowWheelchairCollisionScope",
                     pre_behavior=get_toggle_collision_object_behavior(
-                        name,
-                        allow_wheelchair_collision_prefix,
-                        self._node,
+                        name + "AllowWheelchairCollisionScopePre",
                         [self.wheelchair_collision_object_id],
                         True,
                     ),
@@ -285,9 +272,7 @@ class MoveFromMouthTree(MoveToTree):
                         ),
                     ],
                     post_behavior=get_toggle_collision_object_behavior(
-                        name,
-                        disallow_wheelchair_collision_prefix,
-                        self._node,
+                        name + "DisallowWheelchairCollisionScopePost",
                         [self.wheelchair_collision_object_id],
                         False,
                     ),
@@ -297,11 +282,8 @@ class MoveFromMouthTree(MoveToTree):
                 scoped_behavior(
                     name=name + " AddInFrontOfWheelchairWallScope",
                     pre_behavior=get_add_in_front_of_wheelchair_wall_behavior(
-                        name,
-                        add_wheelchair_wall_prefix,
+                        name + "AddInFrontOfWheelchairWallScopePre",
                         in_front_of_wheelchair_wall_id,
-                        self._node,
-                        self.blackboard,
                     ),
                     workers=[
                         # Goal configuration: staging configuration
@@ -359,10 +341,8 @@ class MoveFromMouthTree(MoveToTree):
                         ),
                     ],
                     post_behavior=get_remove_in_front_of_wheelchair_wall_behavior(
-                        name,
-                        remove_wheelchair_wall_prefix,
+                        name + "RemoveInFrontOfWheelchairWallScopePost",
                         in_front_of_wheelchair_wall_id,
-                        self._node,
                     ),
                 ),
             ],

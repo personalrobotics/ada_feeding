@@ -7,21 +7,26 @@ center. Specifically, it transforms the detected mouth center from the camera
 frame to the requested frame and then adds an offset.
 """
 # Standard imports
-from typing import Tuple
+import copy
+from typing import Optional, Tuple, Union
 
 # Third-party imports
+from ada_feeding_msgs.msg import FaceDetection
+from overrides import override
 import py_trees
-from rclpy.node import Node
 from rclpy.time import Time
 from tf2_geometry_msgs import PointStamped  # pylint: disable=unused-import
 import tf2_py as tf2
-from tf2_ros.buffer import Buffer
-from tf2_ros.transform_listener import TransformListener
 
 # Local imports
+from ada_feeding.behaviors import BlackboardBehavior
+from ada_feeding.helpers import (
+    BlackboardKey,
+    get_tf_object,
+)
 
 
-class ComputeMoveToMouthPosition(py_trees.behaviour.Behaviour):
+class ComputeMoveToMouthPosition(BlackboardBehavior):
     """
     A behavior that computes the target position to move the robot's end effector
     to based on the detected mouth center. Specifically, it transforms the
@@ -29,65 +34,72 @@ class ComputeMoveToMouthPosition(py_trees.behaviour.Behaviour):
     adds an offset.
     """
 
-    # pylint: disable=too-many-instance-attributes, too-many-arguments
-    # A few over is fine. All are necessary.
+    # pylint: disable=arguments-differ
+    # We *intentionally* violate Liskov Substitution Princple
+    # in that blackboard config (inputs + outputs) are not
+    # meant to be called in a generic setting.
 
-    def __init__(
+    def blackboard_inputs(
         self,
-        name: str,
-        node: Node,
-        face_detection_input_key: str,
-        target_position_output_key: str,
-        target_position_frame_id: str,
-        target_position_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+        face_detection_msg: Union[BlackboardKey, FaceDetection],
+        frame_id: Union[BlackboardKey, str] = "j2n6s200_link_base",
+        position_offset: Union[BlackboardKey, Tuple[float, float, float]] = (
+            0.0,
+            0.0,
+            0.0,
+        ),
     ) -> None:
         """
-        Initializes the behavior.
+        Blackboard Inputs
 
         Parameters
         ----------
-        name: The name of the behavior.
-        node: The ROS node.
-        face_detection_input_key: The key for the face detection input on the blackboard.
-        target_position_output_key: The key for the target position output on the blackboard.
-        target_position_frame_id: The frame ID for the target position.
-        target_position_offset: The offset to add to the target position, in
-            `target_position_frame_id`
+        face_detection_msg: The face detection message.
+        frame_id: The frame ID for the target position.
+        position_offset: The offset to add to the target position, in `frame_id`.
         """
-        # Initiatilize the behavior
-        super().__init__(name=name)
-
-        # Store parameters
-        self.node = node
-        self.face_detection_input_key = face_detection_input_key
-        self.target_position_output_key = target_position_output_key
-        self.target_position_frame_id = target_position_frame_id
-        self.target_position_offset = target_position_offset
-
-        # Initialization the blackboard for this behavior
-        self.blackboard = self.attach_blackboard_client(
-            name=name + "ComputeMoveToMouthPosition", namespace=name
-        )
-        # Read the results of face detection
-        self.blackboard.register_key(
-            key=self.face_detection_input_key, access=py_trees.common.Access.READ
-        )
-        # Write the target position
-        self.blackboard.register_key(
-            key=self.target_position_output_key, access=py_trees.common.Access.WRITE
+        # pylint: disable=unused-argument, duplicate-code
+        # Arguments are handled generically in base class.
+        super().blackboard_inputs(
+            **{key: value for key, value in locals().items() if key != "self"}
         )
 
-    # pylint: disable=attribute-defined-outside-init
-    # It is reasonable to define attributes in setup, since that will be run once
-    # to initialize the behavior.
-    def setup(self, **kwargs) -> None:
+    def blackboard_outputs(
+        self,
+        target_position: Optional[
+            BlackboardKey
+            # PointStamped
+        ],
+    ) -> None:
         """
-        Subscribe to tf2 transforms.
+        Blackboard Outputs
+        By convention (to avoid collisions), avoid non-None default arguments.
+
+        Parameters
+        ----------
+        target_position: The target position to move the robot's end effector to
+            will be written to this key, as a PointStamped in `frame_id`.
         """
-        self.logger.info(f"{self.name} [ComputeMoveToMouthPosition::setup()]")
-        # Initialize the tf2 buffer and listener
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self.node)
+        # pylint: disable=unused-argument, duplicate-code
+        # Arguments are handled generically in base class.
+        super().blackboard_outputs(
+            **{key: value for key, value in locals().items() if key != "self"}
+        )
+
+    @override
+    def setup(self, **kwargs):
+        # Docstring copied from @override
+
+        # pylint: disable=attribute-defined-outside-init
+        # It is okay for attributes in behaviors to be
+        # defined in the setup / initialise functions.
+
+        # Get Node from Kwargs
+        self.node = kwargs["node"]
+
+        # Get TF Listener from blackboard
+        # For transform approach -> end_effector_frame
+        self.tf_buffer, _, self.tf_lock = get_tf_object(self.blackboard, self.node)
 
     def update(self) -> py_trees.common.Status:
         """
@@ -97,27 +109,23 @@ class ComputeMoveToMouthPosition(py_trees.behaviour.Behaviour):
         It immediately returns either SUCCESS or FAILURE, and never returns RUNNING.
         """
         self.logger.info(f"{self.name} [ComputeMoveToMouthPosition::update()]")
-        # Get the face detection message from the blackboard. If it doesn't
-        # exist, then return failure.
-        try:
-            face_detection = self.blackboard.get(self.face_detection_input_key)
-        except KeyError:
-            self.logger.error(
-                f"{self.name} [ComputeMoveToMouthPosition::update()] "
-                "Face detection message not found in blackboard"
-            )
-            return py_trees.common.Status.FAILURE
+
+        # Get the inputs from the blackboard
+        face_detection_msg = self.blackboard_get("face_detection_msg")
+        frame_id = self.blackboard_get("frame_id")
+        position_offset = self.blackboard_get("position_offset")
 
         # Transform the face detection result to the base frame. If the
         # transform doesn't exist, then return failure.
         try:
             try:
                 target_position = self.tf_buffer.transform(
-                    face_detection.detected_mouth_center, self.target_position_frame_id
+                    face_detection_msg.detected_mouth_center, frame_id
                 )
-                self.logger.info(
+                self.logger.debug(
                     f"{self.name} [ComputeMoveToMouthPosition::update()] "
-                    f"face_detection.detected_mouth_center {face_detection.detected_mouth_center} "
+                    "face_detection.detected_mouth_center "
+                    f"{face_detection_msg.detected_mouth_center} "
                     f"target_position {target_position}"
                 )
             except tf2.ExtrapolationException as exc:
@@ -128,26 +136,24 @@ class ComputeMoveToMouthPosition(py_trees.behaviour.Behaviour):
                     f"Transform failed at timestamp in message: {type(exc)}: {exc}. "
                     "Retrying with latest transform."
                 )
-                face_detection.detected_mouth_center.header.stamp = Time().to_msg()
+                detected_mouth_center = copy.deepcopy(
+                    face_detection_msg.detected_mouth_center
+                )
+                detected_mouth_center.header.stamp = Time().to_msg()
                 target_position = self.tf_buffer.transform(
-                    face_detection.detected_mouth_center,
-                    self.target_position_frame_id,
+                    detected_mouth_center,
+                    frame_id,
                 )
         except tf2.ExtrapolationException as exc:
             self.logger.error(
                 f"%{self.name} [ComputeMoveToMouthPosition::update()] "
-                f"Failed to transform face detection result to base frame: {type(exc)}: {exc}"
+                f"Failed to transform face detection result: {type(exc)}: {exc}"
             )
             return py_trees.common.Status.FAILURE
 
         # Write the target position to the blackboard
-        final_position = (
-            target_position.point.x + self.target_position_offset[0],
-            target_position.point.y + self.target_position_offset[1],
-            target_position.point.z + self.target_position_offset[2],
-        )
-        self.blackboard.set(
-            self.target_position_output_key,
-            final_position,
-        )
+        target_position.point.x += position_offset[0]
+        target_position.point.y += position_offset[1]
+        target_position.point.z += position_offset[2]
+        self.blackboard_set("target_position", target_position)
         return py_trees.common.Status.SUCCESS

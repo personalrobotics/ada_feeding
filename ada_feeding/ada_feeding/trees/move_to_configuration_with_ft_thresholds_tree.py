@@ -28,11 +28,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
     motion, and then set the force-torque thresholds in the scoped behavior.
     """
 
-    # pylint: disable=too-many-instance-attributes, too-many-arguments
-    # Many arguments is fine for this class since it has to be able to configure all parameters
-    # of its constraints.
-    # pylint: disable=dangerous-default-value
-    # A mutable default value is okay since we don't change it in this function.
     def __init__(
         self,
         node: Node,
@@ -96,8 +91,12 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             tree, this should be False. Else (e.g., if this is a standalone tree), True.
         """
 
-        # pylint: disable=too-many-locals
-        # One over is okay
+        # pylint: disable=too-many-instance-attributes, too-many-arguments
+        # pylint: disable=too-many-function-args, too-many-locals
+        # Many arguments is fine for this class since it has to be able to configure all parameters
+        # of its constraints.
+        # pylint: disable=dangerous-default-value
+        # A mutable default value is okay since we don't change it in this function.
 
         # Initialize MoveToTree
         super().__init__(node)

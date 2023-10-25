@@ -14,7 +14,6 @@ from typing import List, Tuple
 # Third-party imports
 from overrides import override
 import py_trees
-from py_trees.blackboard import Blackboard
 import py_trees_ros
 from rclpy.node import Node
 
@@ -32,10 +31,7 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2PositionConstraint,
     MoveIt2OrientationConstraint,
 )
-from ada_feeding.helpers import (
-    BlackboardKey,
-    POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
-)
+from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import (
     get_add_in_front_of_wheelchair_wall_behavior,
@@ -196,46 +192,16 @@ class MoveToMouthTree(MoveToTree):
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied from @override
 
-        # TODO: Remove all code in this block
-        self.blackboard = py_trees.blackboard.Client(
-            name=name + " Tree", namespace=name
-        )
-        add_wheelchair_wall_prefix = "add_wheelchair_wall"
-        remove_wheelchair_wall_prefix = "remove_wheelchair_wall"
-        turn_face_detection_on_prefix = "turn_face_detection_on"
-        target_position_output_key = "/" + Blackboard.separator.join(
-            [
-                name,
-                "move_to_target_pose",
-                POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX,
-                "position",
-            ]
-        )
-        move_head_prefix = "move_head"
-        frame_id_key = Blackboard.separator.join([move_head_prefix, "frame_id"])
-        self.blackboard.register_key(
-            key=frame_id_key,
-            access=py_trees.common.Access.WRITE,
-        )
-        self.blackboard.set(frame_id_key, "j2n6s200_link_base")
-        quat_xyzw_key = Blackboard.separator.join([move_head_prefix, "quat_xyzw"])
-        self.blackboard.register_key(
-            key=quat_xyzw_key,
-            access=py_trees.common.Access.WRITE,
-        )
-        self.blackboard.set(
-            quat_xyzw_key, (-0.0616284, -0.0616284, -0.704416, 0.704416)
-        )
-        allow_wheelchair_collision_prefix = "allow_wheelchair_collision"
-        disallow_wheelchair_collision_prefix = "disallow_wheelchair_collision"
-        turn_face_detection_off_prefix = "turn_face_detection_off"
-
         ### Define Tree Logic
 
         in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
+        face_detection_relative_blackboard_key = "face_detection"
+        face_detection_absolute_blackboard_key = "/".join(
+            [name, face_detection_relative_blackboard_key]
+        )
         # The target position is 5cm away from the mouth center, in the direction
         # away from the wheelchair backrest.
-        target_position_offset = (0.0, -0.05, 0.0)
+        mouth_offset = (0.0, -0.05, 0.0)
 
         # Root Sequence
         root_seq = py_trees.composites.Sequence(
@@ -254,11 +220,8 @@ class MoveToMouthTree(MoveToTree):
                 scoped_behavior(
                     name=name + " InFrontOfWheelchairWallScope",
                     pre_behavior=get_add_in_front_of_wheelchair_wall_behavior(
-                        name,
-                        add_wheelchair_wall_prefix,
+                        name + "AddWheelchairWall",
                         in_front_of_wheelchair_wall_id,
-                        self._node,
-                        self.blackboard,
                     ),
                     # Move to the staging configuration
                     workers=[
@@ -301,6 +264,7 @@ class MoveToMouthTree(MoveToTree):
                                 "max_velocity_scale": (
                                     self.max_velocity_scaling_factor_to_staging_configuration
                                 ),
+                                "ignore_violated_path_constraints": True,
                             },
                             outputs={"trajectory": BlackboardKey("trajectory")},
                         ),
@@ -314,18 +278,15 @@ class MoveToMouthTree(MoveToTree):
                     ],
                     # Remove the wall in front of the wheelchair
                     post_behavior=get_remove_in_front_of_wheelchair_wall_behavior(
-                        name,
-                        remove_wheelchair_wall_prefix,
+                        name + "RemoveWheelchairWall",
                         in_front_of_wheelchair_wall_id,
-                        self._node,
                     ),
                 ),
                 # Turn face detection on until a face is detected
                 scoped_behavior(
                     name=name + " FaceDetectionOnScope",
                     pre_behavior=get_toggle_face_detection_behavior(
-                        name,
-                        turn_face_detection_on_prefix,
+                        name + "TurnFaceDetectionOn",
                         True,
                     ),
                     workers=[
@@ -340,10 +301,10 @@ class MoveToMouthTree(MoveToTree):
                                     topic_type=FaceDetection,
                                     qos_profile=py_trees_ros.utilities.qos_profile_unlatched(),
                                     blackboard_variables={
-                                        "face_detection": None,
+                                        face_detection_absolute_blackboard_key: None,
                                     },
                                     initialise_variables={
-                                        "face_detection": FaceDetection(),
+                                        face_detection_absolute_blackboard_key: FaceDetection(),
                                     },
                                 ),
                                 # Check whether the face is within the required distance
@@ -354,7 +315,7 @@ class MoveToMouthTree(MoveToTree):
                                     child=py_trees.behaviours.CheckBlackboardVariableValue(
                                         name=name + " CheckFace",
                                         check=py_trees.common.ComparisonExpression(
-                                            variable="face_detection",
+                                            variable=face_detection_absolute_blackboard_key,
                                             value=FaceDetection(),
                                             operator=self.check_face_msg,
                                         ),
@@ -365,37 +326,48 @@ class MoveToMouthTree(MoveToTree):
                     ],
                     # Turn off face detection
                     post_behavior=get_toggle_face_detection_behavior(
-                        name,
-                        turn_face_detection_off_prefix,
+                        name + "TurnFaceDetectionOff",
                         False,
                     ),
                 ),
                 # Compute the goal constraints of the target pose
                 ComputeMoveToMouthPosition(
                     name=name + " ComputeTargetPosition",
-                    node=self._node,
-                    face_detection_input_key="/face_detection",
-                    target_position_output_key=target_position_output_key,
-                    target_position_frame_id="j2n6s200_link_base",
-                    target_position_offset=target_position_offset,
+                    ns=name,
+                    inputs={
+                        "face_detection_msg": BlackboardKey(
+                            face_detection_relative_blackboard_key
+                        ),
+                        "position_offset": mouth_offset,
+                    },
+                    outputs={
+                        "target_position": BlackboardKey("mouth_position"),
+                    },
                 ),
-                # Move the head to the detected face pose
+                # Move the head to the detected face pose. We use the computed
+                # mouth position since that is in the base frame, not the camera
+                # frame.
                 ModifyCollisionObject(
-                    name=Blackboard.separator.join([name, move_head_prefix]),
-                    node=self._node,
-                    operation=ModifyCollisionObjectOperation.MOVE,
-                    collision_object_id=self.head_object_id,
-                    collision_object_position_input_key=target_position_output_key,
-                    collision_object_orientation_input_key="quat_xyzw",
-                    position_offset=tuple(-1.0 * p for p in target_position_offset),
+                    name=name + " MoveHead",
+                    ns=name,
+                    inputs={
+                        "operation": ModifyCollisionObjectOperation.MOVE,
+                        "collision_object_id": self.head_object_id,
+                        "collision_object_position": BlackboardKey("mouth_position"),
+                        "collision_object_orientation": (
+                            -0.0616284,
+                            -0.0616284,
+                            -0.704416,
+                            0.704416,
+                        ),
+                        "position_offset": tuple(-1.0 * val for val in mouth_offset),
+                    },
                 ),
                 # Allow collisions with the expanded wheelchair collision box
                 scoped_behavior(
                     name=name + " AllowWheelchairCollisionScope",
                     pre_behavior=get_toggle_collision_object_behavior(
-                        name,
-                        allow_wheelchair_collision_prefix,
-                        self._node,
+                        name + " AllowWheelchairCollisionScopePre",
                         [self.wheelchair_collision_object_id],
                         True,
                     ),
@@ -406,7 +378,7 @@ class MoveToMouthTree(MoveToTree):
                             name="MoveToTargetPosePositionGoalConstraint",
                             ns=name,
                             inputs={
-                                "position": BlackboardKey(target_position_output_key),
+                                "position": BlackboardKey("mouth_position"),
                                 "tolerance": self.mouth_pose_tolerance,
                             },
                             outputs={
@@ -475,9 +447,7 @@ class MoveToMouthTree(MoveToTree):
                     # Disallow collisions with the expanded wheelchair collision
                     # box.
                     post_behavior=get_toggle_collision_object_behavior(
-                        name,
-                        disallow_wheelchair_collision_prefix,
-                        self._node,
+                        name + " AllowWheelchairCollisionScopePost",
                         [self.wheelchair_collision_object_id],
                         False,
                     ),
