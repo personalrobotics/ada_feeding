@@ -71,11 +71,14 @@ class BlackboardBehavior(py_trees.behaviour.Behaviour):
             value in locals().items() if key != 'self'})
 
         Constants will be stored in the local dict.
+
+        Note that blackboard inputs may be nested, e.g., <base_name>.<attribute>
         """
         for key, value in kwargs.items():
             if isinstance(value, BlackboardKey):
+                value_base = value.split(".")[0]
                 self.blackboard.register_key(
-                    key=value, access=py_trees.common.Access.READ
+                    key=value_base, access=py_trees.common.Access.READ
                 )
                 self._remap[key] = value
             else:
