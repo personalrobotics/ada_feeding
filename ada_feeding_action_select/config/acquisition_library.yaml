@@ -4,7 +4,7 @@ actions:
     - # Default Action (VS90)
       pre_pos: [0.0, 0.0, 1.0]
       pre_quat: [0.0, 0.7071068, -0.7071068, 0.0]
-      pre_offset: [0.0, 0.0, 0.0]
+      pre_offset: [0.0, 0.0, -0.01]
       pre_force: 15.0
       pre_torque: 4.0
       grasp_linear: [0.0, 0.0, 0.0]
@@ -20,7 +20,7 @@ actions:
     - # Tilted Vertical (TV90)
       pre_pos: [0.0, 0.0, 1.0]
       pre_quat: [-0.174941, 0.6851245, 0.6851245, -0.174941]
-      pre_offset: [0.0, 0.0, 0.0]
+      pre_offset: [0.0, 0.0, -0.01]
       pre_force: 15.0
       pre_torque: 4.0
       grasp_linear: [0.0, 0.0, 0.0]
@@ -36,7 +36,7 @@ actions:
     - # Tilted Angled (TA90)
       pre_pos: [-0.4949747468305832, 0.0, 0.6363961030678928]
       pre_quat: [0.1379497, 0.6935199, 0.6935199, 0.1379497]
-      pre_offset: [0.0, 0.0, 0.0]
+      pre_offset: [0.0, 0.0, -0.01]
       pre_force: 15.0
       pre_torque: 4.0
       grasp_linear: [0.0, 0.0, 0.0]

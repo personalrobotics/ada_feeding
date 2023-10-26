@@ -264,12 +264,35 @@ class AcquireFoodTree(ActionServerBT):
                     outputs={},
                 ),
                 # If Anything goes wrong, reset FT to safe levels
+                # Also disable and re-enable table collision
                 scoped_behavior(
                     name="SafeFTPreempt",
                     # Set Approach F/T Thresh
-                    pre_behavior=approach_ft_behavior,
-                    post_behavior=pre_moveto_config(
-                        name="PostAcquireFTSet", re_tare=False
+                    pre_behavior=py_trees.composites.Sequence(
+                        name=name,
+                        memory=True,
+                        children=[
+                            approach_ft_behavior,
+                            ToggleCollisionObject(
+                                name="AllowTable",
+                                node=self._node,
+                                collision_object_ids=["table"],
+                                allow=True,
+                            ),
+                        ],
+                    ),
+                    post_behavior=py_trees.composites.Sequence(
+                        name=name,
+                        memory=True,
+                        children=[
+                            pre_moveto_config(name="PostAcquireFTSet", re_tare=False),
+                            ToggleCollisionObject(
+                                name="DisallowTable",
+                                node=self._node,
+                                collision_object_ids=["table"],
+                                allow=False,
+                            ),
+                        ],
                     ),
                     on_preempt_timeout=5.0,
                     # Starts a new Sequence w/ Memory internally
@@ -299,11 +322,15 @@ class AcquireFoodTree(ActionServerBT):
                             },
                             outputs={"trajectory": BlackboardKey("trajectory")},
                         ),
-                        MoveIt2Execute(
-                            name="MoveInto",
-                            ns=name,
-                            inputs={"trajectory": BlackboardKey("trajectory")},
-                            outputs={},
+                        # MoveInto expect F/T failure
+                        py_trees.decorators.FailureIsSuccess(
+                            name="MoveIntoExecuteSucceed",
+                            child=MoveIt2Execute(
+                                name="MoveInto",
+                                ns=name,
+                                inputs={"trajectory": BlackboardKey("trajectory")},
+                                outputs={},
+                            ),
                         ),
                         ### Scoped Behavior for Moveit2_Servo
                         scoped_behavior(
@@ -316,12 +343,6 @@ class AcquireFoodTree(ActionServerBT):
                                     start_servo_tree.create_tree(
                                         name="StartServoScoped", tree_root_name=name
                                     ).root,
-                                    ToggleCollisionObject(
-                                        name="AllowTable",
-                                        node=self._node,
-                                        collision_object_ids=["table"],
-                                        allow=True,
-                                    ),
                                 ],
                             ),
                             # Reset FT and Stop Servo
@@ -338,12 +359,6 @@ class AcquireFoodTree(ActionServerBT):
                                     stop_servo_tree.create_tree(
                                         name="StopServoScoped", tree_root_name=name
                                     ).root,
-                                    ToggleCollisionObject(
-                                        name="DisallowTable",
-                                        node=self._node,
-                                        collision_object_ids=["table"],
-                                        allow=False,
-                                    ),
                                 ],
                             ),
                             on_preempt_timeout=5.0,
