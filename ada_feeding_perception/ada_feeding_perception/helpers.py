@@ -93,7 +93,7 @@ def get_img_msg_type(
     topic: the topic to get the image message type for
     node: the node to use to get the topic type
     timeout_sec: the timeout to use when getting the topic type. If None, this
-        will wait forever.
+        will wait forever. If 0.0, this is non-blocking.
 
     Returns
     -------
