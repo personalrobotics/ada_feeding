@@ -21,7 +21,7 @@ from std_msgs.msg import Header
 
 # Local imports
 from ada_feeding import ActionServerBT
-from ada_feeding.behaviors import ToggleCollisionObject
+from ada_feeding.behaviors import ToggleCollisionObject, UpdateTimestamp
 from ada_feeding.behaviors.acquisition import (
     ComputeFoodFrame,
     ComputeActionConstraints,
@@ -85,6 +85,9 @@ class AcquireFoodTree(ActionServerBT):
         tree_root_name: str,  # DEPRECATED
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied by @override
+
+        # pylint: disable=line-too-long
+        # This is the entire tree rolled out.
 
         # TODO: remove tree_root_name
         # Sub-trees in general should not need knowledge of their parent.
@@ -365,6 +368,7 @@ class AcquireFoodTree(ActionServerBT):
                             # Starts a new Sequence w/ Memory internally
                             workers=[
                                 ### Grasp
+                                grasp_ft_behavior,
                                 ComputeActionTwist(
                                     name="ComputeGrasp",
                                     ns=name,
@@ -377,7 +381,6 @@ class AcquireFoodTree(ActionServerBT):
                                         "duration": BlackboardKey("duration"),
                                     },
                                 ),
-                                grasp_ft_behavior,
                                 py_trees.decorators.FailureIsSuccess(
                                     name="GraspSuceed",
                                     child=TimeoutFromBlackboard(
@@ -386,17 +389,50 @@ class AcquireFoodTree(ActionServerBT):
                                         duration_key=BlackboardKey("duration"),
                                         child=py_trees.decorators.SuccessIsRunning(
                                             name="GraspRetryInfinite",
-                                            child=py_trees_ros.publishers.FromBlackboard(
-                                                name="GraspTwist",
-                                                topic_name="~/servo_twist_cmds",
-                                                topic_type=TwistStamped,
-                                                qos_profile=QoSProfile(depth=1),
-                                                blackboard_variable=Blackboard.separator.join(
-                                                    [name, BlackboardKey("twist")]
-                                                ),
-                                            ),
-                                        ),
-                                    ),
+                                            child=py_trees.composites.Sequence(
+                                                name="GraspRetry",
+                                                memory=True,
+                                                children=[
+                                                    UpdateTimestamp(
+                                                        name="GraspUpdateTimestamp",
+                                                        ns=name,
+                                                        inputs={
+                                                            "stamped_msg": BlackboardKey(
+                                                                "twist"
+                                                            ),
+                                                        },
+                                                        outputs={
+                                                            "stamped_msg": BlackboardKey(
+                                                                "twist"
+                                                            ),
+                                                        },
+                                                    ),
+                                                    py_trees_ros.publishers.FromBlackboard(
+                                                        name="GraspTwist",
+                                                        topic_name="~/servo_twist_cmds",
+                                                        topic_type=TwistStamped,
+                                                        qos_profile=QoSProfile(depth=1),
+                                                        blackboard_variable=Blackboard.separator.join(
+                                                            [
+                                                                name,
+                                                                BlackboardKey("twist"),
+                                                            ]
+                                                        ),
+                                                    ),
+                                                ],  # GraspRetry children
+                                            ),  # GraspRetry Sequence
+                                        ),  # GraspRetryInfinite SuccessIsRunning
+                                    ),  # GraspServoTimeout TimeoutFromBlackboard
+                                ),  # GraspSucceed FailureIsSuccess
+                                UpdateTimestamp(
+                                    name="ZeroTwistUpdate",
+                                    ns=name,
+                                    inputs={
+                                        "stamped_msg": BlackboardKey("zero_twist"),
+                                    },
+                                    outputs={
+                                        "stamped_msg": BlackboardKey("zero_twist"),
+                                    },
                                 ),
                                 py_trees_ros.publishers.FromBlackboard(
                                     name="StopTwist",
@@ -422,24 +458,57 @@ class AcquireFoodTree(ActionServerBT):
                                 ),
                                 ext_ft_behavior,
                                 py_trees.decorators.FailureIsSuccess(
-                                    name="ExtractSucceed",
+                                    name="ExtractSuceed",
                                     child=TimeoutFromBlackboard(
-                                        name="MoveIt2ServoTimeout",
+                                        name="ExtractServoTimeout",
                                         ns=name,
                                         duration_key=BlackboardKey("duration"),
                                         child=py_trees.decorators.SuccessIsRunning(
                                             name="ExtractRetryInfinite",
-                                            child=py_trees_ros.publishers.FromBlackboard(
-                                                name="ExtractTwist",
-                                                topic_name="~/servo_twist_cmds",
-                                                topic_type=TwistStamped,
-                                                qos_profile=QoSProfile(depth=1),
-                                                blackboard_variable=Blackboard.separator.join(
-                                                    [name, BlackboardKey("twist")]
-                                                ),
-                                            ),
-                                        ),
-                                    ),
+                                            child=py_trees.composites.Sequence(
+                                                name="ExtractRetry",
+                                                memory=True,
+                                                children=[
+                                                    UpdateTimestamp(
+                                                        name="ExtractUpdateTimestamp",
+                                                        ns=name,
+                                                        inputs={
+                                                            "stamped_msg": BlackboardKey(
+                                                                "twist"
+                                                            ),
+                                                        },
+                                                        outputs={
+                                                            "stamped_msg": BlackboardKey(
+                                                                "twist"
+                                                            ),
+                                                        },
+                                                    ),
+                                                    py_trees_ros.publishers.FromBlackboard(
+                                                        name="ExtractTwist",
+                                                        topic_name="~/servo_twist_cmds",
+                                                        topic_type=TwistStamped,
+                                                        qos_profile=QoSProfile(depth=1),
+                                                        blackboard_variable=Blackboard.separator.join(
+                                                            [
+                                                                name,
+                                                                BlackboardKey("twist"),
+                                                            ]
+                                                        ),
+                                                    ),
+                                                ],  # ExtractRetry children
+                                            ),  # ExtractRetry Sequence
+                                        ),  # ExtractRetryInfinite SuccessIsRunning
+                                    ),  # ExtractServoTimeout TimeoutFromBlackboard
+                                ),  # ExtractSucceed FailureIsSuccess
+                                UpdateTimestamp(
+                                    name="ZeroTwistUpdate",
+                                    ns=name,
+                                    inputs={
+                                        "stamped_msg": BlackboardKey("zero_twist"),
+                                    },
+                                    outputs={
+                                        "stamped_msg": BlackboardKey("zero_twist"),
+                                    },
                                 ),
                                 py_trees_ros.publishers.FromBlackboard(
                                     name="StopTwist",

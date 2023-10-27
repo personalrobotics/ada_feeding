@@ -9,4 +9,5 @@ from .modify_collision_object import (
 )
 from .move_to import MoveTo
 from .move_to_dummy import MoveToDummy
+from .ros_utility import UpdateTimestamp
 from .toggle_collision_object import ToggleCollisionObject
