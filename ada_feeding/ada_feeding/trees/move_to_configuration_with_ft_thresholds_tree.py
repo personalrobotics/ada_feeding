@@ -14,9 +14,15 @@ import py_trees
 from rclpy.node import Node
 
 # Local imports
+from ada_feeding.behaviors.moveit2 import (
+    MoveIt2Plan,
+    MoveIt2Execute,
+    MoveIt2JointConstraint,
+)
+from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import get_toggle_watchdog_listener_behavior
-from ada_feeding.trees import MoveToTree, MoveToConfigurationTree
+from ada_feeding.trees import MoveToTree
 
 
 class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
@@ -139,22 +145,42 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
 
         # First, create the MoveToConfiguration behavior tree, in the same
         # namespace as this tree
-        move_to_configuration_root = (
-            MoveToConfigurationTree(
-                self._node,
-                joint_positions=self.joint_positions,
-                tolerance=self.tolerance_joint,
-                weight=self.weight_joint,
-                pipeline_id=self.pipeline_id,
-                planner_id=self.planner_id,
-                allowed_planning_time=self.allowed_planning_time,
-                max_velocity_scaling_factor=self.max_velocity_scaling_factor,
-                max_acceleration_scaling_factor=self.max_acceleration_scaling_factor,
-                keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
-                clear_constraints=self.clear_constraints,
-            )
-            .create_tree(name)
-            .root
+        move_to_configuration_root = py_trees.composites.Sequence(
+            name=name,
+            memory=True,
+            children=[
+                MoveIt2JointConstraint(
+                    name="JointConstraint",
+                    ns=name,
+                    inputs={
+                        "joint_positions": self.joint_positions,
+                        "tolerance": self.tolerance_joint,
+                        "weight": self.weight_joint,
+                    },
+                    outputs={
+                        "constraints": BlackboardKey("goal_constraints"),
+                    },
+                ),
+                MoveIt2Plan(
+                    name="MoveToConfigurationPlan",
+                    ns=name,
+                    inputs={
+                        "goal_constraints": BlackboardKey("goal_constraints"),
+                        "pipeline_id": self.pipeline_id,
+                        "planner_id": self.planner_id,
+                        "allowed_planning_time": self.allowed_planning_time,
+                        "max_velocity_scale": self.max_velocity_scaling_factor,
+                        "max_acceleration_scale": self.max_acceleration_scaling_factor,
+                    },
+                    outputs={"trajectory": BlackboardKey("trajectory")},
+                ),
+                MoveIt2Execute(
+                    name="MoveToConfigurationExecute",
+                    ns=name,
+                    inputs={"trajectory": BlackboardKey("trajectory")},
+                    outputs={},
+                ),
+            ],
         )
 
         # Add the re-taring and FT thresholds

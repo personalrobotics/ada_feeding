@@ -66,10 +66,7 @@ class ComputeMoveToMouthPosition(BlackboardBehavior):
 
     def blackboard_outputs(
         self,
-        target_position: Optional[
-            BlackboardKey
-            # PointStamped
-        ],
+        target_position: Optional[BlackboardKey],  # PointStamped
     ) -> None:
         """
         Blackboard Outputs
@@ -115,9 +112,10 @@ class ComputeMoveToMouthPosition(BlackboardBehavior):
         frame_id = self.blackboard_get("frame_id")
         position_offset = self.blackboard_get("position_offset")
 
-        # Transform the face detection result to the base frame. If the
-        # transform doesn't exist, then return failure.
-        try:
+        # Transform the face detection result to the base frame.
+        if self.tf_lock.locked():
+            return py_trees.common.Status.RUNNING
+        with self.tf_lock:
             try:
                 target_position = self.tf_buffer.transform(
                     face_detection_msg.detected_mouth_center, frame_id
@@ -140,16 +138,18 @@ class ComputeMoveToMouthPosition(BlackboardBehavior):
                     face_detection_msg.detected_mouth_center
                 )
                 detected_mouth_center.header.stamp = Time().to_msg()
-                target_position = self.tf_buffer.transform(
-                    detected_mouth_center,
-                    frame_id,
-                )
-        except tf2.ExtrapolationException as exc:
-            self.logger.error(
-                f"%{self.name} [ComputeMoveToMouthPosition::update()] "
-                f"Failed to transform face detection result: {type(exc)}: {exc}"
-            )
-            return py_trees.common.Status.FAILURE
+                try:
+                    target_position = self.tf_buffer.transform(
+                        detected_mouth_center,
+                        frame_id,
+                    )
+                except tf2.ExtrapolationException as exc: # pylint: disable=redefined-outer-name
+                    # If the transform doesn't exist, then return failure.
+                    self.logger.error(
+                        f"%{self.name} [ComputeMoveToMouthPosition::update()] "
+                        f"Failed to transform face detection result: {type(exc)}: {exc}"
+                    )
+                    return py_trees.common.Status.FAILURE
 
         # Write the target position to the blackboard
         target_position.point.x += position_offset[0]

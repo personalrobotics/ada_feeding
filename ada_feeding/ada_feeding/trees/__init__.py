@@ -11,7 +11,6 @@ to be wrapped in a ROS action server.
 from .acquire_food_tree import AcquireFoodTree
 
 from .move_to_tree import MoveToTree
-from .move_to_configuration_tree import MoveToConfigurationTree
 from .move_to_configuration_with_ft_thresholds_tree import (
     MoveToConfigurationWithFTThresholdsTree,
 )

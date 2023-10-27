@@ -95,6 +95,8 @@ class ToggleCollisionObject(BlackboardBehavior):
         # pylint: disable=attribute-defined-outside-init
         # The attributes pylint thinks were "defined" here
         # are actually defined in initialise, which is okay.
+        # pylint: disable=too-many-return-statements
+        # This is fine for this function.
 
         collision_object_ids = self.blackboard_get("collision_object_ids")
 
@@ -109,13 +111,17 @@ class ToggleCollisionObject(BlackboardBehavior):
                     return py_trees.common.Status.SUCCESS
                 return py_trees.common.Status.FAILURE
 
-            # Get the next collision object ID
-            collision_object_id = collision_object_ids[self.curr_collision_object_id_i]
-            self.logger.info(
-                f"{self.name} [ToggleCollisionObject::update()] "
-                f"collision_object_id: {collision_object_id}"
-            )
+            if self.moveit2_lock.locked():
+                return py_trees.common.Status.RUNNING
             with self.moveit2_lock:
+                # Get the next collision object ID
+                collision_object_id = collision_object_ids[
+                    self.curr_collision_object_id_i
+                ]
+                self.logger.info(
+                    f"{self.name} [ToggleCollisionObject::update()] "
+                    f"collision_object_id: {collision_object_id}"
+                )
                 service_future = self.moveit2.allow_collisions(
                     collision_object_id, self.blackboard_get("allow")
                 )
@@ -128,6 +134,8 @@ class ToggleCollisionObject(BlackboardBehavior):
 
         # Check if the service future is done
         if self.service_future.done():
+            if self.moveit2_lock.locked():
+                return py_trees.common.Status.RUNNING
             with self.moveit2_lock:
                 succ = self.moveit2.process_allow_collision_future(self.service_future)
             # Process success/failure

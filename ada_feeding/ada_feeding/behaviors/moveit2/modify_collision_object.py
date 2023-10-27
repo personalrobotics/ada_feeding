@@ -163,41 +163,45 @@ class ModifyCollisionObject(BlackboardBehavior):
 
         # Remove the collision object
         if operation == ModifyCollisionObjectOperation.REMOVE:
+            if self.moveit2_lock.locked():
+                return py_trees.common.Status.RUNNING
             with self.moveit2_lock:
                 self.moveit2.remove_collision(collision_object_id)
             return py_trees.common.Status.SUCCESS
 
-        # Get the blackboard inputs for ADD and MOVE operations
-        collision_object_position = self.blackboard_get("collision_object_position")
-        collision_object_orientation = self.blackboard_get(
-            "collision_object_orientation"
-        )
-        frame_id = self.blackboard_get("frame_id")
-        mesh_filepath = self.blackboard_get("mesh_filepath")
-        prim_type = self.blackboard_get("prim_type")
-        dims = self.blackboard_get("dims")
-        position_offset = self.blackboard_get("position_offset")
-
-        # Update types
-        if isinstance(collision_object_position, PointStamped):
-            frame_id = collision_object_position.header.frame_id
-            collision_object_position = Point(
-                x=collision_object_position.point.x + position_offset[0],
-                y=collision_object_position.point.y + position_offset[1],
-                z=collision_object_position.point.z + position_offset[2],
-            )
-        elif isinstance(collision_object_position, tuple):
-            collision_object_position = Point(
-                x=collision_object_position[0] + position_offset[0],
-                y=collision_object_position[1] + position_offset[1],
-                z=collision_object_position[2] + position_offset[2],
-            )
-        if isinstance(collision_object_orientation, QuaternionStamped):
-            frame_id = collision_object_orientation.header.frame_id
-            collision_object_orientation = collision_object_orientation.quaternion
-
         # Move the collision object
+        if self.moveit2_lock.locked():
+            return py_trees.common.Status.RUNNING
         with self.moveit2_lock:
+            # Get the blackboard inputs for ADD and MOVE operations
+            collision_object_position = self.blackboard_get("collision_object_position")
+            collision_object_orientation = self.blackboard_get(
+                "collision_object_orientation"
+            )
+            frame_id = self.blackboard_get("frame_id")
+            mesh_filepath = self.blackboard_get("mesh_filepath")
+            prim_type = self.blackboard_get("prim_type")
+            dims = self.blackboard_get("dims")
+            position_offset = self.blackboard_get("position_offset")
+
+            # Update types
+            if isinstance(collision_object_position, PointStamped):
+                frame_id = collision_object_position.header.frame_id
+                collision_object_position = Point(
+                    x=collision_object_position.point.x + position_offset[0],
+                    y=collision_object_position.point.y + position_offset[1],
+                    z=collision_object_position.point.z + position_offset[2],
+                )
+            elif isinstance(collision_object_position, tuple):
+                collision_object_position = Point(
+                    x=collision_object_position[0] + position_offset[0],
+                    y=collision_object_position[1] + position_offset[1],
+                    z=collision_object_position[2] + position_offset[2],
+                )
+            if isinstance(collision_object_orientation, QuaternionStamped):
+                frame_id = collision_object_orientation.header.frame_id
+                collision_object_orientation = collision_object_orientation.quaternion
+
             if operation == ModifyCollisionObjectOperation.ADD:
                 # Add the collision object
                 if mesh_filepath is not None:
