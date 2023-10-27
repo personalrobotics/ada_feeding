@@ -158,6 +158,11 @@ class ModifyCollisionObject(BlackboardBehavior):
         self.logger.info(f"{self.name} [ModifyCollisionObject::update()]")
 
         # Get the blackboard inputs for all operations
+        if not self.blackboard_exists(["operation", "collision_object_id"]):
+            self.logger.error(
+                "Missing input arguments `operation` or `collision_object_id`"
+            )
+            return py_trees.common.Status.FAILURE
         operation = self.blackboard_get("operation")
         collision_object_id = self.blackboard_get("collision_object_id")
 
@@ -174,6 +179,23 @@ class ModifyCollisionObject(BlackboardBehavior):
             return py_trees.common.Status.RUNNING
         with self.moveit2_lock:
             # Get the blackboard inputs for ADD and MOVE operations
+            if not self.blackboard_exists(
+                [
+                    "collision_object_position",
+                    "collision_object_orientation",
+                    "frame_id",
+                    "mesh_filepath",
+                    "prim_type",
+                    "dims",
+                    "position_offset",
+                ]
+            ):
+                self.logger.error(
+                    "Missing input arguments `collision_object_position`, "
+                    "`collision_object_orientation`, `frame_id`, `mesh_filepath`, "
+                    "`prim_type`, `dims`, or `position_offset`"
+                )
+                return py_trees.common.Status.FAILURE
             collision_object_position = self.blackboard_get("collision_object_position")
             collision_object_orientation = self.blackboard_get(
                 "collision_object_orientation"

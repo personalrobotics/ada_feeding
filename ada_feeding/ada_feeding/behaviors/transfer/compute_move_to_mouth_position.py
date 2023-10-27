@@ -108,6 +108,18 @@ class ComputeMoveToMouthPosition(BlackboardBehavior):
         self.logger.info(f"{self.name} [ComputeMoveToMouthPosition::update()]")
 
         # Get the inputs from the blackboard
+        if not self.blackboard_exists(
+            [
+                "face_detection_msg",
+                "frame_id",
+                "position_offset",
+            ]
+        ):
+            self.logger.error(
+                "Missing input arguments `face_detection_msg`, `frame_id`, or "
+                "`position_offset`"
+            )
+            return py_trees.common.Status.FAILURE
         face_detection_msg = self.blackboard_get("face_detection_msg")
         frame_id = self.blackboard_get("frame_id")
         position_offset = self.blackboard_get("position_offset")
@@ -134,6 +146,10 @@ class ComputeMoveToMouthPosition(BlackboardBehavior):
                     f"Transform failed at timestamp in message: {type(exc)}: {exc}. "
                     "Retrying with latest transform."
                 )
+
+                # pylint: disable=redefined-outer-name
+                # Okay to redefine exc since we don't need it in the second try.
+
                 detected_mouth_center = copy.deepcopy(
                     face_detection_msg.detected_mouth_center
                 )
@@ -143,7 +159,7 @@ class ComputeMoveToMouthPosition(BlackboardBehavior):
                         detected_mouth_center,
                         frame_id,
                     )
-                except tf2.ExtrapolationException as exc: # pylint: disable=redefined-outer-name
+                except tf2.ExtrapolationException as exc:
                     # If the transform doesn't exist, then return failure.
                     self.logger.error(
                         f"%{self.name} [ComputeMoveToMouthPosition::update()] "

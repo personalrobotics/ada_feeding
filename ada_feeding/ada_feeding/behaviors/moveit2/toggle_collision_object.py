@@ -98,6 +98,17 @@ class ToggleCollisionObject(BlackboardBehavior):
         # pylint: disable=too-many-return-statements
         # This is fine for this function.
 
+        # Get the blackboard inputs
+        if not self.blackboard_exists(
+            [
+                "collision_object_ids",
+                "allow",
+            ]
+        ):
+            self.logger.error(
+                "Missing input arguments `collision_object_ids` or `allow`"
+            )
+            return py_trees.common.Status.FAILURE
         collision_object_ids = self.blackboard_get("collision_object_ids")
 
         self.logger.info(f"{self.name} [ToggleCollisionObject::update()]")

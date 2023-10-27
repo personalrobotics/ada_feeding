@@ -6,7 +6,7 @@ remappings (inspired by BehaviorTree.CPP)
 """
 
 # Standard imports
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 # Third-party imports
 import py_trees
@@ -106,15 +106,27 @@ class BlackboardBehavior(py_trees.behaviour.Behaviour):
                 )
             self._outputs[key] = value
 
-    def blackboard_exists(self, key: str) -> bool:
+    def blackboard_exists(self, keys: Union[str, List[str]]) -> bool:
         """
         Check if a key is set in the blackboard or available locally.
-        Raises KeyError if the key has not been defined in blackboard_inputs
-        """
-        if key in self._inputs:
-            return True
+        Raises KeyError if the key has not been defined in blackboard_inputs.
 
-        return self.blackboard.exists(self._remap[key])
+        Parameters
+        ----------
+        keys: A single key or list of keys to check.
+
+        Returns
+        -------
+        True if all specified keys exists, False otherwise.
+        """
+        if isinstance(keys, str):
+            keys = [keys]
+
+        for key in keys:
+            if key not in self._inputs and not self.blackboard.exists(self._remap[key]):
+                return False
+
+        return True
 
     def blackboard_get(self, key: str) -> Any:
         """
