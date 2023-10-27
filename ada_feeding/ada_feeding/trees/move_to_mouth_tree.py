@@ -19,17 +19,15 @@ from rclpy.node import Node
 
 # Local imports
 from ada_feeding_msgs.msg import FaceDetection
-from ada_feeding.behaviors import (
-    ComputeMoveToMouthPosition,
-    ModifyCollisionObject,
-    ModifyCollisionObjectOperation,
-)
+from ada_feeding.behaviors.transfer import ComputeMoveToMouthPosition
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2Plan,
     MoveIt2Execute,
     MoveIt2JointConstraint,
     MoveIt2PositionConstraint,
     MoveIt2OrientationConstraint,
+    ModifyCollisionObject,
+    ModifyCollisionObjectOperation,
 )
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior

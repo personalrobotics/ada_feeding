@@ -15,7 +15,7 @@ from py_trees.blackboard import Blackboard
 from std_srvs.srv import SetBool
 
 # Local imports
-from ada_feeding.behaviors import (
+from ada_feeding.behaviors.moveit2 import (
     ModifyCollisionObject,
     ModifyCollisionObjectOperation,
     ToggleCollisionObject,

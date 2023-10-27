@@ -30,9 +30,7 @@ class ActionServerBT(ABC):
         self._node = node
 
     @abstractmethod
-    def create_tree(
-        self, name: str
-    ) -> py_trees.trees.BehaviourTree:
+    def create_tree(self, name: str) -> py_trees.trees.BehaviourTree:
         """
         Create the behavior tree that will be executed by this action server.
         Note that subclasses of ActionServerBT can decide whether they want

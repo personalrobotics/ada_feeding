@@ -11,7 +11,6 @@ import copy
 from typing import Optional, Tuple, Union
 
 # Third-party imports
-from ada_feeding_msgs.msg import FaceDetection
 from overrides import override
 import py_trees
 from rclpy.time import Time
@@ -19,6 +18,7 @@ from tf2_geometry_msgs import PointStamped  # pylint: disable=unused-import
 import tf2_py as tf2
 
 # Local imports
+from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding.behaviors import BlackboardBehavior
 from ada_feeding.helpers import (
     BlackboardKey,

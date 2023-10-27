@@ -28,6 +28,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
     motion, and then set the force-torque thresholds in the scoped behavior.
     """
 
+    # pylint: disable=too-many-instance-attributes
+
     def __init__(
         self,
         node: Node,
@@ -91,8 +93,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             tree, this should be False. Else (e.g., if this is a standalone tree), True.
         """
 
-        # pylint: disable=too-many-instance-attributes, too-many-arguments
-        # pylint: disable=too-many-function-args, too-many-locals
+        # pylint: disable=too-many-arguments, too-many-function-args, too-many-locals
         # Many arguments is fine for this class since it has to be able to configure all parameters
         # of its constraints.
         # pylint: disable=dangerous-default-value
@@ -174,7 +175,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         if self.toggle_watchdog_listener:
             # If there was a failure in the main tree, we want to ensure to turn
             # the watchdog listener back on
-            # pylint: disable=duplicate-code
+            # pylint: disable=duplicate-code, too-many-function-args
             # This is similar to any other tree that needs to cleanup pre_moveto_config
             turn_watchdog_listener_on = get_toggle_watchdog_listener_behavior(
                 name,

@@ -372,7 +372,6 @@ class AcquireFoodTree(ActionServerBT):
     ) -> object:
         # Docstring copied by @override
         # Note: if here, tree is root, not a subtree
-        # TODO: This Feedback/Result logic w/ MoveToVisitor can exist in MoveToTree right now
         if action_type is not AcquireFood:
             return None
 

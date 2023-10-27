@@ -52,10 +52,18 @@ class MoveFromMouthTree(MoveToTree):
         end_configuration: List[float],
         staging_configuration_tolerance: float = 0.001,
         end_configuration_tolerance: float = 0.001,
-        orientation_constraint_to_staging_configuration_quaternion: Optional[List[float]] = None,
-        orientation_constraint_to_staging_configuration_tolerances: Optional[List[float]] = None,
-        orientation_constraint_to_end_configuration_quaternion: Optional[List[float]] = None,
-        orientation_constraint_to_end_configuration_tolerances: Optional[List[float]] = None,
+        orientation_constraint_to_staging_configuration_quaternion: Optional[
+            List[float]
+        ] = None,
+        orientation_constraint_to_staging_configuration_tolerances: Optional[
+            List[float]
+        ] = None,
+        orientation_constraint_to_end_configuration_quaternion: Optional[
+            List[float]
+        ] = None,
+        orientation_constraint_to_end_configuration_tolerances: Optional[
+            List[float]
+        ] = None,
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time_to_staging_configuration: float = 0.5,
         allowed_planning_time_to_end_configuration: float = 0.5,
@@ -174,6 +182,8 @@ class MoveFromMouthTree(MoveToTree):
 
         # The tree may or may not have orientation path constraints active
         if self.orientation_constraint_to_staging_configuration_quaternion is None:
+            # pylint: disable=abstract-class-instantiated
+            # This is fine, not sure why pylint doesn't like it
             staging_path_constraints = py_trees.behaviours.Success()
         else:
             # Orientation path constraint to keep the fork straight
@@ -194,6 +204,8 @@ class MoveFromMouthTree(MoveToTree):
                 },
             )
         if self.orientation_constraint_to_end_configuration_quaternion is None:
+            # pylint: disable=abstract-class-instantiated
+            # This is fine, not sure why pylint doesn't like it
             end_path_constraints = py_trees.behaviours.Success()
         else:
             # Orientation path constraint to keep the fork straight

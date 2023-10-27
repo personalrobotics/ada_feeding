@@ -1,7 +1,7 @@
 """
 This subpackage contains custom py_tree behaviors for MoveIt2
 """
-
+# Planning, execution, and constraints
 from .moveit2_plan import MoveIt2Plan, MoveIt2ConstraintType
 from .moveit2_execute import MoveIt2Execute
 from .moveit2_constraints import (
@@ -10,3 +10,10 @@ from .moveit2_constraints import (
     MoveIt2OrientationConstraint,
     MoveIt2PoseConstraint,
 )
+
+# Modifying the planning scene
+from .modify_collision_object import (
+    ModifyCollisionObject,
+    ModifyCollisionObjectOperation,
+)
+from .toggle_collision_object import ToggleCollisionObject
