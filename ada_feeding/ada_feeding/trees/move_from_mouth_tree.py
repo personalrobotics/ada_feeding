@@ -9,7 +9,7 @@ wrap that behaviour tree in a ROS2 action server.
 # that they have similar code.
 
 # Standard imports
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 # Third-party imports
 from overrides import override
@@ -52,10 +52,10 @@ class MoveFromMouthTree(MoveToTree):
         end_configuration: List[float],
         staging_configuration_tolerance: float = 0.001,
         end_configuration_tolerance: float = 0.001,
-        orientation_constraint_to_staging_configuration_quaternion: List[float] = None,
-        orientation_constraint_to_staging_configuration_tolerances: List[float] = None,
-        orientation_constraint_to_end_configuration_quaternion: List[float] = None,
-        orientation_constraint_to_end_configuration_tolerances: List[float] = None,
+        orientation_constraint_to_staging_configuration_quaternion: Optional[List[float]] = None,
+        orientation_constraint_to_staging_configuration_tolerances: Optional[List[float]] = None,
+        orientation_constraint_to_end_configuration_quaternion: Optional[List[float]] = None,
+        orientation_constraint_to_end_configuration_tolerances: Optional[List[float]] = None,
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time_to_staging_configuration: float = 0.5,
         allowed_planning_time_to_end_configuration: float = 0.5,
@@ -165,13 +165,54 @@ class MoveFromMouthTree(MoveToTree):
     def create_tree(
         self,
         name: str,
-        tree_root_name: str,
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied from @override
 
         ### Define tree logic
 
         in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
+
+        # The tree may or may not have orientation path constraints active
+        if self.orientation_constraint_to_staging_configuration_quaternion is None:
+            staging_path_constraints = py_trees.behaviours.Success()
+        else:
+            # Orientation path constraint to keep the fork straight
+            staging_path_constraints = MoveIt2OrientationConstraint(
+                name="KeepForkStraightPathConstraint",
+                ns=name,
+                inputs={
+                    "quat_xyzw": (
+                        self.orientation_constraint_to_staging_configuration_quaternion
+                    ),
+                    "tolerance": (
+                        self.orientation_constraint_to_staging_configuration_tolerances
+                    ),
+                    "parameterization": 1,  # Rotation vector
+                },
+                outputs={
+                    "constraints": BlackboardKey("path_constraints"),
+                },
+            )
+        if self.orientation_constraint_to_end_configuration_quaternion is None:
+            end_path_constraints = py_trees.behaviours.Success()
+        else:
+            # Orientation path constraint to keep the fork straight
+            end_path_constraints = MoveIt2OrientationConstraint(
+                name="KeepForkStraightPathConstraint",
+                ns=name,
+                inputs={
+                    "quat_xyzw": (
+                        self.orientation_constraint_to_end_configuration_quaternion
+                    ),
+                    "tolerance": (
+                        self.orientation_constraint_to_end_configuration_tolerances
+                    ),
+                    "parameterization": 1,  # Rotation vector
+                },
+                outputs={
+                    "constraints": BlackboardKey("path_constraints"),
+                },
+            )
 
         # Root Sequence
         root_seq = py_trees.composites.Sequence(
@@ -221,23 +262,7 @@ class MoveFromMouthTree(MoveToTree):
                                 "constraints": BlackboardKey("goal_constraints"),
                             },
                         ),
-                        # Orientation path constraint to keep the fork straight
-                        MoveIt2OrientationConstraint(
-                            name="KeepForkStraightPathConstraint",
-                            ns=name,
-                            inputs={
-                                "quat_xyzw": (
-                                    self.orientation_constraint_to_staging_configuration_quaternion
-                                ),
-                                "tolerance": (
-                                    self.orientation_constraint_to_staging_configuration_tolerances
-                                ),
-                                "parameterization": 1,  # Rotation vector
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("path_constraints"),
-                            },
-                        ),
+                        staging_path_constraints,
                         # Plan
                         MoveIt2Plan(
                             name="MoveToStagingPosePlan",
@@ -298,23 +323,7 @@ class MoveFromMouthTree(MoveToTree):
                                 "constraints": BlackboardKey("goal_constraints"),
                             },
                         ),
-                        # Orientation path constraint to keep the fork straight
-                        MoveIt2OrientationConstraint(
-                            name="KeepForkStraightPathConstraint",
-                            ns=name,
-                            inputs={
-                                "quat_xyzw": (
-                                    self.orientation_constraint_to_end_configuration_quaternion
-                                ),
-                                "tolerance": (
-                                    self.orientation_constraint_to_end_configuration_tolerances
-                                ),
-                                "parameterization": 1,  # Rotation vector
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("path_constraints"),
-                            },
-                        ),
+                        end_path_constraints,
                         # Plan
                         MoveIt2Plan(
                             name="MoveToEndingConfigurationPlan",

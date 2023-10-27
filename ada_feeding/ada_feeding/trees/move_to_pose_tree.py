@@ -128,7 +128,6 @@ class MoveToPoseTree(MoveToTree):
     def create_tree(
         self,
         name: str,
-        tree_root_name: str,
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied from @override
 

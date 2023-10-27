@@ -131,7 +131,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
     def create_tree(
         self,
         name: str,
-        tree_root_name: str,
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied from @override
 
@@ -153,7 +152,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
                 clear_constraints=self.clear_constraints,
             )
-            .create_tree(name, tree_root_name)
+            .create_tree(name)
             .root
         )
 

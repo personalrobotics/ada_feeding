@@ -78,11 +78,9 @@ class AcquireFoodTree(ActionServerBT):
     def create_tree(
         self,
         name: str,
-        tree_root_name: str,  # DEPRECATED
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied by @override
 
-        # TODO: remove tree_root_name
         # Sub-trees in general should not need knowledge of their parent.
 
         ### Define Tree Logic

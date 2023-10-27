@@ -52,7 +52,6 @@ class StartServoTree(TriggerTree):
     def create_tree(
         self,
         name: str,
-        tree_root_name: str,  # DEPRECATED
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied from @override
 

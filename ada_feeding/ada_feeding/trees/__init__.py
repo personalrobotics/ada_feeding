@@ -18,7 +18,6 @@ from .move_to_configuration_with_ft_thresholds_tree import (
 from .move_to_pose_tree import MoveToPoseTree
 from .move_from_mouth_tree import MoveFromMouthTree
 from .move_to_mouth_tree import MoveToMouthTree
-from .move_to_dummy_tree import MoveToDummyTree
 
 from .trigger_tree import TriggerTree
 from .start_servo_tree import StartServoTree
