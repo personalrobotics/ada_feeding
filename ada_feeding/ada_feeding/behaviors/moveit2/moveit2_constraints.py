@@ -212,6 +212,7 @@ class MoveIt2PositionConstraint(BlackboardBehavior):
             or not self.blackboard_exists("constraints")
         ):
             self.logger.error("MoveIt2PositionConstraint: Missing input arguments.")
+            self.logger.error(str(self.blackboard))
             return py_trees.common.Status.FAILURE
 
         position = self.blackboard_get("position")

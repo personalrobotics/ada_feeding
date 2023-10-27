@@ -371,7 +371,7 @@ class MoveIt2Plan(BlackboardBehavior):
                         return py_trees.common.Status.RUNNING
                     except (IndexError, AttributeError, ValueError):
                         self.logger.error(
-                            f"Malformed Goal Constraint: {constraint_kwargs}"
+                            f"Malformed Path Constraint: {constraint_kwargs}"
                         )
                         return py_trees.common.Status.FAILURE
 

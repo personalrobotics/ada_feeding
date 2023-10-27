@@ -21,10 +21,9 @@ from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory
 
 # Local imports
-import ada_feeding.behaviors
+from ada_feeding_msgs.action import MoveTo
 from ada_feeding.behaviors.moveit2 import MoveIt2Execute
 from ada_feeding.helpers import get_moveit2_object
-from ada_feeding_msgs.action import MoveTo
 
 
 class MoveToVisitor(VisitorBase):
@@ -153,20 +152,7 @@ class MoveToVisitor(VisitorBase):
         if self.start_time is None:
             self.start_time = self.node.get_clock().now()
 
-        if isinstance(behaviour, ada_feeding.behaviors.MoveTo):
-            # If in MoveTo action, copy from there
-            self.feedback.motion_initial_distance = (
-                behaviour.tree_blackboard.motion_initial_distance
-            )
-            self.feedback.motion_curr_distance = (
-                behaviour.tree_blackboard.motion_curr_distance
-            )
-
-            # Check for flip between planning/motion
-            if behaviour.tree_blackboard.is_planning != self.feedback.is_planning:
-                self.start_time = self.node.get_clock().now()
-                self.feedback.is_planning = behaviour.tree_blackboard.is_planning
-        elif (
+        if (
             isinstance(behaviour, MoveIt2Execute)
             and behaviour.status == py_trees.common.Status.RUNNING
         ):

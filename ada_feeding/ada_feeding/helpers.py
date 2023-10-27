@@ -37,26 +37,6 @@ class BlackboardKey(str):
         return str.__new__(cls, *args, **kwargs)
 
 
-# These prefixes are used to separate namespaces from each other.
-# For example, if we have a behavior `foo` that has a position goal constraint,
-# an orientaiton path constraint, and a move to behavior, the namespaces
-# of each behavior (and their corresponding blackboards) will be:
-#   - foo.position_goal_constraint
-#   - foo.orientation_path_constraint
-#   - foo.move_to
-# Note that this norm can only be used if each MoveTo behavior has maximally
-# one constraint of each type. When creating a behavior with multiple constraints
-# of the same time, you'll have to create custom namespaces.
-CLEAR_CONSTRAINTS_NAMESPACE_PREFIX = "clear_constraints"
-POSITION_GOAL_CONSTRAINT_NAMESPACE_PREFIX = "position_goal_constraint"
-ORIENTATION_GOAL_CONSTRAINT_NAMESPACE_PREFIX = "orientation_goal_constraint"
-JOINT_GOAL_CONSTRAINT_NAMESPACE_PREFIX = "joint_goal_constraint"
-POSITION_PATH_CONSTRAINT_NAMESPACE_PREFIX = "position_path_constraint"
-ORIENTATION_PATH_CONSTRAINT_NAMESPACE_PREFIX = "orientation_path_constraint"
-JOINT_PATH_CONSTRAINT_NAMESPACE_PREFIX = "joint_path_constraint"
-MOVE_TO_NAMESPACE_PREFIX = "move_to"
-
-
 def quat_between_vectors(vec_from: Vector3, vec_to: Vector3) -> Quaternion:
     """
     Returns the Quaternion rotation (shortest arc)
