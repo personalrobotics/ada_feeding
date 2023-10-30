@@ -284,11 +284,7 @@ class ComputeActionTwist(BlackboardBehavior):
         # Docstring copied from @override
 
         # Input Validation
-        if (
-            not self.blackboard_exists("action")
-            or not self.blackboard_exists("is_grasp")
-            or not self.blackboard_exists("approach_frame_id")
-        ):
+        if not self.blackboard_exists(["action", "is_grasp", "approach_frame_id"]):
             self.logger.error("Missing AcquisitionSchema action")
             return py_trees.common.Status.FAILURE
         action = self.blackboard_get("action")

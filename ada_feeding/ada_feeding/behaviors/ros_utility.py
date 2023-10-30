@@ -85,9 +85,7 @@ class UpdateTimestamp(BlackboardBehavior):
         # Docstring copied from @override
 
         # Input Validation
-        if not self.blackboard_exists("stamped_msg") or not self.blackboard_exists(
-            "timestamp"
-        ):
+        if not self.blackboard_exists(["stamped_msg", "timestamp"]):
             self.logger.error("Missing input arguments")
             return py_trees.common.Status.FAILURE
 

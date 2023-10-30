@@ -20,6 +20,8 @@ from rclpy.qos import QoSProfile
 from std_msgs.msg import Header
 
 # Local imports
+from ada_feeding_msgs.action import AcquireFood
+from ada_feeding_msgs.srv import AcquisitionSelect
 from ada_feeding.behaviors import UpdateTimestamp
 from ada_feeding.behaviors.acquisition import (
     ComputeFoodFrame,
@@ -42,8 +44,6 @@ from ada_feeding.idioms import (
 )
 from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_success
 from ada_feeding.trees import MoveToTree, StartServoTree, StopServoTree
-from ada_feeding_msgs.action import AcquireFood
-from ada_feeding_msgs.srv import AcquisitionSelect
 
 
 class AcquireFoodTree(MoveToTree):
@@ -139,23 +139,27 @@ class AcquireFoodTree(MoveToTree):
                     wait_for_server_timeout_sec=0.0,
                 ),
                 # Get MoveIt2 Constraints
-                ComputeActionConstraints(
-                    name="ComputeActionConstraints",
-                    ns=name,
-                    inputs={
-                        "action_select_response": BlackboardKey("action_response"),
-                        # Default move_above_dist_m = 0.05
-                        # Default food_frame_id = "food"
-                        # Default approach_frame_id = "approach"
-                    },
-                    outputs={
-                        "move_above_pose": BlackboardKey("move_above_pose"),
-                        "move_into_pose": BlackboardKey("move_into_pose"),
-                        "approach_thresh": BlackboardKey("approach_thresh"),
-                        "grasp_thresh": BlackboardKey("grasp_thresh"),
-                        "ext_thresh": BlackboardKey("ext_thresh"),
-                        "action": BlackboardKey("action"),
-                    },
+                py_trees.decorators.Timeout(
+                    name="ComputeActionConstraintsTimeout",
+                    duration=1.0,
+                    child=ComputeActionConstraints(
+                        name="ComputeActionConstraints",
+                        ns=name,
+                        inputs={
+                            "action_select_response": BlackboardKey("action_response"),
+                            # Default move_above_dist_m = 0.05
+                            # Default food_frame_id = "food"
+                            # Default approach_frame_id = "approach"
+                        },
+                        outputs={
+                            "move_above_pose": BlackboardKey("move_above_pose"),
+                            "move_into_pose": BlackboardKey("move_into_pose"),
+                            "approach_thresh": BlackboardKey("approach_thresh"),
+                            "grasp_thresh": BlackboardKey("grasp_thresh"),
+                            "ext_thresh": BlackboardKey("ext_thresh"),
+                            "action": BlackboardKey("action"),
+                        },
+                    ),
                 ),
                 # Re-Tare FT Sensor and default to 4N threshold
                 pre_moveto_config(name="PreAquireFTTare"),
