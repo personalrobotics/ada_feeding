@@ -10,6 +10,7 @@ from .moveit2_constraints import (
     MoveIt2OrientationConstraint,
     MoveIt2PoseConstraint,
 )
+from .servo_move import ServoMove
 
 # Modifying the planning scene
 from .modify_collision_object import (

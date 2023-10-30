@@ -94,15 +94,8 @@ class MoveIt2JointConstraint(BlackboardBehavior):
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
 
-        # pylint: disable=too-many-boolean-expressions
-        # This is just checking all inputs, should be
-        # easy to read.
-        if (
-            not self.blackboard_exists("joint_positions")
-            or not self.blackboard_exists("joint_names")
-            or not self.blackboard_exists("tolerance")
-            or not self.blackboard_exists("weight")
-            or not self.blackboard_exists("constraints")
+        if not self.blackboard_exists(
+            ["joint_positions", "joint_names", "tolerance", "weight", "constraints"]
         ):
             self.logger.error("MoveIt2Constraint: Missing input arguments.")
             return py_trees.common.Status.FAILURE
@@ -200,16 +193,15 @@ class MoveIt2PositionConstraint(BlackboardBehavior):
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
 
-        # pylint: disable=too-many-boolean-expressions
-        # This is just checking all inputs, should be
-        # easy to read.
-        if (
-            not self.blackboard_exists("position")
-            or not self.blackboard_exists("frame_id")
-            or not self.blackboard_exists("target_link")
-            or not self.blackboard_exists("tolerance")
-            or not self.blackboard_exists("weight")
-            or not self.blackboard_exists("constraints")
+        if not self.blackboard_exists(
+            [
+                "position",
+                "frame_id",
+                "target_link",
+                "tolerance",
+                "weight",
+                "constraints",
+            ]
         ):
             self.logger.error("MoveIt2PositionConstraint: Missing input arguments.")
             self.logger.error(str(self.blackboard))
@@ -324,17 +316,16 @@ class MoveIt2OrientationConstraint(BlackboardBehavior):
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
 
-        # pylint: disable=too-many-boolean-expressions
-        # This is just checking all inputs, should be
-        # easy to read.
-        if (
-            not self.blackboard_exists("quat_xyzw")
-            or not self.blackboard_exists("frame_id")
-            or not self.blackboard_exists("target_link")
-            or not self.blackboard_exists("tolerance")
-            or not self.blackboard_exists("weight")
-            or not self.blackboard_exists("constraints")
-            or not self.blackboard_exists("parameterization")
+        if not self.blackboard_exists(
+            [
+                "quat_xyzw",
+                "frame_id",
+                "target_link",
+                "tolerance",
+                "weight",
+                "constraints",
+                "parameterization",
+            ]
         ):
             self.logger.error("MoveIt2OrientationConstraint: Missing input arguments.")
             return py_trees.common.Status.FAILURE
@@ -451,19 +442,18 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
 
-        # pylint: disable=too-many-boolean-expressions
-        # This is just checking all inputs, should be
-        # easy to read.
-        if (
-            not self.blackboard_exists("pose")
-            or not self.blackboard_exists("frame_id")
-            or not self.blackboard_exists("target_link")
-            or not self.blackboard_exists("tolerance_position")
-            or not self.blackboard_exists("weight_position")
-            or not self.blackboard_exists("tolerance_orientation")
-            or not self.blackboard_exists("weight_orientation")
-            or not self.blackboard_exists("constraints")
-            or not self.blackboard_exists("parameterization")
+        if not self.blackboard_exists(
+            [
+                "pose",
+                "frame_id",
+                "target_link",
+                "tolerance_position",
+                "weight_position",
+                "tolerance_orientation",
+                "weight_orientation",
+                "constraints",
+                "parameterization",
+            ]
         ):
             self.logger.error("MoveIt2Constraint: Missing input arguments.")
             return py_trees.common.Status.FAILURE

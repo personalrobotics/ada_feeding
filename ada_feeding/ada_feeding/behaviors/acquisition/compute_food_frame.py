@@ -148,6 +148,11 @@ class ComputeFoodFrame(BlackboardBehavior):
         # We can't get around all the conversions
         # to ROS2 msg types, which take 3-4 statements each.
 
+        # Validate inputs
+        if not self.blackboard_exists(["camera_info", "world_frame"]):
+            self.logger.error("Missing camera_info or world_frame")
+            return py_trees.common.Status.FAILURE
+
         camera_frame = self.blackboard_get("camera_info").header.frame_id
         world_frame = self.blackboard_get("world_frame")
 

@@ -11,7 +11,14 @@ from copy import deepcopy
 from typing import Union, Optional
 
 # Third-party imports
-from geometry_msgs.msg import Point, Pose, Quaternion, Transform, TransformStamped
+from geometry_msgs.msg import (
+    Point,
+    Pose,
+    Transform,
+    TransformStamped,
+    TwistStamped,
+    Vector3Stamped,
+)
 import numpy as np
 from overrides import override
 import py_trees
@@ -32,7 +39,7 @@ from ada_feeding_msgs.msg import AcquisitionSchema
 from ada_feeding_msgs.srv import AcquisitionSelect
 
 
-class ComputeApproachConstraints(BlackboardBehavior):
+class ComputeActionConstraints(BlackboardBehavior):
     """
     Checks AcquisitionSelect response, implements stochastic
     policy choice, and then decomposes into individual
@@ -77,7 +84,9 @@ class ComputeApproachConstraints(BlackboardBehavior):
         self,
         move_above_pose: Optional[BlackboardKey],  # Pose, in Food Frame
         move_into_pose: Optional[BlackboardKey],  # Pose, in Food Frame
-        ft_thresh: Optional[BlackboardKey],  # SetParameters.Request
+        approach_thresh: Optional[BlackboardKey],  # SetParameters.Request
+        grasp_thresh: Optional[BlackboardKey],  # SetParameters.Request
+        ext_thresh: Optional[BlackboardKey],  # SetParameters.Request
         action: Optional[BlackboardKey],  # AcquisitionSchema.msg
     ) -> None:
         """
@@ -88,7 +97,9 @@ class ComputeApproachConstraints(BlackboardBehavior):
         ----------
         move_above_pose: Pose constraint when moving above food
         move_into_pose: Pose constraint when moving into food
-        ft_thresh: SetParameters request to set thresholds pre-approach
+        approach_thresh: SetParameters request to set thresholds pre-approach
+        grasp_thresh: SetParameters request to set thresholds in grasp
+        ext_thresh: SetParameters request to set thresholds for extraction
         action: AcquisitionSchema object to use in later computations
         """
         # pylint: disable=unused-argument, duplicate-code
@@ -133,15 +144,6 @@ class ComputeApproachConstraints(BlackboardBehavior):
         index = np.random.choice(np.arange(prob.size), p=prob)
         action = response.actions[index]
 
-        ### Calculate Approach Frame
-        # TODO: Calculate Approach Frame
-        identity = TransformStamped()
-        identity.transform = ros2_numpy.msgify(Transform, np.eye(4))
-        identity.header.stamp = self.node.get_clock().now().to_msg()
-        identity.header.frame_id = "food"
-        identity.child_frame_id = "approach"
-        set_static_tf(identity, self.blackboard, self.node)
-
         ### Construct Constraints
 
         # Re-scale pre-transform to move_above_dist_m
@@ -166,23 +168,43 @@ class ComputeApproachConstraints(BlackboardBehavior):
         move_into_pose.position = ros2_numpy.msgify(Point, offset)
         self.blackboard_set("move_into_pose", move_into_pose)
 
-        # Calculate Approach F/T Thresholds
+        ### Calculate Approach Frame
+        approach_vec = offset - position
+        approach_frame = TransformStamped()
+        approach_mat = np.eye(4)
+        if not np.all(np.isclose(approach_vec[:2], np.zeros(2))):
+            approach_mat[:3, :3] = R.from_rotvec(
+                np.arctan2(approach_vec[1], approach_vec[0]) * np.array([0, 0, 1])
+            ).as_matrix()
+        approach_frame.transform = ros2_numpy.msgify(Transform, approach_mat)
+        approach_frame.header.stamp = self.node.get_clock().now().to_msg()
+        approach_frame.header.frame_id = "food"
+        approach_frame.child_frame_id = "approach"
+        set_static_tf(approach_frame, self.blackboard, self.node)
+
+        ### Calculate F/T Thresholds
         self.blackboard_set(
-            "ft_thresh",
+            "approach_thresh",
             create_ft_thresh_request(action.pre_force, action.pre_torque),
         )
+        self.blackboard_set(
+            "grasp_thresh",
+            create_ft_thresh_request(action.grasp_force, action.grasp_torque),
+        )
+        self.blackboard_set(
+            "ext_thresh",
+            create_ft_thresh_request(action.ext_force, action.ext_torque),
+        )
 
+        ### Final write to Blackboard
         self.blackboard_set("action", action)
         return py_trees.common.Status.SUCCESS
 
 
-# TODO: ComputeGraspConstraints
-
-
-class ComputeExtractConstraints(BlackboardBehavior):
+class ComputeActionTwist(BlackboardBehavior):
     """
-    Decomposes AcquisitionSchema msg into individual
-    BlackboardKey objects for MoveIt2 Extraction Behaviors.
+    Converts grasp/extraction parameters into a single
+    TwistStamped for use with moveit2_servo
     """
 
     # pylint: disable=arguments-differ
@@ -197,6 +219,7 @@ class ComputeExtractConstraints(BlackboardBehavior):
     def blackboard_inputs(
         self,
         action: Union[BlackboardKey, AcquisitionSchema],
+        is_grasp: Union[BlackboardKey, bool] = True,
         approach_frame_id: Union[BlackboardKey, str] = "approach",
     ) -> None:
         """
@@ -205,6 +228,7 @@ class ComputeExtractConstraints(BlackboardBehavior):
         Parameters
         ----------
         action: AcquisitionSchema msg object
+        is_grasp: if true, use the grasp action elements, else use extraction
         approach_frame_id: approach frame defined in AcquisitionSchema.msg
         """
         # pylint: disable=unused-argument, duplicate-code
@@ -215,10 +239,8 @@ class ComputeExtractConstraints(BlackboardBehavior):
 
     def blackboard_outputs(
         self,
-        extract_position: Optional[BlackboardKey],  # Position, in approach frame
-        extract_orientation: Optional[BlackboardKey],  # Quaternion, in forkTip frame
-        ft_thresh: Optional[BlackboardKey],  # SetParameters.Request
-        ee_frame_id: Optional[BlackboardKey] = None,  # str
+        twist: Optional[BlackboardKey],  # TwistStamped
+        duration: Optional[BlackboardKey],  # float
     ) -> None:
         """
         Blackboard Outputs
@@ -226,10 +248,8 @@ class ComputeExtractConstraints(BlackboardBehavior):
 
         Parameters
         ----------
-        extract_position: Postition constraint when moving out of food
-        extract_orientation: Orientation constraint when moving out of food
-        ft_thresh: SetParameters request to set thresholds pre-extraction
-        ee_frame_id: end-effector frame for the extract_orientation constraint
+        twist: twist to send to MoveIt2 Servo
+        duration: how long to twist in seconds
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -264,10 +284,17 @@ class ComputeExtractConstraints(BlackboardBehavior):
         # Docstring copied from @override
 
         # Input Validation
-        if not self.blackboard_exists("action"):
+        if not self.blackboard_exists(["action", "is_grasp", "approach_frame_id"]):
             self.logger.error("Missing AcquisitionSchema action")
             return py_trees.common.Status.FAILURE
         action = self.blackboard_get("action")
+        linear = action.ext_linear
+        angular = action.ext_angular
+        duration = action.ext_duration
+        if self.blackboard_get("is_grasp"):
+            linear = action.grasp_linear
+            angular = action.grasp_angular
+            duration = action.grasp_duration
         approach_frame_id = self.blackboard_get("approach_frame_id")
 
         ### Lock used objects
@@ -276,49 +303,46 @@ class ComputeExtractConstraints(BlackboardBehavior):
             # Use a Timeout decorator to determine failure.
             return py_trees.common.Status.RUNNING
         with self.tf_lock, self.moveit2_lock:
-            # Get TF EE frame -> approach frame
+            twist = TwistStamped()
+            twist.header.stamp = self.node.get_clock().now().to_msg()
+            twist.header.frame_id = self.moveit2.base_link_name
+            ### Move Linear to Base Link Frame
+            # Get TF approach frame -> base link frame
             if not self.tf_buffer.can_transform(
+                self.moveit2.base_link_name,
                 approach_frame_id,
+                rclpy.time.Time(),
+            ):
+                # Not yet, wait for it
+                # Use a Timeout decorator to determine failure.
+                return py_trees.common.Status.RUNNING
+            linear_stamped = Vector3Stamped()
+            linear_stamped.header.frame_id = approach_frame_id
+            linear_stamped.vector = linear
+            twist.twist.linear = self.tf_buffer.transform(
+                linear_stamped, self.moveit2.base_link_name
+            ).vector
+
+            ### Move Angular to Approach Frame
+            # Get TF EE frame -> base link frame
+            if not self.tf_buffer.can_transform(
+                self.moveit2.base_link_name,
                 self.moveit2.end_effector_name,
                 rclpy.time.Time(),
             ):
                 # Not yet, wait for it
                 # Use a Timeout decorator to determine failure.
                 return py_trees.common.Status.RUNNING
-            utensil_to_approach_transform = self.tf_buffer.lookup_transform(
-                approach_frame_id,
-                self.moveit2.end_effector_name,
-                rclpy.time.Time(),
-            )
-            ee_position_np = ros2_numpy.numpify(
-                utensil_to_approach_transform.transform.translation
-            )
-            self.blackboard_set("ee_frame_id", self.moveit2.end_effector_name)
 
-            ### Construct Constraints
+            angular_stamped = Vector3Stamped()
+            angular_stamped.header.frame_id = self.moveit2.end_effector_name
+            angular_stamped.vector = angular
+            twist.twist.angular = self.tf_buffer.transform(
+                angular_stamped, self.moveit2.base_link_name
+            ).vector
+            self.blackboard_set("twist", twist)
 
-            # Calculate Extract position (in approach frame)
-            position = ros2_numpy.numpify(action.ext_linear)
-            dur_s = float(action.ext_duration.sec) + (
-                float(action.ext_duration.nanosec) / 10e9
-            )
-            position = position * dur_s
-            position = position + ee_position_np  # Offset from current position
-            extract_position = ros2_numpy.msgify(Point, position[:3])
-            self.blackboard_set("extract_position", extract_position)
-
-            # Calculate extract orientation (in forktip frame)
-            rot_vec = ros2_numpy.numpify(action.ext_angular)
-            rot_vec = rot_vec * dur_s
-            extract_orientation = ros2_numpy.msgify(
-                Quaternion, R.from_rotvec(rot_vec).as_quat()
-            )
-            self.blackboard_set("extract_orientation", extract_orientation)
-
-            # Calculate Approach F/T Thresholds
-            self.blackboard_set(
-                "ft_thresh",
-                create_ft_thresh_request(action.ext_force, action.ext_torque),
-            )
-
+            # Compute Duration
+            dur_s = float(duration.sec) + (float(duration.nanosec) / 1e9)
+            self.blackboard_set("duration", dur_s)
         return py_trees.common.Status.SUCCESS

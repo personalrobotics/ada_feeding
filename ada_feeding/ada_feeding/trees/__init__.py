@@ -8,8 +8,6 @@ to be wrapped in a ROS action server.
 # We import all of the trees here so that they can be imported as
 # ada_feeding.trees.<tree_name> instead of ada_feeding.trees.<tree_file>.<tree_name>
 
-from .acquire_food_tree import AcquireFoodTree
-
 from .move_to_tree import MoveToTree
 from .move_to_configuration_with_ft_thresholds_tree import (
     MoveToConfigurationWithFTThresholdsTree,
@@ -21,3 +19,5 @@ from .move_to_mouth_tree import MoveToMouthTree
 from .trigger_tree import TriggerTree
 from .start_servo_tree import StartServoTree
 from .stop_servo_tree import StopServoTree
+
+from .acquire_food_tree import AcquireFoodTree

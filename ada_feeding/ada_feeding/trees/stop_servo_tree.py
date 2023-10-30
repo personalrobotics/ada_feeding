@@ -105,6 +105,7 @@ class StopServoTree(TriggerTree):
         )
 
         # Put them together in a sequence with memory
+        # pylint: disable=duplicate-code
         return py_trees.trees.BehaviourTree(
             root=py_trees.composites.Sequence(
                 name=name,
