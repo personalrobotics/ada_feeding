@@ -16,7 +16,7 @@ from rclpy.duration import Duration
 from rclpy.qos import QoSProfile
 
 # Local imports
-from ada_feeding.helpers import BlackboardKey
+from ada_feeding.helpers import BlackboardKey, float_to_duration
 from ada_feeding.behaviors import BlackboardBehavior
 
 
@@ -105,7 +105,7 @@ class ServoMove(BlackboardBehavior):
         # Return success if duration is exceeded
         duration = self.blackboard_get("duration")
         if isinstance(duration, float):
-            duration = Duration(seconds=duration)
+            duration = float_to_duration(duration)
         if self.node.get_clock().now() > (self.start_time + duration):
             return py_trees.common.Status.SUCCESS
 

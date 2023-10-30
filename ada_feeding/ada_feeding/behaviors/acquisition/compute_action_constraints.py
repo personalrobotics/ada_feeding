@@ -343,6 +343,6 @@ class ComputeActionTwist(BlackboardBehavior):
             self.blackboard_set("twist", twist)
 
             # Compute Duration
-            dur_s = float(duration.sec) + (float(duration.nanosec) / 10e9)
+            dur_s = float(duration.sec) + (float(duration.nanosec) / 1e9)
             self.blackboard_set("duration", dur_s)
         return py_trees.common.Status.SUCCESS

@@ -15,6 +15,7 @@ from py_trees.common import Access
 from pymoveit2 import MoveIt2
 from pymoveit2.robots import kinova
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.duration import Duration
 from rclpy.node import Node
 from tf2_ros.buffer import Buffer
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
@@ -35,6 +36,22 @@ class BlackboardKey(str):
 
     def __new__(cls, *args, **kwargs):
         return str.__new__(cls, *args, **kwargs)
+
+
+def duration_to_float(duration: Duration) -> float:
+    """
+    Convert ROS duration to float seconds
+    """
+    return float(duration.nanoseconds) / 1e9
+
+
+def float_to_duration(duration: float) -> Duration:
+    """
+    Convert float seconds to ROS duration
+    """
+    sec = int(duration)
+    nanosec = int((duration - sec) * 1e9)
+    return Duration(seconds=sec, nanoseconds=nanosec)
 
 
 def quat_between_vectors(vec_from: Vector3, vec_to: Vector3) -> Quaternion:

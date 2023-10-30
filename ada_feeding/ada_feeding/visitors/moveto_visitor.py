@@ -22,8 +22,8 @@ from trajectory_msgs.msg import JointTrajectory
 
 # Local imports
 from ada_feeding_msgs.action import MoveTo
-from ada_feeding.behaviors.moveit2 import MoveIt2Execute
-from ada_feeding.helpers import get_moveit2_object
+from ada_feeding.behaviors.moveit2 import MoveIt2Execute, ServoMove
+from ada_feeding.helpers import duration_to_float, float_to_duration, get_moveit2_object
 
 
 class MoveToVisitor(VisitorBase):
@@ -166,8 +166,26 @@ class MoveToVisitor(VisitorBase):
                 if traj is not None:
                     self.feedback.motion_initial_distance = float(len(traj.points))
                     self.feedback.motion_curr_distance = self.get_distance_to_goal(traj)
+        elif (
+            isinstance(behaviour, ServoMove)
+            and behaviour.status == py_trees.common.Status.RUNNING
+        ):
+            # Flip to execute
+            if self.feedback.is_planning:
+                self.start_time = self.node.get_clock().now()
+                self.feedback.is_planning = False
+            # Distance == time_elapsed vs duration
+            if behaviour.blackboard_exists("duration"):
+                dur = behaviour.blackboard_get("duration")
+                if isinstance(dur, float):
+                    dur = float_to_duration(dur)
+                self.feedback.motion_initial_distance = duration_to_float(dur)
+                self.feedback.motion_curr_distance = (
+                    self.feedback.motion_initial_distance
+                    - duration_to_float(self.node.get_clock().now() - self.start_time)
+                )
         else:
-            # Catch end of MoveIt2Execute behavior
+            # Catch end of MoveIt2Execute behaviors
             if behaviour.status == py_trees.common.Status.SUCCESS:
                 self.feedback.motion_curr_distance = 0.0
             # Switch to planning start time
