@@ -20,8 +20,7 @@ from rclpy.qos import QoSProfile
 from std_msgs.msg import Header
 
 # Local imports
-from ada_feeding import ActionServerBT
-from ada_feeding.behaviors import ToggleCollisionObject, UpdateTimestamp
+from ada_feeding.behaviors import UpdateTimestamp
 from ada_feeding.behaviors.acquisition import (
     ComputeFoodFrame,
     ComputeActionConstraints,
@@ -32,6 +31,7 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2PoseConstraint,
     MoveIt2Plan,
     MoveIt2Execute,
+    ToggleCollisionObject,
 )
 from ada_feeding.decorators import TimeoutFromBlackboard
 from ada_feeding.helpers import BlackboardKey
@@ -41,13 +41,12 @@ from ada_feeding.idioms import (
     retry_call_ros_service,
 )
 from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_success
-from ada_feeding.trees import StartServoTree, StopServoTree
-from ada_feeding.visitors import MoveToVisitor
+from ada_feeding.trees import MoveToTree, StartServoTree, StopServoTree
 from ada_feeding_msgs.action import AcquireFood
 from ada_feeding_msgs.srv import AcquisitionSelect
 
 
-class AcquireFoodTree(ActionServerBT):
+class AcquireFoodTree(MoveToTree):
     """
     A behvaior tree to select and execute an acquisition
     action (see ada_feeding_msgs.action.AcquisitionSchema)
@@ -99,81 +98,7 @@ class AcquireFoodTree(ActionServerBT):
             twist=Twist(),
         )
 
-        ### Define Tree Leaf Nodes
-        start_servo_tree = StartServoTree(self._node)
-        stop_servo_tree = StopServoTree(self._node)
-
-        # FT Threshold Setting Nodes
-        approach_ft_behavior = retry_call_ros_service(
-            name="ApproachFTThresh",
-            service_type=SetParameters,
-            service_name="~/set_force_gate_controller_parameters",
-            # Blackboard, not Constant
-            request=None,
-            # Need absolute Blackboard name
-            key_request=Blackboard.separator.join(
-                [name, BlackboardKey("approach_thresh")]
-            ),
-            key_response=Blackboard.separator.join(
-                [name, BlackboardKey("ft_response")]
-            ),
-            response_checks=[
-                py_trees.common.ComparisonExpression(
-                    variable=Blackboard.separator.join(
-                        [name, BlackboardKey("ft_response")]
-                    ),
-                    value=SetParameters.Response(),  # Unused
-                    operator=set_parameter_response_all_success,
-                )
-            ],
-        )
-        grasp_ft_behavior = retry_call_ros_service(
-            name="GraspFTThresh",
-            service_type=SetParameters,
-            service_name="~/set_servo_controller_parameters",
-            # Blackboard, not Constant
-            request=None,
-            # Need absolute Blackboard name
-            key_request=Blackboard.separator.join(
-                [name, BlackboardKey("grasp_thresh")]
-            ),
-            key_response=Blackboard.separator.join(
-                [name, BlackboardKey("ft_response")]
-            ),
-            response_checks=[
-                py_trees.common.ComparisonExpression(
-                    variable=Blackboard.separator.join(
-                        [name, BlackboardKey("ft_response")]
-                    ),
-                    value=SetParameters.Response(),  # Unused
-                    operator=set_parameter_response_all_success,
-                )
-            ],
-        )
-        ext_ft_behavior = retry_call_ros_service(
-            name="ExtractionFTThresh",
-            service_type=SetParameters,
-            service_name="~/set_servo_controller_parameters",
-            # Blackboard, not Constant
-            request=None,
-            # Need absolute Blackboard name
-            key_request=Blackboard.separator.join([name, BlackboardKey("ext_thresh")]),
-            key_response=Blackboard.separator.join(
-                [name, BlackboardKey("ft_response")]
-            ),
-            response_checks=[
-                py_trees.common.ComparisonExpression(
-                    variable=Blackboard.separator.join(
-                        [name, BlackboardKey("ft_response")]
-                    ),
-                    value=SetParameters.Response(),  # Unused
-                    operator=set_parameter_response_all_success,
-                )
-            ],
-        )
-
         ### Define Tree Logic
-
         # Root Sequence
         root_seq = py_trees.composites.Sequence(
             name=name,
@@ -271,12 +196,36 @@ class AcquireFoodTree(ActionServerBT):
                         name=name,
                         memory=True,
                         children=[
-                            approach_ft_behavior,
+                            retry_call_ros_service(
+                                name="ApproachFTThresh",
+                                service_type=SetParameters,
+                                service_name="~/set_force_gate_controller_parameters",
+                                # Blackboard, not Constant
+                                request=None,
+                                # Need absolute Blackboard name
+                                key_request=Blackboard.separator.join(
+                                    [name, BlackboardKey("approach_thresh")]
+                                ),
+                                key_response=Blackboard.separator.join(
+                                    [name, BlackboardKey("ft_response")]
+                                ),
+                                response_checks=[
+                                    py_trees.common.ComparisonExpression(
+                                        variable=Blackboard.separator.join(
+                                            [name, BlackboardKey("ft_response")]
+                                        ),
+                                        value=SetParameters.Response(),  # Unused
+                                        operator=set_parameter_response_all_success,
+                                    )
+                                ],
+                            ),
                             ToggleCollisionObject(
                                 name="AllowTable",
-                                node=self._node,
-                                collision_object_ids=["table"],
-                                allow=True,
+                                ns=name,
+                                inputs={
+                                    "collision_object_ids": ["table"],
+                                    "allow": True,
+                                },
                             ),
                         ],
                     ),
@@ -287,9 +236,11 @@ class AcquireFoodTree(ActionServerBT):
                             pre_moveto_config(name="PostAcquireFTSet", re_tare=False),
                             ToggleCollisionObject(
                                 name="DisallowTable",
-                                node=self._node,
-                                collision_object_ids=["table"],
-                                allow=False,
+                                ns=name,
+                                inputs={
+                                    "collision_object_ids": ["table"],
+                                    "allow": False,
+                                },
                             ),
                         ],
                     ),
@@ -339,9 +290,9 @@ class AcquireFoodTree(ActionServerBT):
                                 name=name,
                                 memory=True,
                                 children=[
-                                    start_servo_tree.create_tree(
-                                        name="StartServoScoped", tree_root_name=name
-                                    ).root,
+                                    StartServoTree(self._node)
+                                    .create_tree(name="StartServoScoped")
+                                    .root,
                                 ],
                             ),
                             # Reset FT and Stop Servo
@@ -355,16 +306,38 @@ class AcquireFoodTree(ActionServerBT):
                                         f_mag=1.0,
                                         param_service_name="~/set_servo_controller_parameters",
                                     ),
-                                    stop_servo_tree.create_tree(
-                                        name="StopServoScoped", tree_root_name=name
-                                    ).root,
+                                    StopServoTree(self._node)
+                                    .create_tree(name="StopServoScoped")
+                                    .root,
                                 ],
                             ),
                             on_preempt_timeout=5.0,
                             # Starts a new Sequence w/ Memory internally
                             workers=[
                                 ### Grasp
-                                grasp_ft_behavior,
+                                retry_call_ros_service(
+                                    name="GraspFTThresh",
+                                    service_type=SetParameters,
+                                    service_name="~/set_servo_controller_parameters",
+                                    # Blackboard, not Constant
+                                    request=None,
+                                    # Need absolute Blackboard name
+                                    key_request=Blackboard.separator.join(
+                                        [name, BlackboardKey("grasp_thresh")]
+                                    ),
+                                    key_response=Blackboard.separator.join(
+                                        [name, BlackboardKey("ft_response")]
+                                    ),
+                                    response_checks=[
+                                        py_trees.common.ComparisonExpression(
+                                            variable=Blackboard.separator.join(
+                                                [name, BlackboardKey("ft_response")]
+                                            ),
+                                            value=SetParameters.Response(),  # Unused
+                                            operator=set_parameter_response_all_success,
+                                        )
+                                    ],
+                                ),
                                 ComputeActionTwist(
                                     name="ComputeGrasp",
                                     ns=name,
@@ -452,7 +425,29 @@ class AcquireFoodTree(ActionServerBT):
                                         "duration": BlackboardKey("duration"),
                                     },
                                 ),
-                                ext_ft_behavior,
+                                retry_call_ros_service(
+                                    name="ExtractionFTThresh",
+                                    service_type=SetParameters,
+                                    service_name="~/set_servo_controller_parameters",
+                                    # Blackboard, not Constant
+                                    request=None,
+                                    # Need absolute Blackboard name
+                                    key_request=Blackboard.separator.join(
+                                        [name, BlackboardKey("ext_thresh")]
+                                    ),
+                                    key_response=Blackboard.separator.join(
+                                        [name, BlackboardKey("ft_response")]
+                                    ),
+                                    response_checks=[
+                                        py_trees.common.ComparisonExpression(
+                                            variable=Blackboard.separator.join(
+                                                [name, BlackboardKey("ft_response")]
+                                            ),
+                                            value=SetParameters.Response(),  # Unused
+                                            operator=set_parameter_response_all_success,
+                                        )
+                                    ],
+                                ),
                                 py_trees.decorators.FailureIsSuccess(
                                     name="ExtractSuceed",
                                     child=TimeoutFromBlackboard(
@@ -577,16 +572,8 @@ class AcquireFoodTree(ActionServerBT):
         blackboard.register_key(key="camera_info", access=py_trees.common.Access.WRITE)
         blackboard.camera_info = goal.camera_info
 
-        # Add MoveToVisitor for Feedback
-        feedback_visitor = None
-        for visitor in tree.visitors:
-            if isinstance(visitor, MoveToVisitor):
-                visitor.reinit()
-                feedback_visitor = visitor
-        if feedback_visitor is None:
-            tree.add_visitor(MoveToVisitor(self._node))
-
-        return True
+        # Adds MoveToVisitor for Feedback
+        return super().send_goal(tree, goal)
 
     # Override result to handle timing outside MoveTo Behaviors
     @override
@@ -598,24 +585,7 @@ class AcquireFoodTree(ActionServerBT):
         if action_type is not AcquireFood:
             return None
 
-        feedback_msg = action_type.Feedback()
-
-        # Get Feedback Visitor
-        feedback_visitor = None
-        for visitor in tree.visitors:
-            if isinstance(visitor, MoveToVisitor):
-                feedback_visitor = visitor
-
-        # Copy everything from the visitor
-        if feedback_visitor is not None:
-            feedback = feedback_visitor.get_feedback()
-            feedback_msg.is_planning = feedback.is_planning
-            feedback_msg.planning_time = feedback.planning_time
-            feedback_msg.motion_time = feedback.motion_time
-            feedback_msg.motion_initial_distance = feedback.motion_initial_distance
-            feedback_msg.motion_curr_distance = feedback.motion_curr_distance
-
-        return feedback_msg
+        return super().get_feedback(tree, action_type)
 
     # Override result to add other elements to result msg
     @override
@@ -627,36 +597,5 @@ class AcquireFoodTree(ActionServerBT):
         if action_type is not AcquireFood:
             return None
 
-        result_msg = action_type.Result()
-
-        # If the tree succeeded, return success
-        if tree.root.status == py_trees.common.Status.SUCCESS:
-            result_msg.status = result_msg.STATUS_SUCCESS
-        # If the tree failed, detemine whether it was a planning or motion failure
-        elif tree.root.status == py_trees.common.Status.FAILURE:
-            # Get Feedback Visitor to investigate failure cause
-            feedback_visitor = None
-            for visitor in tree.visitors:
-                if isinstance(visitor, MoveToVisitor):
-                    feedback_visitor = visitor
-            if feedback_visitor is None:
-                result_msg.status = result_msg.STATUS_UNKNOWN
-            else:
-                feedback = feedback_visitor.get_feedback()
-                if feedback.is_planning:
-                    result_msg.status = result_msg.STATUS_PLANNING_FAILED
-                else:
-                    result_msg.status = result_msg.STATUS_MOTION_FAILED
-        # If the tree has an invalid status, return unknown
-        elif tree.root.status == py_trees.common.Status.INVALID:
-            result_msg.status = result_msg.STATUS_UNKNOWN
-        # If the tree is running, the fact that `get_result` was called is
-        # indicative of an error. Return unknown error.
-        else:
-            tree.root.logger.error(
-                f"Called get_result with status RUNNING: {tree.root.status}"
-            )
-            result_msg.status = result_msg.STATUS_UNKNOWN
-
         # TODO: add action_index, posthoc, action_select_hash
-        return result_msg
+        return super().get_result(tree, action_type)
