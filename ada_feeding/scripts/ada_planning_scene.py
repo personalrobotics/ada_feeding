@@ -213,11 +213,8 @@ class ADAPlanningScene(Node):
         rate = self.create_rate(self.wait_for_moveit_hz)
         while rclpy.ok():
             # pylint: disable=protected-access
-            # This is necessary. Ideally, the publisher would not be protected.
-            if (
-                self.moveit2._MoveIt2__collision_object_publisher.get_subscription_count()
-                > 0
-            ):
+            # This is necessary. Ideally, the service would not be protected.
+            if self.moveit2._get_planning_scene_service.service_is_ready():
                 break
             rate.sleep()
 
@@ -244,6 +241,7 @@ class ADAPlanningScene(Node):
                     quat_xyzw=params.quat_xyzw,
                     frame_id=params.frame_id,
                 )
+            time.sleep(0.2)
 
 
 def main(args: List = None) -> None:

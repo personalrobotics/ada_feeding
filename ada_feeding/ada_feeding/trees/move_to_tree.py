@@ -6,11 +6,10 @@ wrap that behavior tree in a ROS2 action server.
 
 This module is intended to consolidate all the logic for generating feedback
 and results, which is shared across all MoveTo actions, into one place.
-Subclasses should only need to define create_move_to_tree.
 """
 
 # Standard imports
-from abc import ABC, abstractmethod
+from abc import ABC
 
 # Third-party imports
 from overrides import override
@@ -18,6 +17,7 @@ import py_trees
 
 # Local imports
 from ada_feeding import ActionServerBT
+from ada_feeding.visitors import MoveToVisitor
 
 
 class MoveToTree(ActionServerBT, ABC):
@@ -27,191 +27,94 @@ class MoveToTree(ActionServerBT, ABC):
     ada_feeding_msgs.action.AcquireFood.
     """
 
-    # pylint: disable=attribute-defined-outside-init
-    # It is reasonable for attributes that are tree-specific, or only relevant
-    # after the tree is created, to be defined in `create_tree`.
-    @override
-    def create_tree(
-        self,
-        name: str,
-        tree_root_name: str,
-    ) -> py_trees.trees.BehaviourTree:
-        # Docstring copied from @override
-
-        # pylint: disable=too-many-arguments
-        # One over is fine for this function.
-
-        self.create_blackboard(name, tree_root_name)
-
-        return self.create_move_to_tree(name, tree_root_name)
-
-    def create_blackboard(self, name: str, tree_root_name: str) -> None:
-        """
-        Creates the blackboard for the behavior tree, and defines the blackboard
-        keys necessary to set the goal and send feedback.
-
-        Parameters
-        ----------
-        name: The name of this behavior tree.
-        tree_root_name: The name of the tree. This is necessary because sometimes
-            trees create subtrees, but still need to track the top-level tree
-            name to read/write the correct blackboard variables.
-        """
-        # Create the blackboard for the tree root
-        self.blackboard_tree_root = py_trees.blackboard.Client(
-            name=name + " Tree", namespace=tree_root_name
-        )
-        # Goal that is passed from the ROS2 Action Server
-        self.blackboard_tree_root.register_key(
-            key="goal", access=py_trees.common.Access.WRITE
-        )
-        # Feedback from MoveToConfiguration for the ROS2 Action Server
-        self.blackboard_tree_root.register_key(
-            key="is_planning", access=py_trees.common.Access.READ
-        )
-        self.blackboard_tree_root.register_key(
-            key="planning_time", access=py_trees.common.Access.READ
-        )
-        self.blackboard_tree_root.register_key(
-            key="motion_time", access=py_trees.common.Access.READ
-        )
-        self.blackboard_tree_root.register_key(
-            key="motion_initial_distance", access=py_trees.common.Access.READ
-        )
-        self.blackboard_tree_root.register_key(
-            key="motion_curr_distance", access=py_trees.common.Access.READ
-        )
-        # Create the blackboard for this tree
-        self.blackboard = py_trees.blackboard.Client(
-            name=name + " Tree", namespace=name
-        )
-
-    @abstractmethod
-    def create_move_to_tree(
-        self,
-        name: str,
-        tree_root_name: str,
-    ) -> py_trees.trees.BehaviourTree:
-        """
-        Create the behavior tree. By the time this function is called, the
-        blackboard has already been created and been defined with the keys
-        necessary to set the goal and send feedback. Therefore, this function
-        is just responsible for defining the blackboard keys specific to the
-        movement behavior, and creating the tree.
-
-        Parameters
-        ----------
-        name: The name of the behavior tree.
-        tree_root_name: The name of the tree. This is necessary because sometimes
-            trees create subtrees, but still need to track the top-level tree
-            name to read/write the correct blackboard variables.
-
-        Returns
-        -------
-        tree: The behavior tree that moves the robot above the plate.
-        """
-        raise NotImplementedError("create_move_to_tree not implemented")
-
-    @override
     def send_goal(self, tree: py_trees.trees.BehaviourTree, goal: object) -> bool:
         """
-        Sends the goal from the action client to the behavior tree.
+        Sends the goal of the action to the behavior tree.
 
-        This function is called before the behavior tree is executed.
+        The default `send_goal` in MoveToTree actually ignores the goal and
+        merely initializes the MoveToVisitor for feedback. This is because
+        the default `MoveTo.action` has an empty goal. Any subclass that wants
+        to use the goal should override this function, but should also call
+        `super().send_goal(tree, goal)` to initialize the MoveToVisitor.
 
         Parameters
         ----------
         tree: The behavior tree that is being executed.
-        goal: The ROS goal message to be sent to the behavior tree.
+        goal: The ROS goal message sent to the action server.
 
         Returns
         -------
-        success: Whether the goal was sent successfully.
+        success: Whether the goal was successfully sent to the behavior tree.
         """
-        # Write the goal to blackboard
-        self.blackboard_tree_root.goal = goal
+
+        # Add MoveToVisitor for Feedback
+        feedback_visitor = None
+        for visitor in tree.visitors:
+            if isinstance(visitor, MoveToVisitor):
+                # Re-initialize existing MoveToVisitor
+                visitor.reinit()
+                feedback_visitor = visitor
+        if feedback_visitor is None:
+            tree.add_visitor(MoveToVisitor(self._node))
         return True
 
     @override
     def get_feedback(
         self, tree: py_trees.trees.BehaviourTree, action_type: type
     ) -> object:
-        """
-        Traverses the tree to generate a feedback message for the MoveTo action.
-
-        This function is used as a post-tick handler for the behavior tree.
-
-        Parameters
-        ----------
-        tree: The behavior tree that is being executed.
-
-        Returns
-        -------
-        feedback: The ROS feedback message to be sent to the action client.
-        """
+        # Docstring copied by @override
         feedback_msg = action_type.Feedback()
-        if self.blackboard_tree_root.exists("is_planning"):
-            feedback_msg.is_planning = self.blackboard_tree_root.is_planning
-            planning_time = self.blackboard_tree_root.planning_time
-            feedback_msg.is_planning = self.blackboard_tree_root.is_planning
-            planning_time = self.blackboard_tree_root.planning_time
-            feedback_msg.planning_time.sec = int(planning_time)
-            feedback_msg.planning_time.nanosec = int(
-                (planning_time - int(planning_time)) * 1e9
-            )
-            motion_time = self.blackboard_tree_root.motion_time
-            feedback_msg.motion_time.sec = int(motion_time)
-            feedback_msg.motion_time.nanosec = int(
-                (motion_time - int(motion_time)) * 1e9
-            )
-            if not feedback_msg.is_planning:
-                feedback_msg.motion_initial_distance = (
-                    self.blackboard_tree_root.motion_initial_distance
-                )
-                feedback_msg.motion_curr_distance = (
-                    self.blackboard_tree_root.motion_curr_distance
-                )
+
+        # Get Feedback Visitor
+        feedback_visitor = None
+        for visitor in tree.visitors:
+            if isinstance(visitor, MoveToVisitor):
+                feedback_visitor = visitor
+
+        # Copy everything from the visitor
+        if feedback_visitor is not None:
+            feedback = feedback_visitor.get_feedback()
+            feedback_msg.is_planning = feedback.is_planning
+            feedback_msg.planning_time = feedback.planning_time
+            feedback_msg.motion_time = feedback.motion_time
+            feedback_msg.motion_initial_distance = feedback.motion_initial_distance
+            feedback_msg.motion_curr_distance = feedback.motion_curr_distance
+
         return feedback_msg
 
     @override
     def get_result(
         self, tree: py_trees.trees.BehaviourTree, action_type: type
     ) -> object:
-        """
-        Traverses the tree to generate a result message for the MoveTo action.
-
-        This function is called after the behavior tree terminates.
-
-        Parameters
-        ----------
-        tree: The behavior tree that is being executed.
-
-        Returns
-        -------
-        result: The ROS result message to be sent to the action client.
-        """
-        result = action_type.Result()
+        # Docstring copied by @override
+        result_msg = action_type.Result()
         # If the tree succeeded, return success
         if tree.root.status == py_trees.common.Status.SUCCESS:
-            result.status = result.STATUS_SUCCESS
+            result_msg.status = result_msg.STATUS_SUCCESS
         # If the tree failed, detemine whether it was a planning or motion failure
         elif tree.root.status == py_trees.common.Status.FAILURE:
-            if self.blackboard_tree_root.exists("is_planning"):
-                if self.blackboard_tree_root.is_planning:
-                    result.status = result.STATUS_PLANNING_FAILED
-                else:
-                    result.status = result.STATUS_MOTION_FAILED
+            # Get Feedback Visitor to investigate failure cause
+            feedback_visitor = None
+            for visitor in tree.visitors:
+                if isinstance(visitor, MoveToVisitor):
+                    feedback_visitor = visitor
+            if feedback_visitor is None:
+                result_msg.status = result_msg.STATUS_UNKNOWN
             else:
-                result.status = result.STATUS_UNKNOWN
+                feedback = feedback_visitor.get_feedback()
+                if feedback.is_planning:
+                    result_msg.status = result_msg.STATUS_PLANNING_FAILED
+                else:
+                    result_msg.status = result_msg.STATUS_MOTION_FAILED
         # If the tree has an invalid status, return unknown
         elif tree.root.status == py_trees.common.Status.INVALID:
-            result.status = result.STATUS_UNKNOWN
+            result_msg.status = result_msg.STATUS_UNKNOWN
         # If the tree is running, the fact that `get_result` was called is
         # indicative of an error. Return unknown error.
         else:
-            tree.root.logger.warn(
+            tree.root.logger.error(
                 f"Called get_result with status RUNNING: {tree.root.status}"
             )
-            result.status = result.STATUS_UNKNOWN
+            result_msg.status = result_msg.STATUS_UNKNOWN
 
-        return result
+        return result_msg

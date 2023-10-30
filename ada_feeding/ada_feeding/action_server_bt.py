@@ -30,9 +30,7 @@ class ActionServerBT(ABC):
         self._node = node
 
     @abstractmethod
-    def create_tree(
-        self, name: str, tree_root_name: str  # DEPRECATED
-    ) -> py_trees.trees.BehaviourTree:
+    def create_tree(self, name: str) -> py_trees.trees.BehaviourTree:
         """
         Create the behavior tree that will be executed by this action server.
         Note that subclasses of ActionServerBT can decide whether they want
@@ -41,9 +39,6 @@ class ActionServerBT(ABC):
         Parameters
         ----------
         name: The name of the behavior tree.
-        tree_root_name: The name of the tree. This is necessary because sometimes
-            trees create subtrees, but still need to track the top-level tree
-            name to read/write the correct blackboard variables.
         """
         raise NotImplementedError("create_tree not implemented")
 

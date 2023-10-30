@@ -14,9 +14,15 @@ import py_trees
 from rclpy.node import Node
 
 # Local imports
+from ada_feeding.behaviors.moveit2 import (
+    MoveIt2Plan,
+    MoveIt2Execute,
+    MoveIt2JointConstraint,
+)
+from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import get_toggle_watchdog_listener_behavior
-from ada_feeding.trees import MoveToTree, MoveToConfigurationTree
+from ada_feeding.trees import MoveToTree
 
 
 class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
@@ -28,11 +34,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
     motion, and then set the force-torque thresholds in the scoped behavior.
     """
 
-    # pylint: disable=too-many-instance-attributes, too-many-arguments
-    # Many arguments is fine for this class since it has to be able to configure all parameters
-    # of its constraints.
-    # pylint: disable=dangerous-default-value
-    # A mutable default value is okay since we don't change it in this function.
+    # pylint: disable=too-many-instance-attributes
+
     def __init__(
         self,
         node: Node,
@@ -96,8 +99,11 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             tree, this should be False. Else (e.g., if this is a standalone tree), True.
         """
 
-        # pylint: disable=too-many-locals
-        # One over is okay
+        # pylint: disable=too-many-arguments, too-many-function-args, too-many-locals
+        # Many arguments is fine for this class since it has to be able to configure all parameters
+        # of its constraints.
+        # pylint: disable=dangerous-default-value
+        # A mutable default value is okay since we don't change it in this function.
 
         # Initialize MoveToTree
         super().__init__(node)
@@ -129,10 +135,9 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self.clear_constraints = clear_constraints
 
     @override
-    def create_move_to_tree(
+    def create_tree(
         self,
         name: str,
-        tree_root_name: str,
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied from @override
 
@@ -140,22 +145,42 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
 
         # First, create the MoveToConfiguration behavior tree, in the same
         # namespace as this tree
-        move_to_configuration_root = (
-            MoveToConfigurationTree(
-                self._node,
-                joint_positions=self.joint_positions,
-                tolerance=self.tolerance_joint,
-                weight=self.weight_joint,
-                pipeline_id=self.pipeline_id,
-                planner_id=self.planner_id,
-                allowed_planning_time=self.allowed_planning_time,
-                max_velocity_scaling_factor=self.max_velocity_scaling_factor,
-                max_acceleration_scaling_factor=self.max_acceleration_scaling_factor,
-                keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
-                clear_constraints=self.clear_constraints,
-            )
-            .create_tree(name, tree_root_name)
-            .root
+        move_to_configuration_root = py_trees.composites.Sequence(
+            name=name,
+            memory=True,
+            children=[
+                MoveIt2JointConstraint(
+                    name="JointConstraint",
+                    ns=name,
+                    inputs={
+                        "joint_positions": self.joint_positions,
+                        "tolerance": self.tolerance_joint,
+                        "weight": self.weight_joint,
+                    },
+                    outputs={
+                        "constraints": BlackboardKey("goal_constraints"),
+                    },
+                ),
+                MoveIt2Plan(
+                    name="MoveToConfigurationPlan",
+                    ns=name,
+                    inputs={
+                        "goal_constraints": BlackboardKey("goal_constraints"),
+                        "pipeline_id": self.pipeline_id,
+                        "planner_id": self.planner_id,
+                        "allowed_planning_time": self.allowed_planning_time,
+                        "max_velocity_scale": self.max_velocity_scaling_factor,
+                        "max_acceleration_scale": self.max_acceleration_scaling_factor,
+                    },
+                    outputs={"trajectory": BlackboardKey("trajectory")},
+                ),
+                MoveIt2Execute(
+                    name="MoveToConfigurationExecute",
+                    ns=name,
+                    inputs={"trajectory": BlackboardKey("trajectory")},
+                    outputs={},
+                ),
+            ],
         )
 
         # Add the re-taring and FT thresholds
@@ -176,7 +201,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         if self.toggle_watchdog_listener:
             # If there was a failure in the main tree, we want to ensure to turn
             # the watchdog listener back on
-            # pylint: disable=duplicate-code
+            # pylint: disable=duplicate-code, too-many-function-args
             # This is similar to any other tree that needs to cleanup pre_moveto_config
             turn_watchdog_listener_on = get_toggle_watchdog_listener_behavior(
                 name,

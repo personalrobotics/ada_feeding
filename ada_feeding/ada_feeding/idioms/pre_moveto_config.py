@@ -63,7 +63,7 @@ def create_ft_thresh_request(
     designed to operate with `forque_sensor_hardware`
     """
 
-    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-arguments, too-many-function-args
 
     parameters = []
     for key, val in [
@@ -127,7 +127,7 @@ def pre_moveto_config(
     t_z: The magnitude of the z component of the torque threshold. No threshold if 0.0.
     """
 
-    # pylint: disable=too-many-arguments, too-many-locals
+    # pylint: disable=too-many-arguments, too-many-locals, too-many-function-args
     # Idioms tend to be hefty, in order to prevent other functions from being hefty.
 
     # All the children of the sequence

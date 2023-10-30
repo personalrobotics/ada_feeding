@@ -82,15 +82,11 @@ class AcquireFoodTree(ActionServerBT):
     def create_tree(
         self,
         name: str,
-        tree_root_name: str,  # DEPRECATED
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied by @override
 
         # pylint: disable=line-too-long
         # This is the entire tree rolled out.
-
-        # TODO: remove tree_root_name
-        # Sub-trees in general should not need knowledge of their parent.
 
         ### Blackboard Constants
         blackboard = py_trees.blackboard.Client(name=name, namespace=name)
@@ -599,7 +595,6 @@ class AcquireFoodTree(ActionServerBT):
     ) -> object:
         # Docstring copied by @override
         # Note: if here, tree is root, not a subtree
-        # TODO: This Feedback/Result logic w/ MoveToVisitor can exist in MoveToTree right now
         if action_type is not AcquireFood:
             return None
 
