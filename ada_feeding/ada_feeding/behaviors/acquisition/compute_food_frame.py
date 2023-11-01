@@ -139,6 +139,7 @@ class ComputeFoodFrame(BlackboardBehavior):
     @override
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
+        self.logger.info(f"{self.name} [{self.__class__.__name__}::update()]")
 
         # pylint: disable=too-many-locals
         # I think this is reasonable to understand

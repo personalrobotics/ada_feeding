@@ -101,7 +101,11 @@ class FTSensorCondition(WatchdogCondition):
                 msg.wrench.torque.z,
             ]
         )
-        ft_time = Time.from_msg(msg.header.stamp)
+        # We use the time at which the F/T message was received when checking
+        # how long has passed since receiving a message. This is to account
+        # for possible synchroneity issues or latency between the F/T node
+        # and the watchdog node.
+        ft_time = self._node.get_clock().now()
 
         # Get the last unique values and the last unique values timestamp
         with self.last_unique_values_lock:

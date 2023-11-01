@@ -6,9 +6,11 @@ republisher:
       - /camera/color/image_raw/compressed
       - /camera/color/camera_info
       - /camera/aligned_depth_to_color/image_raw
+      - /camera/aligned_depth_to_color/camera_info
 
     # The types of topics to republish from
     topic_types:
       - sensor_msgs.msg.CompressedImage
       - sensor_msgs.msg.CameraInfo
       - sensor_msgs.msg.Image
+      - sensor_msgs.msg.CameraInfo

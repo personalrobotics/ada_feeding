@@ -160,7 +160,7 @@ class AcquireFoodTree(MoveToTree):
                     ),
                 ),
                 # Re-Tare FT Sensor and default to 4N threshold
-                pre_moveto_config(name="PreAquireFTTare"),
+                pre_moveto_config(name="PreAcquireFTTare"),
                 ### Move Above Food
                 MoveIt2PoseConstraint(
                     name="MoveAbovePose",
@@ -362,7 +362,7 @@ class AcquireFoodTree(MoveToTree):
                                 ),  # Auto Zero-Twist on terminate()
                                 ### Extraction
                                 ComputeActionTwist(
-                                    name="ComputeGrasp",
+                                    name="ComputeExtract",
                                     ns=name,
                                     inputs={
                                         "action": BlackboardKey("action"),
