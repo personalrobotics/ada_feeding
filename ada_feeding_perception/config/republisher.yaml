@@ -15,16 +15,25 @@ republisher:
       - sensor_msgs.msg.Image
       - sensor_msgs.msg.CameraInfo
 
-    # The name of a post-processing function to apply to the message before
-    # republishing it. Current options are "none" or "mask", and "mask"
-    # only applies to messages of type "Image" "mask" loads the binary mask in
-    # `mask_relative_path` and applies it to the Image.
+    # The names of a post-processing functions to apply to the message before
+    # republishing it. Current options are:
+    #  - none (Any): the identity
+    #  - temporal (Image): Stores the last `temporal_window_size` images and publishes
+    #    the last image, masking out pixels that are zero in *any* of the images
+    #    in the window.
+    #  - spatial (Image): Applies the opening morphological operation to the mask of
+    #    (non-)zero pixels in the image, with a square kernel of size `spatial_num_pixels`.
+    #  - mask (Image): Applies the mask stored in `mask_relative_path` to the image.
+    # Any of these post-processing functions can be combined in a comma-separated list.
     post_processors:
-      - none
-      - none
-      - mask
-      - none
-
+      - ""
+      - ""
+      - temporal,spatial
+      - ""
     # The binary mask used for "mask" post-processing. This mask will get scaled,
     # possibly disproportionately, to the same of the image.
     mask_relative_path: model/fork_handle_mask.png
+    # The size of the temporal window for the "temporal" post-processor.
+    temporal_window_size: 5
+    # The size of the square kernel for the "spatial" post-processor.
+    spatial_num_pixels: 10

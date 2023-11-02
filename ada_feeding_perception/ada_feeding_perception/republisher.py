@@ -45,10 +45,14 @@ class Republisher(Node):
 
         # Configure the post-processing functions
         identity_post_processor_str = "none"
-        mask_post_processosr_str = "mask"
-        self.post_processors = {
-            identity_post_processor_str: lambda msg: msg,
-            mask_post_processosr_str: self.mask,
+        mask_post_processor_str = "mask"
+        temporal_post_processor_str = "temporal"
+        spatial_post_processor_str = "spatial"
+        self.create_post_processors = {
+            identity_post_processor_str: lambda: lambda msg: msg,
+            mask_post_processor_str: lambda: self.mask_post_processor,
+            temporal_post_processor_str: self.create_temporal_post_processor,
+            spatial_post_processor_str: lambda: self.spatial_post_processor,
         }
 
         # Load the parameters
@@ -56,8 +60,10 @@ class Republisher(Node):
             self.from_topics,
             topic_type_strs,
             republished_namespace,
-            post_processor_strs,
+            post_processors_strs,
             mask_relative_path,
+            self.temporal_window_size,
+            self.spatial_num_pixels,
         ) = self.load_parameters()
 
         # Import the topic types
@@ -65,31 +71,33 @@ class Republisher(Node):
         for topic_type_str in topic_type_strs:
             self.topic_types.append(import_from_string(topic_type_str))
 
-        # If at least one post-processor is "mask", load the mask
+        # Configure the post-processors
+        self.bridge = CvBridge()
         self.mask_img = None
-        for i, post_processor_str in enumerate(post_processor_strs):
-            if post_processor_str == mask_post_processosr_str:
-                if mask_relative_path is None:
-                    self.get_logger().warn(
-                        "Must specify `mask_relative_path` to use post-processor "
-                        f"`{mask_post_processosr_str}`. Replacing with post-processor "
-                        f"{identity_post_processor_str}."
+        for i, post_processors_str in enumerate(post_processors_strs):
+            for j, post_processor_str in enumerate(post_processors_str):
+                # If at least one post-processor is "mask", load the mask
+                if (
+                    post_processor_str == mask_post_processor_str
+                    and self.mask_img is None
+                ):
+                    if mask_relative_path is None:
+                        self.get_logger().warn(
+                            "Must specify `mask_relative_path` to use post-processor "
+                            f"`{mask_post_processor_str}`. Replacing with post-processor "
+                            f"{identity_post_processor_str}."
+                        )
+                        post_processors_strs[i][j] = identity_post_processor_str
+                        continue
+
+                    # Get the mask path
+                    mask_path = os.path.join(
+                        get_package_share_directory("ada_feeding_perception"),
+                        mask_relative_path,
                     )
-                    post_processor_strs[i] = identity_post_processor_str
-                    continue
 
-                # Get the mask path
-                mask_path = os.path.join(
-                    get_package_share_directory("ada_feeding_perception"),
-                    mask_relative_path,
-                )
-
-                # Load the image as a binary mask
-                self.mask_img = cv.imread(mask_path, cv.IMREAD_GRAYSCALE)
-
-                # Load the CV Bridge
-                self.bridge = CvBridge()
-                break
+                    # Load the image as a binary mask
+                    self.mask_img = cv.imread(mask_path, cv.IMREAD_GRAYSCALE)
 
         # For each topic, create a callback, publisher, and subscriber
         num_topics = min(len(self.from_topics), len(self.topic_types))
@@ -97,35 +105,34 @@ class Republisher(Node):
         self.pubs = []
         self.subs = []
         for i in range(num_topics):
-            # Get the post-processor
-            if (
-                i < len(post_processor_strs)
-                and post_processor_strs[i] in self.post_processors
-            ):
-                post_processor_fn = self.post_processors[post_processor_strs[i]]
+            # Get the post-processors
+            post_processor_fns = []
+            if i < len(post_processors_strs):
+                for post_processor_str in post_processors_strs[i]:
+                    if post_processor_str in self.create_post_processors:
+                        post_processor_fn = self.create_post_processors[
+                            post_processor_str
+                        ]()
+                        # Check the type of the post-processor
+                        if "msg" in post_processor_fn.__annotations__:
+                            if (
+                                post_processor_fn.__annotations__["msg"] == Any
+                                or post_processor_fn.__annotations__["msg"]
+                                == self.topic_types[i]
+                            ):
+                                post_processor_fns.append(post_processor_fn)
+                            else:
+                                self.get_logger().warn(
+                                    f"Type mismatch for post-processor {post_processor_str} for topic at index {i}. "
+                                    f"Will not post-process."
+                                )
             else:
                 self.get_logger().warn(
-                    f"No valid post-processor for topic at index {i}. Using "
-                    f"'{identity_post_processor_str}' instead."
+                    f"No valid post-processor for topic at index {i}. Will not post-process."
                 )
-                post_processor_fn = self.post_processors[identity_post_processor_str]
-
-            # Check the type of the post_processor
-            if "msg" in post_processor_fn.__annotations__:
-                if (
-                    post_processor_fn.__annotations__["msg"] != Any
-                    and post_processor_fn.__annotations__["msg"] != self.topic_types[i]
-                ):
-                    self.get_logger().warn(
-                        f"Type mismatch for post-processor for topic at index {i}. "
-                        f"Using '{identity_post_processor_str}' instead."
-                    )
-                    post_processor_fn = self.post_processors[
-                        identity_post_processor_str
-                    ]
 
             # Create the callback
-            callback = self.create_callback(i, post_processor_fn)
+            callback = self.create_callback(i, post_processor_fns)
             self.callbacks.append(callback)
 
             # Create the publisher
@@ -153,7 +160,9 @@ class Republisher(Node):
             )
             self.subs.append(subscriber)
 
-    def load_parameters(self) -> Tuple[List[str], List[str], List[str]]:
+    def load_parameters(
+        self,
+    ) -> Tuple[List[str], List[str], List[List[str]], str, str, int, int]:
         """
         Load the parameters for the republisher.
 
@@ -163,10 +172,17 @@ class Republisher(Node):
             The topics to subscribe to.
         topic_types : List[str]
             The types of the topics to subscribe to in format, e.g., `std_msgs.msg.String`.
-        post_processors : List[str]
+        post_processors : List[List[str]]
             The post-processing functions to apply to the messages before republishing.
         republished_namespace : str
             The namespace to republish topics under.
+        mask_relative_path : str
+            The path of the binary mask to be used with the post-processor, relative to
+            the ada_feeding_perception share directory.
+        temporal_window_size : int
+            The size of the window (num frames) to use for the temporal post-processor.
+        spatial_num_pixels : int
+            The number of pixels to use for the spatial post-processor.
         """
         # Read the from topics
         from_topics = self.declare_parameter(
@@ -213,11 +229,23 @@ class Republisher(Node):
                 type=ParameterType.PARAMETER_STRING_ARRAY,
                 description=(
                     "List of the post-processing functions to apply to the messages "
-                    "before republishing."
+                    "before republishing, as a comma-separated list."
                 ),
                 read_only=True,
             ),
         )
+        # Split the post-processors
+        post_processors_retval = post_processors.value
+        if post_processors_retval is None:
+            post_processors_retval = []
+        else:
+            post_processors_retval = [
+                [
+                    single_post_processor.strip()
+                    for single_post_processor in post_processor.split(",")
+                ]
+                for post_processor in post_processors_retval
+            ]
 
         # Get the mask's relative path to use with the "mask" post-processor
         mask_relative_path = self.declare_parameter(
@@ -234,6 +262,36 @@ class Republisher(Node):
             ),
         )
 
+        # Get the window size to use with the temporal post-processor
+        temporal_window_size = self.declare_parameter(
+            "temporal_window_size",
+            5,
+            descriptor=ParameterDescriptor(
+                name="temporal_window_size",
+                type=ParameterType.PARAMETER_INTEGER,
+                description=(
+                    "The size of the window (num frames) to use for the temporal post-processor. "
+                    "Default: 5"
+                ),
+                read_only=True,
+            ),
+        )
+
+        # Get the number of pixels to use with the spatial post-processor
+        spatial_num_pixels = self.declare_parameter(
+            "spatial_num_pixels",
+            10,
+            descriptor=ParameterDescriptor(
+                name="spatial_num_pixels",
+                type=ParameterType.PARAMETER_INTEGER,
+                description=(
+                    "The number of pixels to use for the spatial post-processor. "
+                    "Default: 10"
+                ),
+                read_only=True,
+            ),
+        )
+
         # Replace unset parameters with empty list
         from_topics_retval = from_topics.value
         if from_topics_retval is None:
@@ -241,9 +299,6 @@ class Republisher(Node):
         topic_types_retval = topic_types.value
         if topic_types_retval is None:
             topic_types_retval = []
-        post_processors_retval = post_processors.value
-        if post_processors_retval is None:
-            post_processors_retval = []
 
         return (
             from_topics_retval,
@@ -251,9 +306,13 @@ class Republisher(Node):
             republished_namespace.value,
             post_processors_retval,
             mask_relative_path.value,
+            temporal_window_size.value,
+            spatial_num_pixels.value,
         )
 
-    def create_callback(self, i: int, post_processor: Callable[[Any], Any]) -> Callable:
+    def create_callback(
+        self, i: int, post_processors: List[Callable[[Any], Any]]
+    ) -> Callable:
         """
         Create the callback for the subscriber.
 
@@ -261,9 +320,9 @@ class Republisher(Node):
         ----------
         i : int
             The index of the callback.
-        post_processor : Callable[[Any], Any]
-            The post-processing function to apply to the message before republishing.
-            This must take in a message and return a message of the same type.
+        post_processor : List[Callable[[Any], Any]]
+            The post-processing functions to apply to the message before republishing.
+            Each must take in a message and return a message of the same type.
 
         Returns
         -------
@@ -283,11 +342,13 @@ class Republisher(Node):
             # self.get_logger().info(
             #     f"Received message on topic {i} {self.from_topics[i]}"
             # )
-            self.pubs[i].publish(post_processor(msg))
+            for post_processor in post_processors:
+                msg = post_processor(msg)
+            self.pubs[i].publish(msg)
 
         return callback
 
-    def mask(self, msg: Image) -> Image:
+    def mask_post_processor(self, msg: Image) -> Image:
         """
         Applies a fixed mask to the image. Scales the mask to the image.
 
@@ -321,6 +382,84 @@ class Republisher(Node):
 
         # cv.imshow("mask", mask)
         # cv.waitKey(0)
+
+        # Get the new img message
+        masked_msg = self.bridge.cv2_to_imgmsg(masked_img)
+        masked_msg.header = msg.header
+
+        return masked_msg
+
+    def create_temporal_post_processor(self) -> Callable[[Image], Image]:
+        """
+        Creates the temporal post-processor function, with a dedicated window.
+        """
+
+        temporal_window = []
+
+        def temporal_post_processor(msg: Image) -> Image:
+            """
+            The temporal post-processor stores the last `temporal_window_size` images.
+            It returns the most recent image, but only the pixels in that image that
+            are non-zero across all images in the window.
+
+            Parameters
+            ----------
+            msg : Image
+                The image to process.
+
+            Returns
+            -------
+            Image
+                The processed image. All other attributes of the message remain the same.
+            """
+            # Read the ROS msg as a CV image
+            img = self.bridge.imgmsg_to_cv2(msg)
+
+            # Add it to the window
+            temporal_window.append(img)
+
+            # If the window is full, remove the oldest image
+            if len(temporal_window) > self.temporal_window_size:
+                temporal_window.pop(0)
+
+            # Get the mask
+            mask = (img > 0).astype(np.uint8)
+            for i in range(0, len(temporal_window)-1):
+                mask = np.bitwise_and(mask, (temporal_window[i] > 0).astype(np.uint8))
+
+            # Mask the latest image
+            masked_img = cv.bitwise_and(img, img, mask=mask)
+
+            # Get the new img message
+            masked_msg = self.bridge.cv2_to_imgmsg(masked_img)
+            masked_msg.header = msg.header
+
+            return masked_msg
+
+        return temporal_post_processor
+
+    def spatial_post_processor(self, msg: Image) -> Image:
+        """
+        Applies the `opening` morpholical transformation to the image.
+
+        Parameters
+        ----------
+        msg : Image
+            The image to process.
+
+        Returns
+        -------
+        Image
+            The processed image. All other attributes of the message remain the same.
+        """
+        # Read the ROS msg as a CV image
+        img = self.bridge.imgmsg_to_cv2(msg)
+
+        # Apply the opening morphological transformation
+        mask = (img > 0).astype(np.uint8)
+        kernel = np.ones((self.spatial_num_pixels, self.spatial_num_pixels), np.uint8)
+        opened_mask = cv.morphologyEx(mask, cv.MORPH_OPEN, kernel)
+        masked_img = cv.bitwise_and(img, img, mask=opened_mask)
 
         # Get the new img message
         masked_msg = self.bridge.cv2_to_imgmsg(masked_img)
