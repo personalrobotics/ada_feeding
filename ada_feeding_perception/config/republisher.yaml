@@ -14,3 +14,17 @@ republisher:
       - sensor_msgs.msg.CameraInfo
       - sensor_msgs.msg.Image
       - sensor_msgs.msg.CameraInfo
+
+    # The name of a post-processing function to apply to the message before
+    # republishing it. Current options are "none" or "mask", and "mask"
+    # only applies to messages of type "Image" "mask" loads the binary mask in
+    # `mask_relative_path` and applies it to the Image.
+    post_processors:
+      - none
+      - none
+      - mask
+      - none
+
+    # The binary mask used for "mask" post-processing. This mask will get scaled,
+    # possibly disproportionately, to the same of the image.
+    mask_relative_path: model/fork_handle_mask.png
