@@ -24,11 +24,13 @@ republisher:
     #  - spatial (Image): Applies the opening morphological operation to the mask of
     #    (non-)zero pixels in the image, with a square kernel of size `spatial_num_pixels`.
     #  - mask (Image): Applies the mask stored in `mask_relative_path` to the image.
+    #  - threshold (Image): Masks out pixels whose values are outside of the specified
+    #    range. This is intended to be used only with single-channel (e.g., depth) images.
     # Any of these post-processing functions can be combined in a comma-separated list.
     post_processors:
       - ""
       - ""
-      - temporal,spatial
+      - threshold,mask,temporal,spatial
       - ""
     # The binary mask used for "mask" post-processing. This mask will get scaled,
     # possibly disproportionately, to the same of the image.
@@ -37,3 +39,6 @@ republisher:
     temporal_window_size: 5
     # The size of the square kernel for the "spatial" post-processor.
     spatial_num_pixels: 10
+    # The min/max pixel value to be included in the threshold. For depth images, the units are mm.
+    threshold_min: 300
+    threshold_max: 2500

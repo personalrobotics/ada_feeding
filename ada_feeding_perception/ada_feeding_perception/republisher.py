@@ -48,11 +48,13 @@ class Republisher(Node):
         mask_post_processor_str = "mask"
         temporal_post_processor_str = "temporal"
         spatial_post_processor_str = "spatial"
+        threshold_post_processor_str = "threshold"
         self.create_post_processors = {
             identity_post_processor_str: lambda: lambda msg: msg,
             mask_post_processor_str: lambda: self.mask_post_processor,
             temporal_post_processor_str: self.create_temporal_post_processor,
             spatial_post_processor_str: lambda: self.spatial_post_processor,
+            threshold_post_processor_str: lambda: self.threshold_post_processor,
         }
 
         # Load the parameters
@@ -64,6 +66,8 @@ class Republisher(Node):
             mask_relative_path,
             self.temporal_window_size,
             self.spatial_num_pixels,
+            self.threshold_min,
+            self.threshold_max,
         ) = self.load_parameters()
 
         # Import the topic types
@@ -162,7 +166,7 @@ class Republisher(Node):
 
     def load_parameters(
         self,
-    ) -> Tuple[List[str], List[str], List[List[str]], str, str, int, int]:
+    ) -> Tuple[List[str], List[str], List[List[str]], str, str, int, int, int, int]:
         """
         Load the parameters for the republisher.
 
@@ -183,6 +187,10 @@ class Republisher(Node):
             The size of the window (num frames) to use for the temporal post-processor.
         spatial_num_pixels : int
             The number of pixels to use for the spatial post-processor.
+        threshold_min : int
+            The minimum value to use for the threshold post-processor.
+        threshold_max : int
+            The maximum value to use for the threshold post-processor.
         """
         # Read the from topics
         from_topics = self.declare_parameter(
@@ -292,6 +300,34 @@ class Republisher(Node):
             ),
         )
 
+        # The min/max threshold values for the threshold post-processor
+        threshold_min = self.declare_parameter(
+            "threshold_min",
+            0,
+            descriptor=ParameterDescriptor(
+                name="threshold_min",
+                type=ParameterType.PARAMETER_INTEGER,
+                description=(
+                    "The minimum value to use for the threshold post-processor. "
+                    "Default: 0"
+                ),
+                read_only=True,
+            ),
+        )
+        threshold_max = self.declare_parameter(
+            "threshold_max",
+            20000,
+            descriptor=ParameterDescriptor(
+                name="threshold_max",
+                type=ParameterType.PARAMETER_INTEGER,
+                description=(
+                    "The maximum value to use for the threshold post-processor. "
+                    "Default: 20000"
+                ),
+                read_only=True,
+            ),
+        )
+
         # Replace unset parameters with empty list
         from_topics_retval = from_topics.value
         if from_topics_retval is None:
@@ -308,6 +344,8 @@ class Republisher(Node):
             mask_relative_path.value,
             temporal_window_size.value,
             spatial_num_pixels.value,
+            threshold_min.value,
+            threshold_max.value,
         )
 
     def create_callback(
@@ -460,6 +498,35 @@ class Republisher(Node):
         kernel = np.ones((self.spatial_num_pixels, self.spatial_num_pixels), np.uint8)
         opened_mask = cv.morphologyEx(mask, cv.MORPH_OPEN, kernel)
         masked_img = cv.bitwise_and(img, img, mask=opened_mask)
+
+        # Get the new img message
+        masked_msg = self.bridge.cv2_to_imgmsg(masked_img)
+        masked_msg.header = msg.header
+
+        return masked_msg
+
+    def threshold_post_processor(self, msg: Image) -> Image:
+        """
+        Applies a threshold to the image.
+
+        Parameters
+        ----------
+        msg : Image
+            The image to process.
+
+        Returns
+        -------
+        Image
+            The processed image. All other attributes of the message remain the same.
+        """
+        # Read the ROS msg as a CV image
+        img = self.bridge.imgmsg_to_cv2(msg)
+
+        # Apply the threshold
+        mask = cv.inRange(
+            img, self.threshold_min, self.threshold_max
+        )
+        masked_img = cv.bitwise_and(img, img, mask=mask)
 
         # Get the new img message
         masked_msg = self.bridge.cv2_to_imgmsg(masked_img)
