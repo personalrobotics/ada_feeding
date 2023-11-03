@@ -462,7 +462,7 @@ class Republisher(Node):
 
             # Get the mask
             mask = (img > 0).astype(np.uint8)
-            for i in range(0, len(temporal_window)-1):
+            for i in range(0, len(temporal_window) - 1):
                 mask = np.bitwise_and(mask, (temporal_window[i] > 0).astype(np.uint8))
 
             # Mask the latest image
@@ -523,9 +523,7 @@ class Republisher(Node):
         img = self.bridge.imgmsg_to_cv2(msg)
 
         # Apply the threshold
-        mask = cv.inRange(
-            img, self.threshold_min, self.threshold_max
-        )
+        mask = cv.inRange(img, self.threshold_min, self.threshold_max)
         masked_img = cv.bitwise_and(img, img, mask=mask)
 
         # Get the new img message

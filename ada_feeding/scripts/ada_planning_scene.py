@@ -224,9 +224,7 @@ class ADAPlanningScene(Node):
                 if filename.value is None
                 else path.join(assets_dir.value, filename.value)
             )
-            touch_links = (
-                [] if touch_links.value is None else touch_links.value
-            )
+            touch_links = [] if touch_links.value is None else touch_links.value
             self.objects[object_id] = CollisionObjectParams(
                 filepath=filepath,
                 primitive_type=primitive_type.value,

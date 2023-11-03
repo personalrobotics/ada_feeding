@@ -6,6 +6,7 @@ RGB image and depth image from the RealSense, at the parameter-specified filepat
 
 # Standard imports
 import threading
+from typing import Union
 
 # Third-party imports
 import cv2
@@ -60,8 +61,8 @@ class SaveImage(Node):
         self.latest_color_image = None
         self.latest_color_image_lock = threading.Lock()
         self.create_subscription(
-            CompressedImage,
-            "/camera/color/image_raw/compressed",
+            Image,
+            "/camera/color/image_raw",
             self.color_image_callback,
             1,
         )
@@ -69,7 +70,7 @@ class SaveImage(Node):
         self.latest_depth_image_lock = threading.Lock()
         self.create_subscription(
             Image,
-            "/camera/aligned_depth_to_color/image_raw",
+            "/local/camera/aligned_depth_to_color/image_raw",
             self.depth_image_callback,
             1,
         )
@@ -77,7 +78,7 @@ class SaveImage(Node):
         # Log that the node is ready
         self.get_logger().info("SaveImage node ready")
 
-    def color_image_callback(self, msg: CompressedImage) -> None:
+    def color_image_callback(self, msg: Union[CompressedImage, Image]) -> None:
         """
         Callback function for the RealSense's compressed color image topic.
         """
@@ -97,40 +98,45 @@ class SaveImage(Node):
         """
         Callback function for the save_image ROS service.
         """
+        response.message = ""
         # Check if the filepath parameter is set
         if self.filepath.value is None:
             response.success = False
-            response.message = "The filepath parameter is not set"
+            response.message += ", The filepath parameter is not set"
             return response
 
         # Check if the latest color image is available
         with self.latest_color_image_lock:
             if self.latest_color_image is None:
                 response.success = False
-                response.message = "The latest color image is not available"
-                return response
+                response.message += ", The latest color image is not available"
+            else:
+                # Save the latest color image
+                if isinstance(self.latest_color_image, CompressedImage):
+                    color_image = self.bridge.compressed_imgmsg_to_cv2(
+                        self.latest_color_image
+                    )
+                else:
+                    color_image = self.bridge.imgmsg_to_cv2(self.latest_color_image)
+                    color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
+                color_image_filepath = self.filepath.value + "_rgb.jpg"
+                self.get_logger().info(f"Saving color image to {color_image_filepath}")
+                cv2.imwrite(color_image_filepath, color_image)
 
         # Check if the latest depth image is available
         with self.latest_depth_image_lock:
             if self.latest_depth_image is None:
                 response.success = False
-                response.message = "The latest depth image is not available"
-                return response
-
-        # Save the latest color image
-        color_image = self.bridge.compressed_imgmsg_to_cv2(self.latest_color_image)
-        color_image_filepath = self.filepath.value + "_rgb.jpg"
-        self.get_logger().info(f"Saving color image to {color_image_filepath}")
-        cv2.imwrite(color_image_filepath, color_image)
-
-        # Save the latest depth image
-        depth_image = self.bridge.imgmsg_to_cv2(self.latest_depth_image)
-        depth_image_filepath = self.filepath.value + "_depth.png"
-        self.get_logger().info(f"Saving depth image to {depth_image_filepath}")
-        cv2.imwrite(depth_image_filepath, depth_image)
+                response.message += ", The latest depth image is not available"
+            else:
+                # Save the latest depth image
+                depth_image = self.bridge.imgmsg_to_cv2(self.latest_depth_image)
+                depth_image_filepath = self.filepath.value + "_depth.png"
+                self.get_logger().info(f"Saving depth image to {depth_image_filepath}")
+                cv2.imwrite(depth_image_filepath, depth_image)
 
         # Return a success response
-        response.success = True
+        response.success = len(response.message) == 0
         response.message = "Successfully saved the latest color image and depth image"
         return response
 
