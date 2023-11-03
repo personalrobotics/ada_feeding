@@ -60,6 +60,7 @@ class StartServoTree(TriggerTree):
             activate_controllers=[self.servo_controller_name],
             deactivate_controllers=[self.move_group_controller_name],
             activate_asap=True,
+            strictness=SwitchController.Request.BEST_EFFORT,
         )
         switch_controllers_key_response = Blackboard.separator.join(
             [name, "switch_controllers", "response"]

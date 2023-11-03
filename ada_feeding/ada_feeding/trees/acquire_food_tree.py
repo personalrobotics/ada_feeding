@@ -97,6 +97,8 @@ class AcquireFoodTree(MoveToTree):
         )
 
         ### Define Tree Logic
+        # NOTE: If octomap clearing ends up being an issue, we should 
+        # consider adding a call to the /clear_octomap service to this tree.
         # Root Sequence
         root_seq = py_trees.composites.Sequence(
             name=name,
@@ -222,10 +224,10 @@ class AcquireFoodTree(MoveToTree):
                                 ],
                             ),
                             ToggleCollisionObject(
-                                name="AllowTable",
+                                name="AllowTableAndOctomap",
                                 ns=name,
                                 inputs={
-                                    "collision_object_ids": ["table"],
+                                    "collision_object_ids": ["table", "<octomap>"],
                                     "allow": True,
                                 },
                             ),
@@ -237,10 +239,10 @@ class AcquireFoodTree(MoveToTree):
                         children=[
                             pre_moveto_config(name="PostAcquireFTSet", re_tare=False),
                             ToggleCollisionObject(
-                                name="DisallowTable",
+                                name="DisallowTableAndOctomap",
                                 ns=name,
                                 inputs={
-                                    "collision_object_ids": ["table"],
+                                    "collision_object_ids": ["table", "<octomap>"],
                                     "allow": False,
                                 },
                             ),
