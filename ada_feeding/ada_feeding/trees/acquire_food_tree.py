@@ -97,7 +97,7 @@ class AcquireFoodTree(MoveToTree):
         )
 
         ### Define Tree Logic
-        # NOTE: If octomap clearing ends up being an issue, we should 
+        # NOTE: If octomap clearing ends up being an issue, we should
         # consider adding a call to the /clear_octomap service to this tree.
         # Root Sequence
         root_seq = py_trees.composites.Sequence(
