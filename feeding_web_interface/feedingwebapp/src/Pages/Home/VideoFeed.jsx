@@ -145,7 +145,7 @@ const VideoFeed = (props) => {
   // Render the component
   return (
     <img
-      src={`${props.webVideoServerURL}/stream?topic=${CAMERA_FEED_TOPIC}&width=${imgWidth}&height=${imgHeight}&quality=20`}
+      src={`${props.webVideoServerURL}/stream?topic=${CAMERA_FEED_TOPIC}&width=${imgWidth}&height=${imgHeight}&type=ros_compressed`}
       alt='Live video feed from the robot'
       style={{
         width: imgWidth,

@@ -87,15 +87,6 @@ const BiteSelection = (props) => {
   let segmentFromPointAction = useRef(createROSActionClient(ros.current, actionName, messageType))
 
   /**
-   * Callback function for when the user indicates that they want to move the
-   * robot to locate the plate.
-   */
-  const locatePlateClicked = useCallback(() => {
-    console.log('locatePlateClicked')
-    setMealState(MEAL_STATE.U_PlateLocator)
-  }, [setMealState])
-
-  /**
    * Callback function for when the user indicates that they are done with their
    * meal.
    */
@@ -163,6 +154,7 @@ const BiteSelection = (props) => {
         setActionStatus({
           actionStatus: ROS_ACTION_STATUS_SUCCEED
         })
+        console.log('Got result', response.values)
         setActionResult(response.values)
       } else {
         if (
@@ -336,7 +328,7 @@ const BiteSelection = (props) => {
           width: Math.round(REALSENSE_WIDTH * maskScaleFactor),
           height: Math.round(REALSENSE_HEIGHT * maskScaleFactor)
         }
-        let imgSrc = `${props.webVideoServerURL}/stream?topic=${CAMERA_FEED_TOPIC}&width=${imgSize.width}&height=${imgSize.height}&quality=20`
+        let imgSrc = `${props.webVideoServerURL}/stream?topic=${CAMERA_FEED_TOPIC}&width=${imgSize.width}&height=${imgSize.height}&type=ros_compressed`
         return (
           <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
             {actionResult.detected_items.map((detected_item, i) => (
@@ -434,40 +426,14 @@ const BiteSelection = (props) => {
           style={{
             flex: 3,
             flexDirection: 'row',
+            justifyContent: 'center',
             alignItems: 'center',
             width: '100%'
           }}
         >
-          <View
-            style={{
-              flex: 1,
-              alignItems: 'center',
-              justifyContent: 'right'
-            }}
-          >
-            <Button
-              className='doneButton'
-              style={{ fontSize: textFontSize, marginTop: '0', marginBottom: '0' }}
-              onClick={locatePlateClicked}
-            >
-              🍽️ Locate Plate
-            </Button>
-          </View>
-          <View
-            style={{
-              flex: 1,
-              alignItems: 'center',
-              justifyContent: 'left'
-            }}
-          >
-            <Button
-              className='doneButton'
-              style={{ fontSize: textFontSize, marginTop: '0', marginBottom: '0' }}
-              onClick={doneEatingClicked}
-            >
-              ✅ Done Eating
-            </Button>
-          </View>
+          <Button className='doneButton' style={{ fontSize: textFontSize, marginTop: '0', marginBottom: '0' }} onClick={doneEatingClicked}>
+            ✅ Done Eating
+          </Button>
         </View>
         {/**
          * Below the buttons, one half of the screen will present the video feed.
@@ -598,7 +564,6 @@ const BiteSelection = (props) => {
       </>
     )
   }, [
-    locatePlateClicked,
     doneEatingClicked,
     dimension,
     margin,

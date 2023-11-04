@@ -152,7 +152,7 @@ function Home(props) {
          */
         let currentMealState = MEAL_STATE.R_MovingFromMouthToAbovePlate
         let nextMealState = MEAL_STATE.U_BiteSelection
-        let waitingText = 'Waiting to move above the plate...'
+        let waitingText = 'Waiting to move from your mouth to above the plate...'
         return (
           <RobotMotion
             debug={props.debug}
@@ -166,7 +166,7 @@ function Home(props) {
       case MEAL_STATE.R_MovingFromMouthToRestingPosition: {
         let currentMealState = MEAL_STATE.R_MovingFromMouthToRestingPosition
         let nextMealState = MEAL_STATE.U_BiteAcquisitionCheck
-        let waitingText = 'Waiting to move to the resting position...'
+        let waitingText = 'Waiting to move from your mouth to the resting position...'
         return (
           <RobotMotion
             debug={props.debug}
