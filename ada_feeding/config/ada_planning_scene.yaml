@@ -9,12 +9,17 @@ ada_planning_scene:
       - workspace_wall_front
       - workspace_wall_left
       - workspace_wall_top
+      # - food
     # For each object, specify:
     #   - Shape: EITHER `filepath` (for a mesh) OR `primitive_type` and
     #     `primitive_dims`(for a primitive -- see shape_msgs/SolidPrimitive.msg)
     #   - Pose: `position` and `quat_xyzw` (see geometry_msgs/Pose.msg)
     #   - Frame ID: `frame_id` (the frame_id of the object that the pose is
     #     relative to)
+    #   - [Optional] to attach the collision object specify `attached` to be True.
+    #     In that case, `frame_id` must be a link on the robot to attach the object
+    #     to, and `touch_links` must be a list of additional links that should be
+    #     ignored for collision checking.
     wheelchair: # the wheelchair mesh
       filename: wheelchair.stl
       position: [0.02, -0.02, -0.05]
@@ -56,3 +61,11 @@ ada_planning_scene:
       position: [-0.05, 0.17, 1.05]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
       frame_id: root # the frame_id that the pose is relative to
+    food:
+      primitive_type: 2 # Sphere=2. See shape_msgs/SolidPrimitive.msg
+      primitive_dims: [0.05] # Sphere has 1 dim: [radius]
+      position: [0.0, 0.0, 0.0]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+      attached: True
+      frame_id: forkTip # the frame_id that the pose is relative to
+      touch_links: [forkTine] # the links, in addition to frame_id, that should be ignored for collision checking
