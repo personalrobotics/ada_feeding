@@ -9,7 +9,7 @@ ada_planning_scene:
       - workspace_wall_front
       - workspace_wall_left
       - workspace_wall_top
-      - food
+      # - food
     # For each object, specify:
     #   - Shape: EITHER `filepath` (for a mesh) OR `primitive_type` and
     #     `primitive_dims`(for a primitive -- see shape_msgs/SolidPrimitive.msg)
