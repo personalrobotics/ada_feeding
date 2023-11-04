@@ -7,6 +7,7 @@ republisher:
       - /camera/color/camera_info
       - /camera/aligned_depth_to_color/image_raw
       - /camera/aligned_depth_to_color/camera_info
+      - /local/camera/aligned_depth_to_color/image_raw
 
     # The types of topics to republish from
     topic_types:
@@ -14,6 +15,15 @@ republisher:
       - sensor_msgs.msg.CameraInfo
       - sensor_msgs.msg.Image
       - sensor_msgs.msg.CameraInfo
+      - sensor_msgs.msg.Image
+
+    # The name of the topics to republish to
+    to_topics:
+      - /local/camera/color/image_raw/compressed
+      - /local/camera/color/camera_info
+      - /local/camera/aligned_depth_to_color/image_raw
+      - /local/camera/aligned_depth_to_color/camera_info
+      - /local/camera/aligned_depth_to_color/depth_octomap
 
     # The names of a post-processing functions to apply to the message before
     # republishing it. Current options are:
@@ -30,8 +40,9 @@ republisher:
     post_processors:
       - ""
       - ""
-      - threshold,mask,temporal,spatial
       - ""
+      - ""
+      - threshold,mask,temporal,spatial # Apply filters to the depth image for the Octomap
     # The binary mask used for "mask" post-processing. This mask will get scaled,
     # possibly disproportionately, to the same of the image.
     mask_relative_path: model/fork_handle_mask.png
@@ -40,5 +51,5 @@ republisher:
     # The size of the square kernel for the "spatial" post-processor.
     spatial_num_pixels: 10
     # The min/max pixel value to be included in the threshold. For depth images, the units are mm.
-    threshold_min: 300
+    threshold_min: 330
     threshold_max: 2500
