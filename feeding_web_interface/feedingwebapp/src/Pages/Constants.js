@@ -42,7 +42,7 @@ NON_MOVING_STATES.add(MEAL_STATE.U_PostMeal)
 export { NON_MOVING_STATES }
 
 // The names of the ROS topic(s)
-export const CAMERA_FEED_TOPIC = '/local/camera/color/image_raw'
+export const CAMERA_FEED_TOPIC = '/camera/color/image_raw'
 export const FACE_DETECTION_TOPIC = '/face_detection'
 export const FACE_DETECTION_TOPIC_MSG = 'ada_feeding_msgs/FaceDetection'
 export const FACE_DETECTION_IMG_TOPIC = '/face_detection_img'
