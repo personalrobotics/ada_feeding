@@ -92,7 +92,6 @@ class ServoMove(BlackboardBehavior):
     @override
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
-        self.logger.info(f"{self.name} [{self.__class__.__name__}::update()]")
 
         # pylint: disable=attribute-defined-outside-init, too-many-return-statements
         # It is okay for attributes in behaviors to be

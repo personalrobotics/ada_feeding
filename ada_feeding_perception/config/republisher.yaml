@@ -51,5 +51,5 @@ republisher:
     # The size of the square kernel for the "spatial" post-processor.
     spatial_num_pixels: 10
     # The min/max pixel value to be included in the threshold. For depth images, the units are mm.
-    threshold_min: 330
+    threshold_min: 350
     threshold_max: 2500
