@@ -4,23 +4,27 @@ This file defines the FoodOnFork node class, which listens to a topic, /camera/d
 and uses the depth image recieved there to calculate the probability of Food on Fork. It then
 launches a topic, /food_on_fork to which the probability of Food on Fork is published.
 """
-import time
 
+# Standard imports
+import cv2 as cv  # needed sometimes
+from cv_bridge import CvBridge, CvBridgeError
+import joblib
+import numpy as np
+import numpy.typing as npt
+from typing import Optional
+from typing import Tuple
+
+# Third-Party imports
 import rclpy
-from rclpy.node import Node
-from rclpy.executors import MultiThreadedExecutor
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
-from rclpy.parameter import Parameter
-
+from rclpy.executors import MultiThreadedExecutor
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32
+from rclpy.node import Node
+from rclpy.parameter import Parameter
 
-from cv_bridge import CvBridge, CvBridgeError
-import cv2 as cv
-import numpy as np
-import joblib
-from typing import Tuple
-import csv
+# Local imports
+import helpers
 
 
 class FoodOnFork(Node):
@@ -39,36 +43,42 @@ class FoodOnFork(Node):
 
         # read all the parameters
         (
-            left_top_corner_x,
-            left_top_corner_y,
-            right_bottom_corner_x,
-            right_bottom_corner_y,
-            min_dist,
-            max_dist,
+            top_left_corner_x,
+            top_left_corner_y,
+            bottom_right_corner_x,
+            bottom_right_corner_y,
+            min_depth,
+            max_depth,
             model_loc,
+            single_feature,
             test,
         ) = self.read_params()
 
         # set the read in parameters
-        self.left_top_corner = (left_top_corner_x.value, left_top_corner_y.value)
+        self.left_top_corner = (top_left_corner_x.value, top_left_corner_y.value)
         self.right_bottom_corner = (
-            right_bottom_corner_x.value,
-            right_bottom_corner_y.value,
+            bottom_right_corner_x.value,
+            bottom_right_corner_y.value,
         )
-        self.min_dist = min_dist.value
-        self.max_dist = max_dist.value
+        self.min_depth = min_depth.value
+        self.max_depth = max_depth.value
 
         self.test = test.value
         self.get_logger().info(str(self.test))
-        # self.get_logger().info(str(self.left_top_corner))
-        # self.get_logger().info(str(self.right_bottom_corner))
-        # self.get_logger().info(str(self.min_dist))
-        # self.get_logger().info(str(self.max_dist))
 
         # depth topic subscription
+        # self.subscription_depth = self.create_subscription(
+        #     Image, "/camera/depth/image_rect_raw", self.listener_callback_depth, 1
+        # )
         self.subscription_depth = self.create_subscription(
-            Image, "camera/depth/image_rect_raw", self.listener_callback_depth, 1
+            Image,
+            "~/aligned_depth",
+            self.listener_callback_depth,
+            1,
         )
+        # self.subscription_depth = self.create_subscription(
+        #     Image, "~/image", self.listener_callback_depth, 1
+        # )
 
         # publisher for FoF vs. no FoF
         self.publisher_depth = self.create_publisher(Float32, "food_on_fork", 1)
@@ -97,77 +107,78 @@ class FoodOnFork(Node):
         Returns
         -------
         a tuple of:
-        left_top_corner_x: x-value of Top-left point of the bounding box rectangle
-        left_top_corner_y: y-value of Top-left point of the bounding box rectangle
-        right_bottom_corner_x: x-value of Bottom-right point of the bounding box of the rectangle
-        right_bottom_corner_y: y-value of Bottom-right point of the bounding box of the rectangle
-        min_dist: minimum depth to consider (note that 330 is approx distance to the fork tine)
-        max_dist: maximum depth to consider (note that 330 is approx distance to the fork tine)
+        top_left_corner_x: x-value of Top-left point of the bounding box rectangle
+        top_left_corner_y: y-value of Top-left point of the bounding box rectangle
+        bottom_right_corner_x: x-value of Bottom-right point of the bounding box of the rectangle
+        bottom_right_corner_y: y-value of Bottom-right point of the bounding box of the rectangle
+        min_depth: minimum depth to consider (note that 330 is approx distance to the fork tine)
+        max_depth: maximum depth to consider (note that 330 is approx distance to the fork tine)
         model_loc: location of the model
+        single_feature: boolean value representing the usage of single feature Logistic Reg vs. multi-feature NB
         test: boolean value representing whether this node is testing
         """
         return self.declare_parameters(
             "",
             [
                 (
-                    "left_top_corner_x",
+                    "top_left_corner_x",
                     None,
                     ParameterDescriptor(
-                        name="left_top_corner_x",
+                        name="top_left_corner_x",
                         type=ParameterType.PARAMETER_INTEGER,
-                        description="x-value of Left top corner of the rectangle",
+                        description="x-value of top-left corner of the rectangle",
                         read_only=True,
                     ),
                 ),
                 (
-                    "left_top_corner_y",
+                    "top_left_corner_y",
                     None,
                     ParameterDescriptor(
-                        name="left_top_corner_y",
+                        name="top_left_corner_y",
                         type=ParameterType.PARAMETER_INTEGER,
-                        description="y-value of Left top corner of the rectangle",
+                        description="y-value of top-left corner of the rectangle",
                         read_only=True,
                     ),
                 ),
                 (
-                    "right_bottom_corner_x",
+                    "bottom_right_corner_x",
                     None,
                     ParameterDescriptor(
-                        name="right_bottom_corner_x",
+                        name="bottom_right_corner_x",
                         type=ParameterType.PARAMETER_INTEGER,
-                        description="x-value of Right bottom corner of the rectangle",
+                        description="x-value of bottom-right corner of the rectangle",
                         read_only=True,
                     ),
                 ),
                 (
-                    "right_bottom_corner_y",
+                    "bottom_right_corner_y",
                     None,
                     ParameterDescriptor(
-                        name="right_bottom_corner_y",
+                        name="bottom_right_corner_y",
                         type=ParameterType.PARAMETER_INTEGER,
-                        description="y-value of Right bottom corner of the rectangle",
+                        description="y-value of bottom-right corner of the rectangle",
                         read_only=True,
                     ),
                 ),
                 (
-                    "min_dist",
+                    "min_depth",
                     None,
                     ParameterDescriptor(
-                        name="min_dist",
+                        name="min_depth",
                         type=ParameterType.PARAMETER_INTEGER,
                         description="minimum depth to consider (note that 330 is approx distance "
-                                    "to the fork tine)",
+                        "to the fork tine)",
                         read_only=True,
                     ),
                 ),
                 (
-                    "max_dist",
+                    "max_depth",
                     None,
                     ParameterDescriptor(
-                        name="max_dist",
+                        name="max_depth",
                         type=ParameterType.PARAMETER_INTEGER,
                         description="maximum depth to consider (note that 330 is approx distance "
-                                    "to the fork tine)",
+                        "to the fork tine)",
                         read_only=True,
                     ),
                 ),
@@ -182,30 +193,27 @@ class FoodOnFork(Node):
                     ),
                 ),
                 (
+                    "single_feature",
+                    None,
+                    ParameterDescriptor(
+                        name="single_feature",
+                        type=ParameterType.PARAMETER_BOOL,
+                        description="whether or not the we are using a model with a single feature",
+                        read_only=True,
+                    ),
+                ),
+                (
                     "test",
                     None,
                     ParameterDescriptor(
                         name="test",
                         type=ParameterType.PARAMETER_BOOL,
-                        description="testing",
+                        description="to indicate whether the node is running under test mode",
                         read_only=True,
                     ),
                 ),
             ],
         )
-
-    def normalize_to_uint8(self, img):
-        """
-        Normalize the image to 0-255
-
-        Parameters:
-        ----------
-        img: image to normalize
-        """
-        img_normalized = ((img - img.min()) / (img.max() - img.min()) * 255).astype(
-            "uint8"
-        )
-        return img_normalized
 
     def listener_callback_depth(self, depth_img_msg: Image) -> None:
         """
@@ -221,96 +229,54 @@ class FoodOnFork(Node):
             depth_img = self.bridge.imgmsg_to_cv2(depth_img_msg, "passthrough")
         except CvBridgeError as e:
             print(e)
+            return
 
-        if depth_img is not None:
-            # VVVV---BELOW is the code when using single feature of only the NUMBER OF PIXELS---VVVV
-            # num_pixels = self.food_on_fork_num_pixels(depth_img)
-            # if self.test:
-            #     self.get_logger().info("num pixels: " + str(num_pixels))
-            # prediction = self.predict_food_on_fork(num_pixels)
-            # if self.test:
-            #     self.get_logger().info("Prediction Probability: " + str(prediction))
-            # ^^^^---ABOVE is the code when using single feature of only the NUMBER OF PIXELS---^^^^
+        if self.single_feature:
+            # Only number of pixels is the input (single feature):
+            num_pixels = helpers.food_on_fork_featurizer_num_pixels(
+                depth_img,
+                self.left_top_corner,
+                self.right_bottom_corner,
+                self.min_depth,
+                self.max_depth,
+            )
+            if self.test:
+                self.get_logger().info("num pixels: " + str(num_pixels))
+            prediction = self.predict_food_on_fork(num_pixels)
+            if self.test:
+                self.get_logger().info("Prediction Probability: " + str(prediction))
+        else:
+            # when pixels are individually considered as features
 
-            # VVVV---BELOW is the code when using EACH PIXEL as a feature---VVVV
-            depth_img_copy = np.copy(depth_img)
+            # Tuning the rectangle
+            # depth_img_copy = np.copy(depth_img)
+            # cv.rectangle(depth_img_copy, (317, 238), (445, 322), (255, 0, 0))
+            # cv.imshow("aligned_depthImg", depth_img_copy)
 
-            # Crop the depth image to the specified dimensions
-            left_top_x, left_top_y = self.left_top_corner
-            right_bottom_x, right_bottom_y = self.right_bottom_corner
-            cropped_img = depth_img_copy[
-                left_top_y:right_bottom_y, left_top_x:right_bottom_x
-            ]
-            # cv.imshow("cropped_img", self.normalize_to_uint8(cropped_img))
-
-            # Pre-process the image such that if the depth values are within the specified
-            # frustum, then those pixels are converted to be 1 and if they are not within the
-            # frustum, then those pixels are converted to be 0
-            img_converted = np.where(
-                np.logical_or(cropped_img < self.min_dist, cropped_img > self.max_dist),
-                0,
-                1,
-            ).astype("uint8")
-            cropped_img_np = np.array(img_converted)
-
-            # self.get_logger().info(str(cropped_img_np))
-            # self.get_logger().info(str(np.count_nonzero(cropped_img_np == 1)))
-            # cv.imshow("cropped", cropped_img_np * 255)
-            # cv.waitKey(40)
-            X_test = cropped_img_np.flatten()
+            cropped_img_np = helpers.food_on_fork_featurizer_all_pixels(
+                depth_img,
+                self.left_top_corner,
+                self.right_bottom_corner,
+                self.min_depth,
+                self.max_depth,
+            )
+            x_test = cropped_img_np.flatten()
 
             # Get the prediction, which is a float value
-            prediction = self.predict_food_on_fork(X_test=X_test)
-            # self.get_logger().info(str(prediction))
+            prediction = self.predict_food_on_fork(x_test=x_test)
+
             if self.test:
                 self.get_logger().info(str(prediction))
-            # ^^^^---ABOVE is the code when using EACH PIXEL as a feature---^^^^
 
-            float32msg = Float32()
-            float32msg.data = prediction
-            self.publisher_depth.publish(float32msg)
+            # cv.imshow("cropped_img_preds", helpers.normalize_to_uint8(cropped_img_np))
+            # cv.waitKey(1)
 
-    def food_on_fork_num_pixels(self, depth_img: np.ndarray) -> int:
-        """
-        Calculates the number of pixels in the provided depth image (through a depth image
-        message). This method is used to calculate the number of pixels that is used for the
-        Logistic Regression to output a confidence
-
-        Parameters:
-        ----------
-        depth_img: depth image
-        left_top_corner: Tuple(int, int): Top-left point of the bounding box rectangle
-        right_bottom_corner: Tuple(int, int): Bottom-right point of the bounding box of the
-            rectangle min_dist: int: minimum depth to consider (note
-            that 330 is approx distance to the fork tine)
-        max_dist: int: maximum depth to consider (note that 330 is approx distance to the fork tine)
-
-        Returns:
-        ----------
-        number of pixels within the specified parameter range
-        """
-
-        # consider the points for the rectangle
-        pt1_col, pt1_row = self.left_top_corner
-        pt2_col, pt2_row = self.right_bottom_corner
-
-        # create mask that satisfies the rectangle and distance conditions
-
-        # For instance, take a mask = [[F, F, F, F], [F, F, F, F], [F, F, F, F]]
-        mask_img = np.zeros_like(depth_img, dtype=bool)
-        # The pixels within the rectangular range will be true,
-        # resulting in mask = [[F, T, T, F], [F, T, T, F], [F, T, T, F]]
-        mask_img[pt1_row:pt2_row, pt1_col:pt2_col] = True
-        # The pixels within the depth range will be true,
-        # resulting in mask = [[F, F, F, F], [F, T, T, F], [F, F, F, F]]
-        mask_img[
-            np.logical_not((self.min_dist < depth_img) & (depth_img < self.max_dist))
-        ] = False
-
-        return np.count_nonzero(mask_img)
+        float32msg = Float32()
+        float32msg.data = prediction
+        self.publisher_depth.publish(float32msg)
 
     def predict_food_on_fork(
-        self, num_pixels: int = None, X_test: np.ndarray = None
+        self, num_pixels: Optional[int] = None, x_test: Optional[npt.NDArray] = None
     ) -> float:
         """
         Calculates the probability of the presence of food on fork based on the provided parameters.
@@ -320,18 +286,18 @@ class FoodOnFork(Node):
         Parameters:
         ----------
         num_pixels: number of pixels detected based on which the probability is output
-        X_test: Flattened array with whether each pixel is in the range
+        x_test: Flattened array with whether each pixel is in the range
 
         Returns:
         ----------
-        probability of the presence of food on fork
+        probability of the presence of food on fork; if both parameters are None or not passed in, then there will be a
+        default value of -5.0 returned, indicating an error
         """
         if num_pixels is not None:
             # Logistic Regression Approach
             print("num pixels in method: ", num_pixels)
             num_pixels = np.array([[num_pixels]])
             prediction_prob = self.model.predict_proba(num_pixels)
-            # print("Pred_prob", prediction_prob[0][1])
 
             # prediction_prob is a matrix that looks like: [[percentage1, percentage2]] Note that
             # percentage1 is the percent probability that the predicted value is 0 (no food on
@@ -339,13 +305,15 @@ class FoodOnFork(Node):
             # food on fork) we care about the probability that there is food on fork. As such,
             # [0][1] makes sense!
             return float(prediction_prob[0][1])
-        if X_test is not None:
+        if x_test is not None:
             # Categorical NB approach
-            X_test_reshape = X_test.reshape(
+            x_test_reshape = x_test.reshape(
                 1, -1
             )  # such that we have (num_images, num_features)
-            prediction_prob = self.model.predict_proba(X_test_reshape)
+            prediction_prob = self.model.predict_proba(x_test_reshape)
             return float(prediction_prob[0][1])
+
+        return -5.0
 
 
 def main(args=None):

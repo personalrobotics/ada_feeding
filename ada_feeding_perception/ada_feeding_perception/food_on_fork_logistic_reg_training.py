@@ -1,3 +1,12 @@
+"""
+To perform Logistic Regression training, make sure to place the dataset with num_pixels and binary_label. Note that
+num_pixels will be an integer value and binary_label will be a prediction of 0 (no food) or 1 (food).
+
+Note that there are two variables within the main() method that needs to be changed to run the training. Firstly,
+make sure to set csv_to_read_from to the correct csv to read from and model_save_filename to an appropriate model name.
+"""
+
+# Third-party imports
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
@@ -5,7 +14,10 @@ import joblib
 
 
 def main():
-    csv_to_read_from = "../datasets/Ross_7-11-23.csv"
+    """
+    Main method to run Logisitic Regression Training
+    """
+    csv_to_read_from = "../datasets/Logistic_reg_dataset_7-11-23.csv"
 
     # get the data frame
     df = pd.read_csv(csv_to_read_from)

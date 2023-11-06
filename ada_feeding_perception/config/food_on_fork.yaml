@@ -1,19 +1,22 @@
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 food_on_fork:
   ros__parameters:
-    # Top-left point's x-val of the bounding box rectangle
-    left_top_corner_x: 297
-    # Top-left point's y-val of the bounding box rectangle
-    left_top_corner_y: 248
+    # Top-left point's x-val of the bounding box rectangle (note: if using depth image, left_top_corner_x = 297)
+    top_left_corner_x: 317
+    # Top-left point's y-val of the bounding box rectangle (note: if using depth image, left_top_corner_y = 248)
+    top_left_corner_y: 238
     # Bottom-right point's x-val of the bounding box of the rectangle NOTE: previously, was 422 (but 425 is better ratio)
-    right_bottom_corner_x: 425
-    # Bottom-right point's y-val of the bounding box of the rectangle
-    right_bottom_corner_y: 332
+    # (note: if using depth image, right_bottom_corner_x = 425)
+    bottom_right_corner_x: 445
+    # Bottom-right point's y-val of the bounding box of the rectangle (note: if using depth image, right_bottom_corner_y = 332)
+    bottom_right_corner_y: 322
     # minimum depth to consider (note that 330 is approx distance to the fork tine)
-    min_dist: 310
+    min_depth: 310
     # maximum depth to consider (note that 330 is approx distance to the fork tine)
-    max_dist: 370
+    max_depth: 370
     # absolute path for the model
-    model_location: "/home/atharva2/atharvak_node_ws/src/ada_feeding/ada_feeding_perception/model/categorical_naive_bayes_without_hand_8-30-23.pkl"
+    model_location: "/home/atharvak/atharvak_ws/src/ada_feeding/ada_feeding_perception/model/categorical_naive_bayes_aligned_depth_10-17-23.pkl"
+    # single feature or not
+    single_feature: False
     # testing
     test: False

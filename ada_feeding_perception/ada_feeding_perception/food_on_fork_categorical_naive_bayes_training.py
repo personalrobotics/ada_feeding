@@ -1,23 +1,69 @@
-import zipfile
-import tempfile
-import shutil
+"""
+This file runs the training for Categorical Naive Bayes. To run the training, follow steps outlined in the Perception
+Readme. To run this file, you will need to have the data in a zip file (don't unzip it; code will do it at runtime).
+Additionally, the data should already be split such that there is <main folder>, which has a <train> and <test>
+subfolders. Under each of these subfolders, it will need to have all the depth (raw or aligned_depth) corresponding
+to it labels.
+
+If you just want to train and test the model on the test set, you can perform set the --use_entire_dataset_bool to
+"False". Otherwise, if you want to train the model on the entire dataset and then test the model on the unseen data,
+make sure to set --use_entire_dataset_bool to "True". Then, you want to specify a --data_file_zip with a zipfile of
+the data. If you are training on the entire dataset, it is also necessary to specify a --model_save_file to save the
+model into.
+"""
+
+# Standard imports
+import argparse
+import joblib
 import os
+import shutil
+import tempfile
+from typing import Tuple
+import zipfile
+
+# Third-party imports
 import cv2 as cv
+from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.naive_bayes import CategoricalNB
-import joblib
-from matplotlib.patches import Rectangle
-import argparse
+
+# Local imports
+import helpers
 
 
 def unzip_file(zip_path, extract_dir):
+    """
+    Unzips the file provided in the zip_path and puts it into the extract_dir directory
+
+    Parameters:
+    ----------
+    zip_path: Zip file to read and extract images from
+    extract_dir: Extracted folder to store all the images in
+    """
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
         zip_ref.extractall(extract_dir)
 
 
-def get_labels_folders(extracted_folders):
+def get_labels_folders(extracted_folders) -> Tuple[dict, dict, str, str]:
+    """
+    gets the train and test path for each image in the train and test folders, which are present in the
+    extracted_folders
+
+    Parameters:
+    ----------
+    extracted_folders: the folder that essentially contains two sub-folders (train/test) and this function extracts
+    the paths to all the images from these folders
+
+    Returns:
+    ----------
+    A tuple of
+    train_labels_folder: paths to each of the images in the train set (dict)
+    test_labels_folder: paths to each of the images in the test set (dict)
+    train_folder_path: path to get to the train folder (String)
+    test_folder_path: path to get to the test folder (String)
+    """
     train_test_data_folder_path = extracted_folders[0]  # train_test_data
     train_test_data_folder = os.listdir(
         os.path.join(temp_dir, train_test_data_folder_path)
@@ -55,14 +101,16 @@ def get_labels_folders(extracted_folders):
     return train_labels_folder, test_labels_folder, train_folder_path, test_folder_path
 
 
-def normalize_to_uint8(img):
-    # Normalize the image to 0-255
-    img_normalized = ((img - img.min()) / (img.max() - img.min()) * 255).astype("uint8")
-    return img_normalized
-
-
 def plt_show_depth_img(img, show=True, title=""):
-    # Plot the depth image
+    """
+    Plot the provided image
+
+    Parameters:
+    ----------
+    img: np.array of voxels
+    show: boolean as to whether or not to show the graphed image
+    title: a title for the graphed image
+    """
     fig, ax = plt.subplots()
     for i in range(0, 128, 8):
         for j in range(0, 84, 4):
@@ -80,11 +128,14 @@ if "__main__" == __name__:
 
     # get the command line arguments
     parser.add_argument(
-        "use_entire_dataset_bool",
+        "--use_entire_dataset_bool",
         type=str,
         help="Whether or not to use the entire dataset",
+        required=True,
     )
-    parser.add_argument("data_file_zip", type=str, help="zip file location")
+    parser.add_argument(
+        "--data_file_zip", type=str, help="zip file location", required=True
+    )
     parser.add_argument(
         "--model_save_file", type=str, help="path to save the model", required=False
     )
@@ -130,7 +181,7 @@ if "__main__" == __name__:
             img = cv.imread(filepath, cv.IMREAD_UNCHANGED)
             shape = img.shape
             # print(shape)
-            # cv.imshow("image", normalize_to_uint8(img))
+            # cv.imshow("image", helpers.normalize_to_uint8(img))
             # cv.waitKey(10)
 
             # convert the image such that anything outside the depth bounds specified above will be 0
@@ -156,7 +207,7 @@ if "__main__" == __name__:
                 filepath = os.path.join(test_path, label, filename)
                 img = cv.imread(filepath, cv.IMREAD_UNCHANGED)
                 shape = img.shape
-                # cv.imshow("image", normalize_to_uint8(img))
+                # cv.imshow("image", helpers.normalize_to_uint8(img))
                 # cv.waitKey(10)
 
                 # convert the image such that anything outside the depth bounds specified above will be 0
@@ -179,7 +230,7 @@ if "__main__" == __name__:
                 filepath = os.path.join(test_path, label, filename)
                 img = cv.imread(filepath, cv.IMREAD_UNCHANGED)
                 shape = img.shape
-                # cv.imshow("image", normalize_to_uint8(img))
+                # cv.imshow("image", helpers.normalize_to_uint8(img))
                 # cv.waitKey(10)
 
                 # convert the image such that anything outside the depth bounds specified above will be 0
@@ -284,5 +335,6 @@ if "__main__" == __name__:
         model_save_filename = args.model_save_file
         joblib.dump(clf, model_save_filename)
         print("model saved!!")
+
     # delete the folder with the unzipped files
     shutil.rmtree(temp_dir)

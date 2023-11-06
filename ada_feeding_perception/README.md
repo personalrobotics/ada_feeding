@@ -103,11 +103,26 @@ Launch the web app along with all the other nodes (real or dummy) as documented 
 - `offline.point_ys` (list of ints, required): The y-coordinates of the seed points. Must be the same length as `offline.images`.
 
 ## Food on Fork
-There are two models that can be used to determine Food on Fork. They are as follows:
+The Food on Fork node gets launched automatically when the Ada Feeding perception is launched. As such, after 
+launching the perception nodes, one can perform `ros2 topic echo /food_on_fork` to be able to listen to the 
+confidence being published onto the topic. Note that 0.0 indicates `no_food` and 1.0 indicates `food` on the fork. 
+Additionally, the web application has a toggle button that can get triggered on or off to be able to listen to the  
+`/food_on_fork` topic. More documentation for the webapp can be found on its repository. 
+
+There are a couple models that can be used to determine Food on Fork. They are as follows:
+> Note that "frustum" is a 3D space around the fork
+
 - Logistic Regression
   - This model uses a single feature (number of pixels within the specified frustum). Based on that, it outputs a confidence on whether or not there is a presence of food on fork.
-- Categorical Naive Bayes (Currently, Food On Fork node uses this model!)
-  - This model uses depth images that are already cropped to a specified frustum. And, it treats each "voxel" in the depth image as a feature by itself. So, in essence there are over 10K features on which the Categorical NB is trained on.
+- Categorical Naive Bayes 
+  - Within the Categorical Naive Bayes model, there are two ones, namely `categorical_naive_bayes_depth_8-30-23` (model A) and `categorical_naive_bayes_aligned_depth_10-17-23` (model B). 
+    - Model A uses raw depth images that are already cropped to a specified frustum. And, it treats each "voxel" in the depth image as a feature by itself. So, in essence there are over 10K features on which the Categorical NB is trained on.
+    - On the otherhand, Model B uses algined_depth images that are also cropped to a specified frustum (Currently, Food On Fork node uses this model!). The benefit of using this model over others are because: 
+      - Using/listening to raw depth images causes issues listening to some of the other topics, which other features 
+        (such as Face Detection) are reliant on.
+      - Logistic Regression only considered the number of voxels within the frustum, which was eliminating 
+        information that we can use from being aware of the location of each of those voxels (in other words, 
+        considering each of the voxel as a feature by itself, as opposed to just one feature as the count).
 
 ### Training Food on Fork Logisitic Regression model
 - Navigate to `food_on_fork_logistic_reg_training.py` within `/ada_feeding_perception` package.
@@ -116,16 +131,30 @@ There are two models that can be used to determine Food on Fork. They are as fol
 - Then, run `food_on_fork_logistic_reg_training.py`, making sure its dependencies are installed
 - After the completion of training, be sure to navigate to `food_on_fork.yaml` and change the model location so that the correct model is being used.
 
-### Training Food on Fork Categorical Naive Bayes model
+### Training Food on Fork Categorical Naive Bayes model (that uses aligned_depth instead of raw depth)
 - Change directory into `ada_feeding_perception/ada_feeding_perception`.
-- Make sure to load the dataset! Since the dataset contains actual depth images, it becomes to large to be committed onto GitHub. As such, it has been uploaded onto the drive. Make sure to download the dataset of your choice and use it as indicated below.
-  - [Dataset1](https://drive.google.com/file/d/1KuZonyrz4440pHjgPvTqeinP3aju0xTK/view?usp=sharing), [Dataset2](https://drive.google.com/file/d/1XEIx9CipqyAJqEuqukIb9eiTW1ee8Nyu/view?usp=sharing), [Dataset3](https://drive.google.com/file/d/16Gbn360WE5RXOgbfESxNhWbb9SsEgdC7/view?usp=sharing): Note that all three of these datasets are using the same data and have 80/20 train-test split. The difference is that each of them have different images in train/test datasets.
+- Make sure to load the dataset! Since the dataset contains actual aligned depth images, it becomes too large to be 
+  committed onto GitHub. As such, it has been uploaded onto the drive. Make sure to download the dataset of your choice and use it as indicated below.
+  - [Dataset0](https://drive.google.com/file/d/19yZhHcmpUmAlnM40e2sVdyXHtxWq2bF7/view?usp=sharing), [Dataset1]
+    (https://drive.google.com/file/d/1K5xbgm77mS_4Ya-mtGnMXiT0_UbEnH4k/view?usp=sharing), [Dataset2](https://drive.
+    google.com/file/d/1SkTP9uE4GOVBodpWMAOPiFG-hlUcR7xq/view?usp=sharing): Note that all three of these datasets are using the same data and have 80/20 train-test split. The difference is that each of them have different images in train/test datasets.
   - Make sure to simply download the dataset into the folder `ada_feeding_perception/ada_feeding_perception`. Please don't unzip the file because the code unzips it at runtime.
 - To train CategoricalNB, there are a few required arguments:
   - Suppose you want to use 80/20 train-test split and check the accuracy of the model:
-    - `python food_on_fork_categorical_naive_bayes_training.py "False" "./train_test_data_no_hand_8-30-23.zip"`:
+    - `python food_on_fork_categorical_naive_bayes_training.py --use_entire_dataset_bool "False" --data_file_zip 
+      "<Absolute Location of zip file for data>"`
       - Make sure to specify the correct zipfile and the boolean argument will be false since we want to only train on the trainset and check its accuracy on the testset.
   - Suppose you want to train and generate a `.pkl` model:
-    - `python food_on_fork_categorical_naive_bayes_training.py "True" "./train_test_data_no_hand_8-30-23.zip" --model_save_file "categorical_naive_bayes_without_hand_8-30-23.pkl"`:
-      - This will train on the entire dataset and create a model based on that.
+    - `python food_on_fork_categorical_naive_bayes_training.py --use_entire_dataset_bool "<Bool>" --data_file_zip 
+      "<Absolute Location of zip file for data>" --model_save_file "<Absolute Location with name for model>"`
+    - This will train on the entire dataset and create a model based on that.
+  - Additionally, note that you can run `python food_on_fork_categorical_naive_bayes_training.py --help` and it will 
+    provide you with some cues as to what are the variables needed
 - Make sure to install all dependencies and run the python file. After running, based on the method executed, there maybe a new model created. Be sure to update the `food_on_fork.yaml` file's model location variable to use the correct model.
+
+### Training Food on Fork Categorical Naive Bayes model (that uses raw depth images)
+- Follow the same steps as you do in Training using `aligned_depth`, but you will need to load different datasets. 
+  They are linked below:
+  - [Dataset0](https://drive.google.com/file/d/1KuZonyrz4440pHjgPvTqeinP3aju0xTK/view?usp=sharing)
+  - [Dataset1](https://drive.google.com/file/d/1XEIx9CipqyAJqEuqukIb9eiTW1ee8Nyu/view?usp=sharing)
+  - [Dataset2](https://drive.google.com/file/d/16Gbn360WE5RXOgbfESxNhWbb9SsEgdC7/view?usp=sharing)

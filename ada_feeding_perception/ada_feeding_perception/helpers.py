@@ -357,5 +357,104 @@ def test_get_connected_component() -> None:
     assert np.all(ret == ans)
 
 
+def food_on_fork_featurizer_num_pixels(
+    depth_img: np.ndarray,
+    left_top_corner: Tuple[int, int],
+    right_bottom_corner: Tuple[int, int],
+    min_dist: int,
+    max_dist: int,
+) -> int:
+    """
+    Calculates the number of pixels in the provided depth image (through a depth image
+    message). This method is used to calculate the number of pixels that is used for the
+    Logistic Regression to output a confidence. This method is not needed for the Categorical NB approach.
+
+    Parameters:
+    ----------
+    depth_img: depth image
+    left_top_corner: Tuple(int, int): Top-left point of the bounding box rectangle
+    right_bottom_corner: Tuple(int, int): Bottom-right point of the bounding box of the
+        rectangle
+    min_dist: int: minimum depth to consider (note
+        that 330 is approx distance to the fork tine)
+    max_dist: int: maximum depth to consider (note that 330 is approx distance to the fork tine)
+
+    Returns:
+    ----------
+    number of pixels within the specified parameter range
+    """
+
+    # consider the points for the rectangle
+    pt1_col, pt1_row = left_top_corner
+    pt2_col, pt2_row = right_bottom_corner
+
+    # create mask that satisfies the rectangle and distance conditions
+    # For instance, take a mask = [[F, F, F, F], [F, F, F, F], [F, F, F, F]]
+    mask_img = np.zeros_like(depth_img, dtype=bool)
+    # The pixels within the rectangular range will be true,
+    # resulting in mask = [[F, T, T, F], [F, T, T, F], [F, T, T, F]]
+    mask_img[pt1_row:pt2_row, pt1_col:pt2_col] = True
+    # The pixels within the depth range will be true,
+    # resulting in mask = [[F, F, F, F], [F, T, T, F], [F, F, F, F]]
+    mask_img[np.logical_not((min_dist < depth_img) & (depth_img < max_dist))] = False
+
+    return np.count_nonzero(mask_img)
+
+
+def food_on_fork_featurizer_all_pixels(
+    depth_img: np.ndarray,
+    left_top_corner: Tuple[int, int],
+    right_bottom_corner: Tuple[int, int],
+    min_dist: int,
+    max_dist: int,
+) -> np.ndarray:
+    """
+    Creates a feature for each pixel. This method is used to calculate the number of pixels that is used for the
+    CategoricalNB to output a confidence. This method is not needed for the Logistic Reg approach.
+
+    Parameters:
+    ----------
+    depth_img: depth image
+    left_top_corner: Tuple(int, int): Top-left point of the bounding box rectangle
+    right_bottom_corner: Tuple(int, int): Bottom-right point of the bounding box of the
+        rectangle
+    min_dist: int: minimum depth to consider (note
+        that 330 is approx distance to the fork tine)
+    max_dist: int: maximum depth to consider (note that 330 is approx distance to the fork tine)
+
+    Returns:
+    ----------
+    np array of each pixel being either a 1 or 0 based on if it is within the frustum
+    """
+    # Crop the incoming depth image to the specified dimensions
+    left_top_x, left_top_y = left_top_corner
+    right_bottom_x, right_bottom_y = right_bottom_corner
+    cropped_img = depth_img[left_top_y:right_bottom_y, left_top_x:right_bottom_x]
+    # cv.imshow("cropped_img", self.normalize_to_uint8(cropped_img))
+
+    # Pre-process the image such that if the depth values are within the specified
+    # frustum, then those pixels are converted to be 1 and if they are not within the
+    # frustum, then those pixels are converted to be 0
+    img_converted = np.where(
+        np.logical_or(cropped_img < min_dist, cropped_img > max_dist),
+        0,
+        1,
+    ).astype("uint8")
+    cropped_img_np = np.array(img_converted)
+    return cropped_img_np
+
+
+def normalize_to_uint8(img: np.ndarray):
+    """
+    Normalize the image to 0-255. This is not used for actual part of the code. It is primarily used for debugging.
+
+    Parameters:
+    ----------
+    img: image to normalize
+    """
+    img_normalized = ((img - img.min()) / (img.max() - img.min()) * 255).astype("uint8")
+    return img_normalized
+
+
 if __name__ == "__main__":
     test_get_connected_component()
