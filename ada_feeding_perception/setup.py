@@ -21,10 +21,10 @@ setup(
             os.path.join("share", package_name, "launch"),
             glob(os.path.join("launch", "*launch.[pxy][yma]*")),
         ),
-        # Include all launch files.
+        # Include all model files.
         (
-            os.path.join("share", package_name, "launch"),
-            glob(os.path.join("launch", "*launch.[pxy][pkl]*")),
+            os.path.join("share", package_name, "model"),
+            glob(os.path.join("model", "*")),
         ),
         # Include all config files.
         (

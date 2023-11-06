@@ -85,6 +85,8 @@ class SegmentFromPointNode(Node):
         self.active_goal_request = None
 
         # Subscribe to the camera info topic, to get the camera intrinsics
+        self.camera_info = None
+        self.camera_info_lock = threading.Lock()
         self.camera_info_subscriber = self.create_subscription(
             CameraInfo,
             "~/camera_info",
@@ -92,14 +94,11 @@ class SegmentFromPointNode(Node):
             1,
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
-        self.camera_info = None
-        self.camera_info_lock = threading.Lock()
-
-        # Initialize Segment Anything
-        self.initialize_food_segmentation(model_name, model_path)
 
         # Subscribe to the aligned depth image topic, to store the latest depth image
         # NOTE: We assume this is in the same frame as the RGB image
+        self.latest_depth_img_msg = None
+        self.latest_depth_img_msg_lock = threading.Lock()
         aligned_depth_topic = "~/aligned_depth"
         self.depth_image_subscriber = self.create_subscription(
             get_img_msg_type(aligned_depth_topic, self),
@@ -108,10 +107,10 @@ class SegmentFromPointNode(Node):
             1,
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
-        self.latest_depth_img_msg = None
-        self.latest_depth_img_msg_lock = threading.Lock()
 
         # Subscribe to the RGB image topic, to store the latest image
+        self.latest_img_msg = None
+        self.latest_img_msg_lock = threading.Lock()
         image_topic = "~/image"
         self.image_subscriber = self.create_subscription(
             get_img_msg_type(image_topic, self),
@@ -120,8 +119,9 @@ class SegmentFromPointNode(Node):
             1,
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
-        self.latest_img_msg = None
-        self.latest_img_msg_lock = threading.Lock()
+
+        # Initialize Segment Anything
+        self.initialize_food_segmentation(model_name, model_path)
 
     def read_params(
         self,
@@ -352,7 +352,12 @@ class SegmentFromPointNode(Node):
         result = SegmentFromPoint.Result()
         result.header = image_msg.header
         with self.camera_info_lock:
-            result.camera_info = self.camera_info
+            if self.camera_info is not None:
+                result.camera_info = self.camera_info
+            else:
+                self.get_logger().warn(
+                    "Camera info not received, not including in result message"
+                )
 
         # Get the latest depth image
         with self.latest_depth_img_msg_lock:
@@ -500,6 +505,7 @@ class SegmentFromPointNode(Node):
         result.status = result.STATUS_SUCCEEDED
         with self.active_goal_request_lock:
             self.active_goal_request = None  # Clear the active goal
+        self.get_logger().info(f"...Done {result}!")
         return result
 
 

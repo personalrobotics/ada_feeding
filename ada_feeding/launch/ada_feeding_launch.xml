@@ -1,6 +1,8 @@
 <launch>
   <arg name="run_web_bridge" default="true" description="Whether to run the web bridge nodes" />
   <arg name="use_estop" default="true" description="Whether to use the e-stop. Should only be set false in sim, since we don't have a way of simulating the e-stop button." />
+  <arg name="log_level" default="info" description="Log Level to pass to create_action_servers: debug, info, warn" />
+  <arg name="default_action_select" default="true" description="Whether to use the default action select: constant policy 0" />
 
   <group if="$(var run_web_bridge)">
     <!-- The ROSBridge Node -->
@@ -17,15 +19,27 @@
   </node>
 
   <!-- Launch the action servers necessary to move the robot -->
-  <node pkg="ada_feeding" exec="create_action_servers.py" name="ada_feeding_action_servers" respawn="true">
+  <node pkg="ada_feeding" exec="create_action_servers.py" name="ada_feeding_action_servers" respawn="true" args="--ros-args --log-level $(var log_level) --log-level rcl:=INFO --log-level rmw_cyclonedds_cpp:=INFO">
     <param from="$(find-pkg-share ada_feeding)/config/ada_feeding_action_servers.yaml"/>
     <remap from="~/watchdog" to="/ada_watchdog/watchdog" />
     <remap from="~/toggle_watchdog_listener" to="/ada_watchdog_listener/toggle_watchdog_listener" />
     <remap from="~/re_tare_ft" to="/wireless_ft/set_bias" />
     <remap from="~/set_force_gate_controller_parameters" to="/jaco_arm_controller/set_parameters" />
+    <remap from="~/set_servo_controller_parameters" to="/jaco_arm_servo_controller/set_parameters" />
     <remap from="~/toggle_face_detection" to="/toggle_face_detection" />
     <remap from="~/face_detection" to="/face_detection" />
+    <remap from="~/switch_controller" to="/controller_manager/switch_controller" />
+    <remap from="~/start_servo" to="/servo_node/start_servo" />
+    <remap from="~/servo_twist_cmds" to="/servo_node/delta_twist_cmds" />
+    <remap from="~/stop_servo" to="/servo_node/stop_servo" />
+    <remap from="~/action_select" to="/ada_feeding_action_select/action_select" />
+    <remap from="~/action_report" to="/ada_feeding_action_select/action_report" />
   </node>
+
+  <!-- Include Default Action Selection Server -->
+  <group if="$(var default_action_select)">
+    <include file="$(find-pkg-share ada_feeding_action_select)/launch/ada_feeding_action_select_launch.xml"/>
+  </group>
 
   <!-- Populate the planning scene -->
   <node pkg="ada_feeding" exec="ada_planning_scene.py" name="ada_planning_scene">

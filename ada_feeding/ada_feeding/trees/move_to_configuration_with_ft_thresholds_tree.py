@@ -6,32 +6,39 @@ tree and provides functions to wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
-import logging
 from typing import List, Set
 
 # Third-party imports
+from overrides import override
 import py_trees
 from rclpy.node import Node
 
 # Local imports
-from ada_feeding.idioms import pre_moveto_config
+from ada_feeding.behaviors.moveit2 import (
+    MoveIt2Plan,
+    MoveIt2Execute,
+    MoveIt2JointConstraint,
+)
+from ada_feeding.helpers import BlackboardKey
+from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import get_toggle_watchdog_listener_behavior
-from ada_feeding.trees import MoveToTree, MoveToConfigurationTree
+from ada_feeding.trees import MoveToTree
 
 
 class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
     """
     A behavior tree that moves the robot to a specified configuration, after
     re-taring the FT sensor and setting specific FT thresholds.
+
+    TODO: Add the ability to pass force-torque thresholds to revert after the
+    motion, and then set the force-torque thresholds in the scoped behavior.
     """
 
-    # pylint: disable=too-many-instance-attributes, too-many-arguments
-    # Many arguments is fine for this class since it has to be able to configure all parameters
-    # of its constraints.
-    # pylint: disable=dangerous-default-value
-    # A mutable default value is okay since we don't change it in this function.
+    # pylint: disable=too-many-instance-attributes
+
     def __init__(
         self,
+        node: Node,
         # Required parameters for moving to a configuration
         joint_positions: List[float],
         # Optional parameters for moving to a configuration
@@ -92,11 +99,14 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             tree, this should be False. Else (e.g., if this is a standalone tree), True.
         """
 
-        # pylint: disable=too-many-locals
-        # One over is okay
+        # pylint: disable=too-many-arguments, too-many-function-args, too-many-locals
+        # Many arguments is fine for this class since it has to be able to configure all parameters
+        # of its constraints.
+        # pylint: disable=dangerous-default-value
+        # A mutable default value is okay since we don't change it in this function.
 
         # Initialize MoveToTree
-        super().__init__()
+        super().__init__(node)
 
         # Store the parameters for the joint goal constraint
         self.joint_positions = joint_positions
@@ -124,46 +134,53 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
         self.clear_constraints = clear_constraints
 
-    def create_move_to_tree(
+    @override
+    def create_tree(
         self,
         name: str,
-        tree_root_name: str,
-        logger: logging.Logger,
-        node: Node,
     ) -> py_trees.trees.BehaviourTree:
-        """
-        Creates the MoveToConfigurationWithFTThresholdsTree behavior tree.
+        # Docstring copied from @override
 
-        Parameters
-        ----------
-        name: The name of the behavior tree.
-        logger: The logger to use for the behavior tree.
-        node: The ROS2 node that this tree is associated with. Necessary for
-            behaviors within the tree connect to ROS topics/services/actions.
-
-        Returns
-        -------
-        tree: The behavior tree that moves the robot above the plate.
-        """
         turn_watchdog_listener_on_prefix = "turn_watchdog_listener_on"
 
         # First, create the MoveToConfiguration behavior tree, in the same
         # namespace as this tree
-        move_to_configuration_root = (
-            MoveToConfigurationTree(
-                joint_positions=self.joint_positions,
-                tolerance=self.tolerance_joint,
-                weight=self.weight_joint,
-                pipeline_id=self.pipeline_id,
-                planner_id=self.planner_id,
-                allowed_planning_time=self.allowed_planning_time,
-                max_velocity_scaling_factor=self.max_velocity_scaling_factor,
-                max_acceleration_scaling_factor=self.max_acceleration_scaling_factor,
-                keys_to_not_write_to_blackboard=self.keys_to_not_write_to_blackboard,
-                clear_constraints=self.clear_constraints,
-            )
-            .create_tree(name, self.action_type, tree_root_name, logger, node)
-            .root
+        move_to_configuration_root = py_trees.composites.Sequence(
+            name=name,
+            memory=True,
+            children=[
+                MoveIt2JointConstraint(
+                    name="JointConstraint",
+                    ns=name,
+                    inputs={
+                        "joint_positions": self.joint_positions,
+                        "tolerance": self.tolerance_joint,
+                        "weight": self.weight_joint,
+                    },
+                    outputs={
+                        "constraints": BlackboardKey("goal_constraints"),
+                    },
+                ),
+                MoveIt2Plan(
+                    name="MoveToConfigurationPlan",
+                    ns=name,
+                    inputs={
+                        "goal_constraints": BlackboardKey("goal_constraints"),
+                        "pipeline_id": self.pipeline_id,
+                        "planner_id": self.planner_id,
+                        "allowed_planning_time": self.allowed_planning_time,
+                        "max_velocity_scale": self.max_velocity_scaling_factor,
+                        "max_acceleration_scale": self.max_acceleration_scaling_factor,
+                    },
+                    outputs={"trajectory": BlackboardKey("trajectory")},
+                ),
+                MoveIt2Execute(
+                    name="MoveToConfigurationExecute",
+                    ns=name,
+                    inputs={"trajectory": BlackboardKey("trajectory")},
+                    outputs={},
+                ),
+            ],
         )
 
         # Add the re-taring and FT thresholds
@@ -179,49 +196,33 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             t_x=self.t_x,
             t_y=self.t_y,
             t_z=self.t_z,
-            logger=logger,
         )
-
-        # Combine them in a sequence with memory
-        main_tree = py_trees.composites.Sequence(
-            name=name,
-            memory=True,
-            children=[pre_moveto_behavior, move_to_configuration_root],
-        )
-        main_tree.logger = logger
 
         if self.toggle_watchdog_listener:
             # If there was a failure in the main tree, we want to ensure to turn
             # the watchdog listener back on
-            # pylint: disable=duplicate-code
+            # pylint: disable=duplicate-code, too-many-function-args
             # This is similar to any other tree that needs to cleanup pre_moveto_config
             turn_watchdog_listener_on = get_toggle_watchdog_listener_behavior(
                 name,
                 turn_watchdog_listener_on_prefix,
                 True,
-                logger,
             )
 
-            # Create a cleanup branch for the behaviors that should get executed if
-            # the main tree has a failure
-            cleanup_tree = turn_watchdog_listener_on
-
-            # If main_tree fails, we still want to do some cleanup.
-            root = py_trees.composites.Selector(
+            # Create the main tree
+            root = scoped_behavior(
+                name=name + " ToggleWatchdogListenerOffScope",
+                pre_behavior=pre_moveto_behavior,
+                workers=[move_to_configuration_root],
+                post_behavior=turn_watchdog_listener_on,
+            )
+        else:
+            # Combine them in a sequence with memory
+            root = py_trees.composites.Sequence(
                 name=name,
                 memory=True,
-                children=[
-                    main_tree,
-                    # Even though we are cleaning up the tree, it should still
-                    # pass the failure up.
-                    py_trees.decorators.SuccessIsFailure(
-                        name + " Cleanup Root", cleanup_tree
-                    ),
-                ],
+                children=[pre_moveto_behavior, move_to_configuration_root],
             )
-            root.logger = logger
-        else:
-            root = main_tree
 
         tree = py_trees.trees.BehaviourTree(root)
         return tree

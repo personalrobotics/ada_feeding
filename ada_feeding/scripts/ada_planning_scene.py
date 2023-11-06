@@ -22,8 +22,8 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
-CollisionMeshParams = namedtuple(
-    "CollisionMeshParams",
+CollisionObjectParams = namedtuple(
+    "CollisionObjectParams",
     [
         "filepath",
         "primitive_type",
@@ -31,6 +31,8 @@ CollisionMeshParams = namedtuple(
         "position",
         "quat_xyzw",
         "frame_id",
+        "attached",
+        "touch_links",
     ],
 )
 
@@ -189,6 +191,32 @@ class ADAPlanningScene(Node):
                     read_only=True,
                 ),
             )
+            attached = self.declare_parameter(
+                f"{object_id}.attached",
+                False,
+                descriptor=ParameterDescriptor(
+                    name="attached",
+                    type=ParameterType.PARAMETER_BOOL,
+                    description=(
+                        "Whether the object is attached to the robot. "
+                        "If True, frame_id must be a robot link."
+                    ),
+                    read_only=True,
+                ),
+            )
+            touch_links = self.declare_parameter(
+                f"{object_id}.touch_links",
+                None,
+                descriptor=ParameterDescriptor(
+                    name="touch_links",
+                    type=ParameterType.PARAMETER_STRING_ARRAY,
+                    description=(
+                        "The links that the object is allowed to touch. "
+                        "Only applies if `attached` is True."
+                    ),
+                    read_only=True,
+                ),
+            )
 
             # Add the object to the list of objects
             filepath = (
@@ -196,13 +224,16 @@ class ADAPlanningScene(Node):
                 if filename.value is None
                 else path.join(assets_dir.value, filename.value)
             )
-            self.objects[object_id] = CollisionMeshParams(
+            touch_links = [] if touch_links.value is None else touch_links.value
+            self.objects[object_id] = CollisionObjectParams(
                 filepath=filepath,
                 primitive_type=primitive_type.value,
                 primitive_dims=primitive_dims.value,
                 position=position.value,
                 quat_xyzw=quat_xyzw.value,
                 frame_id=frame_id.value,
+                attached=attached.value,
+                touch_links=touch_links,
             )
 
     def wait_for_moveit(self) -> None:
@@ -213,11 +244,8 @@ class ADAPlanningScene(Node):
         rate = self.create_rate(self.wait_for_moveit_hz)
         while rclpy.ok():
             # pylint: disable=protected-access
-            # This is necessary. Ideally, the publisher would not be protected.
-            if (
-                self.moveit2._MoveIt2__collision_object_publisher.get_subscription_count()
-                > 0
-            ):
+            # This is necessary. Ideally, the service would not be protected.
+            if self.moveit2._get_planning_scene_service.service_is_ready():
                 break
             rate.sleep()
 
@@ -228,22 +256,44 @@ class ADAPlanningScene(Node):
         # Add each object to the planning scene
         for object_id, params in self.objects.items():
             if params.primitive_type is None:
-                self.moveit2.add_collision_mesh(
-                    id=object_id,
-                    filepath=params.filepath,
-                    position=params.position,
-                    quat_xyzw=params.quat_xyzw,
-                    frame_id=params.frame_id,
-                )
+                if params.attached:
+                    self.moveit2.add_attached_collision_mesh(
+                        id=object_id,
+                        filepath=params.filepath,
+                        position=params.position,
+                        quat_xyzw=params.quat_xyzw,
+                        link_name=params.frame_id,
+                        touch_links=params.touch_links,
+                    )
+                else:
+                    self.moveit2.add_collision_mesh(
+                        id=object_id,
+                        filepath=params.filepath,
+                        position=params.position,
+                        quat_xyzw=params.quat_xyzw,
+                        frame_id=params.frame_id,
+                    )
             else:
-                self.moveit2.add_collision_primitive(
-                    id=object_id,
-                    prim_type=params.primitive_type,
-                    dims=params.primitive_dims,
-                    position=params.position,
-                    quat_xyzw=params.quat_xyzw,
-                    frame_id=params.frame_id,
-                )
+                if params.attached:
+                    self.moveit2.add_attached_collision_primitive(
+                        id=object_id,
+                        prim_type=params.primitive_type,
+                        dims=params.primitive_dims,
+                        position=params.position,
+                        quat_xyzw=params.quat_xyzw,
+                        link_name=params.frame_id,
+                        touch_links=params.touch_links,
+                    )
+                else:
+                    self.moveit2.add_collision_primitive(
+                        id=object_id,
+                        prim_type=params.primitive_type,
+                        dims=params.primitive_dims,
+                        position=params.position,
+                        quat_xyzw=params.quat_xyzw,
+                        frame_id=params.frame_id,
+                    )
+            time.sleep(0.2)
 
 
 def main(args: List = None) -> None:

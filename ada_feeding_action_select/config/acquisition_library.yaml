@@ -4,23 +4,23 @@ actions:
     - # Default Action (VS90)
       pre_pos: [0.0, 0.0, 1.0]
       pre_quat: [0.0, 0.7071068, -0.7071068, 0.0]
-      pre_offset: [0.0, 0.0, 0.0]
-      pre_force: 15.0
+      pre_offset: [0.0, 0.0, -0.015]
+      pre_force: 20.0
       pre_torque: 4.0
       grasp_linear: [0.0, 0.0, 0.0]
       grasp_angular: [0.0, 0.0, 0.0]
       grasp_duration: 0.0
       grasp_force: 15.0
       grasp_torque: 4.0
-      ext_linear: [0.0, 0.0, 1.0]
+      ext_linear: [0.0, 0.0, 0.1]
       ext_angular: [0.0, 0.0, 0.0]
-      ext_duration: 1.0
+      ext_duration: 1.5
       ext_force: 50.0
       ext_torque: 4.0
     - # Tilted Vertical (TV90)
       pre_pos: [0.0, 0.0, 1.0]
       pre_quat: [-0.174941, 0.6851245, 0.6851245, -0.174941]
-      pre_offset: [0.0, 0.0, 0.0]
+      pre_offset: [0.0, 0.0, -0.01]
       pre_force: 15.0
       pre_torque: 4.0
       grasp_linear: [0.0, 0.0, 0.0]
@@ -28,15 +28,15 @@ actions:
       grasp_duration: 0.0
       grasp_force: 15.0
       grasp_torque: 4.0
-      ext_linear: [0.0, 0.0, 1.0]
+      ext_linear: [0.0, 0.0, 0.1]
       ext_angular: [0.0, 0.0, 0.0]
-      ext_duration: 1.0
+      ext_duration: 1.5
       ext_force: 50.0
       ext_torque: 4.0
     - # Tilted Angled (TA90)
       pre_pos: [-0.4949747468305832, 0.0, 0.6363961030678928]
       pre_quat: [0.1379497, 0.6935199, 0.6935199, 0.1379497]
-      pre_offset: [0.0, 0.0, 0.0]
+      pre_offset: [0.0, 0.0, -0.01]
       pre_force: 15.0
       pre_torque: 4.0
       grasp_linear: [0.0, 0.0, 0.0]
@@ -44,9 +44,9 @@ actions:
       grasp_duration: 0.0
       grasp_force: 15.0
       grasp_torque: 4.0
-      ext_linear: [0.0, 0.0, 1.0]
+      ext_linear: [0.0, 0.0, 0.1]
       ext_angular: [0.0, 0.0, 0.0]
-      ext_duration: 1.0
+      ext_duration: 1.5
       ext_force: 50.0
       ext_torque: 4.0
     #### k=11 Medioids (Add 3 for Index)

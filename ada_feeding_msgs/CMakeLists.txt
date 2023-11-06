@@ -26,6 +26,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/SegmentAllItems.action"
   "action/SegmentFromPoint.action"
   "action/Teleoperate.action"
+  "action/Trigger.action"
 
   "srv/AcquisitionReport.srv"
   "srv/AcquisitionSelect.srv"

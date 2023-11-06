@@ -12,6 +12,7 @@
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
 
   <exec_depend>rcl_interfaces</exec_depend>
   <exec_depend>ros2launch</exec_depend>
@@ -20,6 +21,11 @@
   <exec_depend>pymoveit2</exec_depend>
 
   <exec_depend>std_srvs</exec_depend>
+
+  <!-- Extra Python Deps -->
+  <depend>pyrealsense2-pip</depend>
+  <depend>overrides-pip</depend>
+  <depend>ros2_numpy-pip</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

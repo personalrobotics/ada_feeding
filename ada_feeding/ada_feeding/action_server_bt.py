@@ -4,7 +4,6 @@ servers with py_trees.
 """
 # Standard imports
 from abc import ABC, abstractmethod
-import logging
 import traceback
 
 # Third-party imports
@@ -20,18 +19,18 @@ class ActionServerBT(ABC):
     `create_action_server.py`
     """
 
-    # pylint: disable=too-many-arguments
-    # One over is fine.
+    def __init__(self, node: Node) -> None:
+        """
+        Store the ROS2 Node that created trees is associated with. Necessary for
+        behaviors within the tree to connect to ROS topics/services/actions.
+
+        Subclasses should add kwargs with tree-agnostic
+        input parameters.
+        """
+        self._node = node
 
     @abstractmethod
-    def create_tree(
-        self,
-        name: str,
-        action_type: type,
-        tree_root_name: str,
-        logger: logging.Logger,
-        node: Node,
-    ) -> py_trees.trees.BehaviourTree:
+    def create_tree(self, name: str) -> py_trees.trees.BehaviourTree:
         """
         Create the behavior tree that will be executed by this action server.
         Note that subclasses of ActionServerBT can decide whether they want
@@ -40,13 +39,6 @@ class ActionServerBT(ABC):
         Parameters
         ----------
         name: The name of the behavior tree.
-        action_type: the type for the action, as a class
-        tree_root_name: The name of the tree. This is necessary because sometimes
-            trees create subtrees, but still need to track the top-level tree
-            name to read/write the correct blackboard variables.
-        logger: The logger to use for the behavior tree.
-        node: The ROS2 node that this tree is associated with. Necessary for
-            behaviors within the tree connect to ROS topics/services/actions.
         """
         raise NotImplementedError("create_tree not implemented")
 
@@ -94,7 +86,9 @@ class ActionServerBT(ABC):
             return False
 
     @abstractmethod
-    def get_feedback(self, tree: py_trees.trees.BehaviourTree) -> object:
+    def get_feedback(
+        self, tree: py_trees.trees.BehaviourTree, action_type: type
+    ) -> object:
         """
         Creates the ROS feedback message corresponding to this action.
 
@@ -103,15 +97,18 @@ class ActionServerBT(ABC):
         Parameters
         ----------
         tree: The behavior tree that is being executed.
+        action_type: the type for the action, as a class
 
         Returns
         -------
-        feedback: The ROS feedback message to be sent to the action client.
+        The ROS feedback message to be sent to the action client, type action_type.Feedback()
         """
         raise NotImplementedError("get_feedback not implemented")
 
     @abstractmethod
-    def get_result(self, tree: py_trees.trees.BehaviourTree) -> object:
+    def get_result(
+        self, tree: py_trees.trees.BehaviourTree, action_type: type
+    ) -> object:
         """
         Creates the ROS result message corresponding to this action.
 
@@ -120,9 +117,10 @@ class ActionServerBT(ABC):
         Parameters
         ----------
         tree: The behavior tree that is being executed.
+        action_type: the type for the action, as a class
 
         Returns
         -------
-        result: The ROS result message to be sent to the action client.
+        The ROS result message to be sent to the action client, type action_type.Result()
         """
         raise NotImplementedError("get_result not implemented")
