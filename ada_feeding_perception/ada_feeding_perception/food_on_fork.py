@@ -11,10 +11,12 @@ from cv_bridge import CvBridge, CvBridgeError
 import joblib
 import numpy as np
 import numpy.typing as npt
+import os
 from typing import Optional
 from typing import Tuple
 
 # Third-Party imports
+from ament_index_python.packages import get_package_share_directory
 import rclpy
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from rclpy.executors import MultiThreadedExecutor
@@ -24,7 +26,11 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 
 # Local imports
-import helpers
+from ada_feeding_perception.helpers import (
+    food_on_fork_featurizer_num_pixels,
+    food_on_fork_featurizer_all_pixels,
+    normalize_to_uint8,
+)
 
 
 class FoodOnFork(Node):
@@ -62,7 +68,7 @@ class FoodOnFork(Node):
         )
         self.min_depth = min_depth.value
         self.max_depth = max_depth.value
-
+        self.single_feature = single_feature.value
         self.test = test.value
         self.get_logger().info(str(self.test))
 
@@ -72,7 +78,7 @@ class FoodOnFork(Node):
         # )
         self.subscription_depth = self.create_subscription(
             Image,
-            "~/aligned_depth",
+            "/camera/aligned_depth_to_color/image_raw",
             self.listener_callback_depth,
             1,
         )
@@ -87,7 +93,11 @@ class FoodOnFork(Node):
         self.bridge = CvBridge()
 
         # initialize the model
-        self.model = joblib.load(model_loc.value)
+        model_path = os.path.join(
+            get_package_share_directory("ada_feeding_perception"),
+            model_loc.value,
+        )
+        self.model = joblib.load(model_path)
 
     def read_params(
         self,
@@ -227,13 +237,16 @@ class FoodOnFork(Node):
         depth_img = None
         try:
             depth_img = self.bridge.imgmsg_to_cv2(depth_img_msg, "passthrough")
+            if self.test:
+                cv.imshow("depth image", normalize_to_uint8(depth_img))
+                cv.waitKey(1)
         except CvBridgeError as e:
             print(e)
             return
 
         if self.single_feature:
             # Only number of pixels is the input (single feature):
-            num_pixels = helpers.food_on_fork_featurizer_num_pixels(
+            num_pixels = food_on_fork_featurizer_num_pixels(
                 depth_img,
                 self.left_top_corner,
                 self.right_bottom_corner,
@@ -253,7 +266,7 @@ class FoodOnFork(Node):
             # cv.rectangle(depth_img_copy, (317, 238), (445, 322), (255, 0, 0))
             # cv.imshow("aligned_depthImg", depth_img_copy)
 
-            cropped_img_np = helpers.food_on_fork_featurizer_all_pixels(
+            cropped_img_np = food_on_fork_featurizer_all_pixels(
                 depth_img,
                 self.left_top_corner,
                 self.right_bottom_corner,
@@ -268,7 +281,7 @@ class FoodOnFork(Node):
             if self.test:
                 self.get_logger().info(str(prediction))
 
-            # cv.imshow("cropped_img_preds", helpers.normalize_to_uint8(cropped_img_np))
+            # cv.imshow("cropped_img_preds", normalize_to_uint8(cropped_img_np))
             # cv.waitKey(1)
 
         float32msg = Float32()

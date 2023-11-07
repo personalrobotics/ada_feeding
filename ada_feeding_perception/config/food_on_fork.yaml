@@ -14,8 +14,8 @@ food_on_fork:
     min_depth: 310
     # maximum depth to consider (note that 330 is approx distance to the fork tine)
     max_depth: 370
-    # absolute path for the model
-    model_location: "/home/atharvak/atharvak_ws/src/ada_feeding/ada_feeding_perception/model/categorical_naive_bayes_aligned_depth_10-17-23.pkl"
+    # relative path for the model
+    model_location: model/categorical_naive_bayes_aligned_depth_10-17-23.pkl
     # single feature or not
     single_feature: False
     # testing
