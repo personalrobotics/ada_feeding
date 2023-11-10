@@ -452,13 +452,18 @@ class FaceDetectionNode(Node):
             desired_encoding="passthrough",
         )
 
-        # Retrieve the depth value averaged over all mouth coordinates
+        # Retrieve the depth value averaged over all viable mouth coordinates
         depth_sum = 0
         num_points_in_frame = 0
+        num_points_at_depth = 0
         for point in face_points:
             x, y = int(point[0]), int(point[1])
+            # Ensure that point is contained within the depth image frame
             if 0 <= x < image_depth.shape[1] and 0 <= y < image_depth.shape[0]:
                 num_points_in_frame += 1
+            # Ensure that the point is farther away from the camera than the fork tip (~450 mm)
+            if image_depth[y][x] > 450:
+                num_points_at_depth += 1
                 depth_sum += image_depth[y][x]
         if num_points_in_frame < 0.5 * len(face_points):
             self.get_logger().warn(
@@ -466,7 +471,12 @@ class FaceDetectionNode(Node):
                 "were outside the frame of the depth image. Ignoring this face."
             )
             return False, 0
-
+        if num_point_at_depth == 0:
+            self.get_logger().warn(
+                "Detected face in the RGB image, but no mouth points were "
+                "detected farther away than the fork tip. Ignoring this face."
+            )
+            return False, 0
         depth_mm = depth_sum / float(num_points_in_frame)
         return True, depth_mm
 
