@@ -141,6 +141,7 @@ class GetTransform(BlackboardBehavior):
         source_frame: Union[BlackboardKey, str],
         time: Union[BlackboardKey, Time] = Time(),
         timeout: Union[BlackboardKey, Duration] = Duration(seconds=0.0),
+        new_type: Union[BlackboardKey, type] = TransformStamped,
     ) -> None:
         """
         Blackboard Inputs
@@ -153,8 +154,10 @@ class GetTransform(BlackboardBehavior):
         timeout: Time to wait for the target frame to become available.
             Note that the tree ticking will block for this duration, so it is
             recommended that this is kept at 0.0 (the default value).
+        new_type: The type of the transform to return. Must be either TransformStamped
+            or PoseStamped.
         """
-        # pylint: disable=unused-argument, duplicate-code
+        # pylint: disable=unused-argument, duplicate-code, too-many-arguments
         # Arguments are handled generically in base class.
         super().blackboard_inputs(
             **{key: value for key, value in locals().items() if key != "self"}
@@ -162,7 +165,7 @@ class GetTransform(BlackboardBehavior):
 
     def blackboard_outputs(
         self,
-        transform: Optional[BlackboardKey],  # TransformStamped
+        transform: Optional[BlackboardKey],  # new_type
     ) -> None:
         """
         Blackboard Outputs
@@ -198,7 +201,7 @@ class GetTransform(BlackboardBehavior):
 
         # Input Validation
         if not self.blackboard_exists(
-            ["target_frame", "source_frame", "time", "timeout"]
+            ["target_frame", "source_frame", "time", "timeout", "new_type"]
         ):
             self.logger.error("Missing input arguments")
             return py_trees.common.Status.FAILURE
@@ -207,6 +210,12 @@ class GetTransform(BlackboardBehavior):
         source_frame = self.blackboard_get("source_frame")
         time = self.blackboard_get("time")
         timeout = self.blackboard_get("timeout")
+        new_type = self.blackboard_get("new_type")
+        if new_type not in [TransformStamped, PoseStamped]:
+            self.logger.error(
+                f"Invalid type {new_type}. Must be either TransformStamped or PoseStamped"
+            )
+            return py_trees.common.Status.FAILURE
 
         if self.tf_lock.locked():
             return py_trees.common.Status.RUNNING
@@ -227,6 +236,19 @@ class GetTransform(BlackboardBehavior):
                 self.logger.error(f"Could not get transform. Error: {error}")
                 return py_trees.common.Status.FAILURE
 
+        if new_type == PoseStamped:
+            transform = PoseStamped(
+                header=transform.header,
+                pose=Pose(
+                    position=Point(
+                        x=transform.transform.translation.x,
+                        y=transform.transform.translation.y,
+                        z=transform.transform.translation.z,
+                    ),
+                    orientation=transform.transform.rotation,
+                ),
+            )
+
         self.blackboard_set("transform", transform)
         return py_trees.common.Status.SUCCESS
 
@@ -244,7 +266,7 @@ class SetStaticTransform(BlackboardBehavior):
     def blackboard_inputs(
         self,
         transform: Union[BlackboardKey, TransformStamped, PoseStamped],
-        child_frame_id: Union[BlackboardKey, str],
+        child_frame_id: Union[BlackboardKey, Optional[str]] = None,
     ) -> None:
         """
         Blackboard Inputs

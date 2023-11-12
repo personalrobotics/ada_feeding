@@ -14,10 +14,10 @@ from typing import Tuple
 
 # Third-party imports
 from geometry_msgs.msg import (
+    Point,
+    Pose,
+    PoseStamped,
     Quaternion,
-    Transform,
-    TransformStamped,
-    Vector3,
 )
 from overrides import override
 import py_trees
@@ -89,6 +89,7 @@ class MoveToMouthTree(MoveToTree):
         allowed_face_distance: Tuple[float, float] = (0.4, 1.5),
         face_detection_msg_timeout: float = 5.0,
         face_detection_timeout: float = 2.5,
+        plan_distance_from_mouth: float = 0.05,
     ):
         """
         Initializes tree-specific parameters.
@@ -121,14 +122,14 @@ class MoveToMouthTree(MoveToTree):
             is older than these many seconds, don't use it.
         face_detection_timeout: If the robot has been trying to detect a face for
             more than these many seconds, timeout.
+        plan_distance_from_mouth: The distance (m) to plan from the mouth center.
         """
 
         # pylint: disable=too-many-locals
         # These are all necessary due to all the behaviors MoveToMouth contains
 
-        # TODO: This class should override get_result and get_feedback to return
-        # perception failures, and tell the user it is attempting perception,
-        # while it is waiting for the user's face.
+        # TODO: Consider modifying feedback to return whether it is perceiving
+        # the face right now. Not crucial, but may be nice to have.
 
         # Initialize MoveToTree
         super().__init__(node)
@@ -147,6 +148,7 @@ class MoveToMouthTree(MoveToTree):
         self.allowed_face_distance = allowed_face_distance
         self.face_detection_msg_timeout = Duration(seconds=face_detection_msg_timeout)
         self.face_detection_timeout = face_detection_timeout
+        self.plan_distance_from_mouth = plan_distance_from_mouth
 
         self.face_detection_relative_blackboard_key = "face_detection"
 
@@ -210,6 +212,8 @@ class MoveToMouthTree(MoveToTree):
             name=name,
             memory=True,
             children=[
+                # NOTE: `get_result` relies on "FaceDetection" only being in the
+                # names of perception behaviors.
                 py_trees.composites.Selector(
                     name=name + " FaceDetectionSelector",
                     memory=True,
@@ -244,7 +248,8 @@ class MoveToMouthTree(MoveToTree):
                                                 # Check if the face detection message is not stale
                                                 # and close enough to the camera
                                                 py_trees.behaviours.CheckBlackboardVariableValue(
-                                                    name=name + " CheckFaceMsg",
+                                                    name=name
+                                                    + " CheckFaceDetectionMsg",
                                                     check=py_trees.common.ComparisonExpression(
                                                         variable=face_detection_absolute_key,
                                                         value=FaceDetection(),
@@ -276,10 +281,13 @@ class MoveToMouthTree(MoveToTree):
                                                         children=[
                                                             # Get the detected face
                                                             py_trees_ros.subscribers.ToBlackboard(
-                                                                name=name + " GetFace",
+                                                                name=name
+                                                                + " GetFaceDetectionMsg",
                                                                 topic_name="~/face_detection",
                                                                 topic_type=FaceDetection,
-                                                                qos_profile=py_trees_ros.utilities.qos_profile_unlatched(),
+                                                                qos_profile=(
+                                                                    py_trees_ros.utilities.qos_profile_unlatched()
+                                                                ),
                                                                 blackboard_variables={
                                                                     face_detection_absolute_key: None,
                                                                 },
@@ -290,10 +298,10 @@ class MoveToMouthTree(MoveToTree):
                                                             # Check whether the face is within the required distance
                                                             py_trees.decorators.FailureIsRunning(
                                                                 name=name
-                                                                + " CheckFaceWrapper",
+                                                                + " CheckFaceDetectionWrapper",
                                                                 child=py_trees.behaviours.CheckBlackboardVariableValue(
                                                                     name=name
-                                                                    + " CheckFaceMsg",
+                                                                    + " CheckFaceDetectionMsg",
                                                                     check=py_trees.common.ComparisonExpression(
                                                                         variable=face_detection_absolute_key,
                                                                         value=FaceDetection(),
@@ -311,11 +319,12 @@ class MoveToMouthTree(MoveToTree):
                                 # Convert `face_detection` to `mouth_position` in the
                                 # base frame.
                                 ApplyTransform(
-                                    name=name + " FaceDetectionToMouthPosition",
+                                    name=name + " ConvertFaceDetectionToBaseFrame",
                                     ns=name,
                                     inputs={
                                         "stamped_msg": BlackboardKey(
-                                            self.face_detection_relative_blackboard_key + ".detected_mouth_center"
+                                            self.face_detection_relative_blackboard_key
+                                            + ".detected_mouth_center"
                                         ),
                                         "target_frame": "j2n6s200_link_base",
                                     },
@@ -328,15 +337,15 @@ class MoveToMouthTree(MoveToTree):
                                 # Convert `mouth_position` into a mouth pose using
                                 # a fixed quaternion
                                 CreatePoseStamped(
-                                    name=name + " MouthPositionToMouthPose",
+                                    name=name + " FaceDetectionToPose",
                                     ns=name,
                                     inputs={
                                         "position": BlackboardKey("mouth_position"),
                                         "quaternion": [
-                                            -0.0616284,
-                                            -0.0616284,
-                                            -0.704416,
-                                            0.704416,
+                                            0.0,
+                                            0.0,
+                                            -0.7071068,
+                                            0.7071068,
                                         ],  # Facing away from wheelchair backrest
                                     },
                                     outputs={
@@ -347,7 +356,7 @@ class MoveToMouthTree(MoveToTree):
                                 ),
                                 # Cache the mouth pose on the static TF tree
                                 SetStaticTransform(
-                                    name=name + " SetMouthPose",
+                                    name=name + " SetFaceDetectionPoseOnTF",
                                     ns=name,
                                     inputs={
                                         "transform": BlackboardKey("mouth_pose"),
@@ -359,11 +368,12 @@ class MoveToMouthTree(MoveToTree):
                         # If there is a cached detected mouth pose on the static
                         # transform tree, use it.
                         GetTransform(
-                            name=name + " GetCachedMouthPose",
+                            name=name + " GetCachedFaceDetection",
                             ns=name,
                             inputs={
                                 "target_frame": "j2n6s200_link_base",
                                 "source_frame": "mouth",
+                                "new_type": PoseStamped,
                             },
                             outputs={
                                 "transform": BlackboardKey("mouth_pose"),
@@ -389,42 +399,35 @@ class MoveToMouthTree(MoveToTree):
                     },
                 ),
                 # The goal constraint of the fork is the mouth pose,
-                # translated 5cm in the +y direction, rotated to face the mouth
+                # translated `self.plan_distance_from_mouth` in front of the mouth,
+                # and rotated to match the forkTip orientation.
                 ApplyTransform(
                     name=name + " ComputeMoveToMouthPose",
                     ns=name,
                     inputs={
-                        "stamped_msg": BlackboardKey("mouth_pose"),
-                        "target_frame": None,
-                        "transform": TransformStamped(
-                            child_frame_id="j2n6s200_link_base",
-                            transform=Transform(
-                                translation=Vector3(
-                                    x=0.0,
-                                    y=-0.05,
-                                    z=0.0,
-                                ),
-                                rotation=Quaternion(
-                                    x=0.0,
+                        "stamped_msg": PoseStamped(
+                            header=Header(
+                                stamp=Time().to_msg(),
+                                frame_id="mouth",
+                            ),
+                            pose=Pose(
+                                position=Point(
+                                    x=self.plan_distance_from_mouth,
                                     y=0.0,
                                     z=0.0,
-                                    w=1.0,
+                                ),
+                                orientation=Quaternion(
+                                    x=0.5,
+                                    y=-0.5,
+                                    z=-0.5,
+                                    w=0.5,
                                 ),
                             ),
                         ),
+                        "target_frame": "j2n6s200_link_base",
                     },
                     outputs={
                         "transformed_msg": BlackboardKey("goal_pose"),  # PoseStamped
-                    },
-                ),
-                # Cache the mouth pose on the static TF tree
-                # TODO: remove!
-                SetStaticTransform(
-                    name=name + " SetMouthPose",
-                    ns=name,
-                    inputs={
-                        "transform": BlackboardKey("goal_pose"),
-                        "child_frame_id": "goal",
                     },
                 ),
                 # Retare the F/T sensor and set the F/T Thresholds
@@ -523,3 +526,20 @@ class MoveToMouthTree(MoveToTree):
 
         # Adds MoveToVisitor for Feedback
         return super().send_goal(tree, goal)
+
+    @override
+    def get_result(
+        self, tree: py_trees.trees.BehaviourTree, action_type: type
+    ) -> object:
+        # Docstring copied by @override
+        result_msg = super().get_result(tree, action_type)
+
+        # If the standard result determines there was a planning failure,
+        # we check whether that was actually a perception failure.
+        if result_msg.status == result_msg.STATUS_PLANNING_FAILED:
+            tip = tree.tip()
+            self._node.get_logger().info("Tip: %s" % tip)
+            if tip is not None and "FaceDetection" in tip.name:
+                result_msg.status = result_msg.STATUS_PERCEPTION_FAILED
+
+        return result_msg
