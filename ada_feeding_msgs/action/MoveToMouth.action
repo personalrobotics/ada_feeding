@@ -1,0 +1,38 @@
+# The interface for a bite transfer action that takes in a detected mouth
+# center to move to, returns whether or not it succeeded, and gives progress
+# in terms of how long it has been planning for and/or how much farther it has
+# to move.
+
+# A flag that the client can use to specify whether the included face_detection
+# msg is accurate or not. For example, if the robot moved since collecting that
+# face_detection msg, then this should be set to false, indicating that the action
+# should re-get the results of face detection. Note that it is possible that this
+# is true despite the face_detection_msg being stale (e.g., if the RobotMotion page
+# on the app gets refreshed). Hence, the action server should also implement a check
+# for whether the below message is stale.
+bool use_face_detection_msg
+
+# The output of face detection
+ada_feeding_msgs/FaceDetection face_detection
+---
+# Possible return statuses
+uint8 STATUS_SUCCESS=0
+uint8 STATUS_PLANNING_FAILED=1
+uint8 STATUS_MOTION_FAILED=2
+uint8 STATUS_CANCELED=3
+uint8 STATUS_PERCEPTION_FAILED=4
+uint8 STATUS_UNKNOWN=99
+
+# Whether the planning and motion succeeded and if not, why
+uint8 status
+---
+# Whether the robot is currently planning or moving (required)
+bool is_planning
+# The amount of time the robot has spent in planning (required)
+builtin_interfaces/Duration planning_time
+# The amount of time the robot has spent in motion (required if `is_planning == false`)
+builtin_interfaces/Duration motion_time
+# How far the robot initially was from the goal (required if `is_planning == false`)
+float64 motion_initial_distance
+# How far the robot currently is from the goal (required if `is_planning == false`)
+float64 motion_curr_distance
