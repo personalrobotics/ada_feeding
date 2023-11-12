@@ -27,6 +27,8 @@ import ros2_numpy
 from scipy.spatial.transform import Rotation as R
 
 # Local imports
+from ada_feeding_msgs.msg import AcquisitionSchema
+from ada_feeding_msgs.srv import AcquisitionSelect
 from ada_feeding.behaviors import BlackboardBehavior
 from ada_feeding.helpers import (
     BlackboardKey,
@@ -35,8 +37,6 @@ from ada_feeding.helpers import (
     set_static_tf,
 )
 from ada_feeding.idioms.pre_moveto_config import create_ft_thresh_request
-from ada_feeding_msgs.msg import AcquisitionSchema
-from ada_feeding_msgs.srv import AcquisitionSelect
 
 
 class ComputeActionConstraints(BlackboardBehavior):
