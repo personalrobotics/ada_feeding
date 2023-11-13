@@ -60,8 +60,7 @@ class MoveToMouthTree(MoveToTree):
     A behaviour tree that gets the user's mouth pose and moves the robot to it.
     Note that to get the mouth pose, the robot executes these in-order until one
     succeeds:
-    1. If `use_face_detection_msg` and the face detection message included in the
-       goal is not stale, use it.
+    1. If the face detection message included in the goal is not stale, use it.
     2. Else, attempt to detect a face from the robot's current pose and use that.
     3. Else, if there is a cached detected mouth pose on the static transform
        tree, use it.
@@ -203,9 +202,6 @@ class MoveToMouthTree(MoveToTree):
         face_detection_absolute_key = Blackboard.separator.join(
             [name, self.face_detection_relative_blackboard_key]
         )
-        use_face_detection_msg_absolute_key = Blackboard.separator.join(
-            [name, "use_face_detection_msg"]
-        )
 
         # Root Sequence
         root_seq = py_trees.composites.Sequence(
@@ -228,35 +224,15 @@ class MoveToMouthTree(MoveToTree):
                                     name=name + " FaceDetectionSelector",
                                     memory=True,
                                     children=[
-                                        # If the client said to use the face detection message and
-                                        # it is not stale, use it.
-                                        py_trees.composites.Sequence(
-                                            name=name,
-                                            memory=True,
-                                            children=[
-                                                # Check if the `use_face_detection_msg` field of the
-                                                # goal was set to True
-                                                py_trees.behaviours.CheckBlackboardVariableValue(
-                                                    name=name
-                                                    + " CheckUseFaceDetectionMsg",
-                                                    check=py_trees.common.ComparisonExpression(
-                                                        variable=use_face_detection_msg_absolute_key,
-                                                        value=True,
-                                                        operator=operator.eq,
-                                                    ),
-                                                ),
-                                                # Check if the face detection message is not stale
-                                                # and close enough to the camera
-                                                py_trees.behaviours.CheckBlackboardVariableValue(
-                                                    name=name
-                                                    + " CheckFaceDetectionMsg",
-                                                    check=py_trees.common.ComparisonExpression(
-                                                        variable=face_detection_absolute_key,
-                                                        value=FaceDetection(),
-                                                        operator=self.check_face_msg,
-                                                    ),
-                                                ),
-                                            ],
+                                        # Check if the face detection message is not stale
+                                        # and close enough to the camera
+                                        py_trees.behaviours.CheckBlackboardVariableValue(
+                                            name=name + " CheckFaceDetectionMsg",
+                                            check=py_trees.common.ComparisonExpression(
+                                                variable=face_detection_absolute_key,
+                                                value=FaceDetection(),
+                                                operator=self.check_face_msg,
+                                            ),
                                         ),
                                         # If the above didn't work, turn face detection on until
                                         # a face is detected, or until timeout
@@ -514,10 +490,6 @@ class MoveToMouthTree(MoveToTree):
         # Write tree inputs to blackboard
         name = tree.root.name
         blackboard = py_trees.blackboard.Client(name=name, namespace=name)
-        blackboard.register_key(
-            key="use_face_detection_msg", access=py_trees.common.Access.WRITE
-        )
-        blackboard.use_face_detection_msg = goal.use_face_detection_msg
         blackboard.register_key(
             key=self.face_detection_relative_blackboard_key,
             access=py_trees.common.Access.WRITE,

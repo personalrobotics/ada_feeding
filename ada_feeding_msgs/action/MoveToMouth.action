@@ -3,15 +3,6 @@
 # in terms of how long it has been planning for and/or how much farther it has
 # to move.
 
-# A flag that the client can use to specify whether the included face_detection
-# msg is accurate or not. For example, if the robot moved since collecting that
-# face_detection msg, then this should be set to false, indicating that the action
-# should re-get the results of face detection. Note that it is possible that this
-# is true despite the face_detection_msg being stale (e.g., if the RobotMotion page
-# on the app gets refreshed). Hence, the action server should also implement a check
-# for whether the below message is stale.
-bool use_face_detection_msg
-
 # The output of face detection
 ada_feeding_msgs/FaceDetection face_detection
 ---
