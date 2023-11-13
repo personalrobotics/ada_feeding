@@ -304,7 +304,7 @@ class SetStaticTransform(BlackboardBehavior):
             return py_trees.common.Status.FAILURE
 
         transform = self.blackboard_get("transform")
-        self.node.get_logger().info(f"Setting static transform: {transform}")
+        self.node.get_logger().debug(f"Setting static transform: {transform}")
         if isinstance(transform, PoseStamped):
             # Convert PoseStamped to TransformStamped
             transform = TransformStamped(
@@ -448,7 +448,6 @@ class ApplyTransform(BlackboardBehavior):
         if transformed_msg is None:
             # Apply the fixed transform
             transform_matrix = ros2_numpy.numpify(transform.transform)
-            self.node.get_logger().info(f"Transform Matrix: {transform_matrix}")
             header = Header(
                 stamp=stamped_msg.header.stamp,
                 frame_id=transform.child_frame_id,
@@ -465,7 +464,6 @@ class ApplyTransform(BlackboardBehavior):
                 )
             elif isinstance(stamped_msg, PoseStamped):
                 stamped_matrix = ros2_numpy.numpify(stamped_msg.pose)
-                self.node.get_logger().info(f"Stamped Matrix: {stamped_matrix}")
                 transformed_msg = PoseStamped(
                     header=header,
                     pose=ros2_numpy.msgify(
@@ -473,7 +471,6 @@ class ApplyTransform(BlackboardBehavior):
                         np.matmul(transform_matrix, stamped_matrix),
                     ),
                 )
-                self.node.get_logger().info(f"Transformed Pose: {transformed_msg}")
             elif isinstance(stamped_msg, Vector3Stamped):
                 stamped_vec = ros2_numpy.numpify(stamped_msg.vector, hom=True).reshape(
                     (-1, 1)
