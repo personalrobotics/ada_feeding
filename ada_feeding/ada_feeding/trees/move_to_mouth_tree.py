@@ -45,7 +45,7 @@ from ada_feeding.behaviors import (
     CreatePoseStamped,
 )
 from ada_feeding.helpers import BlackboardKey
-from ada_feeding.idioms import pre_moveto_config, scoped_behavior
+from ada_feeding.idioms import pre_moveto_config, scoped_behavior, wait_for_secs
 from ada_feeding.idioms.bite_transfer import (
     get_toggle_collision_object_behavior,
     get_toggle_face_detection_behavior,
@@ -338,6 +338,12 @@ class MoveToMouthTree(MoveToTree):
                                         "transform": BlackboardKey("mouth_pose"),
                                         "child_frame_id": "mouth",
                                     },
+                                ),
+                                # Add a slight delay to allow the static transform
+                                # to be registered
+                                wait_for_secs(
+                                    name=name + " FaceDetectionWaitForStaticTransform",
+                                    secs=0.25,
                                 ),
                             ],
                         ),
