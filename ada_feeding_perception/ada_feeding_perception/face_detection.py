@@ -345,10 +345,10 @@ class FaceDetectionNode(Node):
         # This function is not too complex, but it does have a lot of local variables.
 
         # Decode the image
-        image_rgb = cv2.imdecode(
+        image_bgr = cv2.imdecode(
             np.frombuffer(img_msg.data, np.uint8), cv2.IMREAD_COLOR
         )
-        image_gray = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2GRAY)
+        image_gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
 
         # Detect faces using the haarcascade classifier on the grayscale image
         # NOTE: This detector will launch multiple threads to detect faces in
@@ -375,11 +375,11 @@ class FaceDetectionNode(Node):
                 # Annotate the image with the face. See below for the landmark indices:
                 # https://pyimagesearch.com/2017/04/03/facial-landmarks-dlib-opencv-python/
                 if publish_annotated_img:
-                    cv2.rectangle(image_rgb, (x, y), (x + w, y + h), (255, 255, 255), 2)
+                    cv2.rectangle(image_bgr, (x, y), (x + w, y + h), (255, 255, 255), 2)
                     for j in range(48, 68):
                         landmark_x, landmark_y = landmarks[i][0][j]
                         cv2.circle(
-                            image_rgb,
+                            image_bgr,
                             (int(landmark_x), int(landmark_y)),
                             1,
                             (0, 255, 0),
@@ -388,7 +388,7 @@ class FaceDetectionNode(Node):
 
             # Annotate the image with a red rectangle around largest face
             (x, y, w, h) = faces[largest_face[1]]
-            cv2.rectangle(image_rgb, (x, y), (x + w, y + h), (0, 0, 255), 2)
+            cv2.rectangle(image_bgr, (x, y), (x + w, y + h), (0, 0, 255), 2)
 
             # Find stomion (mouth center) in image
             img_mouth_center = landmarks[largest_face[1]][0][66]
@@ -396,7 +396,9 @@ class FaceDetectionNode(Node):
 
         # Publish annotated image
         if publish_annotated_img:
-            annotated_msg = cv2_image_to_ros_msg(image_rgb, compress=False)
+            annotated_msg = cv2_image_to_ros_msg(
+                image_bgr, compress=False, encoding="bgr8"
+            )
             self.publisher_image.publish(annotated_msg)
 
         return is_face_detected, img_mouth_center, img_mouth_points
