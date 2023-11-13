@@ -33,10 +33,12 @@ This code has been developed and tested with the Kinova JACO Gen2 Arm, on comput
         1. `ros2 action send_goal /MoveAbovePlate ada_feeding_msgs/action/MoveTo "{}" --feedback`
         2. `ros2 action send_goal /AcquireFood ada_feeding_msgs/action/AcquireFood "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, detected_food: {roi: {x_offset: 0, y_offset: 0, height: 0, width: 0, do_rectify: false}, mask: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, format: '', data: []}, item_id: '', confidence: 0.0}}" --feedback`
         3. `ros2 action send_goal /MoveToRestingPosition ada_feeding_msgs/action/MoveTo "{}" --feedback`
-        4. `ros2 action send_goal /MoveToMouth ada_feeding_msgs/action/MoveTo "{}" --feedback`
-        5. `ros2 action send_goal /MoveFromMouthToRestingPosition ada_feeding_msgs/action/MoveTo "{}" --feedback`
-        6. `ros2 action send_goal /MoveFromMouthToAbovePlate ada_feeding_msgs/action/MoveTo "{}" --feedback`
-        7. `ros2 action send_goal /MoveToStowLocation ada_feeding_msgs/action/MoveTo "{}" --feedback`
+        4. `ros2 action send_goal /MoveToStagingConfiguration ada_feeding_msgs/action/MoveTo "{}" --feedback``
+        5. `ros2 action send_goal /MoveToMouth ada_feeding_msgs/action/MoveToMouth "{}" --feedback`
+        6. `ros2 action send_goal /MoveFromMouthToRestingPosition ada_feeding_msgs/action/MoveTo "{}" --feedback`
+        7. `ros2 action send_goal /MoveFromMouthToAbovePlate ada_feeding_msgs/action/MoveTo "{}" --feedback`
+        8. `ros2 action send_goal /MoveToStowLocation ada_feeding_msgs/action/MoveTo "{}" --feedback`
+        9. `ros2 action send_goal /MoveFromMouthToStagingConfiguration ada_feeding_msgs/action/MoveTo "{}" --feedback`
     2. Test the individual actions with the web app:
         1. Launch the web app ([instructions here](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp))
         2. Go through the web app, ensure the expected actions happen on the robot.
