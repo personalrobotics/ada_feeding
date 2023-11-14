@@ -12,6 +12,9 @@ from .move_to_tree import MoveToTree
 from .move_to_configuration_with_ft_thresholds_tree import (
     MoveToConfigurationWithFTThresholdsTree,
 )
+from .move_to_configuration_with_wheelchair_wall_tree import (
+    MoveToConfigurationWithWheelchairWallTree,
+)
 from .move_to_pose_tree import MoveToPoseTree
 from .move_from_mouth_tree import MoveFromMouthTree
 from .move_to_mouth_tree import MoveToMouthTree

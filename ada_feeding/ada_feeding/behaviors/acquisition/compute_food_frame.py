@@ -21,6 +21,7 @@ import tf2_ros
 # Local imports
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_msgs.srv import AcquisitionSelect
+from ada_feeding_perception.helpers import ros_msg_to_cv2_image
 from ada_feeding.helpers import (
     BlackboardKey,
     quat_between_vectors,
@@ -28,7 +29,6 @@ from ada_feeding.helpers import (
     set_static_tf,
 )
 from ada_feeding.behaviors import BlackboardBehavior
-from ada_feeding_perception.helpers import ros_msg_to_cv2_image
 
 
 class ComputeFoodFrame(BlackboardBehavior):

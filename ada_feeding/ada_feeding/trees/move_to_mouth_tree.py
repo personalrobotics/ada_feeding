@@ -9,33 +9,45 @@ wrap that behaviour tree in a ROS2 action server.
 # that they have similar code.
 
 # Standard imports
-from typing import List, Tuple
+from typing import Tuple
 
 # Third-party imports
+from geometry_msgs.msg import (
+    Point,
+    Pose,
+    PoseStamped,
+    Quaternion,
+)
 from overrides import override
 import py_trees
+from py_trees.blackboard import Blackboard
 import py_trees_ros
+from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.time import Time
+from std_msgs.msg import Header
 
 # Local imports
+from ada_feeding_msgs.action import MoveToMouth
 from ada_feeding_msgs.msg import FaceDetection
-from ada_feeding.behaviors.transfer import ComputeMoveToMouthPosition
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2Plan,
     MoveIt2Execute,
-    MoveIt2JointConstraint,
-    MoveIt2PositionConstraint,
-    MoveIt2OrientationConstraint,
+    MoveIt2PoseConstraint,
     ModifyCollisionObject,
     ModifyCollisionObjectOperation,
 )
+from ada_feeding.behaviors import (
+    GetTransform,
+    SetStaticTransform,
+    ApplyTransform,
+    CreatePoseStamped,
+)
 from ada_feeding.helpers import BlackboardKey
-from ada_feeding.idioms import pre_moveto_config, scoped_behavior
+from ada_feeding.idioms import pre_moveto_config, scoped_behavior, wait_for_secs
 from ada_feeding.idioms.bite_transfer import (
-    get_add_in_front_of_wheelchair_wall_behavior,
     get_toggle_collision_object_behavior,
     get_toggle_face_detection_behavior,
-    get_remove_in_front_of_wheelchair_wall_behavior,
 )
 from ada_feeding.trees import (
     MoveToTree,
@@ -44,10 +56,15 @@ from ada_feeding.trees import (
 
 class MoveToMouthTree(MoveToTree):
     """
-    A behaviour tree that toggles face detection on, moves the robot to the
-    staging configuration, detects a face, checks whether it is within a
-    distance threshold from the camera, and does a cartesian motion to the
-    face.
+    A behaviour tree that gets the user's mouth pose and moves the robot to it.
+    Note that to get the mouth pose, the robot executes these in-order until one
+    succeeds:
+    1. If the face detection message included in the goal is not stale, use it.
+    2. Else, attempt to detect a face from the robot's current pose and use that.
+    3. Else, if there is a cached detected mouth pose on the static transform
+       tree, use it.
+    4. Else, fail. The user can go back to the staging configuration and re-detect
+       the face.
     """
 
     # pylint: disable=too-many-instance-attributes, too-many-arguments
@@ -57,55 +74,38 @@ class MoveToMouthTree(MoveToTree):
     def __init__(
         self,
         node: Node,
-        staging_configuration: List[float],
-        staging_configuration_tolerance: float = 0.001,
-        mouth_pose_tolerance: float = 0.001,
-        orientation_constraint_quaternion: List[float] = None,
-        orientation_constraint_tolerances: List[float] = None,
+        mouth_position_tolerance: float = 0.001,
         planner_id: str = "RRTstarkConfigDefault",
-        allowed_planning_time_to_staging_configuration: float = 0.5,
-        allowed_planning_time_to_mouth: float = 0.5,
-        max_velocity_scaling_factor_to_staging_configuration: float = 0.1,
-        max_velocity_scaling_factor_to_mouth: float = 0.1,
-        cartesian_jump_threshold_to_mouth: float = 0.0,
-        cartesian_max_step_to_mouth: float = 0.0025,
+        allowed_planning_time: float = 0.5,
         head_object_id: str = "head",
+        max_velocity_scaling_factor: float = 0.1,
+        cartesian_jump_threshold: float = 0.0,
+        cartesian_max_step: float = 0.0025,
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 4.0,
         torque_threshold: float = 4.0,
-        allowed_face_distance: Tuple[float, float] = (0.4, 1.5),
+        allowed_face_distance: Tuple[float, float] = (0.4, 1.25),
+        face_detection_msg_timeout: float = 5.0,
+        face_detection_timeout: float = 2.5,
+        plan_distance_from_mouth: float = 0.05,
     ):
         """
         Initializes tree-specific parameters.
 
         Parameters
         ----------
-        staging_configuration: The joint positions to move the robot arm to.
-            The user's face should be visible in this configuration.
-        staging_configuration_tolerance: The tolerance for the joint positions.
-        mouth_pose_tolerance: The tolerance for the movement to the mouth pose.
-        orientation_constraint_quaternion: The quaternion for the orientation
-            constraint. If None, the orientation constraint is not used.
-        orientation_constraint_tolerances: The tolerances for the orientation
-            constraint, as a 3D rotation vector. If None, the orientation
-            constraint is not used.
+        mouth_position_tolerance: The tolerance for the movement to the mouth pose.
         planner_id: The planner ID to use for the MoveIt2 motion planning.
-        allowed_planning_time_to_staging_configuration: The allowed planning
-            time for the MoveIt2 motion planner to move to the staging config.
-        allowed_planning_time_to_mouth: The allowed planning time for the MoveIt2
-            motion planner to move to the user's mouth.
-        max_velocity_scaling_factor_to_staging_configuration: The maximum
-            velocity scaling factor for the MoveIt2 motion planner to move to
-            the staging config.
-        max_velocity_scaling_factor_to_mouth: The maximum velocity scaling
-            factor for the MoveIt2 motion planner to move to the user's mouth.
-        cartesian_jump_threshold_to_mouth: The maximum allowed jump in the
-            cartesian space for the MoveIt2 motion planner to move to the user's
-            mouth.
-        cartesian_max_step_to_mouth: The maximum allowed step in the cartesian
-            space for the MoveIt2 motion planner to move to the user's mouth.
+        allowed_planning_time: The allowed planning time.
         head_object_id: The ID of the head collision object in the MoveIt2
             planning scene.
+        max_velocity_scaling_factor: The maximum velocity scaling
+            factor for the MoveIt2 motion planner to move to the user's mouth.
+        cartesian_jump_threshold: The maximum allowed jump in the
+            cartesian space for the MoveIt2 motion planner to move to the user's
+            mouth.
+        cartesian_max_step: The maximum allowed step in the cartesian
+            space for the MoveIt2 motion planner to move to the user's mouth.
         wheelchair_collision_object_id: The ID of the wheelchair collision object
             in the MoveIt2 planning scene.
         force_threshold: The force threshold (N) for the ForceGateController.
@@ -116,37 +116,39 @@ class MoveToMouthTree(MoveToTree):
             and to the mouth.
         allowed_face_distance: The min and max distance (m) between a face and the
             **camera's optical frame** for the robot to move towards the face.
+        face_detection_msg_timeout: If the timestamp on the face detection message
+            is older than these many seconds, don't use it.
+        face_detection_timeout: If the robot has been trying to detect a face for
+            more than these many seconds, timeout.
+        plan_distance_from_mouth: The distance (m) to plan from the mouth center.
         """
 
         # pylint: disable=too-many-locals
         # These are all necessary due to all the behaviors MoveToMouth contains
 
+        # TODO: Consider modifying feedback to return whether it is perceiving
+        # the face right now. Not crucial, but may be nice to have.
+
         # Initialize MoveToTree
         super().__init__(node)
 
         # Store the parameters
-        self.staging_configuration = staging_configuration
-        assert len(self.staging_configuration) == 6, "Must provide 6 joint positions"
-        self.staging_configuration_tolerance = staging_configuration_tolerance
-        self.mouth_pose_tolerance = mouth_pose_tolerance
-        self.orientation_constraint_quaternion = orientation_constraint_quaternion
-        self.orientation_constraint_tolerances = orientation_constraint_tolerances
+        self.mouth_position_tolerance = mouth_position_tolerance
         self.planner_id = planner_id
-        self.allowed_planning_time_to_staging_configuration = (
-            allowed_planning_time_to_staging_configuration
-        )
-        self.allowed_planning_time_to_mouth = allowed_planning_time_to_mouth
-        self.max_velocity_scaling_factor_to_staging_configuration = (
-            max_velocity_scaling_factor_to_staging_configuration
-        )
-        self.max_velocity_scaling_factor_to_mouth = max_velocity_scaling_factor_to_mouth
-        self.cartesian_jump_threshold_to_mouth = cartesian_jump_threshold_to_mouth
-        self.cartesian_max_step_to_mouth = cartesian_max_step_to_mouth
+        self.allowed_planning_time = allowed_planning_time
         self.head_object_id = head_object_id
+        self.max_velocity_scaling_factor = max_velocity_scaling_factor
+        self.cartesian_jump_threshold = cartesian_jump_threshold
+        self.cartesian_max_step = cartesian_max_step
         self.wheelchair_collision_object_id = wheelchair_collision_object_id
         self.force_threshold = force_threshold
         self.torque_threshold = torque_threshold
         self.allowed_face_distance = allowed_face_distance
+        self.face_detection_msg_timeout = Duration(seconds=face_detection_msg_timeout)
+        self.face_detection_timeout = face_detection_timeout
+        self.plan_distance_from_mouth = plan_distance_from_mouth
+
+        self.face_detection_relative_blackboard_key = "face_detection"
 
     def check_face_msg(self, msg: FaceDetection, _: FaceDetection) -> bool:
         """
@@ -162,25 +164,30 @@ class MoveToMouthTree(MoveToTree):
         -------
         True if a face is detected within the required distance, False otherwise.
         """
-        if msg.is_face_detected:
-            # Check the distance between the face and the camera optical frame
-            # The face detection message is in the camera optical frame
-            # The camera optical frame is the parent frame of the face detection
-            # frame, so we can just use the translation of the face detection
-            # frame to get the distance between the face and the camera optical
-            # frame.
-            distance = (
-                msg.detected_mouth_center.point.x**2.0
-                + msg.detected_mouth_center.point.y**2.0
-                + msg.detected_mouth_center.point.z**2.0
-            ) ** 0.5
-            if (
-                self.allowed_face_distance[0]
-                <= distance
-                <= self.allowed_face_distance[1]
-            ):
-                return True
-        return False
+        # Check if a face is detected
+        if not msg.is_face_detected:
+            return False
+        # Check if the message is stale
+        timestamp = Time.from_msg(msg.detected_mouth_center.header.stamp)
+        if self._node.get_clock().now() - timestamp > self.face_detection_msg_timeout:
+            return False
+        # Check the distance between the face and the camera optical frame
+        # The face detection message is in the camera optical frame
+        # The camera optical frame is the parent frame of the face detection
+        # frame, so we can just use the translation of the face detection
+        # frame to get the distance between the face and the camera optical
+        # frame.
+        distance = (
+            msg.detected_mouth_center.point.x**2.0
+            + msg.detected_mouth_center.point.y**2.0
+            + msg.detected_mouth_center.point.z**2.0
+        ) ** 0.5
+        if (
+            distance < self.allowed_face_distance[0]
+            or distance > self.allowed_face_distance[1]
+        ):
+            return False
+        return True
 
     @override
     def create_tree(
@@ -191,174 +198,225 @@ class MoveToMouthTree(MoveToTree):
 
         ### Define Tree Logic
 
-        in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
-        face_detection_relative_blackboard_key = "face_detection"
-        face_detection_absolute_blackboard_key = "/".join(
-            [name, face_detection_relative_blackboard_key]
+        face_detection_absolute_key = Blackboard.separator.join(
+            [name, self.face_detection_relative_blackboard_key]
         )
-        # The target position is 5cm away from the mouth center, in the direction
-        # away from the wheelchair backrest.
-        mouth_offset = (0.0, -0.05, 0.0)
 
         # Root Sequence
         root_seq = py_trees.composites.Sequence(
             name=name,
             memory=True,
             children=[
-                # Retare the F/T sensor and set the F/T Thresholds
-                pre_moveto_config(
-                    name=name + "PreMoveToConfig",
-                    toggle_watchdog_listener=False,
-                    f_mag=self.force_threshold,
-                    t_mag=self.torque_threshold,
-                ),
-                # Add a wall in front of the wheelchair to prevent the robot
-                # from moving unnecessarily close to the user.
-                scoped_behavior(
-                    name=name + " InFrontOfWheelchairWallScope",
-                    pre_behavior=get_add_in_front_of_wheelchair_wall_behavior(
-                        name + "AddWheelchairWall",
-                        in_front_of_wheelchair_wall_id,
-                    ),
-                    # Move to the staging configuration
-                    workers=[
-                        # Goal configuration: staging configuration
-                        MoveIt2JointConstraint(
-                            name="StagingConfigurationGoalConstraint",
-                            ns=name,
-                            inputs={
-                                "joint_positions": self.staging_configuration,
-                                "tolerance": self.staging_configuration_tolerance,
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("goal_constraints"),
-                            },
-                        ),
-                        # Orientation path constraint to keep the fork straight
-                        MoveIt2OrientationConstraint(
-                            name="KeepForkStraightPathConstraint",
-                            ns=name,
-                            inputs={
-                                "quat_xyzw": self.orientation_constraint_quaternion,
-                                "tolerance": self.orientation_constraint_tolerances,
-                                "parameterization": 1,  # Rotation vector
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("path_constraints"),
-                            },
-                        ),
-                        # Plan
-                        MoveIt2Plan(
-                            name="MoveToStagingConfigurationPlan",
-                            ns=name,
-                            inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
-                                "path_constraints": BlackboardKey("path_constraints"),
-                                "planner_id": self.planner_id,
-                                "allowed_planning_time": (
-                                    self.allowed_planning_time_to_staging_configuration
-                                ),
-                                "max_velocity_scale": (
-                                    self.max_velocity_scaling_factor_to_staging_configuration
-                                ),
-                                "ignore_violated_path_constraints": True,
-                            },
-                            outputs={"trajectory": BlackboardKey("trajectory")},
-                        ),
-                        # Execute
-                        MoveIt2Execute(
-                            name="MoveToStagingConfigurationExecute",
-                            ns=name,
-                            inputs={"trajectory": BlackboardKey("trajectory")},
-                            outputs={},
-                        ),
-                    ],
-                    # Remove the wall in front of the wheelchair
-                    post_behavior=get_remove_in_front_of_wheelchair_wall_behavior(
-                        name + "RemoveWheelchairWall",
-                        in_front_of_wheelchair_wall_id,
-                    ),
-                ),
-                # Turn face detection on until a face is detected
-                scoped_behavior(
-                    name=name + " FaceDetectionOnScope",
-                    pre_behavior=get_toggle_face_detection_behavior(
-                        name + "TurnFaceDetectionOn",
-                        True,
-                    ),
-                    workers=[
+                # NOTE: `get_result` relies on "FaceDetection" only being in the
+                # names of perception behaviors.
+                py_trees.composites.Selector(
+                    name=name + " FaceDetectionSelector",
+                    memory=True,
+                    children=[
+                        # Try to detect the face and then convert the detected face pose
+                        # to the base frame.
                         py_trees.composites.Sequence(
-                            name=name,
-                            memory=False,
+                            name=name + " FaceDetectionSequence",
+                            memory=True,
                             children=[
-                                # Get the detected face
-                                py_trees_ros.subscribers.ToBlackboard(
-                                    name=name + " GetFace",
-                                    topic_name="~/face_detection",
-                                    topic_type=FaceDetection,
-                                    qos_profile=py_trees_ros.utilities.qos_profile_unlatched(),
-                                    blackboard_variables={
-                                        face_detection_absolute_blackboard_key: None,
+                                py_trees.composites.Selector(
+                                    name=name + " FaceDetectionSelector",
+                                    memory=True,
+                                    children=[
+                                        # Check if the face detection message is not stale
+                                        # and close enough to the camera
+                                        py_trees.behaviours.CheckBlackboardVariableValue(
+                                            name=name + " CheckFaceDetectionMsg",
+                                            check=py_trees.common.ComparisonExpression(
+                                                variable=face_detection_absolute_key,
+                                                value=FaceDetection(),
+                                                operator=self.check_face_msg,
+                                            ),
+                                        ),
+                                        # If the above didn't work, turn face detection on until
+                                        # a face is detected, or until timeout
+                                        scoped_behavior(
+                                            name=name + " FaceDetectionOnScope",
+                                            pre_behavior=get_toggle_face_detection_behavior(
+                                                name + "TurnFaceDetectionOn",
+                                                True,
+                                            ),
+                                            # Turn off face detection
+                                            post_behavior=get_toggle_face_detection_behavior(
+                                                name + "TurnFaceDetectionOff",
+                                                False,
+                                            ),
+                                            workers=[
+                                                py_trees.decorators.Timeout(
+                                                    name=name + " FaceDetectionTimeout",
+                                                    duration=self.face_detection_timeout,
+                                                    child=py_trees.composites.Sequence(
+                                                        name=name,
+                                                        memory=False,
+                                                        children=[
+                                                            # Get the detected face
+                                                            py_trees_ros.subscribers.ToBlackboard(
+                                                                name=name
+                                                                + " GetFaceDetectionMsg",
+                                                                topic_name="~/face_detection",
+                                                                topic_type=FaceDetection,
+                                                                qos_profile=(
+                                                                    py_trees_ros.utilities.qos_profile_unlatched()
+                                                                ),
+                                                                blackboard_variables={
+                                                                    face_detection_absolute_key: None,
+                                                                },
+                                                                initialise_variables={
+                                                                    face_detection_absolute_key: FaceDetection(),
+                                                                },
+                                                            ),
+                                                            # Check whether the face is within the required distance
+                                                            py_trees.decorators.FailureIsRunning(
+                                                                name=name
+                                                                + " CheckFaceDetectionWrapper",
+                                                                child=py_trees.behaviours.CheckBlackboardVariableValue(
+                                                                    name=name
+                                                                    + " CheckFaceDetectionMsg",
+                                                                    check=py_trees.common.ComparisonExpression(
+                                                                        variable=face_detection_absolute_key,
+                                                                        value=FaceDetection(),
+                                                                        operator=self.check_face_msg,
+                                                                    ),
+                                                                ),
+                                                            ),
+                                                        ],
+                                                    ),
+                                                ),
+                                            ],
+                                        ),
+                                    ],
+                                ),
+                                # Convert `face_detection` to `mouth_position` in the
+                                # base frame.
+                                ApplyTransform(
+                                    name=name + " ConvertFaceDetectionToBaseFrame",
+                                    ns=name,
+                                    inputs={
+                                        "stamped_msg": BlackboardKey(
+                                            self.face_detection_relative_blackboard_key
+                                            + ".detected_mouth_center"
+                                        ),
+                                        "target_frame": "j2n6s200_link_base",
                                     },
-                                    initialise_variables={
-                                        face_detection_absolute_blackboard_key: FaceDetection(),
+                                    outputs={
+                                        "transformed_msg": BlackboardKey(
+                                            "mouth_position"
+                                        ),  # PointStamped
                                     },
                                 ),
-                                # Check whether the face is within the required distance
-                                # TODO: This can potentially block the tree forever,
-                                # e.g., if the face is not visible. Change it!
-                                py_trees.decorators.FailureIsRunning(
-                                    name=name + " CheckFaceWrapper",
-                                    child=py_trees.behaviours.CheckBlackboardVariableValue(
-                                        name=name + " CheckFace",
-                                        check=py_trees.common.ComparisonExpression(
-                                            variable=face_detection_absolute_blackboard_key,
-                                            value=FaceDetection(),
-                                            operator=self.check_face_msg,
-                                        ),
-                                    ),
+                                # Convert `mouth_position` into a mouth pose using
+                                # a fixed quaternion
+                                CreatePoseStamped(
+                                    name=name + " FaceDetectionToPose",
+                                    ns=name,
+                                    inputs={
+                                        "position": BlackboardKey("mouth_position"),
+                                        "quaternion": [
+                                            0.0,
+                                            0.0,
+                                            -0.7071068,
+                                            0.7071068,
+                                        ],  # Facing away from wheelchair backrest
+                                    },
+                                    outputs={
+                                        "pose_stamped": BlackboardKey(
+                                            "mouth_pose"
+                                        ),  # PostStamped
+                                    },
+                                ),
+                                # Cache the mouth pose on the static TF tree
+                                SetStaticTransform(
+                                    name=name + " SetFaceDetectionPoseOnTF",
+                                    ns=name,
+                                    inputs={
+                                        "transform": BlackboardKey("mouth_pose"),
+                                        "child_frame_id": "mouth",
+                                    },
+                                ),
+                                # Add a slight delay to allow the static transform
+                                # to be registered
+                                wait_for_secs(
+                                    name=name + " FaceDetectionWaitForStaticTransform",
+                                    secs=0.25,
                                 ),
                             ],
                         ),
-                    ],
-                    # Turn off face detection
-                    post_behavior=get_toggle_face_detection_behavior(
-                        name + "TurnFaceDetectionOff",
-                        False,
-                    ),
-                ),
-                # Compute the goal constraints of the target pose
-                ComputeMoveToMouthPosition(
-                    name=name + " ComputeTargetPosition",
-                    ns=name,
-                    inputs={
-                        "face_detection_msg": BlackboardKey(
-                            face_detection_relative_blackboard_key
+                        # If there is a cached detected mouth pose on the static
+                        # transform tree, use it.
+                        GetTransform(
+                            name=name + " GetCachedFaceDetection",
+                            ns=name,
+                            inputs={
+                                "target_frame": "j2n6s200_link_base",
+                                "source_frame": "mouth",
+                                "new_type": PoseStamped,
+                            },
+                            outputs={
+                                "transform": BlackboardKey("mouth_pose"),
+                            },
                         ),
-                        "position_offset": mouth_offset,
-                    },
-                    outputs={
-                        "target_position": BlackboardKey("mouth_position"),
-                    },
+                    ],
                 ),
-                # Move the head to the detected face pose. We use the computed
-                # mouth position since that is in the base frame, not the camera
-                # frame.
+                # At this stage of the tree, we are guarenteed to have a
+                # `mouth_pose` on the blackboard -- else the tree would have failed.
+                # Move the head to the detected mouth pose.
                 ModifyCollisionObject(
                     name=name + " MoveHead",
                     ns=name,
                     inputs={
                         "operation": ModifyCollisionObjectOperation.MOVE,
                         "collision_object_id": self.head_object_id,
-                        "collision_object_position": BlackboardKey("mouth_position"),
-                        "collision_object_orientation": (
-                            -0.0616284,
-                            -0.0616284,
-                            -0.704416,
-                            0.704416,
+                        "collision_object_position": BlackboardKey(
+                            "mouth_pose.pose.position"
                         ),
-                        "position_offset": tuple(-1.0 * val for val in mouth_offset),
+                        "collision_object_orientation": BlackboardKey(
+                            "mouth_pose.pose.orientation"
+                        ),
                     },
+                ),
+                # The goal constraint of the fork is the mouth pose,
+                # translated `self.plan_distance_from_mouth` in front of the mouth,
+                # and rotated to match the forkTip orientation.
+                ApplyTransform(
+                    name=name + " ComputeMoveToMouthPose",
+                    ns=name,
+                    inputs={
+                        "stamped_msg": PoseStamped(
+                            header=Header(
+                                stamp=Time().to_msg(),
+                                frame_id="mouth",
+                            ),
+                            pose=Pose(
+                                position=Point(
+                                    x=self.plan_distance_from_mouth,
+                                    y=0.0,
+                                    z=0.0,
+                                ),
+                                orientation=Quaternion(
+                                    x=0.5,
+                                    y=-0.5,
+                                    z=-0.5,
+                                    w=0.5,
+                                ),
+                            ),
+                        ),
+                        "target_frame": "j2n6s200_link_base",
+                    },
+                    outputs={
+                        "transformed_msg": BlackboardKey("goal_pose"),  # PoseStamped
+                    },
+                ),
+                # Retare the F/T sensor and set the F/T Thresholds
+                pre_moveto_config(
+                    name=name + "PreMoveToConfig",
+                    toggle_watchdog_listener=False,
+                    f_mag=self.force_threshold,
+                    t_mag=self.torque_threshold,
                 ),
                 # Allow collisions with the expanded wheelchair collision box
                 scoped_behavior(
@@ -370,48 +428,18 @@ class MoveToMouthTree(MoveToTree):
                     ),
                     # Move to the target pose
                     workers=[
-                        # Goal configuration: target position
-                        MoveIt2PositionConstraint(
-                            name="MoveToTargetPosePositionGoalConstraint",
+                        # Goal configuration
+                        MoveIt2PoseConstraint(
+                            name="MoveToTargetPosePoseGoalConstraint",
                             ns=name,
                             inputs={
-                                "position": BlackboardKey("mouth_position"),
-                                "tolerance": self.mouth_pose_tolerance,
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("goal_constraints"),
-                            },
-                        ),
-                        # Goal configuration: target orientation
-                        MoveIt2OrientationConstraint(
-                            name="MoveToTargetPoseOrientationGoalConstraint",
-                            ns=name,
-                            inputs={
-                                "quat_xyzw": (
-                                    0.0,
-                                    0.7071068,
-                                    0.7071068,
-                                    0.0,
-                                ),  # Point to wheelchair backrest
-                                "tolerance": (0.6, 0.5, 0.5),
-                                "parameterization": 1,  # Rotation vector
-                                "constraints": BlackboardKey("goal_constraints"),
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("goal_constraints"),
-                            },
-                        ),
-                        # Orientation path constraint to keep the fork straight
-                        MoveIt2OrientationConstraint(
-                            name="KeepForkStraightPathConstraint",
-                            ns=name,
-                            inputs={
-                                "quat_xyzw": self.orientation_constraint_quaternion,
-                                "tolerance": self.orientation_constraint_tolerances,
+                                "pose": BlackboardKey("goal_pose"),
+                                "tolerance_position": self.mouth_position_tolerance,
+                                "tolerance_orientation": (0.6, 0.5, 0.5),
                                 "parameterization": 1,  # Rotation vector
                             },
                             outputs={
-                                "constraints": BlackboardKey("path_constraints"),
+                                "constraints": BlackboardKey("goal_constraints"),
                             },
                         ),
                         # Plan
@@ -420,16 +448,15 @@ class MoveToMouthTree(MoveToTree):
                             ns=name,
                             inputs={
                                 "goal_constraints": BlackboardKey("goal_constraints"),
-                                "path_constraints": BlackboardKey("path_constraints"),
                                 "planner_id": self.planner_id,
-                                "allowed_planning_time": self.allowed_planning_time_to_mouth,
+                                "allowed_planning_time": self.allowed_planning_time,
                                 "max_velocity_scale": (
-                                    self.max_velocity_scaling_factor_to_mouth
+                                    self.max_velocity_scaling_factor
                                 ),
                                 "cartesian": True,
-                                "cartesian_jump_threshold": self.cartesian_jump_threshold_to_mouth,
+                                "cartesian_jump_threshold": self.cartesian_jump_threshold,
                                 "cartesian_fraction_threshold": 0.60,
-                                "cartesian_max_step": self.cartesian_max_step_to_mouth,
+                                "cartesian_max_step": self.cartesian_max_step,
                             },
                             outputs={"trajectory": BlackboardKey("trajectory")},
                         ),
@@ -454,3 +481,41 @@ class MoveToMouthTree(MoveToTree):
 
         ### Return tree
         return py_trees.trees.BehaviourTree(root_seq)
+
+    # Override goal to read arguments into local blackboard
+    @override
+    def send_goal(self, tree: py_trees.trees.BehaviourTree, goal: object) -> bool:
+        # Docstring copied by @override
+        # Note: if here, tree is root, not a subtree
+
+        # Check goal type
+        if not isinstance(goal, MoveToMouth.Goal):
+            return False
+
+        # Write tree inputs to blackboard
+        name = tree.root.name
+        blackboard = py_trees.blackboard.Client(name=name, namespace=name)
+        blackboard.register_key(
+            key=self.face_detection_relative_blackboard_key,
+            access=py_trees.common.Access.WRITE,
+        )
+        blackboard.face_detection = goal.face_detection
+
+        # Adds MoveToVisitor for Feedback
+        return super().send_goal(tree, goal)
+
+    @override
+    def get_result(
+        self, tree: py_trees.trees.BehaviourTree, action_type: type
+    ) -> object:
+        # Docstring copied by @override
+        result_msg = super().get_result(tree, action_type)
+
+        # If the standard result determines there was a planning failure,
+        # we check whether that was actually a perception failure.
+        if result_msg.status == result_msg.STATUS_PLANNING_FAILED:
+            tip = tree.tip()
+            if tip is not None and "FaceDetection" in tip.name:
+                result_msg.status = result_msg.STATUS_PERCEPTION_FAILED
+
+        return result_msg

@@ -136,7 +136,7 @@ class SaveImage(Node):
                 cv2.imwrite(depth_image_filepath, depth_image)
 
         # Return a success response
-        response.success = (len(response.message) == 0)
+        response.success = len(response.message) == 0
         response.message = "Successfully saved the latest color image and depth image"
         return response
 

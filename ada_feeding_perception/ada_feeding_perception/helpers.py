@@ -49,7 +49,10 @@ def ros_msg_to_cv2_image(
 
 
 def cv2_image_to_ros_msg(
-    image: npt.NDArray, compress: bool, bridge: Optional[CvBridge] = None
+    image: npt.NDArray,
+    compress: bool,
+    bridge: Optional[CvBridge] = None,
+    encoding: str = "passthrough",
 ) -> Union[Image, CompressedImage]:
     """
     Convert a cv2 image to a ROS Image or CompressedImage message. Note that this
@@ -67,6 +70,8 @@ def cv2_image_to_ros_msg(
     bridge: the CvBridge to use for the conversion. This is only used if `msg`
         is a ROS Image message. If `bridge` is None, a new CvBridge will be
         created.
+    encoding: the encoding to use for the ROS Image message. This is only used
+        if `compress` is False.
     """
     if bridge is None:
         bridge = CvBridge()
@@ -79,7 +84,7 @@ def cv2_image_to_ros_msg(
             )
         raise RuntimeError("Failed to compress image")
     # If we get here, we're not compressing the image
-    return bridge.cv2_to_imgmsg(image, encoding="passthrough")
+    return bridge.cv2_to_imgmsg(image, encoding=encoding)
 
 
 def get_img_msg_type(

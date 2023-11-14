@@ -1,14 +1,10 @@
-# The interface for a bite acquisition action that takes in a
-# food mask as input, returns whether or not it succeeded, and gives progress
+# The interface for a bite transfer action that takes in a detected mouth
+# center to move to, returns whether or not it succeeded, and gives progress
 # in terms of how long it has been planning for and/or how much farther it has
 # to move.
 
-# The header for the image that the mask corresponds to
-std_msgs/Header header
-# The camera intrinsics
-sensor_msgs/CameraInfo camera_info
-# The mask for the food item the robot should acquire
-ada_feeding_msgs/Mask detected_food
+# The output of face detection
+ada_feeding_msgs/FaceDetection face_detection
 ---
 # Possible return statuses
 uint8 STATUS_SUCCESS=0
@@ -20,18 +16,6 @@ uint8 STATUS_UNKNOWN=99
 
 # Whether the planning and motion succeeded and if not, why
 uint8 status
-
-## Information to send to AcquisitionSelect service
-# Action Taken
-uint8 action_index
-
-# Posthoc context
-float64[] posthoc
-
-# AcquisitionSelect call id
-# Used in AcquisitionReport
-string selection_id
-
 ---
 # Whether the robot is currently planning or moving (required)
 bool is_planning
