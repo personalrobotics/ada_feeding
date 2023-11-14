@@ -16,6 +16,7 @@ import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Point
 import numpy as np
+import numpy.typing as npt
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
@@ -322,16 +323,14 @@ class FaceDetectionNode(Node):
             self.latest_img_msg = msg
 
     def detect_largest_face(
-        self, img_msg: Union[CompressedImage, Image], publish_annotated_img: bool = True
-    ) -> Tuple[bool, Tuple[int, int], np.ndarray]:
+        self, image_bgr: npt.NDArray
+    ) -> Tuple[bool, Tuple[int, int], npt.NDArray, Tuple[float, float, float, float]]:
         """
         Detect the largest face in an RGB image.
 
         Parameters
         ----------
-        img_msg: The RGB image to detect faces in.
-        publish_annotated_img: Whether to publish an annotated image with the
-            detected faces and mouth points.
+        image_bgr: The OpenCV image to detect faces in.
 
         Returns
         -------
@@ -339,16 +338,15 @@ class FaceDetectionNode(Node):
         mouth_center: The (u,v) coordinates of the somion of the largest face
             detected in the image.
         mouth_points: A list of (u,v) coordinates of the facial landmarks of the mouth.
+        face_bbox: The bounding box of the largest face detected in the image,
+            in the form (x, y, w, h).
         """
 
         # pylint: disable=too-many-locals
         # This function is not too complex, but it does have a lot of local variables.
 
         # Decode the image
-        image_rgb = cv2.imdecode(
-            np.frombuffer(img_msg.data, np.uint8), cv2.IMREAD_COLOR
-        )
-        image_gray = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2GRAY)
+        image_gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
 
         # Detect faces using the haarcascade classifier on the grayscale image
         # NOTE: This detector will launch multiple threads to detect faces in
@@ -357,6 +355,7 @@ class FaceDetectionNode(Node):
         is_face_detected = len(faces) > 0
         img_mouth_center = (0, 0)
         img_mouth_points = []
+        face_bbox = (0, 0, 0, 0)
 
         if is_face_detected:
             # Detect landmarks (a 3d list) on image
@@ -366,40 +365,21 @@ class FaceDetectionNode(Node):
             # Add face markers to the image and find largest face
             largest_face = [0, 0]  # [area (px^2), index]
             for i, face in enumerate(faces):
-                (x, y, w, h) = face
+                (_, _, w, h) = face
 
                 # Update the largest face
                 if w * h > largest_face[0]:
                     largest_face = [w * h, i]
 
-                # Annotate the image with the face. See below for the landmark indices:
-                # https://pyimagesearch.com/2017/04/03/facial-landmarks-dlib-opencv-python/
-                if publish_annotated_img:
-                    cv2.rectangle(image_rgb, (x, y), (x + w, y + h), (255, 255, 255), 2)
-                    for j in range(48, 68):
-                        landmark_x, landmark_y = landmarks[i][0][j]
-                        cv2.circle(
-                            image_rgb,
-                            (int(landmark_x), int(landmark_y)),
-                            1,
-                            (0, 255, 0),
-                            5,
-                        )
+            # Get the largest face
+            face_bbox = faces[largest_face[1]]
 
-            # Annotate the image with a red rectangle around largest face
-            (x, y, w, h) = faces[largest_face[1]]
-            cv2.rectangle(image_rgb, (x, y), (x + w, y + h), (0, 0, 255), 2)
-
-            # Find stomion (mouth center) in image
+            # Find stomion (mouth center) in image. See below for the landmark indices:
+            # https://pyimagesearch.com/2017/04/03/facial-landmarks-dlib-opencv-python/
             img_mouth_center = landmarks[largest_face[1]][0][66]
             img_mouth_points = landmarks[largest_face[1]][0][48:68]
 
-        # Publish annotated image
-        if publish_annotated_img:
-            annotated_msg = cv2_image_to_ros_msg(image_rgb, compress=False)
-            self.publisher_image.publish(annotated_msg)
-
-        return is_face_detected, img_mouth_center, img_mouth_points
+        return is_face_detected, img_mouth_center, img_mouth_points, face_bbox
 
     def get_mouth_depth(
         self, rgb_msg: Union[CompressedImage, Image], face_points: np.ndarray
@@ -458,12 +438,14 @@ class FaceDetectionNode(Node):
         for point in face_points:
             x, y = int(point[0]), int(point[1])
             if 0 <= x < image_depth.shape[1] and 0 <= y < image_depth.shape[0]:
-                num_points_in_frame += 1
-                depth_sum += image_depth[y][x]
+                # Points with depth 0mm are invalid (typically out-of-range)
+                if image_depth[y][x] != 0:
+                    num_points_in_frame += 1
+                    depth_sum += image_depth[y][x]
         if num_points_in_frame < 0.5 * len(face_points):
             self.get_logger().warn(
                 "Detected face in the RGB image, but majority of mouth points "
-                "were outside the frame of the depth image. Ignoring this face."
+                "were invalid. Ignoring this face."
             )
             return False, 0
 
@@ -534,11 +516,15 @@ class FaceDetectionNode(Node):
                 continue
 
             # Detect the largest face in the RGB image
+            image_bgr = cv2.imdecode(
+                np.frombuffer(rgb_msg.data, np.uint8), cv2.IMREAD_COLOR
+            )
             (
                 is_face_detected,
                 img_mouth_center,
                 img_mouth_points,
-            ) = self.detect_largest_face(rgb_msg)
+                face_bbox,
+            ) = self.detect_largest_face(image_bgr)
 
             if is_face_detected:
                 # Get the depth of the mouth
@@ -556,9 +542,49 @@ class FaceDetectionNode(Node):
                 else:
                     is_face_detected = False
 
+            # Annotate the image with the face
+            if is_face_detected:
+                self.annotate_image(image_bgr, img_mouth_points, face_bbox)
+
+            # Publish the face detection image
+            self.publisher_image.publish(
+                cv2_image_to_ros_msg(image_bgr, compress=False, encoding="bgr8")
+            )
+
             # Publish 3d point
             face_detection_msg.is_face_detected = is_face_detected
             self.publisher_results.publish(face_detection_msg)
+
+    def annotate_image(
+        self,
+        image_bgr: npt.NDArray,
+        img_mouth_points: npt.NDArray,
+        face_bbox: Tuple[int, int, int, int],
+    ) -> None:
+        """
+        Annotate the image with the face and mouth center.
+
+        Parameters
+        ----------
+        image_bgr: The OpenCV image to annotate.
+        img_mouth_points: A list of (u,v) coordinates of the facial landmarks of the mouth.
+        face_bbox: The bounding box of the largest face detected in the image,
+            in the form (x, y, w, h).
+        """
+        # Annotate the image with a red rectangle around largest face
+        x, y, w, h = face_bbox
+        cv2.rectangle(image_bgr, (x, y), (x + w, y + h), (0, 0, 255), 2)
+
+        # Annotate the image with the face.
+        cv2.rectangle(image_bgr, (x, y), (x + w, y + h), (255, 255, 255), 2)
+        for landmark_x, landmark_y in img_mouth_points:
+            cv2.circle(
+                image_bgr,
+                (int(landmark_x), int(landmark_y)),
+                1,
+                (0, 255, 0),
+                5,
+            )
 
 
 def main(args=None):

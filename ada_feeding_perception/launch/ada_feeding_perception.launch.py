@@ -79,6 +79,8 @@ def generate_launch_description():
             "~/camera_info",
             PythonExpression(expression=["'", prefix, "/camera/color/camera_info'"]),
         ),
+    ]
+    food_detection_remappings = [
         (
             "~/aligned_depth",
             PythonExpression(
@@ -100,7 +102,7 @@ def generate_launch_description():
         name="segment_from_point",
         executable="segment_from_point",
         parameters=[segment_from_point_config, segment_from_point_params],
-        remappings=realsense_remappings,
+        remappings=realsense_remappings + food_detection_remappings,
     )
     launch_description.add_action(segment_from_point)
 
@@ -112,10 +114,23 @@ def generate_launch_description():
     face_detection_params["model_dir"] = ParameterValue(
         os.path.join(ada_feeding_perception_share_dir, "model"), value_type=str
     )
+    # To avoid incorrect depth estimates from the food on the fork, face detection
+    # uses the depth image that has been filtered for the octomap, where those
+    # points have been set to 0.
     face_detection_remappings = [
         ("~/face_detection", "/face_detection"),
         ("~/face_detection_img", "/face_detection_img"),
         ("~/toggle_face_detection", "/toggle_face_detection"),
+        (
+            "~/aligned_depth",
+            PythonExpression(
+                expression=[
+                    "'",
+                    prefix,
+                    "/camera/aligned_depth_to_color/depth_octomap'",
+                ]
+            ),
+        ),
     ]
     face_detection = Node(
         package="ada_feeding_perception",

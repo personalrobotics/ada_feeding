@@ -401,9 +401,7 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
           - `frame_id` defaults to the base link
           - `target_link` defaults to end effector
 
-        Note: if pose is PoseStamped:
-          - `frame_id` is pose.header.frame_id (if not "")
-          - `target_link` is pose.child_frame_id (if not "")
+        Note: if pose is PoseStamped `frame_id` is pose.header.frame_id (if not "")
 
         Details on parameterization:
         https://github.com/ros-planning/moveit_msgs/blob/master/msg/OrientationConstraint.msg
@@ -468,9 +466,7 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
                 "frame_id": pose.header.frame_id
                 if (isinstance(pose, PoseStamped) and len(pose.header.frame_id) > 0)
                 else self.blackboard_get("frame_id"),
-                "target_link": pose.child_frame_id
-                if (isinstance(pose, PoseStamped) and len(pose.child_frame_id) > 0)
-                else self.blackboard_get("target_link"),
+                "target_link": self.blackboard_get("target_link"),
                 "tolerance": self.blackboard_get("tolerance_orientation"),
                 "weight": self.blackboard_get("weight_orientation"),
                 "parameterization": self.blackboard_get("parameterization"),
@@ -486,9 +482,7 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
                 "frame_id": pose.header.frame_id
                 if (isinstance(pose, PoseStamped) and len(pose.header.frame_id) > 0)
                 else self.blackboard_get("frame_id"),
-                "target_link": pose.child_frame_id
-                if (isinstance(pose, PoseStamped) and len(pose.child_frame_id) > 0)
-                else self.blackboard_get("target_link"),
+                "target_link": self.blackboard_get("target_link"),
                 "tolerance": self.blackboard_get("tolerance_position"),
                 "weight": self.blackboard_get("weight_position"),
             },

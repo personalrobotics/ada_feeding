@@ -163,7 +163,11 @@ def set_static_tf(
 
     with lock:
         transforms = blackboard.get(static_tf_transforms_blackboard_key)
-        transforms[transform_stamped.child_frame_id] = transform_stamped
+        transform_key = (
+            transform_stamped.child_frame_id,
+            transform_stamped.header.frame_id,
+        )
+        transforms[transform_key] = transform_stamped
         blackboard.set(static_tf_transforms_blackboard_key, transforms)
         stb.sendTransform(list(transforms.values()))
 

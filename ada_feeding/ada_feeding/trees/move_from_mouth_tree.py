@@ -49,7 +49,7 @@ class MoveFromMouthTree(MoveToTree):
         node: Node,
         staging_configuration_position: Tuple[float, float, float],
         staging_configuration_quat_xyzw: Tuple[float, float, float, float],
-        end_configuration: List[float],
+        end_configuration: Optional[List[float]] = None,
         staging_configuration_tolerance: float = 0.001,
         end_configuration_tolerance: float = 0.001,
         orientation_constraint_to_staging_configuration_quaternion: Optional[
@@ -131,7 +131,8 @@ class MoveFromMouthTree(MoveToTree):
         self.staging_configuration_position = staging_configuration_position
         self.staging_configuration_quat_xyzw = staging_configuration_quat_xyzw
         self.end_configuration = end_configuration
-        assert len(self.end_configuration) == 6, "Must provide 6 joint positions"
+        if self.end_configuration is not None:
+            assert len(self.end_configuration) == 6, "Must provide 6 joint positions"
         self.staging_configuration_tolerance = staging_configuration_tolerance
         self.end_configuration_tolerance = end_configuration_tolerance
         self.orientation_constraint_to_staging_configuration_quaternion = (
@@ -314,6 +315,12 @@ class MoveFromMouthTree(MoveToTree):
                         False,
                     ),
                 ),
+            ],
+        )
+
+        # Move to the end configuration if it is provided
+        if self.end_configuration is not None:
+            root_seq.children.append(
                 # Add the wall in front of the wheelchair to prevent the arm from
                 # Moving closer to the user than it currently is.
                 scoped_behavior(
@@ -366,8 +373,7 @@ class MoveFromMouthTree(MoveToTree):
                         in_front_of_wheelchair_wall_id,
                     ),
                 ),
-            ],
-        )
+            )
 
         ### Return tree
         return py_trees.trees.BehaviourTree(root_seq)

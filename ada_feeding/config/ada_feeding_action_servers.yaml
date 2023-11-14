@@ -9,7 +9,9 @@ ada_feeding_action_servers:
     server_names:
       - MoveAbovePlate
       - AcquireFood
+      - MoveToStagingConfiguration
       - MoveToMouth
+      - MoveFromMouthToStagingConfiguration
       - MoveFromMouthToAbovePlate
       - MoveFromMouthToRestingPosition
       - MoveToRestingPosition
@@ -79,20 +81,17 @@ ada_feeding_action_servers:
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToMouth action
-    MoveToMouth: # required
+    MoveToStagingConfiguration: # required
       action_type: ada_feeding_msgs.action.MoveTo # required
-      tree_class: ada_feeding.trees.MoveToMouthTree # required
+      tree_class: ada_feeding.trees.MoveToConfigurationWithWheelchairWallTree # required
       tree_kws: # optional
-        - staging_configuration
+        - goal_configuration
         - orientation_constraint_quaternion
         - orientation_constraint_tolerances
-        - allowed_planning_time_to_staging_configuration
-        - max_velocity_scaling_factor_to_staging_configuration
-        - max_velocity_scaling_factor_to_mouth
-        - cartesian_jump_threshold_to_mouth
-        - cartesian_max_step_to_mouth
+        - allowed_planning_time
+        - max_velocity_scaling_factor
       tree_kwargs: # optional
-        staging_configuration:
+        goal_configuration:
           # # Side-staging configuration
           # -  2.74709 # j2n6s200_joint_1
           # -  2.01400 # j2n6s200_joint_2
@@ -123,11 +122,55 @@ ada_feeding_action_servers:
           - 0.6 # x, rad
           - 3.14159 # y, rad
           - 0.5 # z, rad
-        allowed_planning_time_to_staging_configuration: 2.5 # secs
-        max_velocity_scaling_factor_to_staging_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
-        max_velocity_scaling_factor_to_mouth: 0.4 # optional in (0.0, 1.0], default: 0.1
-        cartesian_jump_threshold_to_mouth: 2.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
-        cartesian_max_step_to_mouth: 0.01 # m
+        allowed_planning_time: 2.5 # secs
+        max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
+      tick_rate: 10 # Hz, optional, default: 30
+
+    # Parameters for the MoveToMouth action
+    MoveToMouth: # required
+      action_type: ada_feeding_msgs.action.MoveToMouth # required
+      tree_class: ada_feeding.trees.MoveToMouthTree # required
+      tree_kws: # optional
+        - max_velocity_scaling_factor
+        - cartesian_jump_threshold
+        - cartesian_max_step
+        - face_detection_msg_timeout
+        - face_detection_timeout
+      tree_kwargs: # optional
+        max_velocity_scaling_factor: 0.4 # optional in (0.0, 1.0], default: 0.1
+        cartesian_jump_threshold: 2.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
+        cartesian_max_step: 0.01 # m
+        face_detection_msg_timeout: 10.0 # sec
+        face_detection_timeout: 5.0 # sec
+      tick_rate: 10 # Hz, optional, default: 30
+
+    # Parameters for the MoveFromMouthToStagingConfiguration action.
+    # No need for orientation path constraints when moving above the plate
+    # because presumably there is no food on the fork.
+    MoveFromMouthToStagingConfiguration: # required
+      action_type: ada_feeding_msgs.action.MoveTo # required
+      tree_class: ada_feeding.trees.MoveFromMouthTree # required
+      tree_kws: # optional
+        - staging_configuration_position
+        - staging_configuration_quat_xyzw
+        - orientation_constraint_to_staging_configuration_quaternion
+        - orientation_constraint_to_staging_configuration_tolerances
+        - max_velocity_scaling_factor_to_staging_configuration
+        - cartesian_jump_threshold_to_staging_configuration
+        - cartesian_max_step_to_staging_configuration
+      tree_kwargs: # optional
+        staging_configuration_position:
+          -  0.28323 # x
+          -  0.07289 # y
+          -  0.69509 # z
+        staging_configuration_quat_xyzw:
+          -  0.00472 # x
+          -  0.69757 # y
+          -  0.71645 # z
+          - -0.00811 # w
+        max_velocity_scaling_factor_to_staging_configuration: 0.4 # optional in (0.0, 1.0], default: 0.1
+        cartesian_jump_threshold_to_staging_configuration: 2.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
+        cartesian_max_step_to_staging_configuration: 0.01 # m
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveFromMouthToAbovePlate action.

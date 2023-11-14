@@ -63,7 +63,7 @@ class ToggleCollisionObject(BlackboardBehavior):
         # It is okay for attributes in behaviors to be
         # defined in the setup / initialise functions.
 
-        self.logger.info(f"{self.name} [ToggleCollisionObject::setup()]")
+        self.logger.debug(f"{self.name} [ToggleCollisionObject::setup()]")
 
         # Get Node from Kwargs
         self.node = kwargs["node"]
@@ -111,7 +111,7 @@ class ToggleCollisionObject(BlackboardBehavior):
             return py_trees.common.Status.FAILURE
         collision_object_ids = self.blackboard_get("collision_object_ids")
 
-        self.logger.info(f"{self.name} [ToggleCollisionObject::update()]")
+        self.logger.debug(f"{self.name} [ToggleCollisionObject::update()]")
         # (Dis)allow collisions between the robot and the collision object
         if self.service_future is None:
             # Check if we have processed all collision objects
@@ -129,7 +129,7 @@ class ToggleCollisionObject(BlackboardBehavior):
                 collision_object_id = collision_object_ids[
                     self.curr_collision_object_id_i
                 ]
-                self.logger.info(
+                self.logger.debug(
                     f"{self.name} [ToggleCollisionObject::update()] "
                     f"collision_object_id: {collision_object_id}"
                 )
@@ -150,7 +150,7 @@ class ToggleCollisionObject(BlackboardBehavior):
             with self.moveit2_lock:
                 succ = self.moveit2.process_allow_collision_future(self.service_future)
             # Process success/failure
-            self.logger.info(
+            self.logger.debug(
                 f"{self.name} [ToggleCollisionObject::update()] "
                 f"service_future: {succ}"
             )

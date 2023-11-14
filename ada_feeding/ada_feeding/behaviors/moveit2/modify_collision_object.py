@@ -105,7 +105,7 @@ class ModifyCollisionObject(BlackboardBehavior):
         # It is okay for attributes in behaviors to be
         # defined in the setup / initialise functions.
 
-        self.logger.info(f"{self.name} [ModifyCollisionObject::setup()]")
+        self.logger.debug(f"{self.name} [ModifyCollisionObject::setup()]")
 
         # Get Node from Kwargs
         self.node = kwargs["node"]
@@ -120,7 +120,7 @@ class ModifyCollisionObject(BlackboardBehavior):
     def initialise(self):
         # Docstring copied from @override
 
-        self.logger.info(f"{self.name} [ModifyCollisionObject::initialise()]")
+        self.logger.debug(f"{self.name} [ModifyCollisionObject::initialise()]")
 
         # Check that the right parameters have been passed
         operation = self.blackboard_get("operation")
@@ -155,7 +155,7 @@ class ModifyCollisionObject(BlackboardBehavior):
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
 
-        self.logger.info(f"{self.name} [ModifyCollisionObject::update()]")
+        self.logger.debug(f"{self.name} [ModifyCollisionObject::update()]")
 
         # Get the blackboard inputs for all operations
         if not self.blackboard_exists(["operation", "collision_object_id"]):
