@@ -9,7 +9,6 @@ wrap that behaviour tree in a ROS2 action server.
 # that they have similar code.
 
 # Standard imports
-import operator
 from typing import Tuple
 
 # Third-party imports
@@ -85,7 +84,7 @@ class MoveToMouthTree(MoveToTree):
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 4.0,
         torque_threshold: float = 4.0,
-        allowed_face_distance: Tuple[float, float] = (0.4, 1.5),
+        allowed_face_distance: Tuple[float, float] = (0.4, 1.25),
         face_detection_msg_timeout: float = 5.0,
         face_detection_timeout: float = 2.5,
         plan_distance_from_mouth: float = 0.05,
@@ -516,7 +515,6 @@ class MoveToMouthTree(MoveToTree):
         # we check whether that was actually a perception failure.
         if result_msg.status == result_msg.STATUS_PLANNING_FAILED:
             tip = tree.tip()
-            self._node.get_logger().info("Tip: %s" % tip)
             if tip is not None and "FaceDetection" in tip.name:
                 result_msg.status = result_msg.STATUS_PERCEPTION_FAILED
 
