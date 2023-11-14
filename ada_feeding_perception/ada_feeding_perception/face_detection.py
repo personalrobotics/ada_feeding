@@ -23,7 +23,9 @@ from rclpy.parameter import Parameter
 from rclpy.executors import MultiThreadedExecutor
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from sensor_msgs.msg import CompressedImage, CameraInfo, Image
+from skspatial.objects import Plane, Points
 from std_srvs.srv import SetBool
+
 
 # Local imports
 from ada_feeding_msgs.msg import FaceDetection
@@ -356,7 +358,7 @@ class FaceDetectionNode(Node):
         faces = self.detector.detectMultiScale(image_gray)
         is_face_detected = len(faces) > 0
         img_mouth_center = (0, 0)
-        img_mouth_points = []
+        img_face_points = []
 
         if is_face_detected:
             # Detect landmarks (a 3d list) on image
@@ -392,14 +394,14 @@ class FaceDetectionNode(Node):
 
             # Find stomion (mouth center) in image
             img_mouth_center = landmarks[largest_face[1]][0][66]
-            img_mouth_points = landmarks[largest_face[1]][0][48:68]
+            img_face_points = landmarks[largest_face[1]][0]
 
         # Publish annotated image
         if publish_annotated_img:
             annotated_msg = cv2_image_to_ros_msg(image_rgb, compress=False)
             self.publisher_image.publish(annotated_msg)
 
-        return is_face_detected, img_mouth_center, img_mouth_points
+        return is_face_detected, img_mouth_center, img_face_points
 
     def get_mouth_depth(
         self, rgb_msg: Union[CompressedImage, Image], face_points: np.ndarray
@@ -410,8 +412,7 @@ class FaceDetectionNode(Node):
         Parameters
         ----------
         rgb_msg: The RGB image that the face was detected in.
-        face_points: A list of (u,v) coordinates of the facial landmarks whose depth
-            should be averaged to get the predicted depth of the mouth.
+        face_points: A list of (u,v) coordinates of all facial landmarks.
 
         Returns
         -------
@@ -421,6 +422,10 @@ class FaceDetectionNode(Node):
 
         # pylint: disable=too-many-locals
         # This function is not too complex, but it does have a lot of local variables.
+
+        # Pull out a list of (u,v) coordinates of all facial landmarks that can be
+        # averaged to approximate the mouth center
+        mouth_points = face_points[48:68]
 
         # Find depth image closest in time to RGB image that face was in
         with self.depth_buffer_lock:
@@ -456,28 +461,51 @@ class FaceDetectionNode(Node):
         depth_sum = 0
         num_points_in_frame = 0
         num_points_at_depth = 0
-        for point in face_points:
+        for point in mouth_points:
             x, y = int(point[0]), int(point[1])
             # Ensure that point is contained within the depth image frame
             if 0 <= x < image_depth.shape[1] and 0 <= y < image_depth.shape[0]:
                 num_points_in_frame += 1
-            # Ensure that the point is farther away from the camera than the fork tip (~450 mm)
-            if image_depth[y][x] > 450:
-                num_points_at_depth += 1
-                depth_sum += image_depth[y][x]
-        if num_points_in_frame < 0.5 * len(face_points):
+                if image_depth[y][x] != 0:
+                    num_points_at_depth += 1
+                    depth_sum += image_depth[y][x]
+        if num_points_in_frame < 0.5 * len(mouth_points) or num_points_at_depth < 0.5 * len(mouth_points):
+            if num_points_in_frame < 0.5 * len(mouth_points):
+                self.get_logger().warn(
+                    "Detected face in the RGB image, but majority of mouth points "
+                    "were outside the frame of the depth image. 
+                )
+            if num_points_at_depth < 0.5 * len(mouth_points):
+                self.get_logger().warn(
+                    "Majority of mouth points are obscured by the fork or food."
+                )
             self.get_logger().warn(
-                "Detected face in the RGB image, but majority of mouth points "
-                "were outside the frame of the depth image. Ignoring this face."
+                "Not enough viable mouth points detected. Predicting mouth depth "
+                "from facial plane."
             )
-            return False, 0
-        if num_point_at_depth == 0:
-            self.get_logger().warn(
-                "Detected face in the RGB image, but no mouth points were "
-                "detected farther away than the fork tip. Ignoring this face."
-            )
-            return False, 0
-        depth_mm = depth_sum / float(num_points_in_frame)
+            # Retrieve the depth value by best-fitting a plane to face points
+            face_points_3d = []
+            for point in face_points:
+                x, y = int(point[0]), int(point[1])
+                # Ensure that point is contained within the depth image frame
+                if 0 <= x < image_depth.shape[1] and 0 <= y < image_depth.shape[0] and image_depth[y][x] != 0:
+                    z = image_depth[y][x]
+                    face_points_3d.append([x,y,z])
+
+            # Fit a plane to detected face points
+            plane = Plane.best_fit(Points(face_points_3d))
+            a,b,c,d = plane.cartesian()
+
+            # Locate u,v of stomion
+            img_mouth_center = face_points[66]
+            # Calculate depth of stomion u,v from fit plane
+            depth_mm = (1.0/c) * (d - (a*img_mouth_center[0]) - (b*img_mouth_center[1]))
+            return True, depth_mm
+
+            
+
+
+        depth_mm = depth_sum / float(num_points_at_depth)
         return True, depth_mm
 
     def get_stomion_point(self, u: int, v: int, depth_mm: float) -> Point:
@@ -547,13 +575,13 @@ class FaceDetectionNode(Node):
             (
                 is_face_detected,
                 img_mouth_center,
-                img_mouth_points,
+                img_face_points,
             ) = self.detect_largest_face(rgb_msg)
 
             if is_face_detected:
                 # Get the depth of the mouth
                 is_face_detected_depth, depth_mm = self.get_mouth_depth(
-                    rgb_msg, img_mouth_points
+                    rgb_msg, img_face_points
                 )
                 if is_face_detected_depth:
                     # Get the 3d location of the mouth
