@@ -87,7 +87,7 @@ def generate_launch_description():
                 expression=[
                     "'",
                     prefix,
-                    "/local/camera/aligned_depth_to_color/depth_octomap'",
+                    "/camera/aligned_depth_to_color/image_raw'",
                 ]
             ),
         ),
