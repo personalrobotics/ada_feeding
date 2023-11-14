@@ -427,6 +427,8 @@ class FaceDetectionNode(Node):
         # averaged to approximate the mouth center
         mouth_points = face_points[48:68]
 
+        use_plane = False
+
         # Find depth image closest in time to RGB image that face was in
         with self.depth_buffer_lock:
             min_time_diff = float("inf")
@@ -469,16 +471,18 @@ class FaceDetectionNode(Node):
                 if image_depth[y][x] != 0:
                     num_points_at_depth += 1
                     depth_sum += image_depth[y][x]
-        if num_points_in_frame < 0.5 * len(mouth_points) or num_points_at_depth < 0.5 * len(mouth_points):
-            if num_points_in_frame < 0.5 * len(mouth_points):
-                self.get_logger().warn(
-                    "Detected face in the RGB image, but majority of mouth points "
-                    "were outside the frame of the depth image. 
-                )
-            if num_points_at_depth < 0.5 * len(mouth_points):
-                self.get_logger().warn(
-                    "Majority of mouth points are obscured by the fork or food."
-                )
+        if num_points_in_frame < 0.5 * len(mouth_points):
+            use_plane = True
+            self.get_logger().warn(
+                "Detected face in the RGB image, but majority of mouth points "
+                "were outside the frame of the depth image."
+            )
+        if num_points_at_depth < 0.5 * len(mouth_points):
+            use_plane = True
+            self.get_logger().warn(
+                "Majority of mouth points are obscured by the fork or food."
+            )
+        if use_plane:
             self.get_logger().warn(
                 "Not enough viable mouth points detected. Predicting mouth depth "
                 "from facial plane."
@@ -488,22 +492,22 @@ class FaceDetectionNode(Node):
             for point in face_points:
                 x, y = int(point[0]), int(point[1])
                 # Ensure that point is contained within the depth image frame
-                if 0 <= x < image_depth.shape[1] and 0 <= y < image_depth.shape[0] and image_depth[y][x] != 0:
-                    z = image_depth[y][x]
-                    face_points_3d.append([x,y,z])
+                if 0 <= x < image_depth.shape[1] and 0 <= y < image_depth.shape[0]:
+                    if image_depth[y][x] != 0:
+                        z = image_depth[y][x]
+                        face_points_3d.append([x, y, z])
 
             # Fit a plane to detected face points
             plane = Plane.best_fit(Points(face_points_3d))
-            a,b,c,d = plane.cartesian()
+            a, b, c, d = plane.cartesian()
 
             # Locate u,v of stomion
             img_mouth_center = face_points[66]
             # Calculate depth of stomion u,v from fit plane
-            depth_mm = (1.0/c) * (d - (a*img_mouth_center[0]) - (b*img_mouth_center[1]))
+            depth_mm = (1.0 / c) * (
+                d - (a * img_mouth_center[0]) - (b * img_mouth_center[1])
+            )
             return True, depth_mm
-
-            
-
 
         depth_mm = depth_sum / float(num_points_at_depth)
         return True, depth_mm

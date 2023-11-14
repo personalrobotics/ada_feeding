@@ -82,7 +82,11 @@ def generate_launch_description():
         (
             "~/aligned_depth",
             PythonExpression(
-                expression=["'", prefix, "/local/camera/aligned_depth_to_color/depth_octomap'"]
+                expression=[
+                    "'",
+                    prefix,
+                    "/local/camera/aligned_depth_to_color/depth_octomap'",
+                ]
             ),
         ),
     ]
