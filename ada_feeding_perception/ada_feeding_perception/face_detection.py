@@ -7,9 +7,10 @@ of the largest detected mouth with respect to camera_depth_optical_frame.
 
 # Standard Imports
 import collections
+from enum import Enum
 import os
 import threading
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 
 # Third-party imports
 import cv2
@@ -24,7 +25,9 @@ from rclpy.parameter import Parameter
 from rclpy.executors import MultiThreadedExecutor
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from sensor_msgs.msg import CompressedImage, CameraInfo, Image
+from skspatial.objects import Plane, Points
 from std_srvs.srv import SetBool
+
 
 # Local imports
 from ada_feeding_msgs.msg import FaceDetection
@@ -33,6 +36,15 @@ from ada_feeding_perception.helpers import (
     get_img_msg_type,
     cv2_image_to_ros_msg,
 )
+
+
+class DepthComputationMethod(Enum):
+    """
+    Enum for the different methods of computing the depth of the mouth.
+    """
+
+    AVERAGE_MOUTH_POINTS = "average_mouth_points"
+    FACIAL_PLANE = "facial_plane"
 
 
 class FaceDetectionNode(Node):
@@ -337,7 +349,7 @@ class FaceDetectionNode(Node):
         is_face_detected: Whether a face was detected in the image.
         mouth_center: The (u,v) coordinates of the somion of the largest face
             detected in the image.
-        mouth_points: A list of (u,v) coordinates of the facial landmarks of the mouth.
+        face_points: A list of (u,v) coordinates of the landmarks of the face.
         face_bbox: The bounding box of the largest face detected in the image,
             in the form (x, y, w, h).
         """
@@ -354,7 +366,7 @@ class FaceDetectionNode(Node):
         faces = self.detector.detectMultiScale(image_gray)
         is_face_detected = len(faces) > 0
         img_mouth_center = (0, 0)
-        img_mouth_points = []
+        img_face_points = []
         face_bbox = (0, 0, 0, 0)
 
         if is_face_detected:
@@ -377,12 +389,116 @@ class FaceDetectionNode(Node):
             # Find stomion (mouth center) in image. See below for the landmark indices:
             # https://pyimagesearch.com/2017/04/03/facial-landmarks-dlib-opencv-python/
             img_mouth_center = landmarks[largest_face[1]][0][66]
-            img_mouth_points = landmarks[largest_face[1]][0][48:68]
+            img_face_points = landmarks[largest_face[1]][0]
 
-        return is_face_detected, img_mouth_center, img_mouth_points, face_bbox
+        return is_face_detected, img_mouth_center, img_face_points, face_bbox
+
+    def depth_method_average_mouth_points(
+        self,
+        mouth_points: npt.NDArray,
+        image_depth: npt.NDArray,
+        threshold: float = 0.5,
+    ) -> Tuple[bool, float]:
+        """
+        Compute the depth of the mouth stomion by averaging the depth of all
+        viable mouth points.
+
+        Parameters
+        ----------
+        mouth_points: A list of (u,v) coordinates of all facial landmarks.
+        image_depth: The depth image corresponding to the RGB image that the
+            face was detected in.
+        threshold: The minimum fraction of mouth points that must be valid for
+            the depth to be computed.
+
+        Returns
+        -------
+        detected: whether the mouth was detected in the depth image.
+        depth_mm: The depth of the mouth in mm.
+        """
+        # pylint: disable=too-many-locals
+        # This function is not too complex, but it does have a lot of local variables.
+
+        # Retrieve the depth value averaged over all viable mouth coordinates
+        depth_sum = 0
+        num_valid_points = 0
+        for point in mouth_points:
+            u, v = int(point[0]), int(point[1])
+            # Ensure that point is contained within the depth image frame
+            if 0 <= u < image_depth.shape[1] and 0 <= v < image_depth.shape[0]:
+                if image_depth[v][u] != 0:
+                    num_valid_points += 1
+                    depth_sum += image_depth[v][u]
+        if num_valid_points >= threshold * len(mouth_points):
+            # If at least half of the mouth points are valid, use the average
+            # depth of the mouth points
+            depth_mm = depth_sum / float(num_valid_points)
+            return True, depth_mm
+
+        self.get_logger().warn(
+            "The majority of mouth points were invalid (outside the frame or depth not detected). "
+            "Unable to compute mouth depth by averaging mouth points."
+        )
+        return False, 0
+
+    def depth_method_facial_plane(
+        self, face_points: npt.NDArray, image_depth: npt.NDArray, threshold: float = 0.5
+    ) -> Tuple[bool, float]:
+        """
+        Compute the depth of the mouth stomion by fitting a plane to the
+        internal points of the face and calculating the depth of the stomion
+        from the plane.
+
+        Parameters
+        ----------
+        face_points: A list of (u,v) coordinates of all facial landmarks.
+        image_depth: The depth image corresponding to the RGB image that the
+            face was detected in.
+        threshold: The minimum fraction of face points that must be valid for
+            the plane to be fit.
+
+        Returns
+        -------
+        detected: whether the mouth was detected in the depth image.
+        depth_mm: The depth of the mouth in mm.
+        """
+        # pylint: disable=too-many-locals
+        # This function is not too complex, but it does have a lot of local variables.
+
+        internal_face_points = face_points[18:]  # Ignore points along the face outline
+        face_points_3d = []
+        for point in internal_face_points:
+            u, v = int(point[0]), int(point[1])
+            # Ensure that point is contained within the depth image frame
+            if 0 <= u < image_depth.shape[1] and 0 <= v < image_depth.shape[0]:
+                if image_depth[v][u] != 0:
+                    z = image_depth[v][u]
+                    face_points_3d.append([u, v, z])
+        if len(face_points_3d) >= threshold * len(internal_face_points):
+            # Fit a plane to detected face points
+            plane = Plane.best_fit(Points(face_points_3d))
+            a, b, c, d = plane.cartesian()
+
+            # Locate u,v of stomion. See below for the landmark indices:
+            # https://pyimagesearch.com/2017/04/03/facial-landmarks-dlib-opencv-python/
+            stomion_u, stomion_v = face_points[66]
+            # Calculate depth of stomion u,v from fit plane
+            depth_mm = (d + (a * stomion_u) + (b * stomion_v)) / (-c)
+            return True, depth_mm
+        self.get_logger().warn(
+            "The majority of internal face points were invalid (outside the frame or depth not detected). "
+            "Unable to compute mouth depth from facial plane."
+        )
+        return False, 0
 
     def get_mouth_depth(
-        self, rgb_msg: Union[CompressedImage, Image], face_points: np.ndarray
+        self,
+        rgb_msg: Union[CompressedImage, Image],
+        face_points: npt.NDArray,
+        methods: List[DepthComputationMethod] = [
+            DepthComputationMethod.AVERAGE_MOUTH_POINTS,
+            DepthComputationMethod.FACIAL_PLANE,
+        ],
     ) -> Tuple[bool, float]:
         """
         Get the depth of the mouth of the largest detected face in the image.
@@ -390,8 +506,7 @@ class FaceDetectionNode(Node):
         Parameters
         ----------
         rgb_msg: The RGB image that the face was detected in.
-        face_points: A list of (u,v) coordinates of the facial landmarks whose depth
-            should be averaged to get the predicted depth of the mouth.
+        face_points: A list of (u,v) coordinates of all facial landmarks.
 
         Returns
         -------
@@ -399,8 +514,13 @@ class FaceDetectionNode(Node):
         depth_mm: The depth of the mouth in mm.
         """
 
-        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-locals, dangerous-default-value
         # This function is not too complex, but it does have a lot of local variables.
+        # In this case, a list as the default value is okay since we don't change it.
+
+        # Pull out a list of (u,v) coordinates of all facial landmarks that can be
+        # averaged to approximate the mouth center
+        mouth_points = face_points[48:68]
 
         # Find depth image closest in time to RGB image that face was in
         with self.depth_buffer_lock:
@@ -432,25 +552,24 @@ class FaceDetectionNode(Node):
             desired_encoding="passthrough",
         )
 
-        # Retrieve the depth value averaged over all mouth coordinates
-        depth_sum = 0
-        num_points_in_frame = 0
-        for point in face_points:
-            x, y = int(point[0]), int(point[1])
-            if 0 <= x < image_depth.shape[1] and 0 <= y < image_depth.shape[0]:
-                # Points with depth 0mm are invalid (typically out-of-range)
-                if image_depth[y][x] != 0:
-                    num_points_in_frame += 1
-                    depth_sum += image_depth[y][x]
-        if num_points_in_frame < 0.5 * len(face_points):
-            self.get_logger().warn(
-                "Detected face in the RGB image, but majority of mouth points "
-                "were invalid. Ignoring this face."
-            )
-            return False, 0
+        # Compute the depth of the mouth
+        for method in methods:
+            if method == DepthComputationMethod.AVERAGE_MOUTH_POINTS:
+                detected, depth_mm = self.depth_method_average_mouth_points(
+                    mouth_points, image_depth
+                )
+            elif method == DepthComputationMethod.FACIAL_PLANE:
+                detected, depth_mm = self.depth_method_facial_plane(
+                    face_points, image_depth
+                )
+            else:
+                self.get_logger().warn(
+                    f"Invalid depth computation method: {method}. Skipping."
+                )
+            if detected:
+                return detected, depth_mm
 
-        depth_mm = depth_sum / float(num_points_in_frame)
-        return True, depth_mm
+        return False, 0
 
     def get_stomion_point(self, u: int, v: int, depth_mm: float) -> Point:
         """
@@ -522,14 +641,14 @@ class FaceDetectionNode(Node):
             (
                 is_face_detected,
                 img_mouth_center,
-                img_mouth_points,
+                img_face_points,
                 face_bbox,
             ) = self.detect_largest_face(image_bgr)
 
             if is_face_detected:
                 # Get the depth of the mouth
                 is_face_detected_depth, depth_mm = self.get_mouth_depth(
-                    rgb_msg, img_mouth_points
+                    rgb_msg, img_face_points
                 )
                 if is_face_detected_depth:
                     # Get the 3d location of the mouth
@@ -544,7 +663,7 @@ class FaceDetectionNode(Node):
 
             # Annotate the image with the face
             if is_face_detected:
-                self.annotate_image(image_bgr, img_mouth_points, face_bbox)
+                self.annotate_image(image_bgr, img_face_points, face_bbox)
 
             # Publish the face detection image
             self.publisher_image.publish(
@@ -558,16 +677,16 @@ class FaceDetectionNode(Node):
     def annotate_image(
         self,
         image_bgr: npt.NDArray,
-        img_mouth_points: npt.NDArray,
+        img_face_points: npt.NDArray,
         face_bbox: Tuple[int, int, int, int],
     ) -> None:
         """
-        Annotate the image with the face and mouth center.
+        Annotate the image with the face and facial landmarks center.
 
         Parameters
         ----------
         image_bgr: The OpenCV image to annotate.
-        img_mouth_points: A list of (u,v) coordinates of the facial landmarks of the mouth.
+        img_face_points: A list of (u,v) coordinates of the facial landmarks.
         face_bbox: The bounding box of the largest face detected in the image,
             in the form (x, y, w, h).
         """
@@ -577,7 +696,7 @@ class FaceDetectionNode(Node):
 
         # Annotate the image with the face.
         cv2.rectangle(image_bgr, (x, y), (x + w, y + h), (255, 255, 255), 2)
-        for landmark_x, landmark_y in img_mouth_points:
+        for landmark_x, landmark_y in img_face_points:
             cv2.circle(
                 image_bgr,
                 (int(landmark_x), int(landmark_y)),
