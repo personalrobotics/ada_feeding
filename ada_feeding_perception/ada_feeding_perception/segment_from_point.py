@@ -359,6 +359,7 @@ class SegmentFromPointNode(Node):
                     "Camera info not received, not including in result message"
                 )
 
+        self.get_logger().info("Within segment_image: retrieving the latest depth image...")
         # Get the latest depth image
         with self.latest_depth_img_msg_lock:
             depth_img_msg = self.latest_depth_img_msg
@@ -371,6 +372,8 @@ class SegmentFromPointNode(Node):
         # 16-bit image with depth in mm.
         depth_img = ros_msg_to_cv2_image(depth_img_msg, self.bridge)
 
+
+        self.get_logger().info("Within segment_image: segmenting the image...")
         # Segment the image
         self.predictor.set_image(image)
         masks, scores, _ = self.predictor.predict(
@@ -383,6 +386,8 @@ class SegmentFromPointNode(Node):
         scored_masks_sorted = sorted(
             zip(scores, masks), key=lambda x: x[0], reverse=True
         )
+
+        self.get_logger().info("Within segment_image: converting masks to ROS messages...")
 
         # Convert the top `self.n_contender_masks` masks to ROS messages
         for mask_num in range(min(len(scored_masks_sorted), self.n_contender_masks)):
@@ -488,6 +493,7 @@ class SegmentFromPointNode(Node):
         )
         result = self.segment_image(seed_point, latest_img_msg)
 
+        self.get_logger().info("Checking for a cancel request...")
         # Check if there was a cancel request
         if goal_handle.is_cancel_requested:
             self.get_logger().info("Goal canceled")
