@@ -46,8 +46,12 @@
     <node pkg="feeding_web_app_ros2_test" exec="AcquireFood" name="AcquireFood"/>
     <!-- Motion: The MoveToRestingPosition action -->
     <node pkg="feeding_web_app_ros2_test" exec="MoveToRestingPosition" name="MoveToRestingPosition"/>
+    <!-- Motion: The MoveToStagingConfiguration action -->
+    <node pkg="feeding_web_app_ros2_test" exec="MoveToStagingConfiguration" name="MoveToStagingConfiguration"/>
     <!-- Motion: The MoveToMouth action -->
     <node pkg="feeding_web_app_ros2_test" exec="MoveToMouth" name="MoveToMouth"/>
+    <!-- Motion: The MoveFromMouthToStagingConfiguration action -->
+    <node pkg="feeding_web_app_ros2_test" exec="MoveFromMouthToStagingConfiguration" name="MoveFromMouthToStagingConfiguration"/>
     <!-- Motion: The MoveFromMouthToAbovePlate action -->
     <node pkg="feeding_web_app_ros2_test" exec="MoveFromMouthToAbovePlate" name="MoveFromMouthToAbovePlate"/>
     <!-- Motion: The MoveFromMouthToRestingPosition action -->

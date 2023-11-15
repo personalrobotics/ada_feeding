@@ -19,7 +19,7 @@ const BiteAcquisitionCheck = () => {
   // Get icon image for move above plate
   let moveAbovePlateImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
   // Get icon image for move to mouth
-  let moveToMouthImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth]
+  let moveToStagingConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingConfiguration]
   // Flag to check if the current orientation is portrait
   const isPortrait = useMediaQuery({ query: '(orientation: portrait)' })
   // Indicator of how to arrange screen elements based on orientation
@@ -37,7 +37,7 @@ const BiteAcquisitionCheck = () => {
    */
   const acquisitionSuccess = useCallback(() => {
     console.log('acquisitionSuccess')
-    setMealState(MEAL_STATE.R_MovingToMouth)
+    setMealState(MEAL_STATE.R_MovingToStagingConfiguration)
   }, [setMealState])
 
   /**
@@ -81,11 +81,16 @@ const BiteAcquisitionCheck = () => {
           onClick={acquisitionSuccess}
           style={{ width: buttonWidth, height: buttonHeight }}
         >
-          <img src={moveToMouthImage} alt='move_to_mouth_image' className='center' style={{ width: iconWidth, height: iconHeight }} />
+          <img
+            src={moveToStagingConfigurationImage}
+            alt='move_to_mouth_image'
+            className='center'
+            style={{ width: iconWidth, height: iconHeight }}
+          />
         </Button>
       </>
     )
-  }, [moveToMouthImage, acquisitionSuccess, buttonHeight, buttonWidth, iconHeight, iconWidth])
+  }, [moveToStagingConfigurationImage, acquisitionSuccess, buttonHeight, buttonWidth, iconHeight, iconWidth])
 
   /**
    * Get the re-acquire bite text to render.

@@ -145,7 +145,7 @@ const VideoFeed = (props) => {
   // Render the component
   return (
     <img
-      src={`${props.webVideoServerURL}/stream?topic=${CAMERA_FEED_TOPIC}&width=${imgWidth}&height=${imgHeight}&type=ros_compressed`}
+      src={`${props.webVideoServerURL}/stream?topic=${props.topic}&width=${imgWidth}&height=${imgHeight}&type=${props.type}`}
       alt='Live video feed from the robot'
       style={{
         width: imgWidth,
@@ -168,6 +168,10 @@ VideoFeed.propTypes = {
   marginBottom: PropTypes.number.isRequired,
   marginLeft: PropTypes.number.isRequired,
   marginRight: PropTypes.number.isRequired,
+  // The topic of the video feed
+  topic: PropTypes.string.isRequired,
+  // The type of the video feed
+  type: PropTypes.string.isRequired,
   /**
    * An optional callback function for when the user clicks on the video feed.
    * This function should take in two parameters, `x` and `y`, which are the
@@ -175,6 +179,10 @@ VideoFeed.propTypes = {
    * size REALSENSE_WIDTH x REALSENSE_HEIGHT).
    */
   pointClicked: PropTypes.func
+}
+VideoFeed.defaultProps = {
+  topic: CAMERA_FEED_TOPIC,
+  type: 'ros_compressed'
 }
 
 export default VideoFeed

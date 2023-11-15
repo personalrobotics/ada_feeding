@@ -38,9 +38,9 @@ import VideoFeed from '../VideoFeed'
 const BiteSelection = (props) => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
-  const setDesiredFoodItem = useGlobalState((state) => state.setDesiredFoodItem)
+  const setBiteAcquisitionActionGoal = useGlobalState((state) => state.setBiteAcquisitionActionGoal)
   // Get icon image for move to mouth
-  let moveToMouthImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth]
+  let moveToStagingConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingConfiguration]
 
   // Reference to the DOM element of the parent of the video feed
   const videoParentRef = useRef(null)
@@ -101,8 +101,8 @@ const BiteSelection = (props) => {
   /**
    * Callback function for when the user wants to move to mouth position.
    */
-  const moveToMouth = useCallback(() => {
-    setMealState(MEAL_STATE.R_MovingToMouth)
+  const moveToStagingConfiguration = useCallback(() => {
+    setMealState(MEAL_STATE.R_MovingToStagingConfiguration)
   }, [setMealState])
 
   /**
@@ -111,14 +111,14 @@ const BiteSelection = (props) => {
   const foodItemClicked = useCallback(
     (event) => {
       let food_i = Number(event.target.value)
-      setDesiredFoodItem({
+      setBiteAcquisitionActionGoal({
         header: actionResult.header,
         camera_info: actionResult.camera_info,
         detected_food: actionResult.detected_items[food_i]
       })
       setMealState(MEAL_STATE.R_BiteAcquisition)
     },
-    [actionResult, setDesiredFoodItem, setMealState]
+    [actionResult, setBiteAcquisitionActionGoal, setMealState]
   )
 
   /**
@@ -203,8 +203,13 @@ const BiteSelection = (props) => {
         numImageClicks === 0 ? responseCallback : null
       )
       setNumImageClicks(numImageClicks + 1)
+      // The current implementation of food segmentation does not send feedback,
+      // so we manually set the action status to executing.
+      setActionStatus({
+        actionStatus: ROS_ACTION_STATUS_EXECUTE
+      })
     },
-    [segmentFromPointAction, numImageClicks, feedbackCallback, responseCallback]
+    [segmentFromPointAction, numImageClicks, feedbackCallback, responseCallback, setNumImageClicks, setActionStatus]
   )
 
   /**
@@ -385,14 +390,14 @@ const BiteSelection = (props) => {
             variant='warning'
             className='mx-2 btn-huge'
             size='lg'
-            onClick={moveToMouth}
+            onClick={moveToStagingConfiguration}
             style={{
               width: '90%',
               height: '90%'
             }}
           >
             <img
-              src={moveToMouthImage}
+              src={moveToStagingConfigurationImage}
               style={{
                 height: '90%',
                 '--bs-btn-padding-x': '0rem',
@@ -405,7 +410,7 @@ const BiteSelection = (props) => {
         </View>
       </>
     )
-  }, [moveToMouth, moveToMouthImage, textFontSize])
+  }, [moveToStagingConfiguration, moveToStagingConfigurationImage, textFontSize])
 
   /** Get the full page view
    *

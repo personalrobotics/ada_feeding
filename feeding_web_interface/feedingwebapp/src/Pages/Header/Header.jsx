@@ -8,7 +8,7 @@ import { useMediaQuery } from 'react-responsive'
 // Component
 import PropTypes from 'prop-types'
 // Toast generates a temporary pop-up with a timeout.
-import { ToastContainer, toast } from 'react-toastify'
+import { ToastContainer /* , toast */ } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 // ROS imports
 import { useROS } from '../../ros/ros_helpers'
@@ -65,13 +65,13 @@ const Header = (props) => {
    * started, take the user to the settings menu. Else, ask them to complete
    * or terminate the meal because modifying settings.
    */
-  const settingsClicked = useCallback(() => {
-    if (mealState === MEAL_STATE.U_PreMeal || mealState === MEAL_STATE.U_PostMeal) {
-      setAppPage(APP_PAGE.Settings)
-    } else {
-      toast('Please complete or terminate the feeding process to access Settings.')
-    }
-  }, [mealState, setAppPage])
+  // const settingsClicked = useCallback(() => {
+  //   if (mealState === MEAL_STATE.U_PreMeal || mealState === MEAL_STATE.U_PostMeal) {
+  //     setAppPage(APP_PAGE.Settings)
+  //   } else {
+  //     toast('Please complete or terminate the feeding process to access Settings.')
+  //   }
+  // }, [mealState, setAppPage])
 
   // Render the component. The NavBar will stay fixed even as we vertically scroll.
   return (
@@ -109,13 +109,14 @@ const Header = (props) => {
             >
               Home
             </Nav.Link>
-            <Nav.Link
+            {/* TODO: Reinstate the settings menu when we implement settings! */}
+            {/* <Nav.Link
               onClick={settingsClicked}
               className='text-dark bg-info rounded mx-1 btn-lg btn-huge p-2'
               style={{ fontSize: textFontSize }}
             >
               Settings
-            </Nav.Link>
+            </Nav.Link> */}
           </Nav>
           {NON_MOVING_STATES.has(mealState) || paused || (mealState === MEAL_STATE.U_PlateLocator && teleopIsMoving === false) ? (
             <Nav>

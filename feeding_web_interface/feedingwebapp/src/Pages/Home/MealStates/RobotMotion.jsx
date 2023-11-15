@@ -6,12 +6,23 @@ import { View } from 'react-native'
 // PropTypes is used to validate that the used props are in fact passed to this Component
 import PropTypes from 'prop-types'
 // Local Imports
-import { useROS, createROSActionClient, callROSAction, cancelROSAction, destroyActionClient } from '../../../ros/ros_helpers'
+import {
+  useROS,
+  createROSActionClient,
+  callROSAction,
+  cancelROSAction,
+  destroyActionClient,
+  createROSService,
+  createROSServiceRequest
+} from '../../../ros/ros_helpers'
 import Footer from '../../Footer/Footer'
 import CircleProgressBar from './CircleProgressBar'
 import '../Home.css'
 import { useGlobalState, MEAL_STATE } from '../../GlobalState'
 import {
+  CLEAR_OCTOMAP_SERVICE_NAME,
+  CLEAR_OCTOMAP_SERVICE_TYPE,
+  NON_RETRYABLE_STATES,
   ROS_ACTIONS_NAMES,
   MOTION_STATUS_SUCCESS,
   ROS_ACTION_STATUS_CANCEL_GOAL,
@@ -83,6 +94,12 @@ const RobotMotion = (props) => {
   }, [props.mealState])
 
   /**
+   * Create the ROS Service Client for clearing the octomap. This is only used
+   * in the case of an action error.
+   */
+  let clearOctomapService = useRef(createROSService(ros.current, CLEAR_OCTOMAP_SERVICE_NAME, CLEAR_OCTOMAP_SERVICE_TYPE))
+
+  /**
    * Callback function for when the action sends feedback. It updates the
    * actionStatus local state variable.
    *
@@ -138,10 +155,13 @@ const RobotMotion = (props) => {
           setActionStatus({
             actionStatus: ROS_ACTION_STATUS_ABORT
           })
+          // In addition to displaying this error, we should also toggle the
+          // pause button to give the user options on what to do next.
+          setPaused(true)
         }
       }
     },
-    [robotMotionDone, setActionStatus]
+    [setActionStatus, setPaused, robotMotionDone]
   )
 
   /**
@@ -169,10 +189,11 @@ const RobotMotion = (props) => {
         setActionStatus({
           actionStatus: ROS_ACTION_STATUS_EXECUTE
         })
+        console.log('Calling action with input', props.actionInput)
         callROSAction(robotMotionAction, props.actionInput, feedbackCb, responseCb)
       }
     },
-    [robotMotionAction, paused, props.actionInput, setActionStatus]
+    [paused, robotMotionAction, props.actionInput]
   )
 
   /**
@@ -188,6 +209,7 @@ const RobotMotion = (props) => {
      * only be called when the component unmounts.
      */
     return () => {
+      console.log('Destroying action client')
       destroyActionClient(robotMotionAction)
     }
   }, [callRobotMotionAction, robotMotionAction, feedbackCallback, responseCallback])
@@ -204,6 +226,25 @@ const RobotMotion = (props) => {
     setPaused(false)
     callRobotMotionAction(null, null) // don't re-register the callbacks
   }, [callRobotMotionAction, setPaused])
+
+  /**
+   * Callback function for when the retry button is pressed. It calls the
+   * /clear_octomap service to clear the octomap, then calls the action once
+   * again.
+   *
+   * TODO: on action failure, the user can click on both "Retry" and "Resume",
+   * and they have different behaviors, which is likely confusing to the user.
+   * We should think about how to make this more intuitive.
+   */
+  const retryCallback = useCallback(() => {
+    // Create a service request
+    let request = createROSServiceRequest({})
+    // Call the service
+    let service = clearOctomapService.current
+    service.callService(request, (response) => console.log('Got clear octomap service response', response))
+    // Resume the motion
+    resumeCallback()
+  }, [clearOctomapService, resumeCallback])
 
   /**
    * Callback function for when the back button is clicked. Regardless of the
@@ -225,8 +266,10 @@ const RobotMotion = (props) => {
    */
   const backMealState = useRef(MEAL_STATE.R_MovingAbovePlate)
   useEffect(() => {
-    if (mealState === MEAL_STATE.R_MovingToMouth) {
+    if (mealState === MEAL_STATE.R_MovingToStagingConfiguration) {
       backMealState.current = MEAL_STATE.R_MovingToRestingPosition
+    } else if (mealState === MEAL_STATE.R_MovingToMouth) {
+      backMealState.current = MEAL_STATE.R_MovingFromMouthToStagingConfiguration
     } else {
       backMealState.current = MEAL_STATE.R_MovingAbovePlate
     }
@@ -266,7 +309,7 @@ const RobotMotion = (props) => {
                   variant='warning'
                   className='mx-2 btn-huge'
                   size='lg'
-                  onClick={resumeCallback}
+                  onClick={retryCallback}
                   style={{
                     width: '90%',
                     height: '20%'
@@ -293,7 +336,7 @@ const RobotMotion = (props) => {
         </>
       )
     },
-    [dimension, props.waitingText, motionTextFontSize, waitingTextFontSize, resumeCallback]
+    [dimension, props.waitingText, motionTextFontSize, waitingTextFontSize, retryCallback]
   )
 
   /**
@@ -309,6 +352,7 @@ const RobotMotion = (props) => {
       let showTime = false
       let time = 0
       let progress = null
+      let retry = false
       switch (actionStatus.actionStatus) {
         case ROS_ACTION_STATUS_EXECUTE:
           if (actionStatus.feedback) {
@@ -343,8 +387,9 @@ const RobotMotion = (props) => {
            * users on how to troubleshoot/fix it.
            */
           text = 'Robot encountered an error'
+          retry = NON_RETRYABLE_STATES.has(mealState) ? false : true
           return (
-            <>{actionStatusTextAndVisual(flexSizeOuter, flexSizeTextInner, flexSizeVisualInner, text, showTime, time, progress, true)}</>
+            <>{actionStatusTextAndVisual(flexSizeOuter, flexSizeTextInner, flexSizeVisualInner, text, showTime, time, progress, retry)}</>
           )
         case ROS_ACTION_STATUS_CANCELED:
           return <>{actionStatusTextAndVisual(flexSizeOuter, flexSizeTextInner, flexSizeVisualInner, text, showTime, time, progress)}</>
@@ -362,7 +407,7 @@ const RobotMotion = (props) => {
           }
       }
     },
-    [paused, dimension, actionStatusTextAndVisual]
+    [paused, dimension, actionStatusTextAndVisual, mealState]
   )
 
   // Render the component
@@ -385,7 +430,7 @@ const RobotMotion = (props) => {
         pauseCallback={pauseCallback}
         backCallback={mealState === MEAL_STATE.R_MovingAbovePlate ? null : backCallback}
         backMealState={backMealState.current}
-        resumeCallback={mealState === MEAL_STATE.R_BiteAcquisition ? null : resumeCallback}
+        resumeCallback={NON_RETRYABLE_STATES.has(mealState) ? null : resumeCallback}
         paused={paused}
       />
     </>

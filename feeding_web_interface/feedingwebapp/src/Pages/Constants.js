@@ -26,12 +26,18 @@ MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate] = '/robot_state_imgs/move_
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingFromMouthToAbovePlate] = '/robot_state_imgs/move_above_plate_position.svg'
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToRestingPosition] = '/robot_state_imgs/move_to_resting_position.svg'
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingFromMouthToRestingPosition] = '/robot_state_imgs/move_to_resting_position.svg'
+MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingConfiguration] = '/robot_state_imgs/move_to_staging_configuration.svg'
+MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingFromMouthToStagingConfiguration] = '/robot_state_imgs/move_to_staging_configuration.svg'
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth] = '/robot_state_imgs/move_to_mouth_position.svg'
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_StowingArm] = '/robot_state_imgs/stowing_arm_position.svg'
 export { MOVING_STATE_ICON_DICT }
 
 /**
  * A set containing the states where the robot does not move.
+ *
+ * NOTE: Although in R_DetectingFace the robot does not technically move,
+ * the app might transition out of that state into a robot motion state without
+ * user intervention, so it is not included in this set.
  */
 let NON_MOVING_STATES = new Set()
 NON_MOVING_STATES.add(MEAL_STATE.U_PreMeal)
@@ -46,6 +52,12 @@ export const CAMERA_FEED_TOPIC = '/local/camera/color/image_raw'
 export const FACE_DETECTION_TOPIC = '/face_detection'
 export const FACE_DETECTION_TOPIC_MSG = 'ada_feeding_msgs/FaceDetection'
 export const FACE_DETECTION_IMG_TOPIC = '/face_detection_img'
+
+// States from which, if they fail, it is NOT okay for the user to retry the
+// same action.
+let NON_RETRYABLE_STATES = new Set()
+NON_RETRYABLE_STATES.add(MEAL_STATE.R_BiteAcquisition)
+export { NON_RETRYABLE_STATES }
 
 /**
  * For states that call ROS actions, this dictionary contains
@@ -76,15 +88,36 @@ ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingFromMouthToRestingPosition] = {
   actionName: 'MoveFromMouthToRestingPosition',
   messageType: 'ada_feeding_msgs/action/MoveTo'
 }
+ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingToStagingConfiguration] = {
+  actionName: 'MoveToStagingConfiguration',
+  messageType: 'ada_feeding_msgs/action/MoveTo'
+}
+ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingFromMouthToStagingConfiguration] = {
+  actionName: 'MoveFromMouthToStagingConfiguration',
+  messageType: 'ada_feeding_msgs/action/MoveTo'
+}
 ROS_ACTIONS_NAMES[MEAL_STATE.R_MovingToMouth] = {
   actionName: 'MoveToMouth',
-  messageType: 'ada_feeding_msgs/action/MoveTo'
+  messageType: 'ada_feeding_msgs/action/MoveToMouth'
 }
 ROS_ACTIONS_NAMES[MEAL_STATE.R_StowingArm] = {
   actionName: 'MoveToStowLocation',
   messageType: 'ada_feeding_msgs/action/MoveTo'
 }
 export { ROS_ACTIONS_NAMES }
+
+/**
+ * For states that call ROS services, this dictionary contains
+ * the service name and the message type
+ */
+let ROS_SERVICE_NAMES = {}
+ROS_SERVICE_NAMES[MEAL_STATE.R_DetectingFace] = {
+  serviceName: 'toggle_face_detection',
+  messageType: 'std_srvs/srv/SetBool'
+}
+export { ROS_SERVICE_NAMES }
+export const CLEAR_OCTOMAP_SERVICE_NAME = 'clear_octomap'
+export const CLEAR_OCTOMAP_SERVICE_TYPE = 'std_srvs/srv/Empty'
 
 /**
  * The meaning of the status that motion actions return in their results.

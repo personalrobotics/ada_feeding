@@ -14,7 +14,7 @@ from threading import Lock
 class FaceDetectionNode(Node):
     def __init__(
         self,
-        face_detection_interval=150,
+        face_detection_interval=90,
         num_images_with_face=60,
         open_mouth_interval=90,
         num_images_with_open_mouth=30,
