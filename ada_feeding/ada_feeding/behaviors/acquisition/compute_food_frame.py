@@ -5,7 +5,7 @@ This module defines the ComputeFoodFrame behavior, which computes the
 food frame from the Mask provided from a perception algorithm.
 """
 # Standard imports
-from typing import Union, Optional
+from typing import Optional, Tuple, Union
 
 # Third-party imports
 import cv2 as cv
@@ -136,6 +136,37 @@ class ComputeFoodFrame(BlackboardBehavior):
             )
             self.intrinsics.model = pyrealsense2.distortion.none
 
+    def get_mask_center(self, mask: Mask) -> Tuple[int, int]:
+        """
+        Returns the center of the mask.
+        """
+        mask_img = cv.imdecode(
+            np.frombuffer(mask.mask.data, np.uint8), cv.IMREAD_UNCHANGED
+        )
+
+        # Calculate the moments of the mask
+        moments = cv.moments(mask_img)
+
+        # Compute the center of the mask from the moments
+        c_x = int(round(moments["m10"] / moments["m00"]))
+        c_y = int(round(moments["m01"] / moments["m00"]))
+
+        roi_cx = mask.roi.width // 2
+        roi_cy = mask.roi.height // 2
+
+        self.node.get_logger().warn(
+            f"c_x {c_x}, c_y {c_y}, roi_cx {roi_cx}, roi_cy {roi_cy}"
+        )
+
+        mask_img_color = cv.cvtColor(mask_img, cv.COLOR_GRAY2BGR)
+        cv.circle(mask_img_color, (c_x, c_y), 2, (0, 0, 255), -1)
+        cv.circle(mask_img_color, (roi_cx, roi_cy), 2, (255, 0, 0), -1)
+
+        # cv.imshow("mask_img", mask_img_color)
+        # cv.waitKey(0)
+
+        return (mask.roi.x_offset + c_x, mask.roi.y_offset + c_y)
+
     @override
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
@@ -188,10 +219,7 @@ class ComputeFoodFrame(BlackboardBehavior):
         mask = self.blackboard_get("mask")
         center_list = pyrealsense2.rs2_deproject_pixel_to_point(
             self.intrinsics,
-            [
-                mask.roi.x_offset + mask.roi.width // 2,
-                mask.roi.y_offset + mask.roi.height // 2,
-            ],
+            self.get_mask_center(mask),
             mask.average_depth,
         )
         center = PointStamped()
