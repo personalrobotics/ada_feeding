@@ -49,7 +49,7 @@ class ServoMove(BlackboardBehavior):
         Parameters
         ----------
         twist: Twist or TwistStamped to publish, with updated time stamps.
-        duration: How long to publish the twist
+        duration: How long to publish the twist. If negative, then run forever.
         pub_topic: Where to publish servo TwistStamped messages
         pub_qos: QoS for publisher
         default_frame_id: frame_id to use if Twist type is provided.
@@ -106,7 +106,10 @@ class ServoMove(BlackboardBehavior):
         duration = self.blackboard_get("duration")
         if isinstance(duration, float):
             duration = float_to_duration(duration)
-        if self.node.get_clock().now() > (self.start_time + duration):
+        # If duration is negative, then run forever
+        if duration >= 0.0 and self.node.get_clock().now() > (
+            self.start_time + duration
+        ):
             return py_trees.common.Status.SUCCESS
 
         # Publish twist
