@@ -182,6 +182,7 @@ class AcquireFoodTree(MoveToTree):
                         "goal_constraints": BlackboardKey("goal_constraints"),
                         "max_velocity_scale": 0.8,
                         "max_acceleration_scale": 0.8,
+                        "allowed_planning_time": 1.5,
                     },
                     outputs={"trajectory": BlackboardKey("trajectory")},
                 ),
@@ -268,7 +269,7 @@ class AcquireFoodTree(MoveToTree):
                             ns=name,
                             inputs={
                                 "goal_constraints": BlackboardKey("goal_constraints"),
-                                "max_velocity_scale": 0.8,
+                                "max_velocity_scale": 1.0,
                                 "max_acceleration_scale": 0.8,
                                 "cartesian": True,
                                 "cartesian_max_step": 0.001,
