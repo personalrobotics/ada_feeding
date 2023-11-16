@@ -37,7 +37,7 @@ from ada_feeding.behaviors.moveit2 import (
     ModifyCollisionObject,
     ModifyCollisionObjectOperation,
 )
-from ada_feeding.behaviors import (
+from ada_feeding.behaviors.ros import (
     GetTransform,
     SetStaticTransform,
     ApplyTransform,
