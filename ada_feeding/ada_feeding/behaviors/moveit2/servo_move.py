@@ -6,7 +6,7 @@ a Twist to the Moveit2 Servo node.
 """
 
 # Standard imports
-from typing import Union
+from typing import Optional, Union
 
 # Third-party imports
 from overrides import override
@@ -16,7 +16,7 @@ from rclpy.duration import Duration
 from rclpy.qos import QoSProfile
 
 # Local imports
-from ada_feeding.helpers import BlackboardKey, float_to_duration
+from ada_feeding.helpers import BlackboardKey, duration_to_float, float_to_duration
 from ada_feeding.behaviors import BlackboardBehavior
 
 
@@ -42,6 +42,7 @@ class ServoMove(BlackboardBehavior):
         pub_topic: Union[BlackboardKey, str] = "~/servo_twist_cmds",
         pub_qos: Union[BlackboardKey, QoSProfile] = QoSProfile(depth=1),
         default_frame_id: Union[BlackboardKey, str] = "world",
+        curr_distance: Optional[BlackboardKey] = None,  # float
     ) -> None:
         """
         Blackboard Inputs
@@ -53,6 +54,8 @@ class ServoMove(BlackboardBehavior):
         pub_topic: Where to publish servo TwistStamped messages
         pub_qos: QoS for publisher
         default_frame_id: frame_id to use if Twist type is provided.
+        curr_distance: If None, use time as distance. Otherwise, use this
+            BlackboardKey to store the remaining distance.
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -88,6 +91,7 @@ class ServoMove(BlackboardBehavior):
 
         # Record start time
         self.start_time = self.node.get_clock().now()
+        self.curr_distance = 0.0
 
     @override
     def update(self) -> py_trees.common.Status:
@@ -102,16 +106,6 @@ class ServoMove(BlackboardBehavior):
             self.logger.error("Missing input arguments")
             return py_trees.common.Status.FAILURE
 
-        # Return success if duration is exceeded
-        duration = self.blackboard_get("duration")
-        if isinstance(duration, float):
-            duration = float_to_duration(duration)
-        # If duration is negative, then run forever
-        if duration >= 0.0 and self.node.get_clock().now() > (
-            self.start_time + duration
-        ):
-            return py_trees.common.Status.SUCCESS
-
         # Publish twist
         twist = self.blackboard_get("twist")
         if isinstance(twist, Twist):
@@ -120,6 +114,23 @@ class ServoMove(BlackboardBehavior):
             twist.twist = self.blackboard_get("twist")
         twist.header.stamp = self.node.get_clock().now().to_msg()
         self.pub.publish(twist)
+
+        # Write the remaining distance
+        duration = self.blackboard_get("duration")
+        self.curr_distance = self.blackboard_get("curr_distance")
+        if self.curr_distance is None:
+            self.curr_distance = duration_to_float(duration) - duration_to_float(
+                self.node.get_clock().now() - self.start_time
+            )
+
+        # Return success if duration is exceeded. If duration is negative, then
+        # run forever
+        if isinstance(duration, float):
+            duration = float_to_duration(duration)
+        if duration.nanoseconds >= 0 and self.node.get_clock().now() > (
+            self.start_time + duration
+        ):
+            return py_trees.common.Status.SUCCESS
 
         # Servo is still executing
         return py_trees.common.Status.RUNNING
