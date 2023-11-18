@@ -6,17 +6,23 @@ messages.
 """
 
 # Standard imports
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 # Third-party imports
 from geometry_msgs.msg import (
     Point,
     Quaternion,
     QuaternionStamped,
+    TwistStamped,
+    Vector3,
 )
+import numpy as np
 from overrides import override
 import py_trees
 import rclpy
+from rclpy.duration import Duration
+import ros2_numpy
+from scipy.spatial.transform import Rotation as R
 from tf2_geometry_msgs import PointStamped, PoseStamped
 
 # Local imports
@@ -42,7 +48,9 @@ class UpdateTimestamp(BlackboardBehavior):
     def blackboard_inputs(
         self,
         stamped_msg: Union[BlackboardKey, Any],
-        timestamp: Union[BlackboardKey, Optional[rclpy.time.Time]] = None,
+        timestamp: Union[BlackboardKey, rclpy.time.Time, Duration] = Duration(
+            seconds=0.0
+        ),
     ) -> None:
         """
         Blackboard Inputs
@@ -50,7 +58,7 @@ class UpdateTimestamp(BlackboardBehavior):
         Parameters
         ----------
         stamped_msg: Any ROS msg with a header
-        timestamp: if None, use current time
+        timestamp: If a duration, add it to current time.
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -98,8 +106,8 @@ class UpdateTimestamp(BlackboardBehavior):
 
         msg = self.blackboard_get("stamped_msg")
         time = self.blackboard_get("timestamp")
-        if time is None:
-            time = self.node.get_clock().now()
+        if isinstance(time, Duration):
+            time = self.node.get_clock().now() + time
 
         try:
             msg.header.stamp = time.to_msg()
@@ -226,4 +234,104 @@ class CreatePoseStamped(BlackboardBehavior):
             pose_stamped.header.frame_id = frame_id
 
         self.blackboard_set("pose_stamped", pose_stamped)
+        return py_trees.common.Status.SUCCESS
+
+
+class PoseStampedToTwistStamped(BlackboardBehavior):
+    """
+    Converts a PoseStamped message, which represents a displacement from the origin
+    in a particular frame to a target pose in that frame, to a TwistStamped
+    message, representing the linear and angular velocities to achieve that
+    displacement.
+    """
+
+    # pylint: disable=arguments-differ
+    # We *intentionally* violate Liskov Substitution Princple
+    # in that blackboard config (inputs + outputs) are not
+    # meant to be called in a generic setting.
+
+    def blackboard_inputs(
+        self,
+        pose_stamped: Union[BlackboardKey, PoseStamped],
+        speed: Union[
+            BlackboardKey,
+            Callable[[PoseStamped], Tuple[float, float]],
+            Tuple[float, float],
+        ] = (0.1, 0.3),
+    ) -> None:
+        """
+        Blackboard Inputs
+
+        Parameters
+        ----------
+        pose_stamped: The pose stamped representing the displacement from the
+            origin to a target pose.
+        speed: The speed to move at. If a tuple, then the first element is the
+            linear speed (m/s) and the second element is the angular speed (rad/s).
+            If a callable, then it is a function that takes in a PoseStamped
+            representing the displacement from the origin to a target pose and
+            returns a tuple of the linear speed (m/s) and angular speed (rad/s).
+        """
+        # pylint: disable=unused-argument, duplicate-code
+        # Arguments are handled generically in base class.
+        super().blackboard_inputs(
+            **{key: value for key, value in locals().items() if key != "self"}
+        )
+
+    def blackboard_outputs(
+        self,
+        twist_stamped: Optional[BlackboardKey],  # TwistStamped
+    ) -> None:
+        """
+        Blackboard Outputs
+        By convention (to avoid collisions), avoid non-None default arguments.
+
+        Parameters
+        ----------
+        twist_stamped: The twist stamped representing the linear and angular
+            velocities to move from the origin to the target pose.
+        """
+        # pylint: disable=unused-argument, duplicate-code
+        # Arguments are handled generically in base class.
+        super().blackboard_outputs(
+            **{key: value for key, value in locals().items() if key != "self"}
+        )
+
+    @override
+    def update(self) -> py_trees.common.Status:
+        # Docstring copied from @override
+
+        # Input Validation
+        if not self.blackboard_exists(["pose_stamped", "speed"]):
+            self.logger.error("Missing input arguments")
+            return py_trees.common.Status.FAILURE
+
+        pose_stamped = self.blackboard_get("pose_stamped")
+        speed = self.blackboard_get("speed")
+        if isinstance(speed, tuple):
+            linear_speed, angular_speed = speed
+        else:
+            linear_speed, angular_speed = speed(pose_stamped)
+
+        # For the linear velocity, normalize the pose's position and multiply
+        # it by the linear_speed
+        linear_velocity = ros2_numpy.numpify(pose_stamped.pose.position)
+        linear_velocity /= np.linalg.norm(linear_velocity)
+        linear_velocity *= linear_speed
+
+        # For the angular velocity, convert the pose's orientation to a
+        # rotation vector, normalize it, and multiply it by the angular_speed
+        angular_velocity = R.from_quat(
+            ros2_numpy.numpify(pose_stamped.pose.orientation)
+        ).as_rotvec()
+        angular_velocity /= np.linalg.norm(angular_velocity)
+        angular_velocity *= angular_speed
+
+        # Create the twist stamped message
+        twist_stamped = TwistStamped()
+        twist_stamped.header = pose_stamped.header
+        twist_stamped.twist.linear = ros2_numpy.msgify(Vector3, linear_velocity)
+        twist_stamped.twist.angular = ros2_numpy.msgify(Vector3, angular_velocity)
+
+        self.blackboard_set("twist_stamped", twist_stamped)
         return py_trees.common.Status.SUCCESS

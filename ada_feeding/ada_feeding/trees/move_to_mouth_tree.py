@@ -31,9 +31,6 @@ from std_msgs.msg import Header
 from ada_feeding_msgs.action import MoveToMouth
 from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding.behaviors.moveit2 import (
-    MoveIt2Plan,
-    MoveIt2Execute,
-    MoveIt2PoseConstraint,
     ModifyCollisionObject,
     ModifyCollisionObjectOperation,
 )
@@ -44,7 +41,12 @@ from ada_feeding.behaviors.ros import (
     CreatePoseStamped,
 )
 from ada_feeding.helpers import BlackboardKey
-from ada_feeding.idioms import pre_moveto_config, scoped_behavior, wait_for_secs
+from ada_feeding.idioms import (
+    pre_moveto_config,
+    scoped_behavior,
+    servo_until_pose,
+    wait_for_secs,
+)
 from ada_feeding.idioms.bite_transfer import (
     get_toggle_collision_object_behavior,
     get_toggle_face_detection_behavior,
@@ -52,6 +54,8 @@ from ada_feeding.idioms.bite_transfer import (
 from ada_feeding.trees import (
     MoveToTree,
 )
+from .start_servo_tree import StartServoTree
+from .stop_servo_tree import StopServoTree
 
 
 class MoveToMouthTree(MoveToTree):
@@ -82,12 +86,12 @@ class MoveToMouthTree(MoveToTree):
         cartesian_jump_threshold: float = 0.0,
         cartesian_max_step: float = 0.0025,
         wheelchair_collision_object_id: str = "wheelchair_collision",
-        force_threshold: float = 4.0,
-        torque_threshold: float = 4.0,
+        force_threshold: float = 1.0,
+        torque_threshold: float = 1.0,
         allowed_face_distance: Tuple[float, float] = (0.4, 1.25),
         face_detection_msg_timeout: float = 5.0,
         face_detection_timeout: float = 2.5,
-        plan_distance_from_mouth: float = 0.05,
+        plan_distance_from_mouth: float = 0.025,
     ):
         """
         Initializes tree-specific parameters.
@@ -417,63 +421,55 @@ class MoveToMouthTree(MoveToTree):
                     toggle_watchdog_listener=False,
                     f_mag=self.force_threshold,
                     t_mag=self.torque_threshold,
+                    param_service_name="~/set_servo_controller_parameters",
                 ),
                 # Allow collisions with the expanded wheelchair collision box
                 scoped_behavior(
-                    name=name + " AllowWheelchairCollisionScope",
-                    pre_behavior=get_toggle_collision_object_behavior(
-                        name + " AllowWheelchairCollisionScopePre",
-                        [self.wheelchair_collision_object_id],
-                        True,
+                    name=name + " AllowWheelchairCollisionScopeAndStartServo",
+                    pre_behavior=py_trees.composites.Sequence(
+                        name=name,
+                        memory=True,
+                        children=[
+                            get_toggle_collision_object_behavior(
+                                name + " AllowWheelchairCollisionScopePre",
+                                [self.wheelchair_collision_object_id],
+                                True,
+                            ),
+                            StartServoTree(self._node)
+                            .create_tree(name=name + "StartServoScopePre")
+                            .root,
+                        ],
                     ),
                     # Move to the target pose
                     workers=[
-                        # Goal configuration
-                        MoveIt2PoseConstraint(
-                            name="MoveToTargetPosePoseGoalConstraint",
+                        servo_until_pose(
+                            name=name + " MoveToMouth",
                             ns=name,
-                            inputs={
-                                "pose": BlackboardKey("goal_pose"),
-                                "tolerance_position": self.mouth_position_tolerance,
-                                "tolerance_orientation": (0.6, 0.5, 0.5),
-                                "parameterization": 1,  # Rotation vector
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("goal_constraints"),
-                            },
-                        ),
-                        # Plan
-                        MoveIt2Plan(
-                            name="MoveToTargetPosePlan",
-                            ns=name,
-                            inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
-                                "planner_id": self.planner_id,
-                                "allowed_planning_time": self.allowed_planning_time,
-                                "max_velocity_scale": (
-                                    self.max_velocity_scaling_factor
-                                ),
-                                "cartesian": True,
-                                "cartesian_jump_threshold": self.cartesian_jump_threshold,
-                                "cartesian_fraction_threshold": 0.60,
-                                "cartesian_max_step": self.cartesian_max_step,
-                            },
-                            outputs={"trajectory": BlackboardKey("trajectory")},
-                        ),
-                        # Execute
-                        MoveIt2Execute(
-                            name="MoveToTargetPoseExecute",
-                            ns=name,
-                            inputs={"trajectory": BlackboardKey("trajectory")},
-                            outputs={},
-                        ),
+                            target_pose_stamped_key=BlackboardKey("goal_pose"),
+                            duration=10.0,
+                        )
                     ],
                     # Disallow collisions with the expanded wheelchair collision
                     # box.
-                    post_behavior=get_toggle_collision_object_behavior(
-                        name + " AllowWheelchairCollisionScopePost",
-                        [self.wheelchair_collision_object_id],
-                        False,
+                    post_behavior=py_trees.composites.Sequence(
+                        name=name,
+                        memory=True,
+                        children=[
+                            StopServoTree(self._node)
+                            .create_tree(name=name + "StopServoScopePost")
+                            .root,
+                            get_toggle_collision_object_behavior(
+                                name + " AllowWheelchairCollisionScopePost",
+                                [self.wheelchair_collision_object_id],
+                                False,
+                            ),
+                            pre_moveto_config(
+                                name=name + "PreMoveToConfigScopePost",
+                                re_tare=False,
+                                f_mag=1.0,
+                                param_service_name="~/set_servo_controller_parameters",
+                            ),
+                        ],
                     ),
                 ),
             ],

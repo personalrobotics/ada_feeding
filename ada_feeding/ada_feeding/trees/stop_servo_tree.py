@@ -23,7 +23,7 @@ from std_srvs.srv import Trigger
 from ada_feeding.behaviors.ros import UpdateTimestamp
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import retry_call_ros_service, wait_for_secs
-from ada_feeding.trees import TriggerTree
+from .trigger_tree import TriggerTree
 
 
 class StopServoTree(TriggerTree):

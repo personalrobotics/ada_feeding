@@ -282,6 +282,7 @@ class ApplyTransform(BlackboardBehavior):
     def blackboard_outputs(
         self,
         transformed_msg: Optional[BlackboardKey],  # same type as stamped_msg
+        linear_distance: Optional[BlackboardKey] = None,  # float
     ) -> None:
         """
         Blackboard Outputs
@@ -290,6 +291,8 @@ class ApplyTransform(BlackboardBehavior):
         Parameters
         ----------
         stamped_msg: The transformed stamped message.
+        linear_distance: The linear distance between the transformed message and
+            the origin.
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -314,6 +317,9 @@ class ApplyTransform(BlackboardBehavior):
     @override
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
+
+        # pylint: disable=too-many-return-statements, too-many-branches
+        # This is a complex behavior, so we need to check a lot of things.
 
         # Input Validation
         if not self.blackboard_exists(
@@ -396,5 +402,22 @@ class ApplyTransform(BlackboardBehavior):
                 self.logger.error(f"Unsupported message type: {type(stamped_msg)}")
                 return py_trees.common.Status.FAILURE
 
+        # Write the transformed_msg
         self.blackboard_set("transformed_msg", transformed_msg)
+
+        # Write the linear distance
+        if isinstance(transformed_msg, PoseStamped):
+            linear_msg = transformed_msg.pose.position
+        elif isinstance(transformed_msg, PointStamped):
+            linear_msg = transformed_msg.point
+        elif isinstance(transformed_msg, Vector3Stamped):
+            linear_msg = transformed_msg.vector
+        else:
+            self.logger.error(f"Unsupported message type: {type(transformed_msg)}")
+            return py_trees.common.Status.FAILURE
+        self.blackboard_set(
+            "linear_distance",
+            np.linalg.norm(ros2_numpy.numpify(linear_msg)),
+        )
+
         return py_trees.common.Status.SUCCESS
