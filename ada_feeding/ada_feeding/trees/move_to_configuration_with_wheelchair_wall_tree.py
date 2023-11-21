@@ -171,7 +171,8 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                         in_front_of_wheelchair_wall_id,
                     ),
                     # Move to the staging configuration
-                    workers=constraints + [
+                    workers=constraints
+                    + [
                         # Plan
                         MoveIt2Plan(
                             name="MoveToStagingConfigurationPlan",

@@ -160,21 +160,21 @@ class AcquireFoodTree(MoveToTree):
                     name="TableCollision",
                     # Set Approach F/T Thresh
                     pre_behavior=ToggleCollisionObject(
-                                    name="AllowTableAndOctomap",
-                                    ns=name,
-                                    inputs={
-                                        "collision_object_ids": ["table", "<octomap>"],
-                                        "allow": True,
-                                    },
-                                ),
+                        name="AllowTableAndOctomap",
+                        ns=name,
+                        inputs={
+                            "collision_object_ids": ["table", "<octomap>"],
+                            "allow": True,
+                        },
+                    ),
                     post_behavior=ToggleCollisionObject(
-                                    name="DisallowTableAndOctomap",
-                                    ns=name,
-                                    inputs={
-                                        "collision_object_ids": ["table", "<octomap>"],
-                                        "allow": False,
-                                    },
-                                ),
+                        name="DisallowTableAndOctomap",
+                        ns=name,
+                        inputs={
+                            "collision_object_ids": ["table", "<octomap>"],
+                            "allow": False,
+                        },
+                    ),
                     on_preempt_timeout=5.0,
                     # Starts a new Sequence w/ Memory internally
                     workers=[
@@ -201,7 +201,9 @@ class AcquireFoodTree(MoveToTree):
                                     # Default world_frame = "world"
                                 },
                                 outputs={
-                                    "action_select_request": BlackboardKey("action_request"),
+                                    "action_select_request": BlackboardKey(
+                                        "action_request"
+                                    ),
                                     "food_frame": None,
                                 },
                             ),
@@ -229,7 +231,9 @@ class AcquireFoodTree(MoveToTree):
                                 name="ComputeActionConstraints",
                                 ns=name,
                                 inputs={
-                                    "action_select_response": BlackboardKey("action_response"),
+                                    "action_select_response": BlackboardKey(
+                                        "action_response"
+                                    ),
                                     # Default move_above_dist_m = 0.05
                                     # Default food_frame_id = "food"
                                     # Default approach_frame_id = "approach"
@@ -253,7 +257,11 @@ class AcquireFoodTree(MoveToTree):
                             inputs={
                                 "pose": BlackboardKey("move_above_pose"),
                                 "frame_id": "food",
-                                "tolerance_orientation": [0.001, 0.001, 0.01], #x, y, z rotvec
+                                "tolerance_orientation": [
+                                    0.001,
+                                    0.001,
+                                    0.01,
+                                ],  # x, y, z rotvec
                                 "parameterization": 1,
                             },
                             outputs={
@@ -314,7 +322,9 @@ class AcquireFoodTree(MoveToTree):
                                 name=name,
                                 memory=True,
                                 children=[
-                                    pre_moveto_config(name="PostAcquireFTSet", re_tare=False),
+                                    pre_moveto_config(
+                                        name="PostAcquireFTSet", re_tare=False
+                                    ),
                                 ],
                             ),
                             on_preempt_timeout=5.0,
@@ -329,14 +339,18 @@ class AcquireFoodTree(MoveToTree):
                                         "frame_id": "food",
                                     },
                                     outputs={
-                                        "constraints": BlackboardKey("goal_constraints"),
+                                        "constraints": BlackboardKey(
+                                            "goal_constraints"
+                                        ),
                                     },
                                 ),
                                 MoveIt2Plan(
                                     name="MoveIntoPlan",
                                     ns=name,
                                     inputs={
-                                        "goal_constraints": BlackboardKey("goal_constraints"),
+                                        "goal_constraints": BlackboardKey(
+                                            "goal_constraints"
+                                        ),
                                         "max_velocity_scale": 1.0,
                                         "max_acceleration_scale": 0.8,
                                         "cartesian": True,
@@ -351,7 +365,9 @@ class AcquireFoodTree(MoveToTree):
                                     child=MoveIt2Execute(
                                         name="MoveInto",
                                         ns=name,
-                                        inputs={"trajectory": BlackboardKey("trajectory")},
+                                        inputs={
+                                            "trajectory": BlackboardKey("trajectory")
+                                        },
                                         outputs={},
                                     ),
                                 ),
@@ -404,7 +420,12 @@ class AcquireFoodTree(MoveToTree):
                                             response_checks=[
                                                 py_trees.common.ComparisonExpression(
                                                     variable=Blackboard.separator.join(
-                                                        [name, BlackboardKey("ft_response")]
+                                                        [
+                                                            name,
+                                                            BlackboardKey(
+                                                                "ft_response"
+                                                            ),
+                                                        ]
                                                     ),
                                                     value=SetParameters.Response(),  # Unused
                                                     operator=set_parameter_response_all_success,
@@ -460,7 +481,12 @@ class AcquireFoodTree(MoveToTree):
                                             response_checks=[
                                                 py_trees.common.ComparisonExpression(
                                                     variable=Blackboard.separator.join(
-                                                        [name, BlackboardKey("ft_response")]
+                                                        [
+                                                            name,
+                                                            BlackboardKey(
+                                                                "ft_response"
+                                                            ),
+                                                        ]
                                                     ),
                                                     value=SetParameters.Response(),  # Unused
                                                     operator=set_parameter_response_all_success,
@@ -479,11 +505,12 @@ class AcquireFoodTree(MoveToTree):
                                 ),  # End MoveIt2Servo
                             ],  # End SafeFTPreempt.workers
                         ),  # End SafeFTPreempt
-                    ] + resting_position_behaviors, # End TableCollision.workers
-                ), # End TableCollision
+                    ]
+                    + resting_position_behaviors,  # End TableCollision.workers
+                ),  # End TableCollision
             ],  # End root_seq.children
         )  # End root_seq
-        
+
         ### Return tree
         return py_trees.trees.BehaviourTree(root_seq)
 

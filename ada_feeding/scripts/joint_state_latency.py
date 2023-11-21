@@ -16,6 +16,7 @@ from sensor_msgs.msg import JointState
 
 ## TODO: Document when this would be useful
 
+
 class JointStateLatency(Node):
     """
     The JointStateLatency class defines a barebones ROS2 node that subscribes to
