@@ -56,9 +56,9 @@ function App() {
   const appPage = useGlobalState((state) => state.appPage)
 
   // Get the rosbridge URL
-  const rosbridgeURL = 'ws://'.concat(process.env.REACT_APP_ROS_SERVER_HOSTNAME, ':', process.env.REACT_APP_ROSBRIDGE_PORT)
+  const rosbridgeURL = 'ws://'.concat(window.location.hostname, ':', process.env.REACT_APP_ROSBRIDGE_PORT)
   // Get the web_video_server URL
-  const webVideoServerURL = 'http://'.concat(process.env.REACT_APP_ROS_SERVER_HOSTNAME, ':', process.env.REACT_APP_WEB_VIDEO_SERVER_PORT)
+  const webVideoServerURL = 'http://'.concat(window.location.hostname, ':', process.env.REACT_APP_WEB_VIDEO_SERVER_PORT)
 
   // Get the debug flag
   const debug = process.env.REACT_APP_DEBUG === 'true'
