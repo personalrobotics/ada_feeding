@@ -447,6 +447,7 @@ class MoveToMouthTree(MoveToTree):
                             ns=name,
                             target_pose_stamped_key=BlackboardKey("goal_pose"),
                             duration=10.0,
+                            round_decimals=3,
                         )
                     ],
                     # Disallow collisions with the expanded wheelchair collision

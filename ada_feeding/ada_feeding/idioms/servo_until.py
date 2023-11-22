@@ -13,7 +13,7 @@ blackboard, which will be read by the ServoMove behavior.
 
 # Standard imports
 from functools import partial
-from typing import Any, Callable, Dict, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 # Third-party imports
 from geometry_msgs.msg import (
@@ -181,6 +181,7 @@ def servo_until_pose(
         0.1,
         0.3,
     ),
+    round_decimals: Optional[int] = 3,
 ) -> py_trees.behaviour.Behaviour:
     """
     Servos until the end_effector_frame reaches within the specified tolerances
@@ -204,6 +205,8 @@ def servo_until_pose(
     speed: Either a tuple representing the linear (m/s) and angular (rad/s)
         speed of the end effector, or a function that maps from displacement to
         the target end effector pose to the linear and angular speed.
+    round_decimals: The number of decimals to round the twist to. If None, then
+        the twist is not rounded.
 
     Returns
     -------
@@ -314,6 +317,7 @@ def servo_until_pose(
                                 "pose_stamped": BlackboardKey("ee_to_target_pose_stamped"),
                                 "speed": speed,
                                 "hz": BlackboardKey("servoHz"),
+                                "round_decimals": round_decimals,
                             },
                             outputs={
                                 "twist_stamped": twist_blackboard_key,

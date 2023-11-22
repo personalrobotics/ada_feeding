@@ -259,6 +259,7 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
             Tuple[float, float],
         ] = (0.1, 0.3),
         hz: Union[BlackboardKey, float] = 10.0,
+        round_decimals: Union[BlackboardKey, Optional[int]] = None,
     ) -> None:
         """
         Blackboard Inputs
@@ -273,6 +274,8 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
             representing the displacement from the origin to a target pose and
             returns a tuple of the linear speed (m/s) and angular speed (rad/s).
         hz: the frequency at which this behavior is ticked (i.e., the twist is recomputed).
+        round_decimals: If not None, round the linear and angular velocities to
+            this many decimal places.
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -304,7 +307,7 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
         # Docstring copied from @override
 
         # Input Validation
-        if not self.blackboard_exists(["pose_stamped", "speed", "hz"]):
+        if not self.blackboard_exists(["pose_stamped", "speed", "hz", "round_decimals"]):
             self.logger.error("Missing input arguments")
             return py_trees.common.Status.FAILURE
 
@@ -331,6 +334,18 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
         angular_distance = np.linalg.norm(angular_displacement)
         angular_speed = min(angular_distance* hz, max_angular_speed)
         angular_velocity = angular_displacement / angular_distance * angular_speed
+
+        # Round the velocities if requested
+        if self.blackboard_get("round_decimals") is not None:
+            round_decimals = self.blackboard_get("round_decimals")
+            linear_velocity = np.round(
+                linear_velocity,
+                round_decimals,
+            )
+            angular_velocity = np.round(
+                angular_velocity,
+                round_decimals,
+            )
 
         # Create the twist stamped message
         twist_stamped = TwistStamped()
