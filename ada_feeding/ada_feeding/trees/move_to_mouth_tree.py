@@ -78,13 +78,11 @@ class MoveToMouthTree(MoveToTree):
     def __init__(
         self,
         node: Node,
-        mouth_position_tolerance: float = 0.001,
+        mouth_position_tolerance: float = 0.005,
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         head_object_id: str = "head",
         max_velocity_scaling_factor: float = 0.1,
-        cartesian_jump_threshold: float = 0.0,
-        cartesian_max_step: float = 0.0025,
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 1.0,
         torque_threshold: float = 1.0,
@@ -105,11 +103,6 @@ class MoveToMouthTree(MoveToTree):
             planning scene.
         max_velocity_scaling_factor: The maximum velocity scaling
             factor for the MoveIt2 motion planner to move to the user's mouth.
-        cartesian_jump_threshold: The maximum allowed jump in the
-            cartesian space for the MoveIt2 motion planner to move to the user's
-            mouth.
-        cartesian_max_step: The maximum allowed step in the cartesian
-            space for the MoveIt2 motion planner to move to the user's mouth.
         wheelchair_collision_object_id: The ID of the wheelchair collision object
             in the MoveIt2 planning scene.
         force_threshold: The force threshold (N) for the ForceGateController.
@@ -142,8 +135,6 @@ class MoveToMouthTree(MoveToTree):
         self.allowed_planning_time = allowed_planning_time
         self.head_object_id = head_object_id
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
-        self.cartesian_jump_threshold = cartesian_jump_threshold
-        self.cartesian_max_step = cartesian_max_step
         self.wheelchair_collision_object_id = wheelchair_collision_object_id
         self.force_threshold = force_threshold
         self.torque_threshold = torque_threshold
@@ -440,16 +431,6 @@ class MoveToMouthTree(MoveToTree):
                             .root,
                         ],
                     ),
-                    # Move to the target pose
-                    workers=[
-                        servo_until_pose(
-                            name=name + " MoveToMouth",
-                            ns=name,
-                            target_pose_stamped_key=BlackboardKey("goal_pose"),
-                            duration=10.0,
-                            round_decimals=3,
-                        )
-                    ],
                     # Disallow collisions with the expanded wheelchair collision
                     # box.
                     post_behavior=py_trees.composites.Sequence(
@@ -472,6 +453,17 @@ class MoveToMouthTree(MoveToTree):
                             ),
                         ],
                     ),
+                    # Move to the target pose
+                    workers=[
+                        servo_until_pose(
+                            name=name + " MoveToMouth",
+                            ns=name,
+                            target_pose_stamped_key=BlackboardKey("goal_pose"),
+                            tolerance_position=self.mouth_position_tolerance,
+                            duration=10.0,
+                            round_decimals=3,
+                        )
+                    ],
                 ),
             ],
         )
