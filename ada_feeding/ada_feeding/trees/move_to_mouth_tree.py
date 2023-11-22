@@ -91,7 +91,7 @@ class MoveToMouthTree(MoveToTree):
         allowed_face_distance: Tuple[float, float] = (0.4, 1.25),
         face_detection_msg_timeout: float = 5.0,
         face_detection_timeout: float = 2.5,
-        plan_distance_from_mouth: float = 0.025,
+        plan_distance_from_mouth: float = 0.05,
     ):
         """
         Initializes tree-specific parameters.
