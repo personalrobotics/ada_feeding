@@ -54,8 +54,8 @@ class ServoMove(BlackboardBehavior):
         pub_topic: Where to publish servo TwistStamped messages
         pub_qos: QoS for publisher
         default_frame_id: frame_id to use if Twist type is provided.
-        curr_distance: If None, use time as distance. Otherwise, use this
-            BlackboardKey to store the remaining distance.
+        curr_distance: If None, use time as distance. Otherwise, this
+            BlackboardKey stores the remaining distance.
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
