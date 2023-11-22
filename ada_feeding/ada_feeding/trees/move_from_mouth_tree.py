@@ -12,6 +12,7 @@ wrap that behaviour tree in a ROS2 action server.
 from typing import List, Optional, Tuple
 
 # Third-party imports
+from geometry_msgs.msg import PoseStamped
 from overrides import override
 import py_trees
 from rclpy.node import Node
@@ -52,7 +53,7 @@ class MoveFromMouthTree(MoveToTree):
         staging_configuration_position: Tuple[float, float, float],
         staging_configuration_quat_xyzw: Tuple[float, float, float, float],
         end_configuration: Optional[List[float]] = None,
-        staging_configuration_tolerance_position: float = 0.005,
+        staging_configuration_tolerance_position: float = 0.02,
         end_configuration_tolerance: float = 0.001,
         orientation_constraint_to_end_configuration_quaternion: Optional[
             List[float]
@@ -62,6 +63,8 @@ class MoveFromMouthTree(MoveToTree):
         ] = None,
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time_to_end_configuration: float = 0.5,
+        max_linear_speed_to_staging_configuration: float = 0.1,
+        max_angular_speed_to_staging_configuration: float = 0.3,
         max_velocity_scaling_factor_to_end_configuration: float = 0.1,
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold_to_staging_configuration: float = 1.0,
@@ -89,6 +92,10 @@ class MoveFromMouthTree(MoveToTree):
         planner_id: The planner ID to use for the MoveIt2 motion planning.
         allowed_planning_time_to_end_configuration: The allowed planning
             time for the MoveIt2 motion planner to move to the end config.
+        max_linear_speed_to_staging_configuration: The maximum linear speed
+            (m/s) for the motion to the staging config.
+        max_angular_speed_to_staging_configuration: The maximum angular speed
+            (rad/s) for the motion to the staging config.
         max_velocity_scaling_factor_to_end_configuration: The maximum
             velocity scaling factor for the MoveIt2 motion planner to move to
             the end config.
@@ -123,6 +130,12 @@ class MoveFromMouthTree(MoveToTree):
         self.planner_id = planner_id
         self.allowed_planning_time_to_end_configuration = (
             allowed_planning_time_to_end_configuration
+        )
+        self.max_linear_speed_to_staging_configuration = (
+            max_linear_speed_to_staging_configuration
+        )
+        self.max_angular_speed_to_staging_configuration = (
+            max_angular_speed_to_staging_configuration
         )
         self.max_velocity_scaling_factor_to_end_configuration = (
             max_velocity_scaling_factor_to_end_configuration
@@ -171,6 +184,25 @@ class MoveFromMouthTree(MoveToTree):
                     "constraints": BlackboardKey("path_constraints"),
                 },
             )
+
+        # Use a custom speed profile to do angular motions at the end.
+        max_pose_distance = 0.0
+        def speed(post_stamped: PoseStamped) -> Tuple[float, float]:
+            """
+            Always return the max linear velocity, but gradually increase
+            the angular velocity as you get closer to the target position.
+            In other words, tilt closer to the end of the motion.
+            """
+            nonlocal max_pose_distance
+            pose_distance = (
+                post_stamped.pose.position.x**2.0
+                + post_stamped.pose.position.y**2.0
+                + post_stamped.pose.position.z**2.0
+            ) ** 0.5
+            if pose_distance > max_pose_distance:
+                max_pose_distance = pose_distance
+            prop = ((max_pose_distance - pose_distance) / max_pose_distance)**1.0
+            return self.max_linear_speed_to_staging_configuration, self.max_angular_speed_to_staging_configuration * prop
 
         # Root Sequence
         root_seq = py_trees.composites.Sequence(
@@ -245,6 +277,7 @@ class MoveFromMouthTree(MoveToTree):
                             tolerance_orientation=(0.6, 0.5, 0.5),
                             duration=10.0,
                             round_decimals=3,
+                            speed=speed,
                         ),
                     ],
                 ),

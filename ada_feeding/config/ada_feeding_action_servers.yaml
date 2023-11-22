@@ -131,15 +131,9 @@ ada_feeding_action_servers:
       action_type: ada_feeding_msgs.action.MoveToMouth # required
       tree_class: ada_feeding.trees.MoveToMouthTree # required
       tree_kws: # optional
-        - max_velocity_scaling_factor
-        - cartesian_jump_threshold
-        - cartesian_max_step
         - face_detection_msg_timeout
         - face_detection_timeout
       tree_kwargs: # optional
-        max_velocity_scaling_factor: 0.4 # optional in (0.0, 1.0], default: 0.1
-        cartesian_jump_threshold: 2.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
-        cartesian_max_step: 0.01 # m
         face_detection_msg_timeout: 10.0 # sec
         face_detection_timeout: 5.0 # sec
       tick_rate: 10 # Hz, optional, default: 30

@@ -79,17 +79,16 @@ class MoveToMouthTree(MoveToTree):
         self,
         node: Node,
         mouth_position_tolerance: float = 0.005,
-        planner_id: str = "RRTstarkConfigDefault",
-        allowed_planning_time: float = 0.5,
         head_object_id: str = "head",
-        max_velocity_scaling_factor: float = 0.1,
+        max_linear_speed: float = 0.1,
+        max_angular_speed: float = 0.15,
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 1.0,
         torque_threshold: float = 1.0,
         allowed_face_distance: Tuple[float, float] = (0.4, 1.25),
         face_detection_msg_timeout: float = 5.0,
         face_detection_timeout: float = 2.5,
-        plan_distance_from_mouth: float = 0.05,
+        plan_distance_from_mouth: float = 0.025,
     ):
         """
         Initializes tree-specific parameters.
@@ -97,12 +96,10 @@ class MoveToMouthTree(MoveToTree):
         Parameters
         ----------
         mouth_position_tolerance: The tolerance for the movement to the mouth pose.
-        planner_id: The planner ID to use for the MoveIt2 motion planning.
-        allowed_planning_time: The allowed planning time.
         head_object_id: The ID of the head collision object in the MoveIt2
             planning scene.
-        max_velocity_scaling_factor: The maximum velocity scaling
-            factor for the MoveIt2 motion planner to move to the user's mouth.
+        max_linear_speed: The maximum linear speed (m/s) for the motion.
+        max_angular_speed: The maximum angular speed (rad/s) for the motion.
         wheelchair_collision_object_id: The ID of the wheelchair collision object
             in the MoveIt2 planning scene.
         force_threshold: The force threshold (N) for the ForceGateController.
@@ -131,10 +128,9 @@ class MoveToMouthTree(MoveToTree):
 
         # Store the parameters
         self.mouth_position_tolerance = mouth_position_tolerance
-        self.planner_id = planner_id
-        self.allowed_planning_time = allowed_planning_time
         self.head_object_id = head_object_id
-        self.max_velocity_scaling_factor = max_velocity_scaling_factor
+        self.max_linear_speed = max_linear_speed
+        self.max_angular_speed = max_angular_speed
         self.wheelchair_collision_object_id = wheelchair_collision_object_id
         self.force_threshold = force_threshold
         self.torque_threshold = torque_threshold
@@ -393,10 +389,10 @@ class MoveToMouthTree(MoveToTree):
                                     z=0.0,
                                 ),
                                 orientation=Quaternion(
-                                    x=0.5,
-                                    y=-0.5,
-                                    z=-0.5,
-                                    w=0.5,
+                                    x= 0.5751716,
+                                    y=-0.5751716,
+                                    z=-0.4113121,
+                                    w= 0.4113121,
                                 ),
                             ),
                         ),
@@ -462,6 +458,7 @@ class MoveToMouthTree(MoveToTree):
                             tolerance_position=self.mouth_position_tolerance,
                             duration=10.0,
                             round_decimals=3,
+                            speed=(self.max_linear_speed, self.max_angular_speed),
                         )
                     ],
                 ),
