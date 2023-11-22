@@ -90,7 +90,9 @@ class ServoMove(BlackboardBehavior):
         )
 
         # Record start time
+        self.first_tick = True
         self.start_time = self.node.get_clock().now()
+        self.initial_distance = 0.0
         self.curr_distance = 0.0
 
     @override
@@ -122,6 +124,9 @@ class ServoMove(BlackboardBehavior):
             self.curr_distance = duration_to_float(duration) - duration_to_float(
                 self.node.get_clock().now() - self.start_time
             )
+        if self.first_tick:
+            self.initial_distance = self.curr_distance
+            self.first_tick = False
 
         # Return success if duration is exceeded. If duration is negative, then
         # run forever

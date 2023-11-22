@@ -172,9 +172,9 @@ class MoveToVisitor(VisitorBase):
         ):
             # Flip to execute
             if self.feedback.is_planning:
-                self.start_time = self.node.get_clock().now()
+                self.start_time = behaviour.start_time
                 self.feedback.is_planning = False
-                self.feedback.motion_initial_distance = behaviour.curr_distance
+                self.feedback.motion_initial_distance = behaviour.initial_distance
             self.feedback.motion_curr_distance = behaviour.curr_distance
         else:
             # Catch end of MoveIt2Execute behaviors
