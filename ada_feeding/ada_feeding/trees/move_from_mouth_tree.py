@@ -119,7 +119,9 @@ class MoveFromMouthTree(MoveToTree):
         self.end_configuration = end_configuration
         if self.end_configuration is not None:
             assert len(self.end_configuration) == 6, "Must provide 6 joint positions"
-        self.staging_configuration_tolerance_position = staging_configuration_tolerance_position
+        self.staging_configuration_tolerance_position = (
+            staging_configuration_tolerance_position
+        )
         self.end_configuration_tolerance = end_configuration_tolerance
         self.orientation_constraint_to_end_configuration_quaternion = (
             orientation_constraint_to_end_configuration_quaternion
@@ -148,7 +150,9 @@ class MoveFromMouthTree(MoveToTree):
             torque_threshold_to_staging_configuration
         )
         self.force_threshold_to_end_configuration = force_threshold_to_end_configuration
-        self.torque_threshold_to_end_configuration = torque_threshold_to_end_configuration
+        self.torque_threshold_to_end_configuration = (
+            torque_threshold_to_end_configuration
+        )
 
     @override
     def create_tree(
@@ -187,6 +191,7 @@ class MoveFromMouthTree(MoveToTree):
 
         # Use a custom speed profile to do angular motions at the end.
         max_pose_distance = 0.0
+
         def speed(post_stamped: PoseStamped) -> Tuple[float, float]:
             """
             Always return the max linear velocity, but gradually increase
@@ -201,8 +206,11 @@ class MoveFromMouthTree(MoveToTree):
             ) ** 0.5
             if pose_distance > max_pose_distance:
                 max_pose_distance = pose_distance
-            prop = ((max_pose_distance - pose_distance) / max_pose_distance)**1.0
-            return self.max_linear_speed_to_staging_configuration, self.max_angular_speed_to_staging_configuration * prop
+            prop = ((max_pose_distance - pose_distance) / max_pose_distance) ** 1.0
+            return (
+                self.max_linear_speed_to_staging_configuration,
+                self.max_angular_speed_to_staging_configuration * prop,
+            )
 
         # Root Sequence
         root_seq = py_trees.composites.Sequence(

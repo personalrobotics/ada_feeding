@@ -211,6 +211,7 @@ good-names=a,
            rc,
            ax,
            ex,
+           hz,
            ns,
            Run,
            _

@@ -306,8 +306,13 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
 
+        # pylint: disable=too-many-locals
+        # One over is fine
+
         # Input Validation
-        if not self.blackboard_exists(["pose_stamped", "speed", "hz", "round_decimals"]):
+        if not self.blackboard_exists(
+            ["pose_stamped", "speed", "hz", "round_decimals"]
+        ):
             self.logger.error("Missing input arguments")
             return py_trees.common.Status.FAILURE
 
@@ -332,7 +337,7 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
             ros2_numpy.numpify(pose_stamped.pose.orientation)
         ).as_rotvec()
         angular_distance = np.linalg.norm(angular_displacement)
-        angular_speed = min(angular_distance* hz, max_angular_speed)
+        angular_speed = min(angular_distance * hz, max_angular_speed)
         angular_velocity = angular_displacement / angular_distance * angular_speed
 
         # Round the velocities if requested

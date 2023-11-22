@@ -15,6 +15,7 @@ import py_trees
 from ada_feeding.behaviors import BlackboardBehavior
 from ada_feeding.helpers import BlackboardKey
 
+
 class TrackHzInitialize(BlackboardBehavior):
     """
     This behavior initializes the inputs to a TrackHz behavior.
@@ -66,10 +67,13 @@ class TrackHzInitialize(BlackboardBehavior):
 
         # Initialize the number of ticks and start time
         self.blackboard_set("num_ticks", 0)
-        self.blackboard_set("start_time", self.node.get_clock().now().nanoseconds/10.0**9)
+        self.blackboard_set(
+            "start_time", self.node.get_clock().now().nanoseconds / 10.0**9
+        )
 
         # Return SUCCESS
         return py_trees.common.Status.SUCCESS
+
 
 class TrackHz(BlackboardBehavior):
     """
@@ -83,9 +87,7 @@ class TrackHz(BlackboardBehavior):
     # meant to be called in a generic setting.
 
     def blackboard_inputs(
-        self,
-        num_ticks: BlackboardKey, # int
-        start_time: BlackboardKey # float, secs
+        self, num_ticks: BlackboardKey, start_time: BlackboardKey  # int  # float, secs
     ) -> None:
         """
         Blackboard Inputs
@@ -105,7 +107,7 @@ class TrackHz(BlackboardBehavior):
         self,
         hz: Optional[BlackboardKey],  # float
         num_ticks: BlackboardKey,  # int
-        start_time: BlackboardKey  # float, secs
+        start_time: BlackboardKey,  # float, secs
     ) -> None:
         """
         Blackboard Outputs
@@ -152,7 +154,7 @@ class TrackHz(BlackboardBehavior):
         self.blackboard_set("num_ticks", num_ticks + 1)
 
         # Compute the elapsed time
-        elapsed_time = self.node.get_clock().now().nanoseconds/10.0**9 - start_time
+        elapsed_time = self.node.get_clock().now().nanoseconds / 10.0**9 - start_time
 
         # Compute the frequency
         hz = num_ticks / elapsed_time

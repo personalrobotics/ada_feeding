@@ -254,7 +254,9 @@ class ApplyTransform(BlackboardBehavior):
 
     def blackboard_inputs(
         self,
-        stamped_msg: Union[BlackboardKey, PointStamped, PoseStamped, Vector3Stamped, TwistStamped],
+        stamped_msg: Union[
+            BlackboardKey, PointStamped, PoseStamped, Vector3Stamped, TwistStamped
+        ],
         target_frame=Union[BlackboardKey, Optional[str]],
         transform: Union[BlackboardKey, Optional[TransformStamped]] = None,
         timeout: Union[BlackboardKey, Duration] = Duration(seconds=0.0),
@@ -321,6 +323,7 @@ class ApplyTransform(BlackboardBehavior):
         # Docstring copied from @override
 
         # pylint: disable=too-many-return-statements, too-many-branches
+        # pylint: disable=too-many-statements, too-many-locals
         # This is a complex behavior, so we need to check a lot of things.
 
         # Input Validation
@@ -348,8 +351,8 @@ class ApplyTransform(BlackboardBehavior):
                 try:
                     if isinstance(stamped_msg, TwistStamped):
                         linear = Vector3Stamped(
-                            header = stamped_msg.header,
-                            vector = stamped_msg.twist.linear,
+                            header=stamped_msg.header,
+                            vector=stamped_msg.twist.linear,
                         )
                         linear_transformed = self.tf_buffer.transform(
                             linear,
@@ -357,8 +360,8 @@ class ApplyTransform(BlackboardBehavior):
                             timeout,
                         )
                         angular = Vector3Stamped(
-                            header = stamped_msg.header,
-                            vector = stamped_msg.twist.angular,
+                            header=stamped_msg.header,
+                            vector=stamped_msg.twist.angular,
                         )
                         angular_transformed = self.tf_buffer.transform(
                             angular,
@@ -366,13 +369,13 @@ class ApplyTransform(BlackboardBehavior):
                             timeout,
                         )
                         transformed_msg = TwistStamped(
-                            header = Header(
-                                stamp = stamped_msg.header.stamp,
-                                frame_id = target_frame,
+                            header=Header(
+                                stamp=stamped_msg.header.stamp,
+                                frame_id=target_frame,
                             ),
-                            twist = Twist(
-                                linear = linear_transformed.vector,
-                                angular = angular_transformed.vector,
+                            twist=Twist(
+                                linear=linear_transformed.vector,
+                                angular=angular_transformed.vector,
                             ),
                         )
                     else:
@@ -433,17 +436,27 @@ class ApplyTransform(BlackboardBehavior):
             elif isinstance(stamped_msg, TwistStamped):
                 linear_transformed = ros2_numpy.msgify(
                     Vector3,
-                    np.matmul(transform_matrix, ros2_numpy.numpify(stamped_msg.twist.linear, hom=True).reshape((-1, 1))),
+                    np.matmul(
+                        transform_matrix,
+                        ros2_numpy.numpify(stamped_msg.twist.linear, hom=True).reshape(
+                            (-1, 1)
+                        ),
+                    ),
                 )
                 angular_transformed = ros2_numpy.msgify(
                     Vector3,
-                    np.matmul(transform_matrix, ros2_numpy.numpify(stamped_msg.twist.angular, hom=True).reshape((-1, 1))),
+                    np.matmul(
+                        transform_matrix,
+                        ros2_numpy.numpify(stamped_msg.twist.angular, hom=True).reshape(
+                            (-1, 1)
+                        ),
+                    ),
                 )
                 transformed_msg = TwistStamped(
-                    header = header,
-                    twist = Twist(
-                        linear = linear_transformed,
-                        angular = angular_transformed,
+                    header=header,
+                    twist=Twist(
+                        linear=linear_transformed,
+                        angular=angular_transformed,
                     ),
                 )
             else:

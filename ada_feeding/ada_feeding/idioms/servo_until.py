@@ -229,10 +229,10 @@ def servo_until_pose(
             TrackHzInitialize(
                 name=f"{name} TrackHzInitialize",
                 ns=ns,
-                outputs = {
+                outputs={
                     "num_ticks": BlackboardKey("num_ticks"),
                     "start_time": BlackboardKey("start_time"),
-                }
+                },
             ),
             servo_until(
                 name=name,
@@ -263,7 +263,9 @@ def servo_until_pose(
                                 "target_frame": end_effector_frame,
                             },
                             outputs={
-                                "transformed_msg": BlackboardKey("ee_to_target_pose_stamped"),
+                                "transformed_msg": BlackboardKey(
+                                    "ee_to_target_pose_stamped"
+                                ),
                                 "linear_distance": BlackboardKey("curr_distance"),
                             },
                         ),
@@ -316,7 +318,9 @@ def servo_until_pose(
                             name=f"{name} PoseStampedToTwistStamped",
                             ns=ns,
                             inputs={
-                                "pose_stamped": BlackboardKey("ee_to_target_pose_stamped"),
+                                "pose_stamped": BlackboardKey(
+                                    "ee_to_target_pose_stamped"
+                                ),
                                 "speed": speed,
                                 "hz": BlackboardKey("servoHz"),
                                 "round_decimals": round_decimals,

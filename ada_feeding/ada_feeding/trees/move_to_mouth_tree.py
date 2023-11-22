@@ -389,10 +389,10 @@ class MoveToMouthTree(MoveToTree):
                                     z=0.0,
                                 ),
                                 orientation=Quaternion(
-                                    x= 0.5751716,
+                                    x=0.5751716,
                                     y=-0.5751716,
                                     z=-0.4113121,
-                                    w= 0.4113121,
+                                    w=0.4113121,
                                 ),
                             ),
                         ),
