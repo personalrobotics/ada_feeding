@@ -258,6 +258,7 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
             Callable[[PoseStamped], Tuple[float, float]],
             Tuple[float, float],
         ] = (0.1, 0.3),
+        hz: Union[BlackboardKey, float] = 10.0,
     ) -> None:
         """
         Blackboard Inputs
@@ -271,6 +272,7 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
             If a callable, then it is a function that takes in a PoseStamped
             representing the displacement from the origin to a target pose and
             returns a tuple of the linear speed (m/s) and angular speed (rad/s).
+        hz: the frequency at which this behavior is ticked (i.e., the twist is recomputed).
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -302,30 +304,33 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
         # Docstring copied from @override
 
         # Input Validation
-        if not self.blackboard_exists(["pose_stamped", "speed"]):
+        if not self.blackboard_exists(["pose_stamped", "speed", "hz"]):
             self.logger.error("Missing input arguments")
             return py_trees.common.Status.FAILURE
 
         pose_stamped = self.blackboard_get("pose_stamped")
         speed = self.blackboard_get("speed")
+        hz = self.blackboard_get("hz")
         if isinstance(speed, tuple):
-            linear_speed, angular_speed = speed
+            max_linear_speed, max_angular_speed = speed
         else:
-            linear_speed, angular_speed = speed(pose_stamped)
+            max_linear_speed, max_angular_speed = speed(pose_stamped)
 
         # For the linear velocity, normalize the pose's position and multiply
         # it by the linear_speed
-        linear_velocity = ros2_numpy.numpify(pose_stamped.pose.position)
-        linear_velocity /= np.linalg.norm(linear_velocity)
-        linear_velocity *= linear_speed
+        linear_displacement = ros2_numpy.numpify(pose_stamped.pose.position)
+        linear_distance = np.linalg.norm(linear_displacement)
+        linear_speed = min(linear_distance * hz, max_linear_speed)
+        linear_velocity = linear_displacement / linear_distance * linear_speed
 
         # For the angular velocity, convert the pose's orientation to a
         # rotation vector, normalize it, and multiply it by the angular_speed
-        angular_velocity = R.from_quat(
+        angular_displacement = R.from_quat(
             ros2_numpy.numpify(pose_stamped.pose.orientation)
         ).as_rotvec()
-        angular_velocity /= np.linalg.norm(angular_velocity)
-        angular_velocity *= angular_speed
+        angular_distance = np.linalg.norm(angular_displacement)
+        angular_speed = min(angular_distance* hz, max_angular_speed)
+        angular_velocity = angular_displacement / angular_distance * angular_speed
 
         # Create the twist stamped message
         twist_stamped = TwistStamped()
