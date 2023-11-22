@@ -182,6 +182,7 @@ def servo_until_pose(
         0.3,
     ),
     round_decimals: Optional[int] = 3,
+    base_link: str = "j2n6s200_link_base",
 ) -> py_trees.behaviour.Behaviour:
     """
     Servos until the end_effector_frame reaches within the specified tolerances
@@ -207,6 +208,7 @@ def servo_until_pose(
         the target end effector pose to the linear and angular speed.
     round_decimals: The number of decimals to round the twist to. If None, then
         the twist is not rounded.
+    base_link: The name of the base link.
 
     Returns
     -------
@@ -320,7 +322,19 @@ def servo_until_pose(
                                 "round_decimals": round_decimals,
                             },
                             outputs={
-                                "twist_stamped": twist_blackboard_key,
+                                "twist_stamped": BlackboardKey("twist_in_ee_frame"),
+                            },
+                        ),
+                        # Convert to base frame
+                        ApplyTransform(
+                            name=f"{name} Apply Transform",
+                            ns=ns,
+                            inputs={
+                                "stamped_msg": BlackboardKey("twist_in_ee_frame"),
+                                "target_frame": base_link,
+                            },
+                            outputs={
+                                "transformed_msg": twist_blackboard_key,
                             },
                         ),
                     ],

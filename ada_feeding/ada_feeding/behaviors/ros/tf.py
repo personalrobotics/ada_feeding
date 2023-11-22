@@ -13,6 +13,8 @@ from geometry_msgs.msg import (
     Pose,
     Transform,
     TransformStamped,
+    Twist,
+    TwistStamped,
     Vector3,
 )
 import numpy as np
@@ -252,7 +254,7 @@ class ApplyTransform(BlackboardBehavior):
 
     def blackboard_inputs(
         self,
-        stamped_msg: Union[BlackboardKey, PointStamped, PoseStamped, Vector3Stamped],
+        stamped_msg: Union[BlackboardKey, PointStamped, PoseStamped, Vector3Stamped, TwistStamped],
         target_frame=Union[BlackboardKey, Optional[str]],
         transform: Union[BlackboardKey, Optional[TransformStamped]] = None,
         timeout: Union[BlackboardKey, Duration] = Duration(seconds=0.0),
@@ -344,11 +346,41 @@ class ApplyTransform(BlackboardBehavior):
             if target_frame is not None:
                 # Compute the transform from the TF tree
                 try:
-                    transformed_msg = self.tf_buffer.transform(
-                        stamped_msg,
-                        target_frame,
-                        timeout,
-                    )
+                    if isinstance(stamped_msg, TwistStamped):
+                        linear = Vector3Stamped(
+                            header = stamped_msg.header,
+                            vector = stamped_msg.twist.linear,
+                        )
+                        linear_transformed = self.tf_buffer.transform(
+                            linear,
+                            target_frame,
+                            timeout,
+                        )
+                        angular = Vector3Stamped(
+                            header = stamped_msg.header,
+                            vector = stamped_msg.twist.angular,
+                        )
+                        angular_transformed = self.tf_buffer.transform(
+                            angular,
+                            target_frame,
+                            timeout,
+                        )
+                        transformed_msg = TwistStamped(
+                            header = Header(
+                                stamp = stamped_msg.header.stamp,
+                                frame_id = target_frame,
+                            ),
+                            twist = Twist(
+                                linear = linear_transformed.vector,
+                                angular = angular_transformed.vector,
+                            ),
+                        )
+                    else:
+                        transformed_msg = self.tf_buffer.transform(
+                            stamped_msg,
+                            target_frame,
+                            timeout,
+                        )
                 except (
                     tf2.ConnectivityException,
                     tf2.ExtrapolationException,
@@ -398,6 +430,22 @@ class ApplyTransform(BlackboardBehavior):
                         np.matmul(transform_matrix, stamped_vec),
                     ),
                 )
+            elif isinstance(stamped_msg, TwistStamped):
+                linear_transformed = ros2_numpy.msgify(
+                    Vector3,
+                    np.matmul(transform_matrix, ros2_numpy.numpify(stamped_msg.twist.linear, hom=True).reshape((-1, 1))),
+                )
+                angular_transformed = ros2_numpy.msgify(
+                    Vector3,
+                    np.matmul(transform_matrix, ros2_numpy.numpify(stamped_msg.twist.angular, hom=True).reshape((-1, 1))),
+                )
+                transformed_msg = TwistStamped(
+                    header = header,
+                    twist = Twist(
+                        linear = linear_transformed,
+                        angular = angular_transformed,
+                    ),
+                )
             else:
                 self.logger.error(f"Unsupported message type: {type(stamped_msg)}")
                 return py_trees.common.Status.FAILURE
@@ -412,6 +460,8 @@ class ApplyTransform(BlackboardBehavior):
             linear_msg = transformed_msg.point
         elif isinstance(transformed_msg, Vector3Stamped):
             linear_msg = transformed_msg.vector
+        elif isinstance(transformed_msg, TwistStamped):
+            linear_msg = transformed_msg.twist.linear
         else:
             self.logger.error(f"Unsupported message type: {type(transformed_msg)}")
             return py_trees.common.Status.FAILURE
