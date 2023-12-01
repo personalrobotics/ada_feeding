@@ -87,7 +87,7 @@ class MoveToMouthTree(MoveToTree):
         allowed_face_distance: Tuple[float, float] = (0.4, 1.25),
         face_detection_msg_timeout: float = 5.0,
         face_detection_timeout: float = 2.5,
-        plan_distance_from_mouth: float = 0.05,
+        plan_distance_from_mouth: Tuple[float, float, float] = (0.025, 0.0, -0.01),
     ):
         """
         Initializes tree-specific parameters.
@@ -393,9 +393,9 @@ class MoveToMouthTree(MoveToTree):
                             ),
                             pose=Pose(
                                 position=Point(
-                                    x=self.plan_distance_from_mouth,
-                                    y=0.0,
-                                    z=0.0,
+                                    x=self.plan_distance_from_mouth[0],
+                                    y=self.plan_distance_from_mouth[1],
+                                    z=self.plan_distance_from_mouth[2],
                                 ),
                                 orientation=Quaternion(
                                     x=0.5,
@@ -455,7 +455,7 @@ class MoveToMouthTree(MoveToTree):
                                 ),
                                 "cartesian": True,
                                 "cartesian_jump_threshold": self.cartesian_jump_threshold,
-                                "cartesian_fraction_threshold": 0.60,
+                                "cartesian_fraction_threshold": 0.95,
                                 "cartesian_max_step": self.cartesian_max_step,
                             },
                             outputs={"trajectory": BlackboardKey("trajectory")},

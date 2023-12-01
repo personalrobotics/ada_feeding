@@ -114,6 +114,37 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
 
         in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
 
+        constraints = [
+            # Goal configuration: staging configuration
+            MoveIt2JointConstraint(
+                name="StagingConfigurationGoalConstraint",
+                ns=name,
+                inputs={
+                    "joint_positions": self.goal_configuration,
+                    "tolerance": self.goal_configuration_tolerance,
+                },
+                outputs={
+                    "constraints": BlackboardKey("goal_constraints"),
+                },
+            ),
+        ]
+        if self.orientation_constraint_quaternion is not None:
+            constraints.append(
+                # Orientation path constraint to keep the fork straight
+                MoveIt2OrientationConstraint(
+                    name="KeepForkStraightPathConstraint",
+                    ns=name,
+                    inputs={
+                        "quat_xyzw": self.orientation_constraint_quaternion,
+                        "tolerance": self.orientation_constraint_tolerances,
+                        "parameterization": 1,  # Rotation vector
+                    },
+                    outputs={
+                        "constraints": BlackboardKey("path_constraints"),
+                    },
+                ),
+            )
+
         # Root Sequence
         root_seq = py_trees.composites.Sequence(
             name=name,
@@ -140,32 +171,8 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                         in_front_of_wheelchair_wall_id,
                     ),
                     # Move to the staging configuration
-                    workers=[
-                        # Goal configuration: staging configuration
-                        MoveIt2JointConstraint(
-                            name="StagingConfigurationGoalConstraint",
-                            ns=name,
-                            inputs={
-                                "joint_positions": self.goal_configuration,
-                                "tolerance": self.goal_configuration_tolerance,
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("goal_constraints"),
-                            },
-                        ),
-                        # Orientation path constraint to keep the fork straight
-                        MoveIt2OrientationConstraint(
-                            name="KeepForkStraightPathConstraint",
-                            ns=name,
-                            inputs={
-                                "quat_xyzw": self.orientation_constraint_quaternion,
-                                "tolerance": self.orientation_constraint_tolerances,
-                                "parameterization": 1,  # Rotation vector
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("path_constraints"),
-                            },
-                        ),
+                    workers=constraints
+                    + [
                         # Plan
                         MoveIt2Plan(
                             name="MoveToStagingConfigurationPlan",
