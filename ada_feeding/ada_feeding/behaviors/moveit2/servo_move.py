@@ -6,7 +6,7 @@ a Twist to the Moveit2 Servo node.
 """
 
 # Standard imports
-from typing import Optional, Union
+from typing import Union
 
 # Third-party imports
 from overrides import override
@@ -16,7 +16,7 @@ from rclpy.duration import Duration
 from rclpy.qos import QoSProfile
 
 # Local imports
-from ada_feeding.helpers import BlackboardKey, duration_to_float, float_to_duration
+from ada_feeding.helpers import BlackboardKey, float_to_duration
 from ada_feeding.behaviors import BlackboardBehavior
 
 
@@ -42,7 +42,6 @@ class ServoMove(BlackboardBehavior):
         pub_topic: Union[BlackboardKey, str] = "~/servo_twist_cmds",
         pub_qos: Union[BlackboardKey, QoSProfile] = QoSProfile(depth=1),
         default_frame_id: Union[BlackboardKey, str] = "world",
-        curr_distance: Optional[BlackboardKey] = None,  # float
     ) -> None:
         """
         Blackboard Inputs
@@ -54,8 +53,6 @@ class ServoMove(BlackboardBehavior):
         pub_topic: Where to publish servo TwistStamped messages
         pub_qos: QoS for publisher
         default_frame_id: frame_id to use if Twist type is provided.
-        curr_distance: If None, use time as distance. Otherwise, this
-            BlackboardKey stores the remaining distance.
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -90,10 +87,7 @@ class ServoMove(BlackboardBehavior):
         )
 
         # Record start time
-        self.first_tick = True
         self.start_time = self.node.get_clock().now()
-        self.initial_distance = 0.0
-        self.curr_distance = 0.0
 
     @override
     def update(self) -> py_trees.common.Status:
@@ -119,14 +113,6 @@ class ServoMove(BlackboardBehavior):
 
         # Write the remaining distance
         duration = self.blackboard_get("duration")
-        self.curr_distance = self.blackboard_get("curr_distance")
-        if self.curr_distance is None:
-            self.curr_distance = duration_to_float(duration) - duration_to_float(
-                self.node.get_clock().now() - self.start_time
-            )
-        if self.first_tick:
-            self.initial_distance = self.curr_distance
-            self.first_tick = False
 
         # Return success if duration is exceeded. If duration is negative, then
         # run forever

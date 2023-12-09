@@ -286,7 +286,6 @@ class ApplyTransform(BlackboardBehavior):
     def blackboard_outputs(
         self,
         transformed_msg: Optional[BlackboardKey],  # same type as stamped_msg
-        linear_distance: Optional[BlackboardKey] = None,  # float
     ) -> None:
         """
         Blackboard Outputs
@@ -295,8 +294,6 @@ class ApplyTransform(BlackboardBehavior):
         Parameters
         ----------
         stamped_msg: The transformed stamped message.
-        linear_distance: The linear distance between the transformed message and
-            the origin.
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -349,41 +346,11 @@ class ApplyTransform(BlackboardBehavior):
             if target_frame is not None:
                 # Compute the transform from the TF tree
                 try:
-                    if isinstance(stamped_msg, TwistStamped):
-                        linear = Vector3Stamped(
-                            header=stamped_msg.header,
-                            vector=stamped_msg.twist.linear,
-                        )
-                        linear_transformed = self.tf_buffer.transform(
-                            linear,
-                            target_frame,
-                            timeout,
-                        )
-                        angular = Vector3Stamped(
-                            header=stamped_msg.header,
-                            vector=stamped_msg.twist.angular,
-                        )
-                        angular_transformed = self.tf_buffer.transform(
-                            angular,
-                            target_frame,
-                            timeout,
-                        )
-                        transformed_msg = TwistStamped(
-                            header=Header(
-                                stamp=stamped_msg.header.stamp,
-                                frame_id=target_frame,
-                            ),
-                            twist=Twist(
-                                linear=linear_transformed.vector,
-                                angular=angular_transformed.vector,
-                            ),
-                        )
-                    else:
-                        transformed_msg = self.tf_buffer.transform(
-                            stamped_msg,
-                            target_frame,
-                            timeout,
-                        )
+                    transformed_msg = self.tf_buffer.transform(
+                        stamped_msg,
+                        target_frame,
+                        timeout,
+                    )
                 except (
                     tf2.ConnectivityException,
                     tf2.ExtrapolationException,
@@ -465,22 +432,5 @@ class ApplyTransform(BlackboardBehavior):
 
         # Write the transformed_msg
         self.blackboard_set("transformed_msg", transformed_msg)
-
-        # Write the linear distance
-        if isinstance(transformed_msg, PoseStamped):
-            linear_msg = transformed_msg.pose.position
-        elif isinstance(transformed_msg, PointStamped):
-            linear_msg = transformed_msg.point
-        elif isinstance(transformed_msg, Vector3Stamped):
-            linear_msg = transformed_msg.vector
-        elif isinstance(transformed_msg, TwistStamped):
-            linear_msg = transformed_msg.twist.linear
-        else:
-            self.logger.error(f"Unsupported message type: {type(transformed_msg)}")
-            return py_trees.common.Status.FAILURE
-        self.blackboard_set(
-            "linear_distance",
-            np.linalg.norm(ros2_numpy.numpify(linear_msg)),
-        )
 
         return py_trees.common.Status.SUCCESS

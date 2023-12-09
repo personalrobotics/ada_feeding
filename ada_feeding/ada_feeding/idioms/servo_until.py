@@ -43,6 +43,12 @@ from ada_feeding.behaviors.ros import (
 from ada_feeding.helpers import BlackboardKey
 
 
+# Hardcoded parts of the behavior names that compute the distance for Servoing.
+# This is used by MoveToVisitor to populate feedback. Try to make these as
+# unique as possible to avoid clashes.
+SERVO_UNTIL_POSE_DISTANCE_BEHAVIOR_NAME = "ServoUntilPose PoseStampedToTwistStamped"
+
+
 def servo_until(
     name: str,
     ns: str,
@@ -227,7 +233,7 @@ def servo_until_pose(
         memory=True,
         children=[
             TrackHzInitialize(
-                name=f"{name} TrackHzInitialize",
+                name=f"{name} ServoUntilPose TrackHzInitialize",
                 ns=ns,
                 outputs={
                     "num_ticks": BlackboardKey("num_ticks"),
@@ -239,7 +245,7 @@ def servo_until_pose(
                 ns=ns,
                 # Sense the distance from the end effector to the target pose
                 sense=py_trees.composites.Sequence(
-                    name=f"{name} Condition",
+                    name=f"{name} ServoUntilPose Condition",
                     memory=True,
                     children=[
                         # Update the timestamp of the target_pose_stamped
@@ -256,7 +262,7 @@ def servo_until_pose(
                         ),
                         # Get the target_pose_stamped in the end effector frame
                         ApplyTransform(
-                            name=f"{name} Apply Transform",
+                            name=f"{name} ServoUntilPose GetEEDisplacement",
                             ns=ns,
                             inputs={
                                 "stamped_msg": target_pose_stamped_key,
@@ -266,7 +272,6 @@ def servo_until_pose(
                                 "transformed_msg": BlackboardKey(
                                     "ee_to_target_pose_stamped"
                                 ),
-                                "linear_distance": BlackboardKey("curr_distance"),
                             },
                         ),
                     ],
@@ -277,7 +282,7 @@ def servo_until_pose(
                 # variable doens't exist or the permissions are not correctly set.
                 # Therefore, it is crucial to be vigilant when testing this idiom.
                 check=py_trees.behaviours.CheckBlackboardVariableValue(
-                    name=f"{name} Check Tolerances",
+                    name=f"{name} ServoUntilPose CheckTolerances",
                     check=py_trees.common.ComparisonExpression(
                         variable=ee_to_target_pose_stamped_absolute_key,
                         value=PoseStamped(
@@ -296,7 +301,7 @@ def servo_until_pose(
                 ),
                 # Compute the twist based on the ee_to_target_pose_stamped
                 compute_twist=py_trees.composites.Sequence(
-                    name=f"{name} Condition",
+                    name=f"{name} ServoUntilPose Condition",
                     memory=False,
                     children=[
                         # Monitor the rate at which this idiom is running
@@ -315,7 +320,7 @@ def servo_until_pose(
                         ),
                         # Compute the twist
                         PoseStampedToTwistStamped(
-                            name=f"{name} PoseStampedToTwistStamped",
+                            name=f"{name} {SERVO_UNTIL_POSE_DISTANCE_BEHAVIOR_NAME}",
                             ns=ns,
                             inputs={
                                 "pose_stamped": BlackboardKey(
@@ -331,7 +336,7 @@ def servo_until_pose(
                         ),
                         # Convert to base frame
                         ApplyTransform(
-                            name=f"{name} Apply Transform",
+                            name=f"{name} ServoUntilPose GetEETwist",
                             ns=ns,
                             inputs={
                                 "stamped_msg": BlackboardKey("twist_in_ee_frame"),
@@ -346,7 +351,6 @@ def servo_until_pose(
                 servo_inputs={
                     "twist": twist_blackboard_key,
                     "duration": duration,  # timeout for Servo
-                    "curr_distance": BlackboardKey("curr_distance"),
                 },
             ),
         ],

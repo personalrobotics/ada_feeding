@@ -9,5 +9,6 @@ from .scoped_behavior import scoped_behavior
 from .servo_until import (
     servo_until,
     servo_until_pose,
+    SERVO_UNTIL_POSE_DISTANCE_BEHAVIOR_NAME,
 )
 from .wait_for_secs import wait_for_secs
