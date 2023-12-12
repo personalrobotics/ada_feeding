@@ -24,6 +24,7 @@ from geometry_msgs.msg import (
 )
 import numpy as np
 import py_trees
+from py_trees.behaviours import UnsetBlackboardVariable
 from py_trees.blackboard import Blackboard
 from rclpy.duration import Duration
 from rclpy.time import Time
@@ -37,7 +38,6 @@ from ada_feeding.behaviors.ros import (
     ApplyTransform,
     PoseStampedToTwistStamped,
     TrackHz,
-    TrackHzInitialize,
     UpdateTimestamp,
 )
 from ada_feeding.helpers import BlackboardKey
@@ -227,18 +227,23 @@ def servo_until_pose(
     ee_to_target_pose_stamped_absolute_key = Blackboard.separator.join(
         [ns, "ee_to_target_pose_stamped"]
     )
+    num_ticks_absolute_key = Blackboard.separator.join([ns, "num_ticks"])
+    start_time_absolute_key = Blackboard.separator.join([ns, "start_time"])
 
     return py_trees.composites.Sequence(
         name=name,
         memory=True,
         children=[
-            TrackHzInitialize(
-                name=f"{name} ServoUntilPose TrackHzInitialize",
-                ns=ns,
-                outputs={
-                    "num_ticks": BlackboardKey("num_ticks"),
-                    "start_time": BlackboardKey("start_time"),
-                },
+            # Unset num_ticks and start_time so TrackHz only tracks the rate
+            # of this servo_until idiom, irrespective of prior times this idiom
+            # may have been called (e.g., other times this tree was ticked).
+            UnsetBlackboardVariable(
+                name=f"{name} ServoUntilPose UnsetBlackboardVariable num_ticks",
+                key=num_ticks_absolute_key,
+            ),
+            UnsetBlackboardVariable(
+                name=f"{name} ServoUntilPose UnsetBlackboardVariable num_ticks",
+                key=start_time_absolute_key,
             ),
             servo_until(
                 name=name,
