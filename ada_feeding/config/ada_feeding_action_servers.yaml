@@ -86,8 +86,8 @@ ada_feeding_action_servers:
       tree_class: ada_feeding.trees.MoveToConfigurationWithWheelchairWallTree # required
       tree_kws: # optional
         - goal_configuration
-        - orientation_constraint_quaternion
-        - orientation_constraint_tolerances
+        # - orientation_constraint_quaternion
+        # - orientation_constraint_tolerances
         - allowed_planning_time
         - max_velocity_scaling_factor
       tree_kwargs: # optional
@@ -122,7 +122,7 @@ ada_feeding_action_servers:
           - 0.6 # x, rad
           - 3.14159 # y, rad
           - 0.5 # z, rad
-        allowed_planning_time: 2.5 # secs
+        allowed_planning_time: 1.0 # secs
         max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
       tick_rate: 10 # Hz, optional, default: 30
 
@@ -200,8 +200,8 @@ ada_feeding_action_servers:
         - staging_configuration_position
         - staging_configuration_quat_xyzw
         - end_configuration
-        - orientation_constraint_to_end_configuration_quaternion
-        - orientation_constraint_to_end_configuration_tolerances
+        # - orientation_constraint_to_end_configuration_quaternion
+        # - orientation_constraint_to_end_configuration_tolerances
         - allowed_planning_time_to_end_configuration
         - max_velocity_scaling_factor_to_end_configuration
       tree_kwargs: # optional
@@ -231,7 +231,7 @@ ada_feeding_action_servers:
           - 3.14159 # y, rad
           - 0.5 # z, rad
         max_velocity_scaling_factor_to_end_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
-        allowed_planning_time_to_end_configuration: 2.5 # secs
+        allowed_planning_time_to_end_configuration: 1.0 # secs
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveToStowLocation action
