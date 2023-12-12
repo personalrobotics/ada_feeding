@@ -198,6 +198,7 @@ class MoveFromMouthTree(MoveToTree):
             the angular velocity as you get closer to the target position.
             In other words, tilt closer to the end of the motion.
             """
+            # TODO: Consider making the speed slower closer to the mouth.
             nonlocal max_pose_distance
             pose_distance = (
                 post_stamped.pose.position.x**2.0

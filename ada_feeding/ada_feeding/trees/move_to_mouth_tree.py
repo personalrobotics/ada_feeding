@@ -467,6 +467,7 @@ class MoveToMouthTree(MoveToTree):
                             tolerance_position=self.mouth_position_tolerance,
                             duration=10.0,
                             round_decimals=3,
+                            # TODO: Consider making the speed slower closer to the mouth.
                             speed=(self.max_linear_speed, self.max_angular_speed),
                         )
                     ],
