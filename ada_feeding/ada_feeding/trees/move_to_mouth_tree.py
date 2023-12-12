@@ -89,6 +89,12 @@ class MoveToMouthTree(MoveToTree):
         face_detection_msg_timeout: float = 5.0,
         face_detection_timeout: float = 2.5,
         plan_distance_from_mouth: Tuple[float, float, float] = (0.025, 0.0, -0.01),
+        fork_target_orientation_from_mouth: Tuple[float, float, float, float] = (
+            0.5,
+            -0.5,
+            -0.5,
+            0.5,
+        ),
     ):
         """
         Initializes tree-specific parameters.
@@ -115,6 +121,8 @@ class MoveToMouthTree(MoveToTree):
         face_detection_timeout: If the robot has been trying to detect a face for
             more than these many seconds, timeout.
         plan_distance_from_mouth: The distance (m) to plan from the mouth center.
+        fork_target_orientation_from_mouth: The fork's target orientation, in *mouth*
+            frame. Pointing straight to the mouth is (0.5, -0.5, -0.5, 0.5).
         """
 
         # pylint: disable=too-many-locals
@@ -138,6 +146,7 @@ class MoveToMouthTree(MoveToTree):
         self.face_detection_msg_timeout = Duration(seconds=face_detection_msg_timeout)
         self.face_detection_timeout = face_detection_timeout
         self.plan_distance_from_mouth = plan_distance_from_mouth
+        self.fork_target_orientation_from_mouth = fork_target_orientation_from_mouth
 
         self.face_detection_relative_blackboard_key = "face_detection"
 
@@ -389,10 +398,10 @@ class MoveToMouthTree(MoveToTree):
                                     z=self.plan_distance_from_mouth[2],
                                 ),
                                 orientation=Quaternion(
-                                    x=0.5751716,
-                                    y=-0.5751716,
-                                    z=-0.4113121,
-                                    w=0.4113121,
+                                    x=self.fork_target_orientation_from_mouth[0],
+                                    y=self.fork_target_orientation_from_mouth[1],
+                                    z=self.fork_target_orientation_from_mouth[2],
+                                    w=self.fork_target_orientation_from_mouth[3],
                                 ),
                             ),
                         ),

@@ -26,7 +26,7 @@ from trajectory_msgs.msg import JointTrajectory
 # Local imports
 from ada_feeding_msgs.action import MoveTo
 from ada_feeding.behaviors.moveit2 import MoveIt2Execute, ServoMove
-from ada_feeding.helpers import duration_to_float, float_to_duration, get_moveit2_object
+from ada_feeding.helpers import duration_to_float, get_moveit2_object
 from ada_feeding.idioms import SERVO_UNTIL_POSE_DISTANCE_BEHAVIOR_NAME
 
 

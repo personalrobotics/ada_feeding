@@ -133,9 +133,15 @@ ada_feeding_action_servers:
       tree_kws: # optional
         - face_detection_msg_timeout
         - face_detection_timeout
+        - fork_target_orientation_from_mouth
       tree_kwargs: # optional
         face_detection_msg_timeout: 10.0 # sec
         face_detection_timeout: 5.0 # sec
+        fork_target_orientation_from_mouth: # In mouth frame, +x out of mouth, +z towards top of head
+          - 0.5751716
+          - -0.5751716
+          - -0.4113121
+          - 0.4113121
       tick_rate: 10 # Hz, optional, default: 30
 
     # Parameters for the MoveFromMouthToStagingConfiguration action.
