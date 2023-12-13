@@ -365,6 +365,8 @@ class SegmentFromPointNode(Node):
 
         # Convert the image to OpenCV format
         image = ros_msg_to_cv2_image(image_msg, self.bridge)
+
+        # Convert the image to RGB for Segment Anything
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         # Convert the depth image to OpenCV format. The depth image is a
@@ -378,6 +380,9 @@ class SegmentFromPointNode(Node):
             point_labels=np.array([1]),
             multimask_output=True,
         )
+
+        # Convert the image back to BGR, which is OpenCV's default format
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
         # Sort the masks from highest to lowest score
         scored_masks_sorted = sorted(
@@ -432,7 +437,7 @@ class SegmentFromPointNode(Node):
         # Compute the bounding box
         bbox = bbox_from_mask(cleaned_mask)
         # Crop the image and the mask
-        _, cropped_mask, _ = crop_image_mask_and_point(
+        cropped_image, cropped_mask, _ = crop_image_mask_and_point(
             image, cleaned_mask, seed_point, bbox
         )
         # Convert the mask to an image
@@ -448,6 +453,7 @@ class SegmentFromPointNode(Node):
             do_rectify=False,
         )
         mask_msg.mask = cv2_image_to_ros_msg(mask_img, compress=True)
+        mask_msg.rgb_image = cv2_image_to_ros_msg(cropped_image, compress=True)
         mask_msg.average_depth = average_depth_mm / 1000.0
         mask_msg.item_id = item_id
         mask_msg.confidence = score
