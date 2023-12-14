@@ -62,10 +62,6 @@ def servo_until(
     behavior wll iteratively sense the world, check if a condition is met, if so
     return SUCCESS, else compute a twist and send it to the servo controller.
 
-    Note that in order to have accurate feedback from the FeedbackVisitor, none
-    of the passed behaviors should ever return RUNNING. Else, the feedback will
-    rapidly alternate between planning and motion.
-
     Parameters
     ----------
     name: The name of the behavior.
@@ -356,6 +352,7 @@ def servo_until_pose(
                 servo_inputs={
                     "twist": twist_blackboard_key,
                     "duration": duration,  # timeout for Servo
+                    "status_on_timeout": py_trees.common.Status.FAILURE,
                 },
             ),
         ],

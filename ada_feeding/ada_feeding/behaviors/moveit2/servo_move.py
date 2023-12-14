@@ -42,6 +42,9 @@ class ServoMove(BlackboardBehavior):
         pub_topic: Union[BlackboardKey, str] = "~/servo_twist_cmds",
         pub_qos: Union[BlackboardKey, QoSProfile] = QoSProfile(depth=1),
         default_frame_id: Union[BlackboardKey, str] = "world",
+        status_on_timeout: Union[
+            BlackboardKey, py_trees.common.Status
+        ] = py_trees.common.Status.SUCCESS,
     ) -> None:
         """
         Blackboard Inputs
@@ -53,6 +56,7 @@ class ServoMove(BlackboardBehavior):
         pub_topic: Where to publish servo TwistStamped messages
         pub_qos: QoS for publisher
         default_frame_id: frame_id to use if Twist type is provided.
+        status_on_timeout: What status to return if once duration is reached.
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -98,7 +102,7 @@ class ServoMove(BlackboardBehavior):
         # defined in the setup / initialise functions.
 
         # Validate inputs
-        if not self.blackboard_exists(["twist", "duration"]):
+        if not self.blackboard_exists(["twist", "duration", "status_on_timeout"]):
             self.logger.error("Missing input arguments")
             return py_trees.common.Status.FAILURE
 
@@ -121,7 +125,7 @@ class ServoMove(BlackboardBehavior):
         if duration.nanoseconds >= 0 and self.node.get_clock().now() > (
             self.start_time + duration
         ):
-            return py_trees.common.Status.SUCCESS
+            return self.blackboard_get("status_on_timeout")
 
         # Servo is still executing
         return py_trees.common.Status.RUNNING
