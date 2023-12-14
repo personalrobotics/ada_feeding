@@ -184,25 +184,42 @@ class MoveToVisitor(VisitorBase):
         ):
             # Set the running execution behaviour
             self.running_execution_behaviour = behaviour
-            # Get the distance, defaulting to duration if it hasn't been set
-            distance = 0.0
-            if self.servo_move_distance is None:
-                if behaviour.blackboard_exists("duration"):
-                    dur = behaviour.blackboard_get("duration")
-                    if isinstance(dur, Duration):
-                        dur = duration_to_float(dur)
-                    distance = dur - duration_to_float(
-                        self.node.get_clock().now() - self.start_time
-                    )
-            else:
-                distance = self.servo_move_distance
-                # Reset it in case the next ServoMove to be ticked uses duration
-                # and not a distance.
-                self.servo_move_distance = None
             # Flip to execute
+            first_execution_tick = False
             if self.feedback.is_planning:
                 self.start_time = self.node.get_clock().now()
                 self.feedback.is_planning = False
+                first_execution_tick = True
+            # Get the remaining time
+            remaining_time_sec = 0.0
+            remaining_time_frac = 0.0
+            if behaviour.blackboard_exists("duration"):
+                dur = behaviour.blackboard_get("duration")
+                if isinstance(dur, Duration):
+                    dur = duration_to_float(dur)
+                remaining_time_sec = dur - duration_to_float(
+                    self.node.get_clock().now() - self.start_time
+                )
+                if dur != 0:
+                    remaining_time_frac = remaining_time_sec / dur
+            # Get the distance, defaulting to duration if it hasn't been set
+            distance = 0.0
+            if self.servo_move_distance is None:
+                distance = remaining_time_sec
+            else:
+                # The min is important so users know the action is still progressing
+                # and will eventually stop, even if the arm is stationary.
+                if first_execution_tick:
+                    distance = self.servo_move_distance
+                else:
+                    distance = min(
+                        self.servo_move_distance,
+                        self.feedback.motion_initial_distance * remaining_time_frac,
+                    )
+                # Reset it in case the next ServoMove to be ticked uses duration
+                # and not a distance.
+                self.servo_move_distance = None
+            if first_execution_tick:
                 self.feedback.motion_initial_distance = distance
             self.feedback.motion_curr_distance = distance
         # If the most recently running execution behaviour is no longer running,
