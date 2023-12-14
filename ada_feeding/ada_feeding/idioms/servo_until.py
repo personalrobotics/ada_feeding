@@ -84,10 +84,6 @@ def servo_until(
     # pylint: disable=too-many-arguments
     # This is intended to be a flexible idiom.
 
-    # TODO: Consider adding a subscription to `/servo_node/status` as part of the
-    # `sense` sequence, and to fail if the status is any of the `halt` statuses.
-    # https://github.com/ros-planning/moveit2/blob/3144e6eb555d6265ecd1240d9932122a8f78290a/moveit_ros/moveit_servo/include/moveit_servo/status_codes.h#L46
-
     return py_trees.composites.Sequence(
         name=name,
         memory=False,

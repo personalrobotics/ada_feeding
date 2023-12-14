@@ -31,6 +31,7 @@
     <remap from="~/switch_controller" to="/controller_manager/switch_controller" />
     <remap from="~/start_servo" to="/servo_node/start_servo" />
     <remap from="~/servo_twist_cmds" to="/servo_node/delta_twist_cmds" />
+    <remap from="~/servo_status" to="/servo_node/status" />
     <remap from="~/stop_servo" to="/servo_node/stop_servo" />
     <remap from="~/action_select" to="/ada_feeding_action_select/action_select" />
     <remap from="~/action_report" to="/ada_feeding_action_select/action_report" />
