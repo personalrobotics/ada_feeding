@@ -35,9 +35,8 @@ class ComputeWheelchairCollisionTransform(BlackboardBehavior):
     NOTE: Although this class is in theory rich enough to compute arbitrary
     updates to the wheelchair collision object, e.g., moving its x and y to be
     centered on the face, currently we don't translate it at all and only scale
-    z in (0.0, 1.0]. This is because incorporating translations or scaling z > 1
-    may bring the wheelchair collision object into collision with the robot base,
-    which is not desirable.
+    z in (0.0, inf). This is because incorporating translations may bring the 
+    wheelchair collision object into collision with the robot base, which is not desirable.
     """
 
     # pylint: disable=arguments-differ
@@ -153,16 +152,13 @@ class ComputeWheelchairCollisionTransform(BlackboardBehavior):
         wheelchair_scale = (
             1.0,
             1.0,
-            min(
-                1.0,
-                (
-                    detected_head_pose.pose.position.z
-                    - original_wheelchair_collision_pose.pose.position.z
-                )
-                / (
-                    original_head_pose.pose.position.z
-                    - original_wheelchair_collision_pose.pose.position.z
-                ),
+            (
+                detected_head_pose.pose.position.z
+                - original_wheelchair_collision_pose.pose.position.z
+            )
+            / (
+                original_head_pose.pose.position.z
+                - original_wheelchair_collision_pose.pose.position.z
             ),
         )
 
