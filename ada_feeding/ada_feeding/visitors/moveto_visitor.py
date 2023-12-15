@@ -13,17 +13,21 @@ import math
 from overrides import override
 
 # Third-party imports
+import numpy as np
 import py_trees
 from py_trees.composites import Composite
 from py_trees.decorators import Decorator
 from py_trees.visitors import VisitorBase
+from rclpy.duration import Duration
 from rclpy.node import Node
+import ros2_numpy
 from trajectory_msgs.msg import JointTrajectory
 
 # Local imports
 from ada_feeding_msgs.action import MoveTo
 from ada_feeding.behaviors.moveit2 import MoveIt2Execute, ServoMove
-from ada_feeding.helpers import duration_to_float, float_to_duration, get_moveit2_object
+from ada_feeding.helpers import duration_to_float, get_moveit2_object
+from ada_feeding.idioms import SERVO_UNTIL_POSE_DISTANCE_BEHAVIOR_NAME
 
 
 class MoveToVisitor(VisitorBase):
@@ -41,13 +45,17 @@ class MoveToVisitor(VisitorBase):
         # Used for planning/motion time calculations
         self.start_time = None
 
+        # Used to determine whether the robot is planning or moving
+        self.running_execution_behaviour = None
+
         # To return with get_feedback
         self.feedback = MoveTo.Feedback()
         self.feedback.is_planning = True
 
-        # Used for get_distance_to_goal
+        # Used to get distances remaining for the robot to move
         self.aligned_joint_indices = None
         self.traj_i = 0
+        self.servo_move_distance = None
 
     def reinit(self) -> None:
         """
@@ -55,6 +63,8 @@ class MoveToVisitor(VisitorBase):
         Can be called if a tree is run again.
         """
         self.start_time = None
+        self.running_execution_behaviour = None
+        self.servo_move_distance = None
         self.feedback = MoveTo.Feedback()
         self.feedback.is_planning = True
 
@@ -156,6 +166,8 @@ class MoveToVisitor(VisitorBase):
             isinstance(behaviour, MoveIt2Execute)
             and behaviour.status == py_trees.common.Status.RUNNING
         ):
+            # Set the running execution behaviour
+            self.running_execution_behaviour = behaviour
             # Flip to execute
             if self.feedback.is_planning:
                 self.start_time = self.node.get_clock().now()
@@ -170,28 +182,69 @@ class MoveToVisitor(VisitorBase):
             isinstance(behaviour, ServoMove)
             and behaviour.status == py_trees.common.Status.RUNNING
         ):
+            # Set the running execution behaviour
+            self.running_execution_behaviour = behaviour
             # Flip to execute
+            first_execution_tick = False
             if self.feedback.is_planning:
                 self.start_time = self.node.get_clock().now()
                 self.feedback.is_planning = False
-            # Distance == time_elapsed vs duration
+                first_execution_tick = True
+            # Get the remaining time
+            remaining_time_sec = 0.0
+            remaining_time_frac = 0.0
             if behaviour.blackboard_exists("duration"):
                 dur = behaviour.blackboard_get("duration")
-                if isinstance(dur, float):
-                    dur = float_to_duration(dur)
-                self.feedback.motion_initial_distance = duration_to_float(dur)
-                self.feedback.motion_curr_distance = (
-                    self.feedback.motion_initial_distance
-                    - duration_to_float(self.node.get_clock().now() - self.start_time)
+                if isinstance(dur, Duration):
+                    dur = duration_to_float(dur)
+                remaining_time_sec = dur - duration_to_float(
+                    self.node.get_clock().now() - self.start_time
                 )
-        else:
-            # Catch end of MoveIt2Execute behaviors
-            if behaviour.status == py_trees.common.Status.SUCCESS:
-                self.feedback.motion_curr_distance = 0.0
+                if dur != 0:
+                    remaining_time_frac = remaining_time_sec / dur
+            # Get the distance, defaulting to duration if it hasn't been set
+            distance = 0.0
+            if self.servo_move_distance is None:
+                distance = remaining_time_sec
+            else:
+                # The min is important so users know the action is still progressing
+                # and will eventually stop, even if the arm is stationary.
+                if first_execution_tick:
+                    distance = self.servo_move_distance
+                else:
+                    distance = min(
+                        self.servo_move_distance,
+                        self.feedback.motion_initial_distance * remaining_time_frac,
+                    )
+                # Reset it in case the next ServoMove to be ticked uses duration
+                # and not a distance.
+                self.servo_move_distance = None
+            if first_execution_tick:
+                self.feedback.motion_initial_distance = distance
+            self.feedback.motion_curr_distance = distance
+        # If the most recently running execution behaviour is no longer running,
+        # switch to planning.
+        elif (
+            behaviour == self.running_execution_behaviour
+            and self.running_execution_behaviour.status
+            != py_trees.common.Status.RUNNING
+        ):
+            self.running_execution_behaviour = None
+            self.feedback.motion_curr_distance = 0.0
             # Switch to planning start time
             if not self.feedback.is_planning:
                 self.start_time = self.node.get_clock().now()
                 self.feedback.is_planning = True
+        else:
+            # The only non-exeuction behaviour this visitor cares about is the
+            # behaviour that computes the distance remaining for the robot to move.
+            # This will be different per servo_until idiom.
+            if SERVO_UNTIL_POSE_DISTANCE_BEHAVIOR_NAME in behaviour.name:
+                if behaviour.blackboard_exists("pose_stamped"):
+                    pose_stamped = behaviour.blackboard_get("pose_stamped")
+                    self.servo_move_distance = np.linalg.norm(
+                        ros2_numpy.numpify(pose_stamped.pose.position)
+                    )
 
         # Calculate updated planning/motion time
         if self.feedback.is_planning:

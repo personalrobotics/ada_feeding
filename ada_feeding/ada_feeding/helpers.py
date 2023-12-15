@@ -9,7 +9,14 @@ from typing import Any, Optional, Set, Tuple
 
 # Third-party imports
 import numpy as np
-from geometry_msgs.msg import TransformStamped, Vector3, Quaternion
+from geometry_msgs.msg import (
+    TransformStamped,
+    Twist,
+    TwistStamped,
+    Vector3,
+    Vector3Stamped,
+    Quaternion,
+)
 import py_trees
 from py_trees.common import Access
 from pymoveit2 import MoveIt2
@@ -17,9 +24,39 @@ from pymoveit2.robots import kinova
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.duration import Duration
 from rclpy.node import Node
+from tf2_geometry_msgs import do_transform_vector3
+import tf2_ros
 from tf2_ros.buffer import Buffer
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros.transform_listener import TransformListener
+
+
+# Register a tf2 transform for TwistStamped, which isn't currently in tf2_geometry_msgs
+def do_transform_twist(twist: TwistStamped, transform: TransformStamped):
+    """
+    Transform a TwistStamped by separately transforming its linear and angular components.
+    """
+    linear = Vector3Stamped(
+        header=twist.header,
+        vector=twist.twist.linear,
+    )
+    linear_transformed = do_transform_vector3(linear, transform)
+    angular = Vector3Stamped(
+        header=twist.header,
+        vector=twist.twist.angular,
+    )
+    angular_transformed = do_transform_vector3(angular, transform)
+    res = TwistStamped(
+        header=transform.header,
+        twist=Twist(
+            linear=linear_transformed.vector,
+            angular=angular_transformed.vector,
+        ),
+    )
+    return res
+
+
+tf2_ros.TransformRegistration().add(TwistStamped, do_transform_twist)
 
 
 # Type for Blackboard Key

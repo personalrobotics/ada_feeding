@@ -91,6 +91,7 @@ def pre_moveto_config(
     name: str,
     re_tare: bool = True,
     toggle_watchdog_listener: bool = False,
+    set_ft_thresholds: bool = True,
     f_mag: float = 4.0,
     f_x: float = 0.0,
     f_y: float = 0.0,
@@ -116,7 +117,8 @@ def pre_moveto_config(
     name: The name to associate with this behavior.
     re_tare: Whether to re-tare the force-torque sensor.
     toggle_watchdog_listener: Whether to toggle the watchdog listener on and off
-                                during re-taring.
+        during re-taring.
+    set_ft_thresholds: Whether to set the force-torque thresholds.
     f_mag: The magnitude of the overall force threshold. No threshold if 0.0.
     f_x: The magnitude of the x component of the force threshold. No threshold if 0.0.
     f_y: The magnitude of the y component of the force threshold. No threshold if 0.0.
@@ -183,31 +185,32 @@ def pre_moveto_config(
             children.append(turn_watchdog_listener_on)
 
     # Set FT Thresholds
-    ft_threshold_request = create_ft_thresh_request(
-        f_mag, f_x, f_y, f_z, t_mag, t_x, t_y, t_z
-    )
-    set_force_torque_thresholds_name = Blackboard.separator.join(
-        [name, set_force_torque_thresholds_prefix]
-    )
-    set_force_torque_thresholds_key_response = Blackboard.separator.join(
-        [set_force_torque_thresholds_name, "response"]
-    )
-    set_force_torque_thresholds = retry_call_ros_service(
-        name=set_force_torque_thresholds_name,
-        service_type=SetParameters,
-        service_name=param_service_name,
-        key_request=None,
-        request=ft_threshold_request,
-        key_response=set_force_torque_thresholds_key_response,
-        response_checks=[
-            py_trees.common.ComparisonExpression(
-                variable=set_force_torque_thresholds_key_response,
-                value=SetParameters.Response(),  # Unused
-                operator=set_parameter_response_all_success,
-            )
-        ],
-    )
-    children.append(set_force_torque_thresholds)
+    if set_ft_thresholds:
+        ft_threshold_request = create_ft_thresh_request(
+            f_mag, f_x, f_y, f_z, t_mag, t_x, t_y, t_z
+        )
+        set_force_torque_thresholds_name = Blackboard.separator.join(
+            [name, set_force_torque_thresholds_prefix]
+        )
+        set_force_torque_thresholds_key_response = Blackboard.separator.join(
+            [set_force_torque_thresholds_name, "response"]
+        )
+        set_force_torque_thresholds = retry_call_ros_service(
+            name=set_force_torque_thresholds_name,
+            service_type=SetParameters,
+            service_name=param_service_name,
+            key_request=None,
+            request=ft_threshold_request,
+            key_response=set_force_torque_thresholds_key_response,
+            response_checks=[
+                py_trees.common.ComparisonExpression(
+                    variable=set_force_torque_thresholds_key_response,
+                    value=SetParameters.Response(),  # Unused
+                    operator=set_parameter_response_all_success,
+                )
+            ],
+        )
+        children.append(set_force_torque_thresholds)
 
     # Link all the behaviours together in a sequence with memory
     root = py_trees.composites.Sequence(name=name, memory=True, children=children)

@@ -18,7 +18,7 @@ from std_srvs.srv import Trigger
 
 # Local imports
 from ada_feeding.idioms import retry_call_ros_service
-from ada_feeding.trees import TriggerTree
+from .trigger_tree import TriggerTree
 
 
 class StartServoTree(TriggerTree):

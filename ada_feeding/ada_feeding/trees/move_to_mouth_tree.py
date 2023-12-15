@@ -31,20 +31,22 @@ from std_msgs.msg import Header
 from ada_feeding_msgs.action import MoveToMouth
 from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding.behaviors.moveit2 import (
-    MoveIt2Plan,
-    MoveIt2Execute,
-    MoveIt2PoseConstraint,
     ModifyCollisionObject,
     ModifyCollisionObjectOperation,
 )
-from ada_feeding.behaviors import (
+from ada_feeding.behaviors.ros import (
     GetTransform,
     SetStaticTransform,
     ApplyTransform,
     CreatePoseStamped,
 )
 from ada_feeding.helpers import BlackboardKey
-from ada_feeding.idioms import pre_moveto_config, scoped_behavior, wait_for_secs
+from ada_feeding.idioms import (
+    pre_moveto_config,
+    scoped_behavior,
+    servo_until_pose,
+    wait_for_secs,
+)
 from ada_feeding.idioms.bite_transfer import (
     get_toggle_collision_object_behavior,
     get_toggle_face_detection_behavior,
@@ -52,6 +54,8 @@ from ada_feeding.idioms.bite_transfer import (
 from ada_feeding.trees import (
     MoveToTree,
 )
+from .start_servo_tree import StartServoTree
+from .stop_servo_tree import StopServoTree
 
 
 class MoveToMouthTree(MoveToTree):
@@ -74,20 +78,23 @@ class MoveToMouthTree(MoveToTree):
     def __init__(
         self,
         node: Node,
-        mouth_position_tolerance: float = 0.001,
-        planner_id: str = "RRTstarkConfigDefault",
-        allowed_planning_time: float = 0.5,
+        mouth_position_tolerance: float = 0.005,
         head_object_id: str = "head",
-        max_velocity_scaling_factor: float = 0.1,
-        cartesian_jump_threshold: float = 0.0,
-        cartesian_max_step: float = 0.0025,
+        max_linear_speed: float = 0.1,
+        max_angular_speed: float = 0.15,
         wheelchair_collision_object_id: str = "wheelchair_collision",
-        force_threshold: float = 4.0,
-        torque_threshold: float = 4.0,
+        force_threshold: float = 1.0,
+        torque_threshold: float = 1.0,
         allowed_face_distance: Tuple[float, float] = (0.4, 1.25),
         face_detection_msg_timeout: float = 5.0,
         face_detection_timeout: float = 2.5,
         plan_distance_from_mouth: Tuple[float, float, float] = (0.025, 0.0, -0.01),
+        fork_target_orientation_from_mouth: Tuple[float, float, float, float] = (
+            0.5,
+            -0.5,
+            -0.5,
+            0.5,
+        ),
     ):
         """
         Initializes tree-specific parameters.
@@ -95,17 +102,10 @@ class MoveToMouthTree(MoveToTree):
         Parameters
         ----------
         mouth_position_tolerance: The tolerance for the movement to the mouth pose.
-        planner_id: The planner ID to use for the MoveIt2 motion planning.
-        allowed_planning_time: The allowed planning time.
         head_object_id: The ID of the head collision object in the MoveIt2
             planning scene.
-        max_velocity_scaling_factor: The maximum velocity scaling
-            factor for the MoveIt2 motion planner to move to the user's mouth.
-        cartesian_jump_threshold: The maximum allowed jump in the
-            cartesian space for the MoveIt2 motion planner to move to the user's
-            mouth.
-        cartesian_max_step: The maximum allowed step in the cartesian
-            space for the MoveIt2 motion planner to move to the user's mouth.
+        max_linear_speed: The maximum linear speed (m/s) for the motion.
+        max_angular_speed: The maximum angular speed (rad/s) for the motion.
         wheelchair_collision_object_id: The ID of the wheelchair collision object
             in the MoveIt2 planning scene.
         force_threshold: The force threshold (N) for the ForceGateController.
@@ -121,6 +121,8 @@ class MoveToMouthTree(MoveToTree):
         face_detection_timeout: If the robot has been trying to detect a face for
             more than these many seconds, timeout.
         plan_distance_from_mouth: The distance (m) to plan from the mouth center.
+        fork_target_orientation_from_mouth: The fork's target orientation, in *mouth*
+            frame. Pointing straight to the mouth is (0.5, -0.5, -0.5, 0.5).
         """
 
         # pylint: disable=too-many-locals
@@ -134,12 +136,9 @@ class MoveToMouthTree(MoveToTree):
 
         # Store the parameters
         self.mouth_position_tolerance = mouth_position_tolerance
-        self.planner_id = planner_id
-        self.allowed_planning_time = allowed_planning_time
         self.head_object_id = head_object_id
-        self.max_velocity_scaling_factor = max_velocity_scaling_factor
-        self.cartesian_jump_threshold = cartesian_jump_threshold
-        self.cartesian_max_step = cartesian_max_step
+        self.max_linear_speed = max_linear_speed
+        self.max_angular_speed = max_angular_speed
         self.wheelchair_collision_object_id = wheelchair_collision_object_id
         self.force_threshold = force_threshold
         self.torque_threshold = torque_threshold
@@ -147,6 +146,7 @@ class MoveToMouthTree(MoveToTree):
         self.face_detection_msg_timeout = Duration(seconds=face_detection_msg_timeout)
         self.face_detection_timeout = face_detection_timeout
         self.plan_distance_from_mouth = plan_distance_from_mouth
+        self.fork_target_orientation_from_mouth = fork_target_orientation_from_mouth
 
         self.face_detection_relative_blackboard_key = "face_detection"
 
@@ -398,10 +398,10 @@ class MoveToMouthTree(MoveToTree):
                                     z=self.plan_distance_from_mouth[2],
                                 ),
                                 orientation=Quaternion(
-                                    x=0.5,
-                                    y=-0.5,
-                                    z=-0.5,
-                                    w=0.5,
+                                    x=self.fork_target_orientation_from_mouth[0],
+                                    y=self.fork_target_orientation_from_mouth[1],
+                                    z=self.fork_target_orientation_from_mouth[2],
+                                    w=self.fork_target_orientation_from_mouth[3],
                                 ),
                             ),
                         ),
@@ -417,64 +417,60 @@ class MoveToMouthTree(MoveToTree):
                     toggle_watchdog_listener=False,
                     f_mag=self.force_threshold,
                     t_mag=self.torque_threshold,
+                    param_service_name="~/set_servo_controller_parameters",
                 ),
                 # Allow collisions with the expanded wheelchair collision box
                 scoped_behavior(
-                    name=name + " AllowWheelchairCollisionScope",
-                    pre_behavior=get_toggle_collision_object_behavior(
-                        name + " AllowWheelchairCollisionScopePre",
-                        [self.wheelchair_collision_object_id],
-                        True,
+                    name=name + " AllowWheelchairCollisionScopeAndStartServo",
+                    pre_behavior=py_trees.composites.Sequence(
+                        name=name,
+                        memory=True,
+                        children=[
+                            get_toggle_collision_object_behavior(
+                                name + " AllowWheelchairCollisionScopePre",
+                                [self.wheelchair_collision_object_id],
+                                True,
+                            ),
+                            StartServoTree(self._node)
+                            .create_tree(name=name + "StartServoScopePre")
+                            .root,
+                        ],
+                    ),
+                    # Disallow collisions with the expanded wheelchair collision
+                    # box.
+                    post_behavior=py_trees.composites.Sequence(
+                        name=name,
+                        memory=True,
+                        children=[
+                            StopServoTree(self._node)
+                            .create_tree(name=name + "StopServoScopePost")
+                            .root,
+                            get_toggle_collision_object_behavior(
+                                name + " AllowWheelchairCollisionScopePost",
+                                [self.wheelchair_collision_object_id],
+                                False,
+                            ),
+                            pre_moveto_config(
+                                name=name + "PreMoveToConfigScopePost",
+                                re_tare=False,
+                                f_mag=1.0,
+                                param_service_name="~/set_servo_controller_parameters",
+                            ),
+                        ],
                     ),
                     # Move to the target pose
                     workers=[
-                        # Goal configuration
-                        MoveIt2PoseConstraint(
-                            name="MoveToTargetPosePoseGoalConstraint",
+                        servo_until_pose(
+                            name=name + " MoveToMouth",
                             ns=name,
-                            inputs={
-                                "pose": BlackboardKey("goal_pose"),
-                                "tolerance_position": self.mouth_position_tolerance,
-                                "tolerance_orientation": (0.6, 0.5, 0.5),
-                                "parameterization": 1,  # Rotation vector
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("goal_constraints"),
-                            },
-                        ),
-                        # Plan
-                        MoveIt2Plan(
-                            name="MoveToTargetPosePlan",
-                            ns=name,
-                            inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
-                                "planner_id": self.planner_id,
-                                "allowed_planning_time": self.allowed_planning_time,
-                                "max_velocity_scale": (
-                                    self.max_velocity_scaling_factor
-                                ),
-                                "cartesian": True,
-                                "cartesian_jump_threshold": self.cartesian_jump_threshold,
-                                "cartesian_fraction_threshold": 0.95,
-                                "cartesian_max_step": self.cartesian_max_step,
-                            },
-                            outputs={"trajectory": BlackboardKey("trajectory")},
-                        ),
-                        # Execute
-                        MoveIt2Execute(
-                            name="MoveToTargetPoseExecute",
-                            ns=name,
-                            inputs={"trajectory": BlackboardKey("trajectory")},
-                            outputs={},
-                        ),
+                            target_pose_stamped_key=BlackboardKey("goal_pose"),
+                            tolerance_position=self.mouth_position_tolerance,
+                            duration=10.0,
+                            round_decimals=3,
+                            # TODO: Consider making the speed slower closer to the mouth.
+                            speed=(self.max_linear_speed, self.max_angular_speed),
+                        )
                     ],
-                    # Disallow collisions with the expanded wheelchair collision
-                    # box.
-                    post_behavior=get_toggle_collision_object_behavior(
-                        name + " AllowWheelchairCollisionScopePost",
-                        [self.wheelchair_collision_object_id],
-                        False,
-                    ),
                 ),
             ],
         )
