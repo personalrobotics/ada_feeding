@@ -29,7 +29,6 @@ from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior, servo_until_pose
 from ada_feeding.idioms.bite_transfer import (
     get_add_in_front_of_wheelchair_wall_behavior,
-    get_toggle_collision_object_behavior,
     get_remove_in_front_of_wheelchair_wall_behavior,
 )
 from ada_feeding.trees import MoveToTree
@@ -226,11 +225,6 @@ class MoveFromMouthTree(MoveToTree):
                         name=name,
                         memory=True,
                         children=[
-                            get_toggle_collision_object_behavior(
-                                name + "AllowWheelchairCollisionScopePre",
-                                [self.wheelchair_collision_object_id],
-                                True,
-                            ),
                             StartServoTree(self._node)
                             .create_tree(name=name + "StartServoScopePre")
                             .root,
@@ -243,11 +237,6 @@ class MoveFromMouthTree(MoveToTree):
                             StopServoTree(self._node)
                             .create_tree(name=name + "StopServoScopePost")
                             .root,
-                            get_toggle_collision_object_behavior(
-                                name + "DisallowWheelchairCollisionScopePost",
-                                [self.wheelchair_collision_object_id],
-                                False,
-                            ),
                             pre_moveto_config(
                                 name=name + "PreMoveToConfigScopePost",
                                 re_tare=False,

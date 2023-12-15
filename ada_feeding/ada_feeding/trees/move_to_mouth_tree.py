@@ -9,9 +9,11 @@ wrap that behaviour tree in a ROS2 action server.
 # that they have similar code.
 
 # Standard imports
+import os
 from typing import Tuple
 
 # Third-party imports
+from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import (
     Point,
     Pose,
@@ -40,6 +42,7 @@ from ada_feeding.behaviors.ros import (
     ApplyTransform,
     CreatePoseStamped,
 )
+from ada_feeding.behaviors.transfer import ComputeWheelchairCollisionTransform
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
     pre_moveto_config,
@@ -48,7 +51,6 @@ from ada_feeding.idioms import (
     wait_for_secs,
 )
 from ada_feeding.idioms.bite_transfer import (
-    get_toggle_collision_object_behavior,
     get_toggle_face_detection_behavior,
 )
 from ada_feeding.trees import (
@@ -379,6 +381,44 @@ class MoveToMouthTree(MoveToTree):
                         ),
                     },
                 ),
+                # Compute the transform of the wheelchair collision object
+                # based on the detected head pose
+                ComputeWheelchairCollisionTransform(
+                    name=name + " ComputeWheelchairCollisionTransform",
+                    ns=name,
+                    inputs={
+                        "detected_head_pose": BlackboardKey("mouth_pose"),
+                    },
+                    outputs={
+                        "wheelchair_position": BlackboardKey(
+                            "wheelchair_collision_position"
+                        ),
+                        "wheelchair_orientation": BlackboardKey(
+                            "wheelchair_collision_orientation"
+                        ),
+                        "wheelchair_scale": BlackboardKey("wheelchair_collision_scale"),
+                    },
+                ),
+                # Move the wheelchair collision object to the desired pose.
+                ModifyCollisionObject(
+                    name=name + " MoveWheelchairCollision",
+                    ns=name,
+                    inputs={
+                        "operation": ModifyCollisionObjectOperation.ADD,
+                        "collision_object_id": self.wheelchair_collision_object_id,
+                        "collision_object_position": BlackboardKey(
+                            "wheelchair_collision_position"
+                        ),
+                        "collision_object_orientation": BlackboardKey(
+                            "wheelchair_collision_orientation"
+                        ),
+                        "mesh_filepath": os.path.join(
+                            get_package_share_directory("ada_feeding"),
+                            "assets/wheelchair_collision.stl",
+                        ),
+                        "mesh_scale": BlackboardKey("wheelchair_collision_scale"),
+                    },
+                ),
                 # The goal constraint of the fork is the mouth pose,
                 # translated `self.plan_distance_from_mouth` in front of the mouth,
                 # and rotated to match the forkTip orientation.
@@ -426,11 +466,6 @@ class MoveToMouthTree(MoveToTree):
                         name=name,
                         memory=True,
                         children=[
-                            get_toggle_collision_object_behavior(
-                                name + " AllowWheelchairCollisionScopePre",
-                                [self.wheelchair_collision_object_id],
-                                True,
-                            ),
                             StartServoTree(self._node)
                             .create_tree(name=name + "StartServoScopePre")
                             .root,
@@ -445,11 +480,6 @@ class MoveToMouthTree(MoveToTree):
                             StopServoTree(self._node)
                             .create_tree(name=name + "StopServoScopePost")
                             .root,
-                            get_toggle_collision_object_behavior(
-                                name + " AllowWheelchairCollisionScopePost",
-                                [self.wheelchair_collision_object_id],
-                                False,
-                            ),
                             pre_moveto_config(
                                 name=name + "PreMoveToConfigScopePost",
                                 re_tare=False,

@@ -66,6 +66,7 @@ class ModifyCollisionObject(BlackboardBehavior):
             0.0,
             0.0,
         ),
+        mesh_scale: Union[BlackboardKey, float, Tuple[float, float, float]] = 1.0,
     ) -> None:
         """
         Blackboard Inputs
@@ -90,6 +91,7 @@ class ModifyCollisionObject(BlackboardBehavior):
             ADD or MOVE and the collision object position/orientation do not have a frame_id.
         position_offset: The offset to apply to the collision object position. Only used if
             the operation is ADD or MOVE.
+        mesh_scale: The scale to apply to the mesh. Only used if the operation is ADD.
         """
         # pylint: disable=unused-argument, duplicate-code, too-many-arguments
         # Arguments are handled generically in base class.
@@ -188,6 +190,7 @@ class ModifyCollisionObject(BlackboardBehavior):
                     "prim_type",
                     "dims",
                     "position_offset",
+                    "mesh_scale",
                 ]
             ):
                 self.logger.error(
@@ -205,6 +208,7 @@ class ModifyCollisionObject(BlackboardBehavior):
             prim_type = self.blackboard_get("prim_type")
             dims = self.blackboard_get("dims")
             position_offset = self.blackboard_get("position_offset")
+            mesh_scale = self.blackboard_get("mesh_scale")
 
             # Update types
             if isinstance(collision_object_position, PointStamped):
@@ -233,6 +237,7 @@ class ModifyCollisionObject(BlackboardBehavior):
                         collision_object_position,
                         collision_object_orientation,
                         frame_id=frame_id,
+                        scale=mesh_scale,
                     )
                 else:
                     self.moveit2.add_collision_primitive(
