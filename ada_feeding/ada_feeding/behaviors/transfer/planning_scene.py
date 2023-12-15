@@ -35,7 +35,7 @@ class ComputeWheelchairCollisionTransform(BlackboardBehavior):
     NOTE: Although this class is in theory rich enough to compute arbitrary
     updates to the wheelchair collision object, e.g., moving its x and y to be
     centered on the face, currently we don't translate it at all and only scale
-    z in (0.0, inf). This is because incorporating translations may bring the 
+    z in (0.0, inf). This is because incorporating translations may bring the
     wheelchair collision object into collision with the robot base, which is not desirable.
     """
 

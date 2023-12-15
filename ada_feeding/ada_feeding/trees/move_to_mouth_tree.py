@@ -198,6 +198,9 @@ class MoveToMouthTree(MoveToTree):
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied from @override
 
+        # TODO: Consider moving move head and scale wheelchair_collision logic into
+        # ada_planning_scene.py, to consolidate all planning scene updates.
+
         ### Define Tree Logic
 
         face_detection_absolute_key = Blackboard.separator.join(

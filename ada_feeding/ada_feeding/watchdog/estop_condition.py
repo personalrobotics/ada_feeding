@@ -19,7 +19,7 @@ from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
-import sounddevice # pylint: disable=unused-import
+import sounddevice  # pylint: disable=unused-import
 
 # Local imports
 from ada_feeding.watchdog import WatchdogCondition

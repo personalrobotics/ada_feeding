@@ -152,7 +152,7 @@ class MoveToVisitor(VisitorBase):
     def run(self, behaviour: py_trees.behaviour.Behaviour) -> None:
         # Docstring copied by @override
 
-        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-branches, too-many-statements
 
         # We only care about leaf nodes
         if isinstance(behaviour, (Composite, Decorator)):
