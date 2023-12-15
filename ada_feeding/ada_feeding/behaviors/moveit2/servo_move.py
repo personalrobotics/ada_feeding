@@ -174,7 +174,9 @@ class ServoMove(BlackboardBehavior):
         msg: The servo status message.
         """
         with self.latest_servo_status_lock:
-            self.latest_servo_status = msg.data # pylint: disable=attribute-defined-outside-init
+            self.latest_servo_status = (
+                msg.data
+            )  # pylint: disable=attribute-defined-outside-init
 
     @override
     def update(self) -> py_trees.common.Status:
