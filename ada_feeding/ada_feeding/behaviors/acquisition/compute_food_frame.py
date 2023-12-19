@@ -217,6 +217,9 @@ class ComputeFoodFrame(BlackboardBehavior):
 
         # De-project center of ROI
         mask = self.blackboard_get("mask")
+        if mask.average_depth == 0.0:
+            self.logger.error("Invalid mask: average depth is zero.")
+            return py_trees.common.Status.FAILURE
         center_list = pyrealsense2.rs2_deproject_pixel_to_point(
             self.intrinsics,
             self.get_mask_center(mask),

@@ -174,9 +174,8 @@ class ServoMove(BlackboardBehavior):
         msg: The servo status message.
         """
         with self.latest_servo_status_lock:
-            self.latest_servo_status = (
-                msg.data
-            )  # pylint: disable=attribute-defined-outside-init
+            # pylint: disable=attribute-defined-outside-init
+            self.latest_servo_status = msg.data
 
     @override
     def update(self) -> py_trees.common.Status:
@@ -218,7 +217,10 @@ class ServoMove(BlackboardBehavior):
         if duration.nanoseconds >= 0 and self.node.get_clock().now() > (
             self.start_time + duration
         ):
-            return self.blackboard_get("status_on_timeout")
+            status = self.blackboard_get("status_on_timeout")
+            if status == py_trees.common.Status.FAILURE:
+                self.logger.error("ServoMove timed out.")
+            return status
 
         # Servo is still executing
         return py_trees.common.Status.RUNNING
