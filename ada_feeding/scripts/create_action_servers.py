@@ -5,21 +5,25 @@ that wrap behavior trees.
 """
 
 # Standard imports
+import collections.abc
+import os
 import threading
 import traceback
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 # Third-party imports
 from ada_watchdog_listener import ADAWatchdogListener
+from ament_index_python.packages import get_package_share_directory
 import py_trees
 from py_trees.visitors import DebugVisitor
-from rcl_interfaces.msg import ParameterDescriptor, ParameterType
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType, SetParametersResult
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.action.server import ServerGoalHandle
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
+import yaml
 
 # Local imports
 from ada_feeding import ActionServerBT
@@ -91,7 +95,8 @@ class CreateActionServers(Node):
         super().__init__("create_action_servers")
 
         # Read the parameters that specify what action servers to create.
-        action_server_params = self.read_params()
+        self.action_server_params = self.read_params()
+        self.add_on_set_parameters_callback(self.parameter_callback)
 
         # Create the watchdog listener. Note that this watchdog listener
         # adds additional parameters -- `watchdog_timeout_sec` and
@@ -103,7 +108,7 @@ class CreateActionServers(Node):
         self.active_goal_request = None
 
         # Create the action servers.
-        self.create_action_servers(action_server_params)
+        self.create_action_servers(self.action_server_params)
 
     def read_params(self) -> Tuple[Parameter, Parameter, List[ActionServerParams]]:
         """
@@ -115,7 +120,7 @@ class CreateActionServers(Node):
         """
         # Read the server names
         server_names = self.declare_parameter(
-            "server_names",
+            "default.server_names",
             descriptor=ParameterDescriptor(
                 name="server_names",
                 type=ParameterType.PARAMETER_STRING_ARRAY,
@@ -127,6 +132,23 @@ class CreateActionServers(Node):
             ),
         )
 
+        # Read the parameters that have been changed from their default values
+        overridden_parameters = self.declare_parameter(
+            "current.overridden_parameters",
+            descriptor=ParameterDescriptor(
+                name="overridden_parameters",
+                type=ParameterType.PARAMETER_STRING_ARRAY,
+                description=(
+                    "List of parameters that have been changed from their default values. "
+                    "These parameters must be set in the `current` param namespace."
+                ),
+                read_only=True,
+            ),
+        )
+        overridden_parameters = overridden_parameters.value
+        self.overridden_parameters = {}
+        self.default_parameters = {}
+
         # Read each action server's params
         action_server_params = []
         for server_name in server_names.value:
@@ -135,7 +157,7 @@ class CreateActionServers(Node):
                 "",
                 [
                     (
-                        f"{server_name}.action_type",
+                        f"default.{server_name}.action_type",
                         None,
                         ParameterDescriptor(
                             name="action_type",
@@ -148,7 +170,7 @@ class CreateActionServers(Node):
                         ),
                     ),
                     (
-                        f"{server_name}.tree_class",
+                        f"default.{server_name}.tree_class",
                         None,
                         ParameterDescriptor(
                             name="tree_class",
@@ -161,7 +183,7 @@ class CreateActionServers(Node):
                         ),
                     ),
                     (
-                        f"{server_name}.tick_rate",
+                        f"default.{server_name}.tick_rate",
                         30,
                         ParameterDescriptor(
                             name="tick_rate",
@@ -176,7 +198,7 @@ class CreateActionServers(Node):
                 ],
             )
             tree_kws = self.declare_parameter(
-                f"{server_name}.tree_kws",
+                f"default.{server_name}.tree_kws",
                 descriptor=ParameterDescriptor(
                     name="tree_kws",
                     type=ParameterType.PARAMETER_STRING_ARRAY,
@@ -188,9 +210,11 @@ class CreateActionServers(Node):
                 ),
             )
             if tree_kws.value is not None:
-                tree_kwargs = {
-                    kw: self.declare_parameter(
-                        f"{server_name}.tree_kwargs.{kw}",
+                tree_kwargs = {}
+                for kw in tree_kws.value:
+                    full_name = f"{server_name}.tree_kwargs.{kw}"
+                    default_value = self.declare_parameter(
+                        f"default.{full_name}",
                         descriptor=ParameterDescriptor(
                             name=kw,
                             description="Custom keyword argument for the behavior tree.",
@@ -198,8 +222,20 @@ class CreateActionServers(Node):
                             read_only=True,
                         ),
                     )
-                    for kw in tree_kws.value
-                }
+                    self.default_parameters[full_name] = default_value.value
+                    current_value = self.declare_parameter(
+                        f"current.{full_name}",
+                        descriptor=ParameterDescriptor(
+                            name=kw,
+                            description="Custom keyword argument for the behavior tree.",
+                            dynamic_typing=True,
+                        ),
+                    )
+                    if full_name in overridden_parameters:
+                        tree_kwargs[kw] = current_value.value
+                        self.overridden_parameters[full_name] = current_value.value
+                    else:
+                        tree_kwargs[kw] = default_value.value
             else:
                 tree_kwargs = {}
 
@@ -215,12 +251,86 @@ class CreateActionServers(Node):
                     server_name=server_name,
                     action_type=action_type.value,
                     tree_class=tree_class.value,
-                    tree_kwargs={kw: arg.value for kw, arg in tree_kwargs.items()},
+                    tree_kwargs=tree_kwargs,
                     tick_rate=tick_rate.value,
                 )
             )
 
         return action_server_params
+
+    def parameter_callback(self, params: List[Parameter]) -> SetParametersResult:
+        """
+        Callback function for when a parameter is changed. Note that in practice,
+        only tree_kwargs are not read-only, so we only expect those to be changed.
+
+        Note that we only return failure if there is a type mismatch. That is just
+        in case some other code in this file (e.g., the WatchdogListener) needs
+        to process the parameter change. This is because rclpy runs all parameter
+        callbacks in sequence until one returns failure.
+        """
+        num_updated_params = 0
+        for param in params:
+            if "tree_kwargs" in param.name:
+                names = param.name.split(".")
+                if names[0] != "current" or len(names) != 4:
+                    self.get_logger().warn(f"Parameter {param.name} cannot be changed")
+                    continue
+                full_name = ".".join(names[1:])
+                if full_name not in self.default_parameters:
+                    self.get_logger().warn(f"Unknown parameter {param.name}")
+                    continue
+                if isinstance(param.value, type(self.default_parameters[full_name])):
+                    self.get_logger().warn(
+                        f"Parameter {param.name} must be of type "
+                        f"{type(self.default_parameters[full_name])} "
+                        f"but is of type {type(param.value)}"
+                    )
+                    return SetParametersResult(successful=False, reason="type mismatch")
+                if isinstance(param.value, collections.abc.Sequence):
+                    self.overridden_parameters[full_name] = list(param.value)
+                else:
+                    self.overridden_parameters[full_name] = param.value
+                num_updated_params += 1
+                # Re-initialize the tree
+                server_name = names[1]
+                for action_server_params in self.action_server_params:
+                    if action_server_params.server_name == server_name:
+                        action_server_params.tree_kwargs[names[3]] = param.value
+                        # pylint: disable=too-many-function-args
+                        self.create_tree(
+                            server_name,
+                            action_server_params.tree_class,
+                            action_server_params.tree_kwargs,
+                        )
+                        break
+            else:
+                self.get_logger().warn(f"Parameter {param.name} cannot be changed")
+                continue
+        if num_updated_params > 0:
+            self.save_overridden_parameters()
+        return SetParametersResult(successful=True)
+
+    def save_overridden_parameters(self) -> None:
+        """
+        Overrides `ada_feeding_action_servers_current.yaml` with the current
+        values of `self.overridden_parameters`.
+        """
+        # Convert the parameters to a dictionary of the right form
+        params = {}
+        params["overridden_parameters"] = list(self.overridden_parameters.keys())
+        for full_name, value in self.overridden_parameters.items():
+            params[full_name] = value
+        data = {"ada_feeding_action_servers": {"ros__parameters": {"current": params}}}
+
+        # Write to yaml
+        package_path = get_package_share_directory("ada_feeding")
+        file_path = os.path.join(
+            package_path, "config", "ada_feeding_action_servers_current.yaml"
+        )
+        self.get_logger().debug(f"Writing to {file_path} with data {data}")
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write("# This file is auto-generated by create_action_servers.py\n")
+            yaml.dump(data, file)
 
     def create_action_servers(
         self, action_server_params: List[ActionServerParams]
@@ -237,7 +347,8 @@ class CreateActionServers(Node):
         self._action_servers = []
         self._action_types = {}
         self._tree_classes = {}
-        self._trees = []
+        self._trees = {}
+        self._tree_action_servers = {}
         for params in action_server_params:
             self.get_logger().info(
                 f"Creating action server {params.server_name} with type {params.action_type}"
@@ -311,6 +422,29 @@ class CreateActionServers(Node):
         self.get_logger().info("Received cancel request, accepting")
         return CancelResponse.ACCEPT
 
+    def create_tree(
+        self,
+        server_name: str,
+        tree_class: str,
+        tree_kwargs: Dict,
+    ) -> None:
+        """
+        Creates the tree_action_server and tree objects for the given action server.
+
+        Parameters
+        ----------
+        server_name: The name of the action server.
+        tree_class: The class of the behavior tree, e.g., ada_feeding.trees.MoveToConfigurationTree.
+        tree_kwargs: The keyword arguments to pass to the behavior tree class.
+        """
+        # Initialize the ActionServerBT object once
+        tree_action_server = self._tree_classes[tree_class](self, **tree_kwargs)
+        self._tree_action_servers[server_name] = tree_action_server
+        # Create and setup the tree once
+        tree = tree_action_server.create_tree(server_name)
+        self.setup_tree(tree)
+        self._trees[server_name] = tree
+
     def setup_tree(self, tree: py_trees.trees.BehaviourTree) -> None:
         """
         Runs the initial setup on a behavior tree after creating it.
@@ -363,12 +497,7 @@ class CreateActionServers(Node):
         -------
         execute_callback: The callback function for the action server.
         """
-        # Initialize the ActionServerBT object once
-        tree_action_server = self._tree_classes[tree_class](self, **tree_kwargs)
-        # Create and setup the tree once
-        tree = tree_action_server.create_tree(server_name)
-        self.setup_tree(tree)
-        self._trees.append(tree)
+        self.create_tree(server_name, tree_class, tree_kwargs)
 
         async def execute_callback(goal_handle: ServerGoalHandle) -> Awaitable:
             """
@@ -388,6 +517,10 @@ class CreateActionServers(Node):
             # pylint: disable=broad-exception-caught
             # All exceptions need printing at shutdown
             try:
+                # Get the tree and action server
+                tree = self._trees[server_name]
+                tree_action_server = self._tree_action_servers[server_name]
+
                 # Send the goal to the behavior tree
                 tree_action_server.send_goal(tree, goal_handle.request)
 
@@ -473,7 +606,7 @@ class CreateActionServers(Node):
         Shutdown the node.
         """
         self.get_logger().info("Shutting down CreateActionServers")
-        for tree in self._trees:
+        for _, tree in self._trees.items():
             # Shutdown the tree
             tree.shutdown()
 

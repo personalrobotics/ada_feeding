@@ -10,7 +10,7 @@ wrap that behaviour tree in a ROS2 action server.
 
 # Standard imports
 import os
-from typing import Tuple
+from typing import List, Tuple
 
 # Third-party imports
 from ament_index_python.packages import get_package_share_directory
@@ -90,7 +90,7 @@ class MoveToMouthTree(MoveToTree):
         allowed_face_distance: Tuple[float, float] = (0.4, 1.25),
         face_detection_msg_timeout: float = 5.0,
         face_detection_timeout: float = 2.5,
-        plan_distance_from_mouth: Tuple[float, float, float] = (0.025, 0.0, -0.01),
+        plan_distance_from_mouth: List[float] = [0.025, 0.0, -0.01],
         fork_target_orientation_from_mouth: Tuple[float, float, float, float] = (
             0.5,
             -0.5,
