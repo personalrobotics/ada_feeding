@@ -33,16 +33,20 @@ const DetectingFace = () => {
   const setFaceDetectionAutoContinue = useGlobalState((state) => state.setFaceDetectionAutoContinue)
   // Get icon image for move to mouth
   let moveToMouthImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth]
+  let moveToRestingImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToRestingPosition]
+  let moveAbovePlateImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
   // Flag to check if the current orientation is portrait
   const isPortrait = useMediaQuery({ query: '(orientation: portrait)' })
   // Indicator of how to arrange screen elements based on orientation
   let dimension = isPortrait ? 'column' : 'row'
+  let otherDimension = isPortrait ? 'row' : 'column'
   // Font size for text
-  let textFontSize = isPortrait ? '3vh' : '3vw'
-  let buttonWidth = isPortrait ? '30vh' : '30vw'
-  let buttonHeight = isPortrait ? '20vh' : '20vw'
-  let iconWidth = isPortrait ? '28vh' : '28vw'
-  let iconHeight = isPortrait ? '18vh' : '18vw'
+  let textFontSize = 3
+  let buttonWidth = 30
+  let buttonHeight = 20
+  let iconWidth = 28
+  let iconHeight = 18
+  let sizeSuffix = isPortrait ? 'vh' : 'vw'
   // The min and max distance from the camera to the face for the face to be
   // conidered valid. NOTE: This must match the values in the MoveToMouth tree.
   const min_face_distance = 0.4
@@ -66,6 +70,26 @@ const DetectingFace = () => {
   const moveToMouthCallback = useCallback(() => {
     console.log('Transitioning to R_MovingToMouth')
     setMealState(MEAL_STATE.R_MovingToMouth)
+    // Set mouth detected to false for the next time this screen comes up
+    setMouthDetected(false)
+  }, [setMealState, setMouthDetected])
+
+  /**
+   * Callback function for proceeding to move to the resting position.
+   */
+  const moveToRestingCallback = useCallback(() => {
+    console.log('Transitioning to R_MovingToRestingPosition')
+    setMealState(MEAL_STATE.R_MovingToRestingPosition)
+    // Set mouth detected to false for the next time this screen comes up
+    setMouthDetected(false)
+  }, [setMealState, setMouthDetected])
+
+  /**
+   * Callback function for proceeding to move above the plate.
+   */
+  const moveAbovePlateCallback = useCallback(() => {
+    console.log('Transitioning to R_MovingAbovePlate')
+    setMealState(MEAL_STATE.R_MovingAbovePlate)
     // Set mouth detected to false for the next time this screen comes up
     setMouthDetected(false)
   }, [setMealState, setMouthDetected])
@@ -157,7 +181,7 @@ const DetectingFace = () => {
             width: '100%'
           }}
         >
-          <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: textFontSize }}>
+          <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: textFontSize.toString() + sizeSuffix }}>
             <input
               name='faceDetectionAutoContinue'
               type='checkbox'
@@ -176,7 +200,7 @@ const DetectingFace = () => {
             width: '100%'
           }}
         >
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
             <View
               style={{
                 flex: 1,
@@ -186,7 +210,7 @@ const DetectingFace = () => {
                 height: '100%'
               }}
             >
-              <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: textFontSize }}>
+              <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: textFontSize.toString() + sizeSuffix }}>
                 {mouthDetected ? 'Mouth detected!' : 'Waiting to detect mouth...'}
               </p>
             </View>
@@ -209,9 +233,9 @@ const DetectingFace = () => {
               />
             </View>
           </View>
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-            <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: textFontSize }}>
-              {mouthDetected ? 'Continue' : 'Continue without detecting mouth'}
+          <View style={{ flex: 3, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+            <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: textFontSize.toString() + sizeSuffix }}>
+              {mouthDetected ? 'Continue' : 'Continue without detection'}
             </p>
             {/* Icon to move to mouth position */}
             <Button
@@ -219,23 +243,103 @@ const DetectingFace = () => {
               className='mx-2 mb-2 btn-huge'
               size='lg'
               onClick={moveToMouthCallback}
-              style={{ width: buttonWidth, height: buttonHeight }}
+              style={{
+                width: buttonWidth.toString() + sizeSuffix,
+                height: buttonHeight.toString() + sizeSuffix,
+                display: 'flex',
+                justifyContent: 'center',
+                alignContent: 'center'
+              }}
             >
-              <img src={moveToMouthImage} alt='move_to_mouth_image' className='center' style={{ width: iconWidth, height: iconHeight }} />
+              <img
+                src={moveToMouthImage}
+                alt='move_to_mouth_image'
+                className='center'
+                style={{ width: iconWidth.toString() + sizeSuffix, height: iconHeight.toString() + sizeSuffix }}
+              />
             </Button>
+          </View>
+          <View
+            style={{
+              flex: 2,
+              flexDirection: otherDimension,
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%'
+            }}
+          >
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+              <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: (textFontSize * 0.66).toString() + sizeSuffix }}>
+                Move to Resting
+              </p>
+              {/* Icon to move to mouth position */}
+              <Button
+                variant='warning'
+                className='mx-2 mb-2 btn-huge'
+                size='lg'
+                onClick={moveToRestingCallback}
+                style={{
+                  width: (buttonWidth / 2).toString() + sizeSuffix,
+                  height: (buttonHeight / 2).toString() + sizeSuffix,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignContent: 'center'
+                }}
+              >
+                <img
+                  src={moveToRestingImage}
+                  alt='move_to_resting_image'
+                  className='center'
+                  style={{ width: (iconWidth / 2).toString() + sizeSuffix, height: (iconHeight / 2).toString() + sizeSuffix }}
+                />
+              </Button>
+            </View>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+              <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: (textFontSize * 0.66).toString() + sizeSuffix }}>
+                Move Above Plate
+              </p>
+              {/* Icon to move to mouth position */}
+              <Button
+                variant='warning'
+                className='mx-2 mb-2 btn-huge'
+                size='lg'
+                onClick={moveAbovePlateCallback}
+                style={{
+                  width: (buttonWidth / 2).toString() + sizeSuffix,
+                  height: (buttonHeight / 2).toString() + sizeSuffix,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignContent: 'center'
+                }}
+              >
+                <img
+                  src={moveAbovePlateImage}
+                  alt='move_above_plate_image'
+                  className='center'
+                  style={{ width: (iconWidth / 2).toString() + sizeSuffix, height: (iconHeight / 2).toString() + sizeSuffix }}
+                />
+              </Button>
+            </View>
           </View>
         </View>
       </>
     )
   }, [
     dimension,
+    otherDimension,
     margin,
     mouthDetected,
     moveToMouthCallback,
+    moveToRestingCallback,
+    moveAbovePlateCallback,
     moveToMouthImage,
+    moveToRestingImage,
+    moveAbovePlateImage,
     textFontSize,
     buttonHeight,
     buttonWidth,
+    sizeSuffix,
     iconHeight,
     iconWidth,
     faceDetectionAutoContinue,
