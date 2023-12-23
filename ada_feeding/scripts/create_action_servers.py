@@ -270,28 +270,28 @@ class CreateActionServers(Node):
         """
         num_updated_params = 0
         for param in params:
+            names = param.name.split(".")
+            if len(names) < 1 or names[0] != "current":
+                self.get_logger().warn(f"Parameter {param.name} cannot be changed")
+                continue
+            full_name = ".".join(names[1:])
+            if full_name not in self.default_parameters:
+                self.get_logger().warn(f"Unknown parameter {param.name}")
+                continue
+            if isinstance(param.value, type(self.default_parameters[full_name])):
+                self.get_logger().warn(
+                    f"Parameter {param.name} must be of type "
+                    f"{type(self.default_parameters[full_name])} "
+                    f"but is of type {type(param.value)}"
+                )
+                return SetParametersResult(successful=False, reason="type mismatch")
+            if isinstance(param.value, collections.abc.Sequence):
+                self.overridden_parameters[full_name] = list(param.value)
+            else:
+                self.overridden_parameters[full_name] = param.value
+            num_updated_params += 1
+            # If a tree_kwarg was set, re-initialize the tree
             if "tree_kwargs" in param.name:
-                names = param.name.split(".")
-                if names[0] != "current" or len(names) != 4:
-                    self.get_logger().warn(f"Parameter {param.name} cannot be changed")
-                    continue
-                full_name = ".".join(names[1:])
-                if full_name not in self.default_parameters:
-                    self.get_logger().warn(f"Unknown parameter {param.name}")
-                    continue
-                if isinstance(param.value, type(self.default_parameters[full_name])):
-                    self.get_logger().warn(
-                        f"Parameter {param.name} must be of type "
-                        f"{type(self.default_parameters[full_name])} "
-                        f"but is of type {type(param.value)}"
-                    )
-                    return SetParametersResult(successful=False, reason="type mismatch")
-                if isinstance(param.value, collections.abc.Sequence):
-                    self.overridden_parameters[full_name] = list(param.value)
-                else:
-                    self.overridden_parameters[full_name] = param.value
-                num_updated_params += 1
-                # Re-initialize the tree
                 server_name = names[1]
                 for action_server_params in self.action_server_params:
                     if action_server_params.server_name == server_name:
@@ -303,9 +303,6 @@ class CreateActionServers(Node):
                             action_server_params.tree_kwargs,
                         )
                         break
-            else:
-                self.get_logger().warn(f"Parameter {param.name} cannot be changed")
-                continue
         if num_updated_params > 0:
             self.save_overridden_parameters()
         return SetParametersResult(successful=True)
