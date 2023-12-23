@@ -1,8 +1,9 @@
 // React imports
-import React from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import Button from 'react-bootstrap/Button'
 // PropTypes is used to validate that the used props are in fact passed to this Component
 import PropTypes from 'prop-types'
+import { useWindowSize } from '../helpers'
 
 /**
  * A component that renders an image and a mask on top of it, all within a
@@ -28,6 +29,9 @@ import PropTypes from 'prop-types'
  *
  */
 function MaskButton(props) {
+  // Get a reference for the canvas
+  const canvasRef = useRef(null)
+
   // Get the properties
   let buttonSize = props.buttonSize
   let imgSrc = props.imgSrc
@@ -37,6 +41,34 @@ function MaskButton(props) {
   let maskBoundingBox = props.maskBoundingBox
   let onClick = props.onClick
   let value = props.value
+
+  // Draw a red filled circle on the middle of the canvas
+  const drawCircle = useCallback(() => {
+    // Get the canvas
+    const canvas = canvasRef.current
+    // Get the context
+    const ctx = canvas.getContext('2d')
+    // Clear the canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    // Draw a red filled circle
+    let radius = 5
+    ctx.beginPath()
+    ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, 2 * Math.PI)
+    ctx.fillStyle = 'red'
+    ctx.fill()
+  }, [])
+
+  // Draw a red filled circle on the middle of the canvas
+  useEffect(() => {
+    // Dummy log necessary to have useEffect re-run when the props change
+    console.log('props.maskBoundingBox', props.maskBoundingBox)
+
+    // Draw the circle
+    drawCircle()
+  }, [drawCircle, props.maskBoundingBox])
+
+  // Redraw the circle when the window size changes
+  useWindowSize(drawCircle)
 
   return (
     <Button
@@ -84,6 +116,17 @@ function MaskButton(props) {
               mixBlendMode: invertMask ? 'lighten' : 'multiply',
               width: maskBoundingBox.width * maskScaleFactor,
               height: maskBoundingBox.height * maskScaleFactor,
+              display: 'block',
+              pointerEvents: 'none'
+            }}
+          />
+          <canvas
+            ref={canvasRef}
+            width={maskBoundingBox.width * maskScaleFactor}
+            height={maskBoundingBox.height * maskScaleFactor}
+            style={{
+              position: 'absolute',
+              top: '0px',
               display: 'block',
               pointerEvents: 'none'
             }}

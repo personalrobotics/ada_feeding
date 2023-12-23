@@ -52,6 +52,8 @@ const BiteSelection = (props) => {
   let textFontSize = isPortrait ? '2.5vh' : '2vw'
   // Indicator of how to arrange screen elements based on orientation
   let dimension = isPortrait ? 'column' : 'row'
+  // Whether to scale all the masks equally or not
+  const scaleMasksEqually = false
 
   /**
    * Create a local state variable to store the detected masks, the
@@ -284,17 +286,6 @@ const BiteSelection = (props) => {
     if (actionStatus.actionStatus === ROS_ACTION_STATUS_SUCCEED) {
       // If we have a result and there are detected items
       if (actionResult && actionResult.detected_items && actionResult.detected_items.length > 0) {
-        // Get the size of the largest mask
-        let [maxWidth, maxHeight] = [0, 0]
-        for (let detected_item of actionResult.detected_items) {
-          if (detected_item.roi.width > maxWidth) {
-            maxWidth = detected_item.roi.width
-          }
-          if (detected_item.roi.height > maxHeight) {
-            maxHeight = detected_item.roi.height
-          }
-        }
-
         // Get the allotted space per mask
         let parentWidth, parentHeight
         if (maskButtonParentRef.current) {
@@ -320,10 +311,26 @@ const BiteSelection = (props) => {
          * Determine how much to scale the masks so that the largest mask fits
          * into the alloted space.
          */
-        let widthScaleFactor = allottedSpaceWidth / maxWidth
-        let heightScaleFactor = allottedSpaceHeight / maxHeight
-        let maskScaleFactor = Math.min(widthScaleFactor, heightScaleFactor)
-        // maskScaleFactor  = Math.min(maskScaleFactor, 1.0)
+        // Get the size of the largest mask
+        let [maxWidth, maxHeight] = [0, 0]
+        if (scaleMasksEqually) {
+          for (let detected_item of actionResult.detected_items) {
+            if (detected_item.roi.width > maxWidth) {
+              maxWidth = detected_item.roi.width
+            }
+            if (detected_item.roi.height > maxHeight) {
+              maxHeight = detected_item.roi.height
+            }
+          }
+        }
+        // Create a list to contain the scale factors for each mask
+        let maskScaleFactors = []
+        for (let detected_item of actionResult.detected_items) {
+          let widthScaleFactor = allottedSpaceWidth / (scaleMasksEqually ? maxWidth : detected_item.roi.width)
+          let heightScaleFactor = allottedSpaceHeight / (scaleMasksEqually ? maxHeight : detected_item.roi.height)
+          let maskScaleFactor = Math.min(widthScaleFactor, heightScaleFactor)
+          maskScaleFactors.push(maskScaleFactor)
+        }
 
         return (
           <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
@@ -334,7 +341,7 @@ const BiteSelection = (props) => {
                   buttonSize={buttonSize}
                   maskSrc={'data:image/jpeg;base64,' + detected_item.mask.data}
                   invertMask={true}
-                  maskScaleFactor={maskScaleFactor}
+                  maskScaleFactor={maskScaleFactors[i]}
                   maskBoundingBox={detected_item.roi}
                   onClick={foodItemClicked}
                   value={i.toString()}
@@ -345,7 +352,7 @@ const BiteSelection = (props) => {
         )
       }
     }
-  }, [actionStatus, actionResult, foodItemClicked, isPortrait, windowSize, margin])
+  }, [actionStatus, actionResult, foodItemClicked, isPortrait, windowSize, margin, scaleMasksEqually])
 
   /** Get the button for continue without acquiring bite
    *
