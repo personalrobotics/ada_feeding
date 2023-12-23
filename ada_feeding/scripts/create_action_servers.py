@@ -610,7 +610,7 @@ class CreateActionServers(Node):
         Shutdown the node.
         """
         self.get_logger().info("Shutting down CreateActionServers")
-        for _, tree in self._trees.items():
+        for tree in self._trees.values():
             # Shutdown the tree
             tree.shutdown()
 
