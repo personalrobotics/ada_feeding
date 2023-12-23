@@ -110,13 +110,13 @@ class CreateActionServers(Node):
         # Create the action servers.
         self.create_action_servers(self.action_server_params)
 
-    def read_params(self) -> Tuple[Parameter, Parameter, List[ActionServerParams]]:
+    def read_params(self) -> Tuple[Parameter, Parameter, Dict[str, ActionServerParams]]:
         """
         Read the parameters that specify what action servers to create.
 
         Returns
         -------
-        action_server_params: A list of ActionServerParams objects.
+        action_server_params: A dict mapping server names to ActionServerParams objects.
         """
         # Read the server names
         server_names = self.declare_parameter(
@@ -150,7 +150,7 @@ class CreateActionServers(Node):
         self.default_parameters = {}
 
         # Read each action server's params
-        action_server_params = []
+        action_server_params = {}
         for server_name in server_names.value:
             # Get the action server's params
             action_type, tree_class, tick_rate = self.declare_parameters(
@@ -246,14 +246,12 @@ class CreateActionServers(Node):
                 )
                 continue
 
-            action_server_params.append(
-                ActionServerParams(
-                    server_name=server_name,
-                    action_type=action_type.value,
-                    tree_class=tree_class.value,
-                    tree_kwargs=tree_kwargs,
-                    tick_rate=tick_rate.value,
-                )
+            action_server_params[server_name] = ActionServerParams(
+                server_name=server_name,
+                action_type=action_type.value,
+                tree_class=tree_class.value,
+                tree_kwargs=tree_kwargs,
+                tick_rate=tick_rate.value,
             )
 
         return action_server_params
@@ -293,16 +291,16 @@ class CreateActionServers(Node):
             # If a tree_kwarg was set, re-initialize the tree
             if "tree_kwargs" in param.name:
                 server_name = names[1]
-                for action_server_params in self.action_server_params:
-                    if action_server_params.server_name == server_name:
-                        action_server_params.tree_kwargs[names[3]] = param.value
-                        # pylint: disable=too-many-function-args
-                        self.create_tree(
-                            server_name,
-                            action_server_params.tree_class,
-                            action_server_params.tree_kwargs,
-                        )
-                        break
+                if server_name in self.action_server_params:
+                    action_server_params = self.action_server_params[server_name]
+                    kw = names[3]
+                    action_server_params.tree_kwargs[kw] = param.value
+                    # pylint: disable=too-many-function-args
+                    self.create_tree(
+                        server_name,
+                        action_server_params.tree_class,
+                        action_server_params.tree_kwargs,
+                    )
         if num_updated_params > 0:
             self.save_overridden_parameters()
         return SetParametersResult(successful=True)
@@ -330,14 +328,14 @@ class CreateActionServers(Node):
             yaml.dump(data, file)
 
     def create_action_servers(
-        self, action_server_params: List[ActionServerParams]
+        self, action_server_params: Dict[str, ActionServerParams]
     ) -> None:
         """
         Create the action servers specified in the configuration file.
 
         Parameters
         ----------
-        action_server_params: A list of ActionServerParams objects.
+        action_server_params: A dict mapping server names to ActionServerParams objects.
         """
         # For every action server specified in the configuration file, create
         # an action server.
@@ -346,7 +344,7 @@ class CreateActionServers(Node):
         self._tree_classes = {}
         self._trees = {}
         self._tree_action_servers = {}
-        for params in action_server_params:
+        for params in action_server_params.values():
             self.get_logger().info(
                 f"Creating action server {params.server_name} with type {params.action_type}"
             )
