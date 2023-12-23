@@ -10,8 +10,6 @@
   <group if="$(var run_web_bridge)">
     <!-- The ROSBridge Node -->
     <include file="$(find-pkg-share rosbridge_server)/launch/rosbridge_websocket_launch.xml"/>
-    <!-- The ROS web_video_server -->
-    <node pkg="web_video_server" exec="web_video_server" name="web_video_server"/>
   </group>
 
   <!-- The dummy nodes -->
@@ -23,8 +21,9 @@
       <remap from="~/compressed_image" to="/camera/color/image_raw/compressed"/>
       <remap from="~/aligned_depth" to="/camera/aligned_depth_to_color/image_raw"/>
       <remap from="~/camera_info" to="/camera/color/camera_info"/>
+      <remap from="~/aligned_depth/camera_info" to="/camera/aligned_depth_to_color/camera_info"/>
       <param name="fps" value="30"/>
-      <param name="rgb_path" value="$(find-pkg-share feeding_web_app_ros2_test)/../data/above_plate_1_rgb.jpg"/>
+      <param name="rgb_path" value="$(find-pkg-share feeding_web_app_ros2_test)/../data/2022_11_01_ada_picks_up_carrots_camera_compressed_ft_tf.mp4"/>
       <param name="depth_path" value="$(find-pkg-share feeding_web_app_ros2_test)/../data/above_plate_1_depth.png"/>
     </node>
   </group>

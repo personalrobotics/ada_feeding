@@ -85,6 +85,9 @@ class DummyRealSense(Node):
         self.camera_info_publisher = self.create_publisher(
             CameraInfo, "~/camera_info", 1
         )
+        self.aligned_depth_camera_info_publisher = self.create_publisher(
+            CameraInfo, "~/aligned_depth/camera_info", 1
+        )
         if self.video is not None:
             self.num_frames = 0
         self.bridge = CvBridge()
@@ -174,6 +177,7 @@ class DummyRealSense(Node):
             self.compressed_image_publisher.publish(compressed_frame_msg)
             self.aligned_depth_publisher.publish(depth_frame_msg)
             self.camera_info_publisher.publish(self.camera_info_msg)
+            self.aligned_depth_camera_info_publisher.publish(self.camera_info_msg)
 
             rate.sleep()
 

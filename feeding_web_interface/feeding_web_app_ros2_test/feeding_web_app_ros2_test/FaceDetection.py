@@ -7,7 +7,7 @@ from geometry_msgs.msg import PointStamped
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
 from threading import Lock
 
 
@@ -65,7 +65,10 @@ class FaceDetectionNode(Node):
 
         # Subscribe to the camera feed
         self.subscription = self.create_subscription(
-            Image, "camera/color/image_raw", self.camera_callback, 1
+            CompressedImage,
+            "camera/color/image_raw/compressed",
+            self.camera_callback,
+            1,
         )
         self.subscription  # prevent unused variable warning
 
@@ -73,7 +76,9 @@ class FaceDetectionNode(Node):
         self.publisher_results = self.create_publisher(
             FaceDetection, "face_detection", 1
         )
-        self.publisher_image = self.create_publisher(Image, "face_detection_img", 1)
+        self.publisher_image = self.create_publisher(
+            CompressedImage, "face_detection_img/compressed", 1
+        )
 
     def toggle_face_detection_callback(self, request, response):
         """
@@ -150,15 +155,16 @@ class FaceDetectionNode(Node):
             face_detection_msg.is_face_detected = is_face_detected
             if is_face_detected:
                 # Add a dummy face marker to the sensor_msgs/Image
-                cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+                cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
+                height, width, _ = cv_image.shape
                 cv2.circle(
                     cv_image,
-                    (msg.width // 2, msg.height // 2),
-                    msg.height // 25,
+                    (width // 2, height // 2),
+                    height // 25,
                     (0, 0, 255),
                     -1,
                 )
-                annotated_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
+                annotated_msg = self.bridge.cv2_to_compressed_imgmsg(cv_image, "jpeg")
                 annotated_img = annotated_msg
                 # Publish the detected mouth center. The below is a hardcoded
                 # rough position of the mouth from the side staging location,
@@ -185,7 +191,6 @@ class FaceDetectionNode(Node):
                 annotated_img = msg
             face_detection_msg.is_mouth_open = open_mouth_detected
             self.publisher_results.publish(face_detection_msg)
-            self.get_logger().info("Published face detection")
             self.publisher_image.publish(annotated_img)
 
 

@@ -9,7 +9,7 @@ import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from sensor_msgs.msg import CompressedImage, Image, RegionOfInterest
+from sensor_msgs.msg import CompressedImage, RegionOfInterest
 from shapely.geometry import MultiPoint
 import threading
 import time
@@ -34,8 +34,8 @@ class SegmentFromPointNode(Node):
 
         # Subscribe to the image topic, to store the latest image
         self.image_subscriber = self.create_subscription(
-            Image,
-            "/camera/color/image_raw",
+            CompressedImage,
+            "/camera/color/image_raw/compressed",
             self.image_callback,
             1,
         )
@@ -123,8 +123,8 @@ class SegmentFromPointNode(Node):
         with self.latest_img_msg_lock:
             latest_img_msg = self.latest_img_msg
         result.header = latest_img_msg.header
-        width = latest_img_msg.width
-        height = latest_img_msg.height
+        img = self.bridge.compressed_imgmsg_to_cv2(latest_img_msg, "bgr8")
+        width, height, _ = img.shape
 
         # Sleep (dummy segmentation)
         time.sleep(self.sleep_time)
@@ -174,6 +174,10 @@ class SegmentFromPointNode(Node):
             mask_msg.mask = CompressedImage(
                 format="jpeg",
                 data=cv2.imencode(".jpg", mask_img)[1].tostring(),
+            )
+            mask_msg.rgb_image = CompressedImage(
+                format="jpeg",
+                data=cv2.imencode(".jpg", img[y_min:y_max, x_min:x_max])[1].tostring(),
             )
             mask_msg.item_id = "dummy_food_id_%d" % (i)
             mask_msg.confidence = np.random.random()

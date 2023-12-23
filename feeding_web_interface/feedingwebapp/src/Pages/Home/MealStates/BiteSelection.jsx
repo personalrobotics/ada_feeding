@@ -13,10 +13,7 @@ import { useROS, createROSActionClient, callROSAction, destroyActionClient } fro
 import { useWindowSize, convertRemToPixels } from '../../../helpers'
 import MaskButton from '../../../buttons/MaskButton'
 import {
-  REALSENSE_WIDTH,
-  REALSENSE_HEIGHT,
   ROS_ACTIONS_NAMES,
-  CAMERA_FEED_TOPIC,
   ROS_ACTION_STATUS_CANCEL_GOAL,
   ROS_ACTION_STATUS_EXECUTE,
   ROS_ACTION_STATUS_SUCCEED,
@@ -328,20 +325,13 @@ const BiteSelection = (props) => {
         let maskScaleFactor = Math.min(widthScaleFactor, heightScaleFactor)
         // maskScaleFactor  = Math.min(maskScaleFactor, 1.0)
 
-        // Get the URL of the image based on the scale factor
-        let imgSize = {
-          width: Math.round(REALSENSE_WIDTH * maskScaleFactor),
-          height: Math.round(REALSENSE_HEIGHT * maskScaleFactor)
-        }
-        let imgSrc = `${props.webVideoServerURL}/stream?topic=${CAMERA_FEED_TOPIC}&width=${imgSize.width}&height=${imgSize.height}&type=ros_compressed`
         return (
           <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
             {actionResult.detected_items.map((detected_item, i) => (
               <View key={i} style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
                 <MaskButton
-                  imgSrc={imgSrc}
+                  imgSrc={'data:image/jpeg;base64,' + detected_item.rgb_image.data}
                   buttonSize={buttonSize}
-                  imgSize={imgSize}
                   maskSrc={'data:image/jpeg;base64,' + detected_item.mask.data}
                   invertMask={true}
                   maskScaleFactor={maskScaleFactor}
@@ -355,7 +345,7 @@ const BiteSelection = (props) => {
         )
       }
     }
-  }, [actionStatus, actionResult, foodItemClicked, isPortrait, windowSize, props.webVideoServerURL, margin])
+  }, [actionStatus, actionResult, foodItemClicked, isPortrait, windowSize, margin])
 
   /** Get the button for continue without acquiring bite
    *
@@ -480,12 +470,12 @@ const BiteSelection = (props) => {
               style={{
                 flex: 9,
                 alignItems: 'center',
+                justifyContent: 'center',
                 width: '100%',
                 height: '100%'
               }}
             >
               <VideoFeed
-                webVideoServerURL={props.webVideoServerURL}
                 parent={videoParentRef}
                 marginTop={margin}
                 marginBottom={margin}
@@ -576,7 +566,6 @@ const BiteSelection = (props) => {
     actionStatusText,
     renderMaskButtons,
     skipAcquisisitionButton,
-    props.webVideoServerURL,
     videoParentRef,
     imageClicked,
     props.debug,
@@ -591,9 +580,7 @@ BiteSelection.propTypes = {
    * Whether to run it in debug mode (e.g., if you aren't simulatenously running
    * the robot) or not
    */
-  debug: PropTypes.bool.isRequired,
-  // The URL of the web video server
-  webVideoServerURL: PropTypes.string.isRequired
+  debug: PropTypes.bool.isRequired
 }
 
 export default BiteSelection

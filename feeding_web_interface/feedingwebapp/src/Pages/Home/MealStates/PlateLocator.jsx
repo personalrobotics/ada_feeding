@@ -3,9 +3,6 @@ import React, { useCallback, useMemo, useRef } from 'react'
 import Button from 'react-bootstrap/Button'
 import { useMediaQuery } from 'react-responsive'
 import { View } from 'react-native'
-// PropTypes is used to validate that the used props are in fact passed to this
-// Component
-import PropTypes from 'prop-types'
 
 // Local Imports
 import '../Home.css'
@@ -20,7 +17,7 @@ import VideoFeed from '../VideoFeed'
  * the user to teleoperate the robot with Cartesian Control until the plate
  * is satisfactorily in view.
  */
-const PlateLocator = (props) => {
+const PlateLocator = () => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
   // Get robot motion flag for plate locator
@@ -179,14 +176,7 @@ const PlateLocator = (props) => {
   return (
     <View style={{ flex: 'auto', flexDirection: dimension, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
       <View ref={videoParentRef} style={{ flex: 5, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-        <VideoFeed
-          webVideoServerURL={props.webVideoServerURL}
-          parent={videoParentRef}
-          marginTop={margin}
-          marginBottom={margin}
-          marginLeft={margin}
-          marginRight={margin}
-        />
+        <VideoFeed parent={videoParentRef} marginTop={margin} marginBottom={margin} marginLeft={margin} marginRight={margin} />
       </View>
       <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center' }}>
         {directionalArrows()}
@@ -194,10 +184,6 @@ const PlateLocator = (props) => {
       </View>
     </View>
   )
-}
-PlateLocator.propTypes = {
-  // The URL of the web video server
-  webVideoServerURL: PropTypes.string.isRequired
 }
 
 export default PlateLocator

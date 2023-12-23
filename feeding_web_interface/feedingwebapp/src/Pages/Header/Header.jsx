@@ -4,9 +4,6 @@ import React, { useCallback, useEffect, useState } from 'react'
 import Navbar from 'react-bootstrap/Navbar'
 import Nav from 'react-bootstrap/Nav'
 import { useMediaQuery } from 'react-responsive'
-// PropTypes is used to validate that the used props are in fact passed to this
-// Component
-import PropTypes from 'prop-types'
 // Toast generates a temporary pop-up with a timeout.
 import { ToastContainer /* , toast */ } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
@@ -23,7 +20,7 @@ import LiveVideoModal from './LiveVideoModal'
  * clicking "Video", and the ToastContainer popup that specifies when the user
  * cannot click Settings.
  */
-const Header = (props) => {
+const Header = () => {
   // Create a local state variable to toggle on/off the video
   // TODO: Since this local state variable is in the header, the LiveVideoModal
   // continues showing even if the state changes. Is this desirable? Perhaps
@@ -166,13 +163,9 @@ const Header = (props) => {
        * The LiveVideoModal toggles on and off with the Video button and shows the
        * robot's live camera feed.
        */}
-      <LiveVideoModal webVideoServerURL={props.webVideoServerURL} show={videoShow} onHide={() => setVideoShow(false)} />
+      <LiveVideoModal show={videoShow} onHide={() => setVideoShow(false)} />
     </>
   )
-}
-Header.propTypes = {
-  // The URL of the ROS web video server
-  webVideoServerURL: PropTypes.string.isRequired
 }
 
 export default Header

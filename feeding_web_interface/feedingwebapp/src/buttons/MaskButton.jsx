@@ -31,7 +31,6 @@ function MaskButton(props) {
   // Get the properties
   let buttonSize = props.buttonSize
   let imgSrc = props.imgSrc
-  let imgSize = props.imgSize
   let maskSrc = props.maskSrc
   let invertMask = props.invertMask
   let maskScaleFactor = props.maskScaleFactor
@@ -67,15 +66,11 @@ function MaskButton(props) {
         >
           <img
             src={imgSrc}
-            alt='Live video feed from the robot'
+            alt='Robot camera view'
             style={{
-              width: imgSize.width,
-              height: imgSize.height,
+              width: maskBoundingBox.width * maskScaleFactor,
+              height: maskBoundingBox.height * maskScaleFactor,
               display: 'block',
-              margin: '-'.concat(
-                maskBoundingBox.y_offset * maskScaleFactor,
-                'px 0 0 -'.concat(maskBoundingBox.x_offset * maskScaleFactor, 'px')
-              ),
               pointerEvents: 'none'
             }}
           />
@@ -106,11 +101,6 @@ MaskButton.propTypes = {
   }).isRequired,
   // The image source URL
   imgSrc: PropTypes.string.isRequired,
-  // The image size
-  imgSize: PropTypes.shape({
-    width: PropTypes.number.isRequired,
-    height: PropTypes.number.isRequired
-  }).isRequired,
   // The mask source URL
   maskSrc: PropTypes.string.isRequired,
   // Whether or not to invert the mask
