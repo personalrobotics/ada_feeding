@@ -1,0 +1,304 @@
+# NOTE: You have to change this node name if you change the node name in the launchfile.
+ada_feeding_action_servers:
+  ros__parameters:
+    # If we haven't received a message from the watchdog in this time, stop all robot motions
+    watchdog_timeout_sec: 0.5 # sec
+
+    default:
+      # A list of the names of the action servers to create. Each one must have
+      # it's own parameters (below) specifying action_type and tree_class.
+      server_names:
+        - MoveAbovePlate
+        - AcquireFood
+        - MoveToStagingConfiguration
+        - MoveToMouth
+        - MoveFromMouthToStagingConfiguration
+        - MoveFromMouthToAbovePlate
+        - MoveFromMouthToRestingPosition
+        - MoveToRestingPosition
+        - MoveToStowLocation
+        - TestMoveToPose
+        - StartServo
+        - StopServo
+
+      # Parameters for the MoveAbovePlate action
+      MoveAbovePlate: # required
+        action_type: ada_feeding_msgs.action.MoveTo # required
+        tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
+        tree_kws: # optional
+          - joint_positions
+          - toggle_watchdog_listener
+          - f_mag
+          - max_velocity_scaling_factor
+        tree_kwargs: # optional
+          joint_positions: # required
+            - -2.11666 # j2n6s200_joint_1
+            -  3.34967 # j2n6s200_joint_2
+            -  2.04129 # j2n6s200_joint_3
+            - -2.30031 # j2n6s200_joint_4
+            - -2.34026 # j2n6s200_joint_5
+            -  2.95450 # j2n6s200_joint_6
+          toggle_watchdog_listener: false # optional, default: true
+          f_mag: 4.0 # N
+          max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the AcquireFood action
+      AcquireFood: # required
+        action_type: ada_feeding_msgs.action.AcquireFood # required
+        tree_class: ada_feeding.trees.AcquireFoodTree # required
+        tree_kws:
+          - resting_joint_positions
+        tree_kwargs:
+          resting_joint_positions: # required
+            - -1.94672 # j2n6s200_joint_1
+            -  2.51268 # j2n6s200_joint_2
+            -  0.35653 # j2n6s200_joint_3
+            - -4.76501 # j2n6s200_joint_4
+            -  5.99991 # j2n6s200_joint_5
+            -  4.99555 # j2n6s200_joint_6
+        tick_rate: 10 # Hz, optional, default: 30
+
+    # Parameters for the MoveToRestingPosition action
+      MoveToRestingPosition: # required
+        action_type: ada_feeding_msgs.action.MoveTo # required
+        tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
+        tree_kws: # optional
+          - joint_positions
+          - toggle_watchdog_listener
+          - f_mag
+          - max_velocity_scaling_factor
+        tree_kwargs: # optional
+          joint_positions: # required
+            - -1.94672 # j2n6s200_joint_1
+            -  2.51268 # j2n6s200_joint_2
+            -  0.35653 # j2n6s200_joint_3
+            - -4.76501 # j2n6s200_joint_4
+            -  5.99991 # j2n6s200_joint_5
+            -  4.99555 # j2n6s200_joint_6
+          toggle_watchdog_listener: false # optional, default: true
+          f_mag: 4.0 # N
+          max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the MoveToStagingConfiguration action
+      MoveToStagingConfiguration: # required
+        action_type: ada_feeding_msgs.action.MoveTo # required
+        tree_class: ada_feeding.trees.MoveToConfigurationWithWheelchairWallTree # required
+        tree_kws: # optional
+          - goal_configuration
+          # - orientation_constraint_quaternion
+          # - orientation_constraint_tolerances
+          - allowed_planning_time
+          - max_velocity_scaling_factor
+        tree_kwargs: # optional
+          goal_configuration:
+            # # Side-staging configuration
+            # -  2.74709 # j2n6s200_joint_1
+            # -  2.01400 # j2n6s200_joint_2
+            # -  1.85257 # j2n6s200_joint_3
+            # - -2.83523 # j2n6s200_joint_4
+            # - -1.61925 # j2n6s200_joint_5
+            # - -2.67325 # j2n6s200_joint_6
+            # # Front-staging configuration -- Taller
+            # - -2.30252
+            # - 4.23221
+            # - 3.84109
+            # - -4.65546
+            # - 3.94225
+            # - 4.26543
+            # Front-staging configuration -- Shorter
+            - -2.32526
+            - 4.456298
+            - 4.16769
+            - 1.53262
+            - -2.18359
+            - -2.19525
+          orientation_constraint_quaternion: # perpendicular to the base link
+            - 0.707168 # x
+            - 0.0 # y
+            - 0.0 # z
+            - 0.707168 # w
+          orientation_constraint_tolerances: # Note that tolerances are w.r.t. the axes in quat_xyzw_path
+            - 0.6 # x, rad
+            - 3.14159 # y, rad
+            - 0.5 # z, rad
+          allowed_planning_time: 1.0 # secs
+          max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the MoveToMouth action
+      MoveToMouth: # required
+        action_type: ada_feeding_msgs.action.MoveToMouth # required
+        tree_class: ada_feeding.trees.MoveToMouthTree # required
+        tree_kws: # optional
+          - face_detection_msg_timeout
+          - face_detection_timeout
+          - fork_target_orientation_from_mouth
+          - plan_distance_from_mouth
+        tree_kwargs: # optional
+          face_detection_msg_timeout: 10.0 # sec
+          face_detection_timeout: 5.0 # sec
+          fork_target_orientation_from_mouth: # In mouth frame, +x out of mouth, +z towards top of head
+            - 0.5751716
+            - -0.5751716
+            - -0.4113121
+            - 0.4113121
+          plan_distance_from_mouth:
+            - 0.025 # m
+            - 0.0 # m
+            - -0.01 # m
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the MoveFromMouthToStagingConfiguration action.
+      # No need for orientation path constraints when moving above the plate
+      # because presumably there is no food on the fork.
+      MoveFromMouthToStagingConfiguration: # required
+        action_type: ada_feeding_msgs.action.MoveTo # required
+        tree_class: ada_feeding.trees.MoveFromMouthTree # required
+        tree_kws: # optional
+          - staging_configuration_position
+          - staging_configuration_quat_xyzw
+        tree_kwargs: # optional
+          staging_configuration_position:
+            -  0.28323 # x
+            -  0.07289 # y
+            -  0.69509 # z
+          staging_configuration_quat_xyzw:
+            -  0.00472 # x
+            -  0.69757 # y
+            -  0.71645 # z
+            - -0.00811 # w
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the MoveFromMouthToAbovePlate action.
+      # No need for orientation path constraints when moving above the plate
+      # because presumably there is no food on the fork.
+      MoveFromMouthToAbovePlate: # required
+        action_type: ada_feeding_msgs.action.MoveTo # required
+        tree_class: ada_feeding.trees.MoveFromMouthTree # required
+        tree_kws: # optional
+          - staging_configuration_position
+          - staging_configuration_quat_xyzw
+          - end_configuration
+          - max_velocity_scaling_factor_to_end_configuration
+        tree_kwargs: # optional
+          staging_configuration_position:
+            -  0.28323 # x
+            -  0.07289 # y
+            -  0.69509 # z
+          staging_configuration_quat_xyzw:
+            -  0.00472 # x
+            -  0.69757 # y
+            -  0.71645 # z
+            - -0.00811 # w
+          end_configuration:
+            - -2.11666 # j2n6s200_joint_1
+            -  3.34967 # j2n6s200_joint_2
+            -  2.04129 # j2n6s200_joint_3
+            - -2.30031 # j2n6s200_joint_4
+            - -2.34026 # j2n6s200_joint_5
+            -  2.95450 # j2n6s200_joint_6
+          max_velocity_scaling_factor_to_end_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the MoveFromMouthToRestingPosition action.
+      # Need orientation path constraints to end config because
+      # presumably there is still food on the fork.
+      MoveFromMouthToRestingPosition: # required
+        action_type: ada_feeding_msgs.action.MoveTo # required
+        tree_class: ada_feeding.trees.MoveFromMouthTree # required
+        tree_kws: # optional
+          - staging_configuration_position
+          - staging_configuration_quat_xyzw
+          - end_configuration
+          # - orientation_constraint_to_end_configuration_quaternion
+          # - orientation_constraint_to_end_configuration_tolerances
+          - allowed_planning_time_to_end_configuration
+          - max_velocity_scaling_factor_to_end_configuration
+        tree_kwargs: # optional
+          staging_configuration_position:
+            -  0.28323 # x
+            -  0.07289 # y
+            -  0.69509 # z
+          staging_configuration_quat_xyzw:
+            -  0.00472 # x
+            -  0.69757 # y
+            -  0.71645 # z
+            - -0.00811 # w
+          end_configuration:
+            - -1.94672 # j2n6s200_joint_1
+            -  2.51268 # j2n6s200_joint_2
+            -  0.35653 # j2n6s200_joint_3
+            - -4.76501 # j2n6s200_joint_4
+            -  5.99991 # j2n6s200_joint_5
+            -  4.99555 # j2n6s200_joint_6
+          orientation_constraint_to_end_configuration_quaternion: # perpendicular to the base link
+            - 0.707168 # x
+            - 0.0 # y
+            - 0.0 # z
+            - 0.707168 # w
+          orientation_constraint_to_end_configuration_tolerances: # Note that tolerances are w.r.t. the axes in quat_xyzw_path
+            - 0.6 # x, rad
+            - 3.14159 # y, rad
+            - 0.5 # z, rad
+          max_velocity_scaling_factor_to_end_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
+          allowed_planning_time_to_end_configuration: 1.0 # secs
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the MoveToStowLocation action
+      # TODO: We may be able to get a stow location that actually
+      # tucks to the side of the user's wheelchair.
+      MoveToStowLocation: # required
+        action_type: ada_feeding_msgs.action.MoveTo # required
+        tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
+        tree_kws: # optional
+          - joint_positions
+          - toggle_watchdog_listener
+          - f_mag
+          - max_velocity_scaling_factor
+        tree_kwargs: # optional
+          joint_positions: # required
+            - -1.52101 # j2n6s200_joint_1
+            -  2.60098 # j2n6s200_joint_2
+            -  0.32811 # j2n6s200_joint_3
+            - -4.00012 # j2n6s200_joint_4
+            -  0.22831 # j2n6s200_joint_5
+            -  3.87886 # j2n6s200_joint_6
+          toggle_watchdog_listener: false # optional, default: true
+          f_mag: 4.0 # N
+          max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the TestMoveToPose action. Moves to the staging location
+      TestMoveToPose: # required
+        action_type: ada_feeding_msgs.action.MoveTo # required
+        tree_class: ada_feeding.trees.MoveToPoseTree # required
+        tree_kws: # optional
+          - position
+          - quat_xyzw
+          - max_velocity_scaling_factor
+        tree_kwargs: # optional
+          position:
+            -  0.28323 # x
+            -  0.07289 # y
+            -  0.69509 # z
+          quat_xyzw:
+            -  0.00472 # x
+            -  0.69757 # y
+            -  0.71645 # z
+            - -0.00811 # w
+          max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the StartServo action
+      StartServo: # required
+        action_type: ada_feeding_msgs.action.Trigger # required
+        tree_class: ada_feeding.trees.StartServoTree # required
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the StartServo action
+      StopServo: # required
+        action_type: ada_feeding_msgs.action.Trigger # required
+        tree_class: ada_feeding.trees.StopServoTree # required
+        tick_rate: 10 # Hz, optional, default: 30
