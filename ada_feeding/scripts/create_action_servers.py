@@ -222,7 +222,11 @@ class CreateActionServers(Node):
                             read_only=True,
                         ),
                     )
-                    self.default_parameters[full_name] = default_value.value
+                    if isinstance(default_value, collections.abc.Sequence):
+                        default_value = list(default_value.value)
+                    else:
+                        default_value = default_value.value
+                    self.default_parameters[full_name] = default_value
                     current_value = self.declare_parameter(
                         f"current.{full_name}",
                         descriptor=ParameterDescriptor(
@@ -231,11 +235,15 @@ class CreateActionServers(Node):
                             dynamic_typing=True,
                         ),
                     )
-                    if full_name in overridden_parameters:
-                        tree_kwargs[kw] = current_value.value
-                        self.overridden_parameters[full_name] = current_value.value
+                    if isinstance(current_value, collections.abc.Sequence):
+                        current_value = list(current_value.value)
                     else:
-                        tree_kwargs[kw] = default_value.value
+                        current_value = current_value.value
+                    if full_name in overridden_parameters:
+                        tree_kwargs[kw] = current_value
+                        self.overridden_parameters[full_name] = current_value
+                    else:
+                        tree_kwargs[kw] = default_value
             else:
                 tree_kwargs = {}
 
@@ -276,17 +284,18 @@ class CreateActionServers(Node):
             if full_name not in self.default_parameters:
                 self.get_logger().warn(f"Unknown parameter {param.name}")
                 continue
-            if isinstance(param.value, type(self.default_parameters[full_name])):
+            if isinstance(param.value, collections.abc.Sequence):
+                param_value = list(param.value)
+            else:
+                param_value = param.value
+            if not isinstance(param_value, type(self.default_parameters[full_name])):
                 self.get_logger().warn(
                     f"Parameter {param.name} must be of type "
                     f"{type(self.default_parameters[full_name])} "
-                    f"but is of type {type(param.value)}"
+                    f"but is of type {type(param_value)}"
                 )
                 return SetParametersResult(successful=False, reason="type mismatch")
-            if isinstance(param.value, collections.abc.Sequence):
-                self.overridden_parameters[full_name] = list(param.value)
-            else:
-                self.overridden_parameters[full_name] = param.value
+            self.overridden_parameters[full_name] = param_value
             num_updated_params += 1
             # If a tree_kwarg was set, re-initialize the tree
             if "tree_kwargs" in param.name:
@@ -294,7 +303,7 @@ class CreateActionServers(Node):
                 if server_name in self.action_server_params:
                     action_server_params = self.action_server_params[server_name]
                     kw = names[3]
-                    action_server_params.tree_kwargs[kw] = param.value
+                    action_server_params.tree_kwargs[kw] = param_value
                     # pylint: disable=too-many-function-args
                     self.create_tree(
                         server_name,

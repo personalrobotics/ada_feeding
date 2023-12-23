@@ -81,7 +81,7 @@ ada_feeding_action_servers:
           max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
         tick_rate: 10 # Hz, optional, default: 30
 
-      # Parameters for the MoveToMouth action
+      # Parameters for the MoveToStagingConfiguration action
       MoveToStagingConfiguration: # required
         action_type: ada_feeding_msgs.action.MoveTo # required
         tree_class: ada_feeding.trees.MoveToConfigurationWithWheelchairWallTree # required
@@ -136,7 +136,6 @@ ada_feeding_action_servers:
           - face_detection_timeout
           - fork_target_orientation_from_mouth
           - plan_distance_from_mouth
-
         tree_kwargs: # optional
           face_detection_msg_timeout: 10.0 # sec
           face_detection_timeout: 5.0 # sec
