@@ -23,6 +23,7 @@
     <remap from="~/watchdog" to="/ada_watchdog/watchdog" />
     <remap from="~/toggle_watchdog_listener" to="/ada_watchdog_listener/toggle_watchdog_listener" />
     <remap from="~/re_tare_ft" to="/wireless_ft/set_bias" />
+    <remap from="~/ft_topic" to="/wireless_ft/ftSensor1" />
     <remap from="~/set_force_gate_controller_parameters" to="/jaco_arm_controller/set_parameters" />
     <remap from="~/set_servo_controller_parameters" to="/jaco_arm_servo_controller/set_parameters" />
     <remap from="~/toggle_face_detection" to="/toggle_face_detection" />
