@@ -16,6 +16,7 @@ from py_trees.blackboard import Blackboard
 import py_trees_ros
 from rcl_interfaces.srv import SetParameters
 from rclpy.node import Node
+from rclpy.time import Time
 from std_msgs.msg import Header
 from std_srvs.srv import Empty
 
@@ -59,6 +60,7 @@ class AcquireFoodTree(MoveToTree):
     Tree Blackboard Inputs:
     - camera_info: See ComputeFoodFrame
     - mask: See ComputeFoodFrame
+    - timestamp: See ComputeFoodFrame
 
     Tree Blackboard Outputs:
 
@@ -239,7 +241,8 @@ class AcquireFoodTree(MoveToTree):
                                 ns=name,
                                 inputs={
                                     "camera_info": BlackboardKey("camera_info"),
-                                    "mask": BlackboardKey("mask")
+                                    "mask": BlackboardKey("mask"),
+                                    "timestamp": BlackboardKey("timestamp"),
                                     # Default food_frame_id = "food"
                                     # Default world_frame = "world"
                                 },
@@ -630,6 +633,8 @@ class AcquireFoodTree(MoveToTree):
         blackboard.mask = goal.detected_food
         blackboard.register_key(key="camera_info", access=py_trees.common.Access.WRITE)
         blackboard.camera_info = goal.camera_info
+        blackboard.register_key(key="timestamp", access=py_trees.common.Access.WRITE)
+        blackboard.timestamp = Time.from_msg(goal.header.stamp)
 
         # Adds MoveToVisitor for Feedback
         return super().send_goal(tree, goal)
