@@ -49,13 +49,14 @@ def ft_thresh_satisfied(
     """
     # pylint: disable=too-many-arguments
 
-    def is_satisfied(wrench: WrenchStamped, _: WrenchStamped):
+    def is_satisfied(stamped: WrenchStamped, _: WrenchStamped):
         """
         Inner function to test threshold. The many Ifs / Returns
         make it easiest to read.
         """
         # pylint: disable=too-many-arguments, too-many-return-statements, too-many-branches
 
+        wrench = stamped.wrench
         if f_x > 0.0:
             if wrench.force.x > f_x:
                 return False

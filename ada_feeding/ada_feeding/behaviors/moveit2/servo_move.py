@@ -66,7 +66,7 @@ class ServoMove(BlackboardBehavior):
         duration: Union[BlackboardKey, Duration, float] = Duration(seconds=1.0),
         pub_topic: Union[BlackboardKey, str] = "~/servo_twist_cmds",
         pub_qos: Union[BlackboardKey, QoSProfile] = QoSProfile(depth=1),
-        default_frame_id: Union[BlackboardKey, str] = "world",
+        default_frame_id: Union[BlackboardKey, str] = "root",
         status_on_timeout: Union[
             BlackboardKey, py_trees.common.Status
         ] = py_trees.common.Status.SUCCESS,

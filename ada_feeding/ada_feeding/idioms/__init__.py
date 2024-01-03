@@ -3,6 +3,7 @@ This package contains custom idioms that are used in the Ada Feeding
 project.
 """
 from .eventually_swiss import eventually_swiss
+from .ft_thresh_utils import ft_thresh_satisfied
 from .pre_moveto_config import pre_moveto_config
 from .retry_call_ros_service import retry_call_ros_service
 from .scoped_behavior import scoped_behavior
