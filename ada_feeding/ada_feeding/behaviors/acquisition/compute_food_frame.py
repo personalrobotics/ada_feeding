@@ -50,6 +50,7 @@ class ComputeFoodFrame(BlackboardBehavior):
         self,
         camera_info: Union[BlackboardKey, CameraInfo],
         mask: Union[BlackboardKey, Mask],
+        timestamp: Union[BlackboardKey, rclpy.time.Time] = rclpy.time.Time(),
         food_frame_id: Union[BlackboardKey, str] = "food",
         world_frame: Union[BlackboardKey, str] = "world",
     ) -> None:
@@ -60,6 +61,8 @@ class ComputeFoodFrame(BlackboardBehavior):
         ----------
         camera_info (geometry_msgs/CameraInfo): camera intrinsics matrix
         mask (ada_feeding_msgs/Mask): food context, see Mask.msg
+        timestamp (rclpy.time.Time): Timestamp for TF transformations
+                                    (default 0 for latest)
         food_frame_id (string): If len>0, TF frame to publish static transform
                                    (relative to world_frame)
         world_frame (string): ID of the TF frame to represent the food frame in
@@ -186,6 +189,7 @@ class ComputeFoodFrame(BlackboardBehavior):
 
         camera_frame = self.blackboard_get("camera_info").header.frame_id
         world_frame = self.blackboard_get("world_frame")
+        timestamp = self.blackboard_get("timestamp")
 
         # Lock TF Buffer
         if self.tf_lock.locked():
@@ -198,7 +202,7 @@ class ComputeFoodFrame(BlackboardBehavior):
             if not self.tf_buffer.can_transform(
                 world_frame,
                 camera_frame,
-                rclpy.time.Time(),
+                timestamp,
             ):
                 # Not yet, wait for it
                 # Use a Timeout decorator to determine failure.
@@ -206,7 +210,7 @@ class ComputeFoodFrame(BlackboardBehavior):
             transform = self.tf_buffer.lookup_transform(
                 world_frame,
                 camera_frame,
-                rclpy.time.Time(),
+                timestamp,
             )
 
         # Set up return objects

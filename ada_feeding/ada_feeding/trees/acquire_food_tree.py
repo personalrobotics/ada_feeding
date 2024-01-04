@@ -9,13 +9,14 @@ wrap that behavior tree in a ROS2 action server.
 from typing import List, Optional
 
 # Third-party imports
-from geometry_msgs.msg import Twist, TwistStamped
+from geometry_msgs.msg import Twist, TwistStamped, Vector3
 from overrides import override
 import py_trees
 from py_trees.blackboard import Blackboard
 import py_trees_ros
 from rcl_interfaces.srv import SetParameters
 from rclpy.node import Node
+from rclpy.time import Time
 from std_msgs.msg import Header
 from std_srvs.srv import Empty
 
@@ -45,6 +46,7 @@ from ada_feeding.idioms.bite_transfer import (
     get_add_in_front_of_wheelchair_wall_behavior,
     get_remove_in_front_of_wheelchair_wall_behavior,
 )
+from ada_feeding.idioms.ft_thresh_utils import ft_thresh_satisfied
 from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_success
 from ada_feeding.trees import MoveToTree, StartServoTree, StopServoTree
 
@@ -58,6 +60,7 @@ class AcquireFoodTree(MoveToTree):
     Tree Blackboard Inputs:
     - camera_info: See ComputeFoodFrame
     - mask: See ComputeFoodFrame
+    - timestamp: See ComputeFoodFrame
 
     Tree Blackboard Outputs:
 
@@ -148,6 +151,48 @@ class AcquireFoodTree(MoveToTree):
                 ),
             )
 
+        ### Define Recovery Tree (if failure in Grasp/Extract)
+        recovery_tree = py_trees.composites.Sequence(
+            name="RecoverySequence",
+            memory=True,
+            children=[
+                pre_moveto_config(
+                    name="MaxFTRecoveryRetare",
+                    re_tare=False,
+                    f_mag=50.0,
+                    param_service_name="~/set_servo_controller_parameters",
+                ),
+                py_trees.composites.Selector(
+                    name="RecoverySelector",
+                    memory=True,
+                    children=[
+                        py_trees.decorators.Retry(
+                            name="RecoveryServoRetry",
+                            num_failures=3,
+                            child=py_trees.composites.Sequence(
+                                name="RecoveryServoSequence",
+                                memory=True,
+                                children=[
+                                    ServoMove(
+                                        name="RecoveryServo",
+                                        ns=name,
+                                        inputs={
+                                            "twist": Twist(
+                                                linear=Vector3(x=0.0, y=0.0, z=0.03),
+                                                angular=Vector3(),
+                                            ),  # Default 1s duration
+                                        },
+                                    ),  # Auto Zero-Twist on terminate()
+                                    ft_thresh_satisfied(name="FTThreshSatisfied"),
+                                ],
+                            ),
+                        ),  # End Attempt 1: RecoveryServoRetry
+                        # TODO: Add other Recovery Attempts Here
+                    ],  # End RecoverySelector.children
+                ),  # End RecoverySelector
+            ],  # End RecoverySequence.children
+        )  # End RecoverySequence
+
         ### Define Tree Logic
         # NOTE: If octomap clearing ends up being an issue, we should
         # consider adding a call to the /clear_octomap service to this tree.
@@ -196,7 +241,8 @@ class AcquireFoodTree(MoveToTree):
                                 ns=name,
                                 inputs={
                                     "camera_info": BlackboardKey("camera_info"),
-                                    "mask": BlackboardKey("mask")
+                                    "mask": BlackboardKey("mask"),
+                                    "timestamp": BlackboardKey("timestamp"),
                                     # Default food_frame_id = "food"
                                     # Default world_frame = "world"
                                 },
@@ -403,104 +449,160 @@ class AcquireFoodTree(MoveToTree):
                                     on_preempt_timeout=5.0,
                                     # Starts a new Sequence w/ Memory internally
                                     workers=[
-                                        ### Grasp
-                                        retry_call_ros_service(
-                                            name="GraspFTThresh",
-                                            service_type=SetParameters,
-                                            service_name="~/set_servo_controller_parameters",
-                                            # Blackboard, not Constant
-                                            request=None,
-                                            # Need absolute Blackboard name
-                                            key_request=Blackboard.separator.join(
-                                                [name, BlackboardKey("grasp_thresh")]
-                                            ),
-                                            key_response=Blackboard.separator.join(
-                                                [name, BlackboardKey("ft_response")]
-                                            ),
-                                            response_checks=[
-                                                py_trees.common.ComparisonExpression(
-                                                    variable=Blackboard.separator.join(
-                                                        [
-                                                            name,
-                                                            BlackboardKey(
-                                                                "ft_response"
+                                        py_trees.composites.Selector(
+                                            name="InFoodErrorSelector",
+                                            memory=True,
+                                            children=[
+                                                py_trees.composites.Sequence(
+                                                    name="InFoodGraspExtract",
+                                                    memory=True,
+                                                    children=[
+                                                        ### Grasp
+                                                        retry_call_ros_service(
+                                                            name="GraspFTThresh",
+                                                            service_type=SetParameters,
+                                                            service_name="~/set_servo_controller_parameters",
+                                                            # Blackboard, not Constant
+                                                            request=None,
+                                                            # Need absolute Blackboard name
+                                                            key_request=Blackboard.separator.join(
+                                                                [
+                                                                    name,
+                                                                    BlackboardKey(
+                                                                        "grasp_thresh"
+                                                                    ),
+                                                                ]
                                                             ),
-                                                        ]
-                                                    ),
-                                                    value=SetParameters.Response(),  # Unused
-                                                    operator=set_parameter_response_all_success,
-                                                )
-                                            ],
-                                        ),
-                                        ComputeActionTwist(
-                                            name="ComputeGrasp",
-                                            ns=name,
-                                            inputs={
-                                                "action": BlackboardKey("action"),
-                                                "is_grasp": True,
-                                            },
-                                            outputs={
-                                                "twist": BlackboardKey("twist"),
-                                                "duration": BlackboardKey("duration"),
-                                            },
-                                        ),
-                                        ServoMove(
-                                            name="GraspServo",
-                                            ns=name,
-                                            inputs={
-                                                "twist": BlackboardKey("twist"),
-                                                "duration": BlackboardKey("duration"),
-                                            },
-                                        ),  # Auto Zero-Twist on terminate()
-                                        ### Extraction
-                                        ComputeActionTwist(
-                                            name="ComputeExtract",
-                                            ns=name,
-                                            inputs={
-                                                "action": BlackboardKey("action"),
-                                                "is_grasp": False,
-                                            },
-                                            outputs={
-                                                "twist": BlackboardKey("twist"),
-                                                "duration": BlackboardKey("duration"),
-                                            },
-                                        ),
-                                        retry_call_ros_service(
-                                            name="ExtractionFTThresh",
-                                            service_type=SetParameters,
-                                            service_name="~/set_servo_controller_parameters",
-                                            # Blackboard, not Constant
-                                            request=None,
-                                            # Need absolute Blackboard name
-                                            key_request=Blackboard.separator.join(
-                                                [name, BlackboardKey("ext_thresh")]
-                                            ),
-                                            key_response=Blackboard.separator.join(
-                                                [name, BlackboardKey("ft_response")]
-                                            ),
-                                            response_checks=[
-                                                py_trees.common.ComparisonExpression(
-                                                    variable=Blackboard.separator.join(
-                                                        [
-                                                            name,
-                                                            BlackboardKey(
-                                                                "ft_response"
+                                                            key_response=Blackboard.separator.join(
+                                                                [
+                                                                    name,
+                                                                    BlackboardKey(
+                                                                        "ft_response"
+                                                                    ),
+                                                                ]
                                                             ),
-                                                        ]
-                                                    ),
-                                                    value=SetParameters.Response(),  # Unused
-                                                    operator=set_parameter_response_all_success,
-                                                )
-                                            ],
-                                        ),
-                                        ServoMove(
-                                            name="ExtractServo",
-                                            ns=name,
-                                            inputs={
-                                                "twist": BlackboardKey("twist"),
-                                                "duration": BlackboardKey("duration"),
-                                            },
-                                        ),  # Auto Zero-Twist on terminate()
+                                                            response_checks=[
+                                                                py_trees.common.ComparisonExpression(
+                                                                    variable=Blackboard.separator.join(
+                                                                        [
+                                                                            name,
+                                                                            BlackboardKey(
+                                                                                "ft_response"
+                                                                            ),
+                                                                        ]
+                                                                    ),
+                                                                    value=SetParameters.Response(),  # Unused
+                                                                    operator=set_parameter_response_all_success,
+                                                                )
+                                                            ],
+                                                        ),
+                                                        ComputeActionTwist(
+                                                            name="ComputeGrasp",
+                                                            ns=name,
+                                                            inputs={
+                                                                "action": BlackboardKey(
+                                                                    "action"
+                                                                ),
+                                                                "is_grasp": True,
+                                                            },
+                                                            outputs={
+                                                                "twist": BlackboardKey(
+                                                                    "twist"
+                                                                ),
+                                                                "duration": BlackboardKey(
+                                                                    "duration"
+                                                                ),
+                                                            },
+                                                        ),
+                                                        ServoMove(
+                                                            name="GraspServo",
+                                                            ns=name,
+                                                            inputs={
+                                                                "twist": BlackboardKey(
+                                                                    "twist"
+                                                                ),
+                                                                "duration": BlackboardKey(
+                                                                    "duration"
+                                                                ),
+                                                            },
+                                                        ),  # Auto Zero-Twist on terminate()
+                                                        ### Extraction
+                                                        ComputeActionTwist(
+                                                            name="ComputeExtract",
+                                                            ns=name,
+                                                            inputs={
+                                                                "action": BlackboardKey(
+                                                                    "action"
+                                                                ),
+                                                                "is_grasp": False,
+                                                            },
+                                                            outputs={
+                                                                "twist": BlackboardKey(
+                                                                    "twist"
+                                                                ),
+                                                                "duration": BlackboardKey(
+                                                                    "duration"
+                                                                ),
+                                                            },
+                                                        ),
+                                                        retry_call_ros_service(
+                                                            name="ExtractionFTThresh",
+                                                            service_type=SetParameters,
+                                                            service_name="~/set_servo_controller_parameters",
+                                                            # Blackboard, not Constant
+                                                            request=None,
+                                                            # Need absolute Blackboard name
+                                                            key_request=Blackboard.separator.join(
+                                                                [
+                                                                    name,
+                                                                    BlackboardKey(
+                                                                        "ext_thresh"
+                                                                    ),
+                                                                ]
+                                                            ),
+                                                            key_response=Blackboard.separator.join(
+                                                                [
+                                                                    name,
+                                                                    BlackboardKey(
+                                                                        "ft_response"
+                                                                    ),
+                                                                ]
+                                                            ),
+                                                            response_checks=[
+                                                                py_trees.common.ComparisonExpression(
+                                                                    variable=Blackboard.separator.join(
+                                                                        [
+                                                                            name,
+                                                                            BlackboardKey(
+                                                                                "ft_response"
+                                                                            ),
+                                                                        ]
+                                                                    ),
+                                                                    value=SetParameters.Response(),  # Unused
+                                                                    operator=set_parameter_response_all_success,
+                                                                )
+                                                            ],
+                                                        ),
+                                                        ServoMove(
+                                                            name="ExtractServo",
+                                                            ns=name,
+                                                            inputs={
+                                                                "twist": BlackboardKey(
+                                                                    "twist"
+                                                                ),
+                                                                "duration": BlackboardKey(
+                                                                    "duration"
+                                                                ),
+                                                            },
+                                                        ),  # Auto Zero-Twist on terminate()
+                                                        ft_thresh_satisfied(
+                                                            name="CheckFTForkOffPlate"
+                                                        ),
+                                                    ],  # End InFoodGraspExtract.children
+                                                ),  # End InFoodGraspExtract
+                                                recovery_tree,
+                                            ],  # End InFoodErrorSelector.children
+                                        ),  # End InFoodErrorSelector
                                     ],  # End MoveIt2Servo.workers
                                 ),  # End MoveIt2Servo
                             ],  # End SafeFTPreempt.workers
@@ -531,6 +633,8 @@ class AcquireFoodTree(MoveToTree):
         blackboard.mask = goal.detected_food
         blackboard.register_key(key="camera_info", access=py_trees.common.Access.WRITE)
         blackboard.camera_info = goal.camera_info
+        blackboard.register_key(key="timestamp", access=py_trees.common.Access.WRITE)
+        blackboard.timestamp = Time.from_msg(goal.header.stamp)
 
         # Adds MoveToVisitor for Feedback
         return super().send_goal(tree, goal)
