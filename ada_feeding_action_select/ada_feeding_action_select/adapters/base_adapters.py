@@ -22,17 +22,6 @@ class ContextAdapter(ABC):
     An interface to translate a visual Mask to a context vector.
     """
 
-    def __init__(self):
-        """
-        Default self properties
-        """
-
-        # These attributes are used by the policy service
-        # To determine whether to pass image/depth data
-        # to get_context.
-        self.need_rgb = False
-        self.need_depth = False
-
     @property
     @abstractmethod
     def dim(self) -> int:

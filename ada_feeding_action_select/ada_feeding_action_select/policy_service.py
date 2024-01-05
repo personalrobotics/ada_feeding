@@ -6,19 +6,16 @@ This service implement AcquisitionSelect and AcquisitionReport.
 """
 
 # Standard imports
-import threading
-from typing import Dict, Union
+from typing import Dict
 
 # Third-party imports
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import CompressedImage, Image
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 
 # Internal imports
 from ada_feeding.helpers import import_from_string
-from ada_feeding_perception.helpers import get_img_msg_type, ros_msg_to_cv2_image
 from ada_feeding_action_select.policies import Policy
 from ada_feeding_action_select.adapters import ContextAdapter, PosthocAdapter
 from ada_feeding_msgs.srv import AcquisitionSelect, AcquisitionReport
@@ -27,12 +24,9 @@ from ada_feeding_msgs.srv import AcquisitionSelect, AcquisitionReport
 class PolicyServices(Node):
     """
     The PolicyServices node initializes a 3 things:
-    a context adapter converts the incoming mask and images to a context vector
+    a context adapter converts the incoming mask to a context vector
     a policy recommends an action given the context
-    a posthoc adapter converts any incoming posthoc data to a posthoc vector.
-
-    This node collects images (rgb + depth) to pass to the context adapter
-    and creates services to implement AcquisitionSelect and AcquisitionReport.
+    a posthoc adapter converts any incoming posthoc data to a posthoc vector
 
     TODO: optionally record data (context + posthoc + loss) based on param
     """
@@ -145,29 +139,8 @@ class PolicyServices(Node):
             self.context_adapter.dim, self.posthoc_adapter.dim, **policy_kwargs
         )
 
-        # Start image subscribers
-        self.image = None
-        self.depth = None
+        # Start ROS services
         self.ros_objs = []
-        self.latest_img_msg_lock = threading.Lock()
-        self.latest_depth_msg_lock = threading.Lock()
-
-        if self.context_adapter.need_rgb:
-            self.ros_objs.append(
-                self.create_subscription(
-                    get_img_msg_type("~/image", self), "~/image", self.rgb_callback, 1
-                )
-            )
-        if self.context_adapter.need_depth:
-            self.ros_objs.append(
-                self.create_subscription(
-                    get_img_msg_type("~/aligned_depth", self),
-                    "~/aligned_depth",
-                    self.depth_callback,
-                    1,
-                )
-            )
-
         self.ros_objs.append(
             self.create_service(
                 AcquisitionSelect, "~/action_select", self.select_callback
@@ -181,21 +154,6 @@ class PolicyServices(Node):
 
         self.get_logger().info(f"Policy '{policy_name}' initialized!")
 
-    # Subscriptions
-    def rgb_callback(self, msg: Union[CompressedImage, Image]):
-        """
-        Store rgb image
-        """
-        with self.latest_img_msg_lock:
-            self.image = ros_msg_to_cv2_image(msg)
-
-    def depth_callback(self, msg: Union[CompressedImage, Image]):
-        """
-        Store depth image
-        """
-        with self.latest_depth_msg_lock:
-            self.depth = ros_msg_to_cv2_image(msg)
-
     # Services
     def select_callback(
         self, request: AcquisitionSelect.Request, response: AcquisitionSelect.Response
@@ -205,11 +163,7 @@ class PolicyServices(Node):
         """
 
         # Run the context adapter
-        with self.latest_img_msg_lock:
-            with self.latest_depth_msg_lock:
-                context = self.context_adapter.get_context(
-                    request.food_context, self.image, self.depth
-                )
+        context = self.context_adapter.get_context(request.food_context)
         if context.size != self.context_adapter.dim:
             response.status = "Bad Context"
             return response
