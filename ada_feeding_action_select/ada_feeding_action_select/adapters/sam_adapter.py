@@ -10,7 +10,6 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 # Third-party imports
-from overrides import override
 import numpy as np
 import numpy.typing as npt
 
@@ -87,10 +86,12 @@ class NoContext(ContextAdapter, PosthocAdapter):
 
     @property
     def dim(self) -> int:
-        return 0
+        return 1
 
-    def get_context(self, mask: Mask) -> npt.NDArray:
-        return np.array([])
+    def get_context(
+        self, mask: Mask, image: Optional[npt.NDArray], depth: Optional[npt.NDArray]
+    ) -> npt.NDArray:
+        return np.array([0.0])
 
     def get_posthoc(self, data: npt.NDArray) -> npt.NDArray:
-        return np.array([])
+        return np.array([0.0])

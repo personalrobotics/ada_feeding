@@ -135,7 +135,7 @@ class PolicyServices(Node):
         ), f"{posthoc_cls_name} must subclass PosthocAdapter"
 
         posthoc_kwargs = self.get_kwargs("posthoc_kws", "posthoc_kwargs")
-        self.posthoc_adapter = context_cls(**posthoc_kwargs)
+        self.posthoc_adapter = posthoc_cls(**posthoc_kwargs)
 
         # Initialize and validate the policy
         self.policy = policy_cls(
