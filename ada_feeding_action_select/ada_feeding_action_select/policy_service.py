@@ -6,9 +6,12 @@ This service implement AcquisitionSelect and AcquisitionReport.
 """
 
 # Standard imports
+import argparse
+import os
 from typing import Dict
 
 # Third-party imports
+from ament_index_python.packages import get_package_share_directory
 import numpy as np
 import rclpy
 from rclpy.node import Node
@@ -240,10 +243,44 @@ class PolicyServices(Node):
         return {kw: arg.value for kw, arg in kwargs.items()}
 
 
+def set_data_folder():
+    """
+    Entry Point
+    Create symlink from shared data directory
+    """
+    parser = argparse.ArgumentParser(
+        prog="set_data_folder", description="Set data directory root."
+    )
+    parser.add_argument(
+        "directory", metavar="<directory>", type=os.path.abspath, nargs=1
+    )
+    args = parser.parse_args()
+    data_dir = args.directory[0]
+    if not os.path.isdir(data_dir):
+        print(f"Error: Not a directory or does not exist; {data_dir}")
+        return 1
+
+    os.symlink(
+        data_dir,
+        os.path.join(get_package_share_directory("ada_feeding_action_select"), "data"),
+    )
+    print("Success: Set installed data directory.")
+
+
 def main():
     """
     Entry point
     """
+
+    # Check Data Directory Exists
+    data_dir = os.path.join(
+        get_package_share_directory("ada_feeding_action_select"), "data"
+    )
+    if not os.path.isdir(data_dir):
+        print("Error: No data directory set.")
+        print("Use `ros2 run ada_feeding_action_select set_data_folder <directory>`.")
+        return 1
+    # Node Setup
     rclpy.init()
 
     node = PolicyServices()

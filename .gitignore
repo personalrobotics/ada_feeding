@@ -64,3 +64,4 @@ trees/debug.xml
 *.pth
 ada_feeding_perception/test/food_img/
 ada_feeding_perception/test/output/
+ada_feeding_action_select/data

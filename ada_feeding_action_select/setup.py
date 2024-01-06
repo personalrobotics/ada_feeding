@@ -16,11 +16,6 @@ setup(
             os.path.join("share", package_name, "config"),
             glob(os.path.join("config", "*.yaml")),
         ),
-        # Include any previous data / model checkpoints
-        (
-            os.path.join("share", package_name, "data"),
-            glob(os.path.join("data", "*.npz")),
-        ),
         # Include all launch files.
         (
             os.path.join("share", package_name, "launch"),
@@ -37,6 +32,7 @@ setup(
     entry_points={
         "console_scripts": [
             "policy_service = ada_feeding_action_select.policy_service:main",
+            "set_data_folder = ada_feeding_action_select.policy_service:set_data_folder",
         ],
     },
 )
