@@ -7,7 +7,6 @@ context and posthoc vectors from input data.
 
 # Standard imports
 from abc import ABC, abstractmethod
-from typing import Optional
 
 # Third-party imports
 from overrides import override
@@ -32,17 +31,13 @@ class ContextAdapter(ABC):
         raise NotImplementedError("dimension not implemented")
 
     @abstractmethod
-    def get_context(
-        self, mask: Mask, image: Optional[npt.NDArray], depth: Optional[npt.NDArray]
-    ) -> npt.NDArray:
+    def get_context(self, mask: Mask) -> npt.NDArray:
         """
         Create the context vector from the provided visual info
 
         Parameters
         ----------
         mask: See Mask.msg
-        image: Full camera image, None if self.need_rgb is False
-        image: Full depth image, None if self.need_depth is False
 
         Returns
         -------
@@ -86,11 +81,14 @@ class NoContext(ContextAdapter, PosthocAdapter):
     """
 
     @property
+    @override
     def dim(self) -> int:
         return 0
 
+    @override
     def get_context(self, mask: Mask) -> npt.NDArray:
         return np.array([])
 
+    @override
     def get_posthoc(self, data: npt.NDArray) -> npt.NDArray:
         return np.array([])

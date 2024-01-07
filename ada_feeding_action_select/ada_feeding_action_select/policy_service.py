@@ -265,6 +265,7 @@ def set_data_folder():
         os.path.join(get_package_share_directory("ada_feeding_action_select"), "data"),
     )
     print("Success: Set installed data directory.")
+    return 0
 
 
 def main():
@@ -280,6 +281,7 @@ def main():
         print("Error: No data directory set.")
         print("Use `ros2 run ada_feeding_action_select set_data_folder <directory>`.")
         return 1
+
     # Node Setup
     rclpy.init()
 
@@ -288,6 +290,8 @@ def main():
     rclpy.spin(node)
 
     rclpy.shutdown()
+
+    return 0
 
 
 if __name__ == "__main__":
