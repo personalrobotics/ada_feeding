@@ -18,7 +18,7 @@ import torch
 # Local imports
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_perception.helpers import ros_msg_to_cv2_image
-from .spanet import SPANetConfig, SPANet
+from .models import SPANetConfig, SPANet
 from . import ContextAdapter
 
 
