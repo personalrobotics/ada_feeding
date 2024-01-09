@@ -11,6 +11,8 @@ from .base_adapters import NoContext
 
 # TODO: Posthoc Passthrough
 
-# TODO: SPANet Context
+# SPANet Context
+from .spanet_adapter import SPANetAdapter
 
-# TODO: HapticNet Posthoc
+# HapticNet Posthoc
+from .hapticnet_adapter import HapticNetAdapter
