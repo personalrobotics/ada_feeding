@@ -16,6 +16,7 @@ from overrides import override
 import torch
 
 # Local imports
+from ada_feeding_action_select.helpers import logger
 from .models import HapticNetConfig, HapticNet
 from .base_adapters import PosthocAdapter
 
@@ -45,7 +46,7 @@ class HapticNetPosthoc(PosthocAdapter):
         # Init CUDA
         self.use_cuda = torch.cuda.is_available()
         if self.use_cuda:
-            print("Init HapticNet with CUDA")
+            logger.info("Init HapticNet with CUDA")
             os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
             os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_index)
 

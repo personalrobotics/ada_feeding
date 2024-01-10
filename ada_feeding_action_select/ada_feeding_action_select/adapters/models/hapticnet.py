@@ -19,6 +19,9 @@ from torch.nn import functional as F
 from torch.autograd import Variable
 from torchvision import transforms
 
+# Local Imports
+from ada_feeding_action_select.helpers import logger
+
 
 @dataclass
 class HapticNetConfig:
@@ -115,7 +118,7 @@ def crop(
         force_thr = force_thr + config.force_inc
 
     if idx_init < 0:
-        print("cropping failed")
+        logger.warning("cropping failed")
         return None
 
     z_force_truncated = z_force[idx_init:idx_end]

@@ -7,7 +7,7 @@ selecting an action based on a policy.
 
 # Standard imports
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Union, Tuple
+from typing import Any, List, Tuple, Union
 
 # Third-party imports
 from overrides import override
@@ -35,7 +35,7 @@ class Policy(ABC):
         self.context_dim = context_dim
         self.posthoc_dim = posthoc_dim
 
-    def save_checkpoint(self) -> Any:
+    def get_checkpoint(self) -> Any:
         """
         Checkpoint the current policy and return it.
         This will be saved to a file by the policy service
@@ -48,7 +48,7 @@ class Policy(ABC):
         """
         return None
 
-    def load_checkpoint(self, checkpoint: Any) -> bool:
+    def set_checkpoint(self, checkpoint: Any) -> bool:
         """
         Load a checkpoint from a provided serializeable
         object. This should ideally be the same type of
@@ -65,7 +65,7 @@ class Policy(ABC):
     @abstractmethod
     def choice(
         self, context: npt.NDArray
-    ) -> Union[Dict[float, AcquisitionSchema], str]:
+    ) -> Union[List[Tuple[float, AcquisitionSchema]], str]:
         """
         Execute the policy to choose an action distribution.
 
@@ -75,7 +75,7 @@ class Policy(ABC):
 
         Returns
         -------
-        Either an action distribution as a dictionary: [probability: action]
+        Either an action distribution as a list of tuples: (probability/score, action)
         OR a status string on error.
         """
         raise NotImplementedError("choice not implemented")
@@ -129,9 +129,9 @@ class ConstantPolicy(Policy):
     @override
     def choice(
         self, context: npt.NDArray
-    ) -> Union[Dict[float, AcquisitionSchema], str]:
+    ) -> Union[List[Tuple[float, AcquisitionSchema]], str]:
         # Docstring copied from @override
-        return {1.0: self.library[self.index]}
+        return (1.0, self.library[self.index])
 
     def update(
         self,

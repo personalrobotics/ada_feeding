@@ -16,6 +16,7 @@ from overrides import override
 import torch
 
 # Local imports
+from ada_feeding_action_select.helpers import logger
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_perception.helpers import ros_msg_to_cv2_image
 from .models import SPANetConfig, SPANet
@@ -47,7 +48,7 @@ class SPANetContext(ContextAdapter):
         # Init CUDA
         self.use_cuda = torch.cuda.is_available()
         if self.use_cuda:
-            print("Init SPANet with CUDA")
+            logger.info("Init SPANet with CUDA")
             os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
             os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_index)
 

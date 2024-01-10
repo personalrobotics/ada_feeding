@@ -7,8 +7,10 @@ This service implement AcquisitionSelect and AcquisitionReport.
 
 # Standard imports
 import argparse
+import copy
 import os
 from typing import Dict
+import uuid
 
 # Third-party imports
 from ament_index_python.packages import get_package_share_directory
@@ -19,6 +21,7 @@ from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 
 # Internal imports
 from ada_feeding.helpers import import_from_string
+from ada_feeding_action_select.helpers import register_logger
 from ada_feeding_action_select.policies import Policy
 from ada_feeding_action_select.adapters import ContextAdapter, PosthocAdapter
 from ada_feeding_msgs.srv import AcquisitionSelect, AcquisitionReport
@@ -44,6 +47,7 @@ class PolicyServices(Node):
         Declare ROS2 Parameters
         """
         super().__init__("policy_service")
+        register_logger(self.get_logger())
 
         # Name of the Policy
         policy_param = self.declare_parameter(
@@ -142,7 +146,11 @@ class PolicyServices(Node):
             self.context_adapter.dim, self.posthoc_adapter.dim, **policy_kwargs
         )
 
-        # Create replay buffer
+        # Create AcquisitionSelect cache
+        # UUID -> {context, request, response}
+        self.cache = {}
+
+        # TODO: Checkpoint / Record Variables
 
         # Start ROS services
         self.ros_objs = []
@@ -180,7 +188,20 @@ class PolicyServices(Node):
 
         # Run the policy
         response.status = "Success"
-        response = self.policy.choice(context, response)
+        choice = self.policy.choice(context, response)
+        if isinstance(choice, str):
+            response.status = choice
+        else:
+            res = list(zip(*choice))
+            response.probabilities = list(res[0])
+            response.actions = list(res[1])
+            select_id = str(uuid.uuid4())
+            self.cache[select_id] = {
+                "context": np.copy(context),
+                "request": copy.deepcopy(request),
+                "response": copy.deepcopy(response),
+            }
+            response.id = select_id
         return response
 
     def report_callback(
@@ -190,7 +211,29 @@ class PolicyServices(Node):
         Implement AcquisitionReport.srv
         """
 
-        # Run the context adapter
+        # Collectd cached context
+        if request.id not in self.cache:
+            response.status = "id does not map to previous select call"
+            self.get_logger().error(f"AcquistionReport: {response.status}")
+            response.success = False
+            return response
+        context = self.cache[request.id]["context"]
+
+        # Collect executed action
+        select = self.cache[request.id]["response"]
+        if request.action_index >= len(select.actions):
+            response.status = "action_index out of range"
+            self.get_logger().error(f"AcquistionReport: {response.status}")
+            response.success = False
+            return response
+        action = (
+            select.probabilities[request.action_index]
+            if len(select.probabilities) > request.action_index
+            else 1.0,
+            select.actions[request.action_index],
+        )
+
+        # Run the posthoc adapter
         posthoc = self.posthoc_adapter.get_posthoc(np.array(request.posthoc))
         if posthoc.size != self.posthoc_adapter.dim:
             response.status = "Bad Posthoc"
@@ -200,7 +243,15 @@ class PolicyServices(Node):
         # Run the policy
         response.status = "Success"
         response.success = True
-        response = self.policy.update(posthoc, request, response)
+        update = self.policy.update(posthoc, context, action, request.loss)
+        if not update[0]:
+            response.status = update[1]
+            self.get_logger().error(f"AcquistionReport: {response.status}")
+            response.success = False
+            return response
+
+        # TODO: add save checkponit
+        # TODO: add data record
         return response
 
     # TODO: Consider making get_kwargs an ada_feeding helper
