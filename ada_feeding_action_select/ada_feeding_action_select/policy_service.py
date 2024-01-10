@@ -142,6 +142,8 @@ class PolicyServices(Node):
             self.context_adapter.dim, self.posthoc_adapter.dim, **policy_kwargs
         )
 
+        # Create replay buffer
+
         # Start ROS services
         self.ros_objs = []
         self.ros_objs.append(
@@ -156,6 +158,11 @@ class PolicyServices(Node):
         )
 
         self.get_logger().info(f"Policy '{policy_name}' initialized!")
+
+    def _declare_parameters(self):
+        """
+        Declare all ROS2 Parameters
+        """
 
     # Services
     def select_callback(

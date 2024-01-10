@@ -14,21 +14,45 @@ ada_feeding_action_select:
 
     #context_class: ada_feeding_action_select.adapters.SPANetContext
     #context_kws:
-    #  - checkpoint
+    #  - checkpoint # Relative to share data directory
     #context_kwargs:
-    #  checkpoint: food_spanet_all_rgb_wall_ckpt_best.pth
+    #  checkpoint: checkpoint/adapter/food_spanet_all_rgb_wall_ckpt_best.pth
 
     context_class: ada_feeding_action_select.adapters.NoContext
 
     #### Posthoc Adapters
 
-    #context_class: ada_feeding_action_select.adapters.HapticNetPosthoc
-    #context_kws:
-    #  - checkpoint
-    #context_kwargs:
-    #  checkpoint: FCNcheckpoint_category_0_of_3fold_Adam.pth
+    #posthoc_class: ada_feeding_action_select.adapters.HapticNetPosthoc
+    #posthoc_kws:
+    #  - checkpoint # Path relative to share data directory
+    #  - n_features 
+    #  - gpu_index
+    #posthoc_kwargs:
+    #  checkpoint: checkpoint/adapter/hapticnet_ckpt.pth
+    #  n_features: 4
+    #  gpu_index: 0
 
     posthoc_class: ada_feeding_action_select.adapters.NoContext
+
+    #### Replays and Checkpoints
+
+    # Optional
+    # Directory to save relative to share data directory
+    # If defined: Files will be saved as <record_dir>/<timestamp>.pkl
+    # Each file contains one AcquisitionSelect and one AcquisitionReport
+    record_dir: replay/pilot/
+
+    # Required
+    # Directory to save/load relative to share data directory
+    # Files will be saved as <checkpoint_dir>/<timestamp>.pt
+    # with torch.save()
+    checkpoint_dir: checkpoint/pilot/
+    # Whether to load latest checkpoint in dir at start
+    checkpoint_load_latest: True
+    # How often to save a new checkpoint
+    # Must be >0
+    # Undefine to disable checkpoint saving
+    checkpoint_save_period: 1
 
     #### Policies
 

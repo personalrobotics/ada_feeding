@@ -22,7 +22,7 @@ from .models import SPANetConfig, SPANet
 from .base_adapters import ContextAdapter
 
 
-class SPANetAdapter(ContextAdapter):
+class SPANetContext(ContextAdapter):
     """
     An adapter to run images through SPANet
     and extract features.

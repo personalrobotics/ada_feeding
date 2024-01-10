@@ -20,7 +20,7 @@ from .models import HapticNetConfig, HapticNet
 from .base_adapters import PosthocAdapter
 
 
-class HapticNetAdapter(PosthocAdapter):
+class HapticNetPosthoc(PosthocAdapter):
     """
     An adapter to run force/torque data through HapticNet
     and extract features.
