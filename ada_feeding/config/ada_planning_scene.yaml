@@ -8,6 +8,7 @@ ada_planning_scene:
       - head
       - workspace_wall_front
       - workspace_wall_left
+      - workspace_wall_right
       - workspace_wall_top
       # - food
     # For each object, specify:
@@ -57,6 +58,12 @@ ada_planning_scene:
       primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
       primitive_dims: [0.01, 1.5, 1.65] # Box has 3 dims: [x, y, z]
       position: [0.75, 0.17, 0.275]
+      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+      frame_id: root # the frame_id that the pose is relative to
+    workspace_wall_right:
+      primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
+      primitive_dims: [0.01, 1.5, 1.65] # Box has 3 dims: [x, y, z]
+      position: [-0.3, 0.17, 0.275]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
       frame_id: root # the frame_id that the pose is relative to
     workspace_wall_top:
