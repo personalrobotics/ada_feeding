@@ -130,7 +130,9 @@ class FaceDetectionNode(Node):
         # Currently, RVIZ2 doesn't support visualization of CompressedImage
         # (other than as part of a Camera). Hence, for vizualization purposes
         # this must be an Image. https://github.com/ros2/rviz/issues/738
-        self.publisher_image = self.create_publisher(Image, "~/face_detection_img", 1)
+        self.publisher_image = self.create_publisher(
+            CompressedImage, "~/face_detection_img/compressed", 1
+        )
 
         # Create an instance of the Face Detection Cascade Classifier
         self.detector = cv2.CascadeClassifier(self.face_model_path)
@@ -667,7 +669,7 @@ class FaceDetectionNode(Node):
 
             # Publish the face detection image
             self.publisher_image.publish(
-                cv2_image_to_ros_msg(image_bgr, compress=False, encoding="bgr8")
+                cv2_image_to_ros_msg(image_bgr, compress=True, encoding="bgr8")
             )
 
             # Publish 3d point

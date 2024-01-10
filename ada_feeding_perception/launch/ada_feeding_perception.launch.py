@@ -123,7 +123,7 @@ def generate_launch_description():
     # points have been set to 0.
     face_detection_remappings = [
         ("~/face_detection", "/face_detection"),
-        ("~/face_detection_img", "/face_detection_img"),
+        ("~/face_detection_img/compressed", "/face_detection_img/compressed"),
         ("~/toggle_face_detection", "/toggle_face_detection"),
         (
             "~/aligned_depth",
