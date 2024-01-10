@@ -43,9 +43,9 @@ const DetectingFace = () => {
   // Font size for text
   let textFontSize = 3
   let buttonWidth = 30
-  let buttonHeight = 20
+  let buttonHeight = 18
   let iconWidth = 28
-  let iconHeight = 18
+  let iconHeight = 16
   let sizeSuffix = isPortrait ? 'vh' : 'vw'
   // The min and max distance from the camera to the face for the face to be
   // conidered valid. NOTE: This must match the values in the MoveToMouth tree.

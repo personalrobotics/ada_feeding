@@ -48,10 +48,10 @@ NON_MOVING_STATES.add(MEAL_STATE.U_PostMeal)
 export { NON_MOVING_STATES }
 
 // The names of the ROS topic(s)
-export const CAMERA_FEED_TOPIC = '/local/camera/color/image_raw/compressed'
+export const CAMERA_FEED_TOPIC = '/local/camera/color/image_raw/compressed/low_hz'
 export const FACE_DETECTION_TOPIC = '/face_detection'
 export const FACE_DETECTION_TOPIC_MSG = 'ada_feeding_msgs/FaceDetection'
-export const FACE_DETECTION_IMG_TOPIC = '/face_detection_img/compressed'
+export const FACE_DETECTION_IMG_TOPIC = '/face_detection_img/compressed/low_hz'
 
 // States from which, if they fail, it is NOT okay for the user to retry the
 // same action.

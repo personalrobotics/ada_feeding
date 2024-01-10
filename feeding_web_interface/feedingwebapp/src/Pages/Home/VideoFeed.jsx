@@ -85,30 +85,39 @@ const VideoFeed = (props) => {
    * re-connecting upon re-renders.
    */
   const ros = useRef(useROS().ros)
-  // Store the latest image timestamp in a ref to avoid re-generating cameraCallback
-  const latestImageTimestamp = useRef(null)
+  // Store the latest image message in a ref to avoid re-generating cameraCallback
+  const latestImageMessage = useRef(null)
 
   /**
    * Subscribe to the image topic.
    */
   const cameraCallback = useCallback(
     (message) => {
-      // console.log('Got camera message', message)
-      if (!latestImageTimestamp.current || props.updateRateHz <= 0) {
-        setLatestRenderedImg(message)
-      } else {
-        let currTime = message.header.stamp.sec + message.header.stamp.nanosec * 1e-9
-        if (currTime - latestImageTimestamp.current >= 1.0 / props.updateRateHz) {
-          setLatestRenderedImg(message)
-          latestImageTimestamp.current = currTime
-        }
-      }
+      latestImageMessage.current = message
     },
-    [latestImageTimestamp, setLatestRenderedImg, props.updateRateHz]
+    [latestImageMessage]
   )
+
+  /**
+   * Create a timer to re-render the latest image every props.updateRateHz
+   */
+  const [updateHzCurrentDate, setUpdateHzCurrentDate] = useState(new Date())
+  useEffect(() => {
+    setTimeout(() => {
+      setUpdateHzCurrentDate(new Date())
+      setLatestRenderedImg(latestImageMessage.current)
+    }, 1000 / props.updateRateHz)
+  }, [updateHzCurrentDate, setUpdateHzCurrentDate, props.updateRateHz, setLatestRenderedImg, latestImageMessage])
+  /**
+   * Create a timer to re-render the latest image every props.updateRateHz
+   */
+  const [resubscribeRateCurrentDate, setResubscribeRateCurrentDate] = useState(new Date())
   useEffect(() => {
     console.log('subscribing to img topic')
     let topic = subscribeToROSTopic(ros.current, props.topic, 'sensor_msgs/CompressedImage', cameraCallback)
+    setTimeout(() => {
+      setResubscribeRateCurrentDate(new Date())
+    }, 1000 / props.resubscribeRateHz)
     const cleanup = () => {
       console.log('unsubscribing from img topic')
       unsubscribeFromROSTopic(topic, cameraCallback)
@@ -123,7 +132,7 @@ const VideoFeed = (props) => {
       window.removeEventListener('beforeunload', cleanup)
       cleanup()
     }
-  }, [cameraCallback, props.topic])
+  }, [cameraCallback, props.topic, props.resubscribeRateHz, resubscribeRateCurrentDate, setResubscribeRateCurrentDate])
 
   // Callback to resize the image based on the parent width and height
   const resizeImage = useCallback(() => {
@@ -192,18 +201,20 @@ const VideoFeed = (props) => {
 
   // Render the component
   return (
-    <img
-      src={`data:image/jpeg;base64,${latestRenderedImg ? latestRenderedImg.data : ''}`}
-      alt='Live video feed from the robot'
-      style={{
-        width: imgWidth,
-        height: imgHeight,
-        display: 'block',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}
-      onClick={props.pointClicked ? imageClicked : null}
-    />
+    <>
+      <img
+        src={`data:image/jpeg;base64,${latestRenderedImg ? latestRenderedImg.data : ''}`}
+        alt='Live video feed from the robot'
+        style={{
+          width: imgWidth,
+          height: imgHeight,
+          display: 'block',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+        onClick={props.pointClicked ? imageClicked : null}
+      />
+    </>
   )
 }
 VideoFeed.propTypes = {
@@ -218,6 +229,8 @@ VideoFeed.propTypes = {
   topic: PropTypes.string.isRequired,
   // The rate at which to update the video feed, in Hz
   updateRateHz: PropTypes.number.isRequired,
+  // The rate at which to resubscribe to the image topic
+  resubscribeRateHz: PropTypes.number.isRequired,
   /**
    * An optional callback function for when the user clicks on the video feed.
    * This function should take in two parameters, `x` and `y`, which are the
@@ -228,7 +241,8 @@ VideoFeed.propTypes = {
 }
 VideoFeed.defaultProps = {
   topic: CAMERA_FEED_TOPIC,
-  updateRateHz: 10
+  updateRateHz: 3,
+  resubscribeRateHz: 0.1
 }
 
 export default VideoFeed
