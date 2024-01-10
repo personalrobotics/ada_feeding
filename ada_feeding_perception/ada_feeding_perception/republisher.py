@@ -10,7 +10,9 @@ you have >3 subscriptions.
 """
 
 # Standard imports
+import math
 import os
+import time
 from typing import Any, Callable, List, Tuple
 
 # Third-party imports
@@ -54,6 +56,7 @@ class Republisher(Node):
             self.from_topics,
             topic_type_strs,
             to_topics,
+            target_rates,
             post_processors_strs,
             mask_relative_path,
             temporal_window_size,
@@ -115,7 +118,7 @@ class Republisher(Node):
             self.topic_types.append(import_from_string(topic_type_str))
 
         # For each topic, create a callback, publisher, and subscriber
-        num_topics = min(len(self.from_topics), len(self.topic_types), len(to_topics))
+        num_topics = min(len(self.from_topics), len(self.topic_types), len(to_topics), len(target_rates))
         self.callbacks = []
         self.pubs = []
         self.subs = []
@@ -147,7 +150,7 @@ class Republisher(Node):
                 )
 
             # Create the callback
-            callback = self.create_callback(i, post_processor_fns)
+            callback = self.create_callback(i, post_processor_fns, target_rates[i])
             self.callbacks.append(callback)
 
             # Create the publisher
@@ -172,7 +175,7 @@ class Republisher(Node):
     def load_parameters(
         self,
     ) -> Tuple[
-        List[str], List[str], List[str], List[List[str]], str, int, int, int, int
+        List[str], List[str], List[str], List[str], List[List[str]], str, int, int, int, int
     ]:
         """
         Load the parameters for the republisher.
@@ -231,6 +234,17 @@ class Republisher(Node):
                 name="to_topics",
                 type=ParameterType.PARAMETER_STRING_ARRAY,
                 description="List of the topics to republish to.",
+                read_only=True,
+            ),
+        )
+
+        # Read the target rates
+        target_rates = self.declare_parameter(
+            "target_rates",
+            descriptor=ParameterDescriptor(
+                name="target_rates",
+                type=ParameterType.PARAMETER_INTEGER_ARRAY,
+                description="Target rates (hz) for the republications.",
                 read_only=True,
             ),
         )
@@ -344,11 +358,15 @@ class Republisher(Node):
         to_topics_retval = to_topics.value
         if to_topics_retval is None:
             to_topics_retval = []
+        target_rates_retval = target_rates.value
+        if target_rates_retval is None:
+            target_rates_retval = []
 
         return (
             from_topics_retval,
             topic_types_retval,
             to_topics.value,
+            target_rates_retval,
             post_processors_retval,
             mask_relative_path.value,
             temporal_window_size.value,
@@ -358,7 +376,7 @@ class Republisher(Node):
         )
 
     def create_callback(
-        self, i: int, post_processors: List[Callable[[Any], Any]]
+        self, i: int, post_processors: List[Callable[[Any], Any]], target_rate: float,
     ) -> Callable:
         """
         Create the callback for the subscriber.
@@ -370,12 +388,19 @@ class Republisher(Node):
         post_processor : List[Callable[[Any], Any]]
             The post-processing functions to apply to the message before republishing.
             Each must take in a message and return a message of the same type.
+        target_rate : float
+            the target rate for the publication
 
         Returns
         -------
         callback : Callable
             The callback for the subscriber.
         """
+        if target_rate <= 0:
+            interval = -math.inf
+        else:
+            interval = 1.0/target_rate
+        last_published_time = None
 
         def callback(msg: Any):
             """
@@ -386,12 +411,15 @@ class Republisher(Node):
             msg : Any
                 The message from the subscriber.
             """
+            nonlocal last_published_time
             # self.get_logger().info(
             #     f"Received message on topic {i} {self.from_topics[i]}"
             # )
             for post_processor in post_processors:
                 msg = post_processor(msg)
-            self.pubs[i].publish(msg)
+            if (last_published_time is None or time.time() - last_published_time >= interval):
+                self.pubs[i].publish(msg)
+                last_published_time = time.time()
 
         return callback
 

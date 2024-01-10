@@ -9,10 +9,11 @@ a given FT threshold is satisfied at the point of execution.
 # Standard imports
 
 # Third-part_y imports
+from geometry_msgs.msg import WrenchStamped
 import py_trees
 from py_trees.blackboard import Blackboard
 import py_trees_ros
-from geometry_msgs.msg import WrenchStamped
+import rclpy
 
 # Local imports
 
@@ -103,7 +104,7 @@ def ft_thresh_satisfied(
                 name=name + " FTSubscriber",
                 topic_name=ft_topic,
                 topic_type=WrenchStamped,
-                qos_profile=(py_trees_ros.utilities.qos_profile_unlatched()),
+                qos_profile=rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value,
                 blackboard_variables={
                     ft_absolute_key: None,
                 },
