@@ -40,13 +40,12 @@ ada_feeding_action_select:
     # Directory to save relative to share data directory
     # If defined: Files will be saved as <record_dir>/<timestamp>_record.pt
     # Each file contains one AcquisitionSelect and one AcquisitionReport
-    record_dir: records/pilot/
+    record_dir: records/testing/
 
-    # Required
     # Directory to save/load relative to share data directory
     # Files will be saved as <checkpoint_dir>/<timestamp>_ckpt.pt
     # with torch.save()
-    checkpoint_dir: checkpoint/pilot/
+    checkpoint_dir: checkpoint/testing/
     # Whether to load latest checkpoint in dir at start
     checkpoint_load_latest: True
     # How often to save a new checkpoint
@@ -58,81 +57,121 @@ ada_feeding_action_select:
 
     constant: # required
       policy_class: ada_feeding_action_select.policies.ConstantPolicy # required
-      kws: # optional
+      kws:
         - library
         - index
-      kwargs: # optional
+      kwargs:
         library: config/acquisition_library.yaml # path to library of actions (package share)
         index: 0 # Which action to execute
 
     random:
-      policy_class: ada_feeding_action_select.policies.RandomPolicy
+      policy_class: ada_feeding_action_select.policies.RandomLinearPolicy
       kws: 
         - library
-        - context_lambda
-        - posthoc_lambda
-        - data_prefix
+        - lambda_l2
+        - lambda_posthoc_damp
+        - use_posthoc
       kwargs:
         library: config/acquisition_library.yaml # path to library of actions (package share)
-        context_lambda: 1000.0 # L2 regularizer for context
-        posthoc_lambda: 1.0 # L2 regularizer for posthoc
+        lambda_l2: 1000.0 # L2 regularizer for context
+        lambda_posthoc_damp: 1.0 # L2 regularizer for posthoc
+        use_posthoc: True
+
+    random_noposthoc:
+      policy_class: ada_feeding_action_select.policies.RandomLinearPolicy
+      kws: 
+        - library
+        - lambda_l2
+        - lambda_posthoc_damp
+        - use_posthoc
+      kwargs:
+        library: config/acquisition_library.yaml # path to library of actions (package share)
+        lambda_l2: 1000.0 # L2 regularizer for context
+        lambda_posthoc_damp: 1.0 # L2 regularizer for posthoc
+        use_posthoc: False
+
+    greedy:
+      policy_class: ada_feeding_action_select.policies.GreedyLinearPolicy
+      kws: 
+        - library
+        - lambda_l2
+        - lambda_posthoc_damp
+        - use_posthoc
+      kwargs:
+        library: config/acquisition_library.yaml # path to library of actions (package share)
+        lambda_l2: 1000.0 # L2 regularizer for context
+        lambda_posthoc_damp: 1.0 # L2 regularizer for posthoc
+        use_posthoc: True
+
+    greedy_noposthoc:
+      policy_class: ada_feeding_action_select.policies.GreedyLinearPolicy
+      kws: 
+        - library
+        - lambda_l2
+        - lambda_posthoc_damp
+        - use_posthoc
+      kwargs:
+        library: config/acquisition_library.yaml # path to library of actions (package share)
+        lambda_l2: 1000.0 # L2 regularizer for context
+        lambda_posthoc_damp: 1.0 # L2 regularizer for posthoc
+        use_posthoc: False
 
     egreedy:
-      policy_class: ada_feeding_action_select.policies.EGreedyPolicy
+      policy_class: ada_feeding_action_select.policies.EpsilonGreedyLinearPolicy
       kws: 
         - library
-        - context_lambda
-        - posthoc_lambda
-        - data_prefix
+        - lambda_l2
+        - lambda_posthoc_damp
+        - use_posthoc
         - epsilon
       kwargs:
         library: config/acquisition_library.yaml # path to library of actions (package share)
-        context_lambda: 1000.0 # L2 regularizer for context
-        posthoc_lambda: 0.0 # L2 regularizer for posthoc
-        data_prefix: default_spanet # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
-        epsilon: 0.1 # how often to take a random action
+        lambda_l2: 1000.0 # L2 regularizer for context
+        lambda_posthoc_damp: 1.0 # L2 regularizer for posthoc
+        use_posthoc: True
+        epsilon: 0.1
 
-    egreedy_posthoc:
-      policy_class: ada_feeding_action_select.policies.EGreedyPolicy
+    egreedy_noposthoc:
+      policy_class: ada_feeding_action_select.policies.EpsilonGreedyLinearPolicy
       kws: 
         - library
-        - context_lambda
-        - posthoc_lambda
-        - data_prefix
+        - lambda_l2
+        - lambda_posthoc_damp
+        - use_posthoc
         - epsilon
       kwargs:
         library: config/acquisition_library.yaml # path to library of actions (package share)
-        context_lambda: 1000.0 # L2 regularizer for context
-        posthoc_lambda: 1.0 # L2 regularizer for posthoc
-        data_prefix: default_spanet # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
-        epsilon: 0.1 # how often to take a random action
+        lambda_l2: 1000.0 # L2 regularizer for context
+        lambda_posthoc_damp: 1.0 # L2 regularizer for posthoc
+        use_posthoc: False
+        epsilon: 0.1
 
     linucb:
       policy_class: ada_feeding_action_select.policies.LinUCBPolicy
       kws: 
         - library
-        - context_lambda
-        - posthoc_lambda
-        - data_prefix
+        - lambda_l2
+        - lambda_posthoc_damp
+        - use_posthoc
         - alpha
       kwargs:
         library: config/acquisition_library.yaml # path to library of actions (package share)
-        context_lambda: 1000.0 # L2 regularizer for context
-        posthoc_lambda: 0.0 # L2 regularizer for posthoc
-        data_prefix: default_spanet # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
-        alpha: 0.01 # scaling factor for the confidence bound
+        lambda_l2: 1000.0 # L2 regularizer for context
+        lambda_posthoc_damp: 1.0 # L2 regularizer for posthoc
+        use_posthoc: True
+        alpha: 0.01
 
-    linucb_posthoc:
+    linucb_noposthoc:
       policy_class: ada_feeding_action_select.policies.LinUCBPolicy
       kws: 
         - library
-        - context_lambda
-        - posthoc_lambda
-        - data_prefix
+        - lambda_l2
+        - lambda_posthoc_damp
+        - use_posthoc
         - alpha
       kwargs:
         library: config/acquisition_library.yaml # path to library of actions (package share)
-        context_lambda: 1000.0 # L2 regularizer for context
-        posthoc_lambda: 1.0 # L2 regularizer for posthoc
-        data_prefix: default_spanet # data will be stored in (share)/data/<data_prefix>_<policy_name>.npz
-        alpha: 0.01 # scaling factor for the confidence bound
+        lambda_l2: 1000.0 # L2 regularizer for context
+        lambda_posthoc_damp: 1.0 # L2 regularizer for posthoc
+        use_posthoc: False
+        alpha: 0.01
