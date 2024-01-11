@@ -9,6 +9,7 @@ This service implement AcquisitionSelect and AcquisitionReport.
 import argparse
 import copy
 import os
+import time
 from typing import Dict
 import uuid
 
@@ -18,6 +19,7 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
+import torch
 
 # Internal imports
 from ada_feeding.helpers import import_from_string
@@ -42,16 +44,14 @@ class PolicyServices(Node):
     # every subscription we need to store the subscription, mutex, and data,
     # and we have 2 subscriptions.
 
-    def __init__(self):
+    def _declare_parameters(self):
         """
-        Declare ROS2 Parameters
+        Declare all ROS2 Parameters
         """
-        super().__init__("policy_service")
-        register_logger(self.get_logger())
 
-        # Name of the Policy
-        policy_param = self.declare_parameter(
-            "policy",
+        self.declare_parameter(
+            name="policy",
+            value=None,
             descriptor=ParameterDescriptor(
                 name="policy",
                 type=ParameterType.PARAMETER_STRING,
@@ -62,25 +62,195 @@ class PolicyServices(Node):
                 read_only=True,
             ),
         )
-        policy_name = policy_param.value
+        self.declare_parameters(
+            namespace="",
+            parameters=[
+                (
+                    f"{self.get_parameter('policy')}.policy_class",
+                    None,
+                    ParameterDescriptor(
+                        name="policy_class",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "The class of the policy to run, must subclass "
+                            "Policy. E.g., ada_feeding_action_select.policies.ConstantPolicy"
+                        ),
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "context_class",
+                    "ada_feeding_action_select.adapters.NoContext",
+                    ParameterDescriptor(
+                        name="context_class",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "The class of the context adapter to run, must subclass "
+                            "ContextAdapter. E.g., ada_feeding_action_select.adapters.NoContext"
+                        ),
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "posthoc_class",
+                    "ada_feeding_action_select.adapters.NoContext",
+                    ParameterDescriptor(
+                        name="posthoc_class",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "The class of the posthoc adapter to run, must subclass "
+                            "PosthocAdapter. E.g., ada_feeding_action_select.adapters.NoContext"
+                        ),
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "record_dir",
+                    None,
+                    ParameterDescriptor(
+                        name="record_dir",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "Directory to save/load data relative to share/data; "
+                            "Files will be saved as <record_dir>/<timestamp>_record.pt; "
+                            "Each file contains one AcquisitionSelect and one AcquisitionReport. "
+                        ),
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "checkpoint_dir",
+                    None,
+                    ParameterDescriptor(
+                        name="checkpoint_dir",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "Directory to save/load checkpoints relative to share/data. "
+                            "Files will be saved as <checkpoint_dir>/<timestamp>_ckpt.pt"
+                        ),
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "checkpoint_save_period",
+                    0,
+                    ParameterDescriptor(
+                        name="checkpoint_save_period",
+                        type=ParameterType.PARAMETER_INTEGER,
+                        description=(
+                            "How often to save a new checkpoint. "
+                            "Undefine or set <1 to disable checkpoint saving"
+                        ),
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "checkpoint_load_latest",
+                    False,
+                    ParameterDescriptor(
+                        name="checkpoint_load_latest",
+                        type=ParameterType.PARAMETER_BOOL,
+                        description=(
+                            "Whether to load latest checkpoint in dir at start"
+                        ),
+                        read_only=True,
+                    ),
+                ),
+            ],
+        )
+
+    def _init_checkpoints_record(self, context_cls: type, posthoc_cls: type) -> None:
+        """
+        Seperate logic for checkpoint and data record
+        """
+
+        ### Data Record Initialization
+        self.record_dir = None
+        if self.get_parameter("record_dir") is not None:
+            self.record_dir = os.path.join(
+                get_package_share_directory("ada_feeding_action_select"),
+                "data",
+                self.get_parameter("record_dir"),
+            )
+            if not os.path.isdir(self.record_dir):
+                self.get_logger().error(
+                    f"Data record dir not found, cannot save: {self.record_dir}"
+                )
+                self.record_dir = None
+
+        ### Checkpoint Initialization
+        # Checkpoint Directory
+        self.checkpoint_dir = None
+        if self.get_parameter("checkpoint_dir") is not None:
+            self.checkpoint_dir = os.path.join(
+                get_package_share_directory("ada_feeding_action_select"),
+                "data",
+                self.get_parameter("checkpoint_dir"),
+            )
+            if not os.path.isdir(self.checkpoint_dir):
+                self.get_logger().error(
+                    f"Checkpoint dir not found, cannot save or load: {self.checkpoint_dir}"
+                )
+                self.checkpoint_dir = None
+
+        # Checkpoint Saving
+        self.checkpoint_save_period = (
+            0
+            if (self.get_parameter("checkpoint_save_period") < 1)
+            else self.get_parameter("checkpoint_save_period")
+        )
+        self.n_successful_reports = 0
+        if self.checkpoint_save_period > 0 and self.checkpoint_dir is not None:
+            self.get_logger().info(f"Saving checkpoints to: {self.checkpoint_dir}")
+
+        # Load latest checkpoint if requested
+        if (
+            self.get_parameter("checkpoint_load_latest")
+            and self.checkpoint_dir is not None
+        ):
+            pt_files = sorted(
+                [
+                    f
+                    for f in os.listdir(self.checkpoint_dir)
+                    if os.path.isfile(f) and f.endswith(".pt")
+                ]
+            )
+            if len(pt_files) > 0:
+                with open(pt_files[-1], "rb") as ckpt_file:
+                    ckpt = torch.load(ckpt_file)
+                    try:
+                        if ckpt["context_cls"] != context_cls:
+                            self.get_logger().warning(
+                                f"Context adapter mismatch in checkpoint: {ckpt['context_cls']} != {context_cls}"
+                            )
+                        if ckpt["posthoc_cls"] != posthoc_cls:
+                            self.get_logger().warning(
+                                f"Posthoc adapter mismatch in checkpoint: {ckpt['posthoc_cls']} != {posthoc_cls}"
+                            )
+                        if self.policy.set_checkpoint(ckpt["checkpoint"]):
+                            self.get_logger().info(f"Loaded Checkpoint: {pt_files[-1]}")
+                        else:
+                            self.get_logger().warning(
+                                f"Could not set policy checkpoint: {pt_files[-1]}"
+                            )
+                    except KeyError as error:
+                        self.get_logger().warning(f"Malformed checkpoint: {error}")
+
+    def __init__(self):
+        """
+        Declare ROS2 Parameters
+        """
+        super().__init__("policy_service")
+        register_logger(self.get_logger())
+        self._declare_parameters()
+
+        # Name of the Policy
+        policy_name = self.get_parameter("policy")
         if policy_name is None:
             raise ValueError("Policy Name is required.")
 
         # Import the policy class
-        policy_cls_param = self.declare_parameter(
-            f"{policy_name}.policy_class",
-            descriptor=ParameterDescriptor(
-                name="policy_class",
-                type=ParameterType.PARAMETER_STRING,
-                description=(
-                    "The class of the policy to run, must subclass "
-                    "Policy. E.g., ada_feeding_action_select.policies.ConstantPolicy"
-                ),
-                read_only=True,
-            ),
-        )
-
-        policy_cls_name = policy_cls_param.value
+        policy_cls_name = self.get_parameter("policy_class")
         if policy_cls_name is None:
             raise ValueError("Policy Class is required.")
 
@@ -90,53 +260,19 @@ class PolicyServices(Node):
         policy_kwargs = self.get_kwargs(f"{policy_name}.kws", f"{policy_name}.kwargs")
 
         # Get the context adapter
-        context_cls_param = self.declare_parameter(
-            "context_class",
-            descriptor=ParameterDescriptor(
-                name="context_class",
-                type=ParameterType.PARAMETER_STRING,
-                description=(
-                    "The class of the context adapter to run, must subclass "
-                    "ContextAdapter. E.g., ada_feeding_action_select.adapters.NoContext"
-                ),
-                read_only=True,
-            ),
-        )
-
-        context_cls_name = context_cls_param.value
-        if context_cls_name is None:
-            raise ValueError("Context Adapter is required.")
-
-        context_cls = import_from_string(context_cls_name)
+        context_cls = import_from_string(self.get_parameter("context_class"))
         assert issubclass(
             context_cls, ContextAdapter
-        ), f"{context_cls_name} must subclass ContextAdapter"
+        ), f"{self.get_parameter('context_class')} must subclass ContextAdapter"
 
         context_kwargs = self.get_kwargs("context_kws", "context_kwargs")
         self.context_adapter = context_cls(**context_kwargs)
 
         # Get the posthoc adapter
-        posthoc_cls_param = self.declare_parameter(
-            "posthoc_class",
-            descriptor=ParameterDescriptor(
-                name="posthoc_class",
-                type=ParameterType.PARAMETER_STRING,
-                description=(
-                    "The class of the posthoc adapter to run, must subclass "
-                    "PosthocAdapter. E.g., ada_feeding_action_select.adapters.NoContext"
-                ),
-                read_only=True,
-            ),
-        )
-
-        posthoc_cls_name = posthoc_cls_param.value
-        if posthoc_cls_name is None:
-            raise ValueError("Posthoc Adapter is required.")
-
-        posthoc_cls = import_from_string(posthoc_cls_name)
+        posthoc_cls = import_from_string(self.get_parameter("posthoc_class"))
         assert issubclass(
             posthoc_cls, PosthocAdapter
-        ), f"{posthoc_cls_name} must subclass PosthocAdapter"
+        ), f"{self.get_parameter('posthoc_class')} must subclass PosthocAdapter"
 
         posthoc_kwargs = self.get_kwargs("posthoc_kws", "posthoc_kwargs")
         self.posthoc_adapter = posthoc_cls(**posthoc_kwargs)
@@ -150,7 +286,8 @@ class PolicyServices(Node):
         # UUID -> {context, request, response}
         self.cache = {}
 
-        # TODO: Checkpoint / Record Variables
+        # Init Checkpoints / Data Record
+        self._init_checkpoints_record(context_cls, posthoc_cls)
 
         # Start ROS services
         self.ros_objs = []
@@ -166,11 +303,6 @@ class PolicyServices(Node):
         )
 
         self.get_logger().info(f"Policy '{policy_name}' initialized!")
-
-    def _declare_parameters(self):
-        """
-        Declare all ROS2 Parameters
-        """
 
     # Services
     def select_callback(
@@ -217,10 +349,11 @@ class PolicyServices(Node):
             self.get_logger().error(f"AcquistionReport: {response.status}")
             response.success = False
             return response
-        context = self.cache[request.id]["context"]
+        cache = self.cache[request.id]
+        context = cache["context"]
 
         # Collect executed action
-        select = self.cache[request.id]["response"]
+        select = cache["response"]
         if request.action_index >= len(select.actions):
             response.status = "action_index out of range"
             self.get_logger().error(f"AcquistionReport: {response.status}")
@@ -250,8 +383,40 @@ class PolicyServices(Node):
             response.success = False
             return response
 
-        # TODO: add save checkponit
-        # TODO: add data record
+        # Report completed
+        self.n_successful_reports += 1
+        del self.cache[request.id]
+
+        # Save checkpoint if requested
+        if (
+            self.checkpoint_save_period > 0
+            and self.n_successful_reports % self.checkpoint_save_period == 0
+            and self.checkpoint_dir is not None
+        ):
+            # Save Checkpoint
+            filename = f"{time.time()}_ckpt.pt"
+            with open(os.path.join(self.checkpoint_dir, filename), "wb") as ckpt_file:
+                ckpt = {}
+                ckpt["context_cls"] = self.context_adapter.__class__
+                ckpt["posthoc_cls"] = self.posthoc_adapter.__class__
+                ckpt["checkpoint"] = self.policy.get_checkpoint()
+                torch.save(ckpt, ckpt_file)
+
+        # Save data if requested
+        if self.record_dir is not None:
+            filename = f"{time.time()}_record.pt"
+            with open(os.path.join(self.record_dir, filename), "wb") as record_file:
+                record = {}
+                record["select.request"] = cache["request"]
+                record["select.response"] = cache["response"]
+                record["report.request"] = copy.deepcopy(request)
+                record["report.response"] = copy.deepcopy(response)
+                record["context_cls"] = self.context_adapter.__class__
+                record["posthoc_cls"] = self.posthoc_adapter.__class__
+                record["context"] = cache["context"]
+                record["posthoc"] = np.copy(posthoc)
+                torch.save(record, record_file)
+
         return response
 
     # TODO: Consider making get_kwargs an ada_feeding helper

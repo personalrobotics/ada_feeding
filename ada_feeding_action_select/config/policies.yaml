@@ -34,17 +34,17 @@ ada_feeding_action_select:
 
     posthoc_class: ada_feeding_action_select.adapters.NoContext
 
-    #### Replays and Checkpoints
+    #### Records/Replays and Checkpoints
 
     # Optional
     # Directory to save relative to share data directory
-    # If defined: Files will be saved as <record_dir>/<timestamp>.pkl
+    # If defined: Files will be saved as <record_dir>/<timestamp>_record.pt
     # Each file contains one AcquisitionSelect and one AcquisitionReport
-    record_dir: replay/pilot/
+    record_dir: records/pilot/
 
     # Required
     # Directory to save/load relative to share data directory
-    # Files will be saved as <checkpoint_dir>/<timestamp>.pt
+    # Files will be saved as <checkpoint_dir>/<timestamp>_ckpt.pt
     # with torch.save()
     checkpoint_dir: checkpoint/pilot/
     # Whether to load latest checkpoint in dir at start

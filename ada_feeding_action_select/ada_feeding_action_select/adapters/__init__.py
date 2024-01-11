@@ -9,7 +9,7 @@ from .base_adapters import ContextAdapter, PosthocAdapter
 # Just returns [0]
 from .base_adapters import NoContext
 
-# TODO: Posthoc Passthrough
+# TODO: SegmentAnything Context
 
 # SPANet Context
 from .spanet_adapter import SPANetContext
