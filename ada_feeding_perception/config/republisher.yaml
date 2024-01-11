@@ -4,26 +4,43 @@ republisher:
     # The name of the topics to republish from
     from_topics:
       - /camera/color/image_raw/compressed
+      - /local/camera/color/image_raw/compressed
       - /camera/color/camera_info
       - /camera/aligned_depth_to_color/image_raw
       - /camera/aligned_depth_to_color/camera_info
       - /local/camera/aligned_depth_to_color/image_raw
+      - /face_detection_img/compressed
 
     # The types of topics to republish from
     topic_types:
+      - sensor_msgs.msg.CompressedImage
       - sensor_msgs.msg.CompressedImage
       - sensor_msgs.msg.CameraInfo
       - sensor_msgs.msg.Image
       - sensor_msgs.msg.CameraInfo
       - sensor_msgs.msg.Image
+      - sensor_msgs.msg.CompressedImage
 
     # The name of the topics to republish to
     to_topics:
       - /local/camera/color/image_raw/compressed
+      - /local/camera/color/image_raw/compressed/low_hz
       - /local/camera/color/camera_info
       - /local/camera/aligned_depth_to_color/image_raw
       - /local/camera/aligned_depth_to_color/camera_info
       - /local/camera/aligned_depth_to_color/depth_octomap
+      - /face_detection_img/compressed/low_hz
+
+    # The target rates (Hz) for the republished topics. Rates <= 0 will publish
+    # every message.
+    target_rates:
+      - 0
+      - 3
+      - 0
+      - 0
+      - 0
+      - 0
+      - 3
 
     # The names of a post-processing functions to apply to the message before
     # republishing it. Current options are:
@@ -42,7 +59,9 @@ republisher:
       - ""
       - ""
       - ""
+      - ""
       - threshold,mask,temporal,spatial # Apply filters to the depth image for the Octomap
+      - ""
     # The binary mask used for "mask" post-processing. This mask will get scaled,
     # possibly disproportionately, to the same of the image.
     mask_relative_path: model/fork_handle_mask.png

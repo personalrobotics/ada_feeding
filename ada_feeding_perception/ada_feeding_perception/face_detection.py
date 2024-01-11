@@ -130,7 +130,9 @@ class FaceDetectionNode(Node):
         # Currently, RVIZ2 doesn't support visualization of CompressedImage
         # (other than as part of a Camera). Hence, for vizualization purposes
         # this must be an Image. https://github.com/ros2/rviz/issues/738
-        self.publisher_image = self.create_publisher(Image, "~/face_detection_img", 1)
+        self.publisher_image = self.create_publisher(
+            CompressedImage, "~/face_detection_img/compressed", 1
+        )
 
         # Create an instance of the Face Detection Cascade Classifier
         self.detector = cv2.CascadeClassifier(self.face_model_path)
@@ -143,8 +145,15 @@ class FaceDetectionNode(Node):
         self.latest_img_msg = None
         self.latest_img_msg_lock = threading.Lock()
         image_topic = "~/image"
+        try:
+            image_type = get_img_msg_type(image_topic, self)
+        except ValueError as err:
+            self.get_logger().error(
+                f"Error getting type of image topic. Defaulting to CompressedImage. {err}"
+            )
+            image_type = CompressedImage
         self.img_subscription = self.create_subscription(
-            get_img_msg_type(image_topic, self),
+            image_type,
             image_topic,
             self.camera_callback,
             1,
@@ -155,9 +164,16 @@ class FaceDetectionNode(Node):
         self.depth_buffer = collections.deque(maxlen=depth_buffer_size)
         self.depth_buffer_lock = threading.Lock()
         aligned_depth_topic = "~/aligned_depth"
+        try:
+            aligned_depth_type = get_img_msg_type(aligned_depth_topic, self)
+        except ValueError as err:
+            self.get_logger().error(
+                f"Error getting type of depth image topic. Defaulting to Image. {err}"
+            )
+            aligned_depth_type = Image
         # Subscribe to the depth image
         self.depth_subscription = self.create_subscription(
-            get_img_msg_type(aligned_depth_topic, self),
+            aligned_depth_type,
             aligned_depth_topic,
             self.depth_callback,
             1,
@@ -667,7 +683,7 @@ class FaceDetectionNode(Node):
 
             # Publish the face detection image
             self.publisher_image.publish(
-                cv2_image_to_ros_msg(image_bgr, compress=False, encoding="bgr8")
+                cv2_image_to_ros_msg(image_bgr, compress=True, encoding="bgr8")
             )
 
             # Publish 3d point
