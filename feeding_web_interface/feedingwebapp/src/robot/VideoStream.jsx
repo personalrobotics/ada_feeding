@@ -7,6 +7,17 @@ import { useROS, subscribeToROSTopic, unsubscribeFromROSTopic } from '../ros/ros
 import { createPeerConnection } from '../webrtc/webrtc_helpers'
 import { REALSENSE_WIDTH, REALSENSE_HEIGHT } from '../Pages/Constants'
 
+/**
+ * Renders a video stream from the robot.
+ *
+ * NOTE: This page *must* be rendered on the robot, otherwise it will have
+ * incredible lag.
+ *
+ * @param {string} webrtcURL - The URL of the webrtc signalling server.
+ * @param {string} topic - The topic to subscribe to.
+ *
+ * @returns {object} A canvas element that displays the video stream.
+ */
 function VideoStream(props) {
   const canvas = useRef(null)
   const img = useMemo(() => document.createElement('img'), [])

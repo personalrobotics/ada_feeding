@@ -6,6 +6,14 @@ import PropTypes from 'prop-types'
 import { ROBOT_COMPRESSED_IMG_TOPICS } from '../Pages/Constants'
 import VideoStream from './VideoStream'
 
+/**
+ * Renders all the video streams from the robot.
+ *
+ * NOTE: This page *must* be rendered on the robot, otherwise it will have
+ * incredible lag.
+ *
+ * @param {string} webrtcURL - The URL of the webrtc signalling server.
+ */
 function RobotVideoStreams(props) {
   console.log('Rendering RobotVideoStreams', ROBOT_COMPRESSED_IMG_TOPICS)
   return (

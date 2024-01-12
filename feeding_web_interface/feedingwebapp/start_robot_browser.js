@@ -21,7 +21,7 @@ if (process.argv.length > 2) {
   ///////////////////////////////////////////////
 
   const browser = await chromium.launch({
-    headless: false, // default is true
+    headless: true, // default is true
     ignoreHTTPSErrors: true, // avoid ERR_CERT_COMMON_NAME_INVALID
     defaultViewport: null,
     args: [

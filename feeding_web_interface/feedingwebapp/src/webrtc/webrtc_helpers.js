@@ -2,6 +2,16 @@
 
 import axios from 'axios'
 
+/**
+ * Creates a peer connection to the given url and topic. This is intended to work with
+ * the server in server.js.
+ *
+ * @param {string} url The url of the server to connect to.
+ * @param {string} topic The topic to subscribe to.
+ * @param {function} onTrackAdded The callback function to call when a track is added.
+ * @param {function} onConnectionEnd The callback function to call when the connection ends.
+ * @returns {object} The RTCPeerConnection.
+ */
 export function createPeerConnection(url, topic, onTrackAdded, onConnectionEnd) {
   try {
     const peerConnection = new RTCPeerConnection({
