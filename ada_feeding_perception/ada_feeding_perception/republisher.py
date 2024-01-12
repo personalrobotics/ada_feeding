@@ -118,7 +118,12 @@ class Republisher(Node):
             self.topic_types.append(import_from_string(topic_type_str))
 
         # For each topic, create a callback, publisher, and subscriber
-        num_topics = min(len(self.from_topics), len(self.topic_types), len(to_topics), len(target_rates))
+        num_topics = min(
+            len(self.from_topics),
+            len(self.topic_types),
+            len(to_topics),
+            len(target_rates),
+        )
         self.callbacks = []
         self.pubs = []
         self.subs = []
@@ -175,7 +180,16 @@ class Republisher(Node):
     def load_parameters(
         self,
     ) -> Tuple[
-        List[str], List[str], List[str], List[str], List[List[str]], str, int, int, int, int
+        List[str],
+        List[str],
+        List[str],
+        List[str],
+        List[List[str]],
+        str,
+        int,
+        int,
+        int,
+        int,
     ]:
         """
         Load the parameters for the republisher.
@@ -376,7 +390,10 @@ class Republisher(Node):
         )
 
     def create_callback(
-        self, i: int, post_processors: List[Callable[[Any], Any]], target_rate: float,
+        self,
+        i: int,
+        post_processors: List[Callable[[Any], Any]],
+        target_rate: float,
     ) -> Callable:
         """
         Create the callback for the subscriber.
@@ -399,7 +416,7 @@ class Republisher(Node):
         if target_rate <= 0:
             interval = -math.inf
         else:
-            interval = 1.0/target_rate
+            interval = 1.0 / target_rate
         last_published_time = None
 
         def callback(msg: Any):
@@ -417,7 +434,10 @@ class Republisher(Node):
             # )
             for post_processor in post_processors:
                 msg = post_processor(msg)
-            if (last_published_time is None or time.time() - last_published_time >= interval):
+            if (
+                last_published_time is None
+                or time.time() - last_published_time >= interval
+            ):
                 self.pubs[i].publish(msg)
                 last_published_time = time.time()
 
