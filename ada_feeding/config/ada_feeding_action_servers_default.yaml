@@ -139,11 +139,17 @@ ada_feeding_action_servers:
         tree_kwargs: # optional
           face_detection_msg_timeout: 10.0 # sec
           face_detection_timeout: 5.0 # sec
+          # The below has the fork slightly tilted at the mouth
+          # fork_target_orientation_from_mouth: # In mouth frame, +x out of mouth, +z towards top of head
+          #   - 0.5751716
+          #   - -0.5751716
+          #   - -0.4113121
+          #   - 0.4113121
           fork_target_orientation_from_mouth: # In mouth frame, +x out of mouth, +z towards top of head
-            - 0.5751716
-            - -0.5751716
-            - -0.4113121
-            - 0.4113121
+            - 0.5
+            - -0.5
+            - -0.5
+            - 0.5
           plan_distance_from_mouth:
             - 0.025 # m
             - 0.0 # m

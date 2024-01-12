@@ -262,13 +262,14 @@ class MoveFromMouthTree(MoveToTree):
         def moveit2_move_to_staging_pose(
             cartesian: bool,
         ) -> py_trees.behaviour.Behaviour:
+            suffix = "Cartesian" if cartesian else "Kinematic"
             return py_trees.composites.Sequence(
-                name=name + "MoveToStagingConfigurationViaMoveIt2Cartesian",
+                name=name + "MoveToStagingConfigurationViaMoveIt2"+suffix,
                 memory=True,
                 children=[
                     # Goal configuration: target position
                     MoveIt2PositionConstraint(
-                        name="MoveToStagingPoseCartesianPositionGoalConstraint",
+                        name="MoveToStagingPosePositionGoalConstraint"+suffix,
                         ns=name,
                         inputs={
                             "position": self.staging_configuration_position,
@@ -280,7 +281,7 @@ class MoveFromMouthTree(MoveToTree):
                     ),
                     # Goal configuration: target orientation
                     MoveIt2OrientationConstraint(
-                        name="MoveToStagingPoseCartesianOrientationGoalConstraint",
+                        name="MoveToStagingPoseOrientationGoalConstraint"+suffix,
                         ns=name,
                         inputs={
                             "quat_xyzw": self.staging_configuration_quat_xyzw,
@@ -295,7 +296,7 @@ class MoveFromMouthTree(MoveToTree):
                     get_staging_path_constraints(),
                     # Plan
                     MoveIt2Plan(
-                        name="MoveToStagingPoseCartesianPlan",
+                        name="MoveToStagingPosePlan"+suffix,
                         ns=name,
                         inputs={
                             "goal_constraints": BlackboardKey("goal_constraints"),
@@ -311,7 +312,7 @@ class MoveFromMouthTree(MoveToTree):
                             "cartesian_jump_threshold": (
                                 self.cartesian_jump_threshold_to_staging_configuration
                             ),
-                            "cartesian_fraction_threshold": 0.60,  # Fine if its low since the user can retry
+                            "cartesian_fraction_threshold": 0.20,  # Fine if its low since the user can retry
                             "cartesian_max_step": (
                                 self.cartesian_max_step_to_staging_configuration
                             ),
@@ -320,13 +321,13 @@ class MoveFromMouthTree(MoveToTree):
                     ),
                     # Execute
                     MoveIt2Execute(
-                        name="MoveToStagingPoseCartesianExecute",
+                        name="MoveToStagingPoseExecute"+suffix,
                         ns=name,
                         inputs={"trajectory": BlackboardKey("trajectory")},
                         outputs={},
                     ),
-                ],  # End MoveToStagingConfigurationViaMoveIt2Cartesian.children
-            )  # End MoveToStagingConfigurationViaMoveIt2Cartesian
+                ],  # End MoveToStagingConfigurationViaMoveIt2.children
+            )  # End MoveToStagingConfigurationViaMoveIt2
 
         # Use a custom speed profile to do angular motions at the end.
         max_pose_distance = 0.0
@@ -435,9 +436,9 @@ class MoveFromMouthTree(MoveToTree):
                                 # If that fails, try to move to the staging configuration with a
                                 # MoveIt2 cartesian path
                                 moveit2_move_to_staging_pose(cartesian=True),
-                                # If that fails, try to move to the staging configuration with a
-                                # MoveIt2 kinematic path
-                                moveit2_move_to_staging_pose(cartesian=False),
+                                # NOTE: Although we considered a kinematic plan,
+                                # kinematic plans around the face can be dangerous
+                                # and unexpected, so we decided to not use them.
                             ],  # End MoveToStagingConfigurationSelector.children
                         ),  # End MoveToStagingConfigurationSelector
                     ],  # End AllowWheelchairCollisionScope.workers
