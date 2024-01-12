@@ -1,5 +1,8 @@
 // React Imports
 import React, { useCallback, useMemo, useRef } from 'react'
+// PropTypes is used to validate that the used props are in fact passed to this
+// Component
+import PropTypes from 'prop-types'
 import Button from 'react-bootstrap/Button'
 import { useMediaQuery } from 'react-responsive'
 import { View } from 'react-native'
@@ -17,7 +20,7 @@ import VideoFeed from '../VideoFeed'
  * the user to teleoperate the robot with Cartesian Control until the plate
  * is satisfactorily in view.
  */
-const PlateLocator = () => {
+const PlateLocator = (props) => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
   // Get robot motion flag for plate locator
@@ -176,7 +179,14 @@ const PlateLocator = () => {
   return (
     <View style={{ flex: 'auto', flexDirection: dimension, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
       <View ref={videoParentRef} style={{ flex: 5, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-        <VideoFeed parent={videoParentRef} marginTop={margin} marginBottom={margin} marginLeft={margin} marginRight={margin} />
+        <VideoFeed
+          parent={videoParentRef}
+          marginTop={margin}
+          marginBottom={margin}
+          marginLeft={margin}
+          marginRight={margin}
+          webrtcURL={props.webrtcURL}
+        />
       </View>
       <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center' }}>
         {directionalArrows()}
@@ -184,6 +194,10 @@ const PlateLocator = () => {
       </View>
     </View>
   )
+}
+PlateLocator.propTypes = {
+  // The URL of the webrtc signalling server
+  webrtcURL: PropTypes.string.isRequired
 }
 
 export default PlateLocator

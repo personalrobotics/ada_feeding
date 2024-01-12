@@ -1,5 +1,8 @@
 // React Imports
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+// PropTypes is used to validate that the used props are in fact passed to this
+// Component
+import PropTypes from 'prop-types'
 import Button from 'react-bootstrap/Button'
 import { useMediaQuery } from 'react-responsive'
 import { View } from 'react-native'
@@ -23,7 +26,7 @@ import VideoFeed from '../VideoFeed'
  * configuration. It displays the output of face detection, and automatically
  * moves on to `R_MovingToMouth` when a face is detected.
  */
-const DetectingFace = () => {
+const DetectingFace = (props) => {
   // Keep track of whether a mouth has been detected or not
   const [mouthDetected, setMouthDetected] = useState(false)
   // Get the relevant global variables
@@ -230,6 +233,7 @@ const DetectingFace = () => {
                 marginLeft={margin}
                 marginRight={margin}
                 topic={FACE_DETECTION_IMG_TOPIC}
+                webrtcURL={props.webrtcURL}
               />
             </View>
           </View>
@@ -336,6 +340,7 @@ const DetectingFace = () => {
     moveToMouthImage,
     moveToRestingImage,
     moveAbovePlateImage,
+    props.webrtcURL,
     textFontSize,
     buttonHeight,
     buttonWidth,
@@ -349,4 +354,9 @@ const DetectingFace = () => {
   // Render the component
   return fullPageView()
 }
+DetectingFace.propTypes = {
+  // The URL of the webrtc signalling server
+  webrtcURL: PropTypes.string.isRequired
+}
+
 export default DetectingFace

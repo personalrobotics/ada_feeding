@@ -9,6 +9,7 @@ import Modal from 'react-bootstrap/Modal'
 import PropTypes from 'prop-types'
 
 // Local imports
+import { CAMERA_FEED_TOPIC } from '../Constants'
 import { convertRemToPixels } from '../../helpers'
 import VideoFeed from '../Home/VideoFeed'
 
@@ -49,13 +50,14 @@ function LiveVideoModal(props) {
       <Modal.Body ref={modalBodyRef} style={{ overflow: 'hidden' }}>
         <center>
           <VideoFeed
-            topic='/local/camera/color/image_raw/compressed'
+            topic={CAMERA_FEED_TOPIC}
             updateRateHz={10}
             parent={modalBodyRef}
             marginTop={margin}
             marginBottom={margin}
             marginLeft={margin}
             marginRight={margin}
+            webrtcURL={props.webrtcURL}
           />
         </center>
       </Modal.Body>
@@ -66,7 +68,9 @@ LiveVideoModal.propTypes = {
   // Whether or not the modal is visible
   show: PropTypes.bool.isRequired,
   // Callback function for when the modal is hidden
-  onHide: PropTypes.func.isRequired
+  onHide: PropTypes.func.isRequired,
+  // The URL of the webrtc signalling server
+  webrtcURL: PropTypes.string.isRequired
 }
 
 export default LiveVideoModal

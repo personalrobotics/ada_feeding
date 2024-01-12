@@ -482,14 +482,7 @@ const BiteSelection = (props) => {
                 height: '100%'
               }}
             >
-              <VideoFeed
-                parent={videoParentRef}
-                marginTop={margin}
-                marginBottom={margin}
-                marginLeft={margin}
-                marginRight={margin}
-                pointClicked={imageClicked}
-              />
+              <VideoFeed parent={videoParentRef} pointClicked={imageClicked} webrtcURL={props.webrtcURL} />
             </View>
           </View>
           <View
@@ -568,7 +561,6 @@ const BiteSelection = (props) => {
   }, [
     doneEatingClicked,
     dimension,
-    margin,
     textFontSize,
     actionStatusText,
     renderMaskButtons,
@@ -576,6 +568,7 @@ const BiteSelection = (props) => {
     videoParentRef,
     imageClicked,
     props.debug,
+    props.webrtcURL,
     debugButton
   ])
 
@@ -587,7 +580,9 @@ BiteSelection.propTypes = {
    * Whether to run it in debug mode (e.g., if you aren't simulatenously running
    * the robot) or not
    */
-  debug: PropTypes.bool.isRequired
+  debug: PropTypes.bool.isRequired,
+  // The URL of the webrtc signalling server
+  webrtcURL: PropTypes.string.isRequired
 }
 
 export default BiteSelection

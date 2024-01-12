@@ -1,5 +1,6 @@
 // React imports
 import React, { useCallback, useEffect, useState } from 'react'
+import PropTypes from 'prop-types'
 // The NavBar is the navigation toolbar at the top
 import Navbar from 'react-bootstrap/Navbar'
 import Nav from 'react-bootstrap/Nav'
@@ -20,7 +21,7 @@ import LiveVideoModal from './LiveVideoModal'
  * clicking "Video", and the ToastContainer popup that specifies when the user
  * cannot click Settings.
  */
-const Header = () => {
+const Header = (props) => {
   // Create a local state variable to toggle on/off the video
   // TODO: Since this local state variable is in the header, the LiveVideoModal
   // continues showing even if the state changes. Is this desirable? Perhaps
@@ -163,9 +164,13 @@ const Header = () => {
        * The LiveVideoModal toggles on and off with the Video button and shows the
        * robot's live camera feed.
        */}
-      <LiveVideoModal show={videoShow} onHide={() => setVideoShow(false)} />
+      <LiveVideoModal show={videoShow} onHide={() => setVideoShow(false)} webrtcURL={props.webrtcURL} />
     </>
   )
+}
+Header.propTypes = {
+  // The URL of the webrtc signalling server
+  webrtcURL: PropTypes.string.isRequired
 }
 
 export default Header

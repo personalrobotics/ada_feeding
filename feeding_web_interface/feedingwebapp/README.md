@@ -22,6 +22,7 @@ The overall user flow for this robot can be seen below.
 4. Source the directory: `source install/setup.bash`
 5. Navigate to the web app folder: `cd feeding_web_interface/feedingwebapp`
 6. Install web app dependencies: `npm install --legacy-peer-deps`
+    1. You may also have to run `npx playwright install`; you might be prompted to run that after `node --env-file=.env start_robot_browser.js`
 * Consider checking out the Troubleshooting section if there are errors in this process. 
 If your workspace has already been built, you should run `source install/setup.bash`. If this is your first time building your workspace, you should `source /opt/ros/humble/setup.bash` and then run `colcon build` followed by `source install/setup.bash`. For both of the above cases, you must be in the main directory of your workspace (e.g., `src` should be a subfolder).
 
@@ -31,7 +32,9 @@ If your workspace has already been built, you should run `source install/setup.b
     - If you're not running the robot code alongside the app, set `REACT_APP_DEBUG=true` in `.env` to be able to move past screens where the app is waiting on the robot. The default is `REACT_APP_DEBUG=false`.
     - If users will be accessing the app on a device other than the device running ROS, change `REACT_APP_ROS_SERVER_HOSTNAME` in `.env` to be the hostname of the device running ROS. Ensure that device is configured so that ports 8080 (web_video_server default) and 9090 (rosbridge default) can be accessed.
 3. Start the app: `npm start`
-4. Use a web browser to navigate to `localhost:3000` to see the application.
+4. Start the WebRTC signalling server: `node --env-file=.env server.js`
+5. Start the headless robot browser: `node --env-file=.env start_robot_browser.js`
+6. Use a web browser to navigate to `localhost:3000` to see the application.
 
 #### Launching Dummy Nodes
 This repository includes several dummy nodes that match the interface that the robot nodes will use. By running the dummy nodes alongside the app, we can test the app's communication with the robot even without actual robot code running.
@@ -108,3 +111,4 @@ Note that we use `npm`, not `yarn`, to manage dependencies for this project.
 
 ## Troubleshooting
 * While installing, if you run into an error about `PUPPETEER`, the fix is to just follow the instructions provided in console and to actually disable it. 
+* If you get an error says `--env-file` is a bad option, you have to update your `node` verion.
