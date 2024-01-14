@@ -155,7 +155,7 @@ def get_add_in_front_of_wheelchair_wall_behavior(
             "collision_object_orientation": (0.0, 0.0, 0.0, 1.0),
             "prim_type": 1,  # Box=1. See shape_msgs/SolidPrimitive.msg
             "dims": [
-                0.75,
+                0.65,
                 0.01,
                 0.4,
             ],  # Box has 3 dims: [x, y, z]
