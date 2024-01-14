@@ -217,24 +217,24 @@ class MoveFromMouthTree(MoveToTree):
                 # pylint: disable=abstract-class-instantiated
                 # This is fine, not sure why pylint doesn't like it
                 return py_trees.behaviours.Success()
-            else:
-                # Orientation path constraint to keep the fork straight
-                return MoveIt2OrientationConstraint(
-                    name="KeepForkStraightPathConstraint",
-                    ns=name,
-                    inputs={
-                        "quat_xyzw": (
-                            self.orientation_constraint_to_staging_configuration_quaternion
-                        ),
-                        "tolerance": (
-                            self.orientation_constraint_to_staging_configuration_tolerances
-                        ),
-                        "parameterization": 1,  # Rotation vector
-                    },
-                    outputs={
-                        "constraints": BlackboardKey("path_constraints"),
-                    },
-                )
+            # Orientation path constraint to keep the fork straight
+            return MoveIt2OrientationConstraint(
+                name="KeepForkStraightPathConstraint",
+                ns=name,
+                inputs={
+                    "quat_xyzw": (
+                        self.orientation_constraint_to_staging_configuration_quaternion
+                    ),
+                    "tolerance": (
+                        self.orientation_constraint_to_staging_configuration_tolerances
+                    ),
+                    "parameterization": 1,  # Rotation vector
+                },
+                outputs={
+                    "constraints": BlackboardKey("path_constraints"),
+                },
+            )
+
         if self.orientation_constraint_to_end_configuration_quaternion is None:
             # pylint: disable=abstract-class-instantiated
             # This is fine, not sure why pylint doesn't like it
@@ -264,12 +264,12 @@ class MoveFromMouthTree(MoveToTree):
         ) -> py_trees.behaviour.Behaviour:
             suffix = "Cartesian" if cartesian else "Kinematic"
             return py_trees.composites.Sequence(
-                name=name + "MoveToStagingConfigurationViaMoveIt2"+suffix,
+                name=name + "MoveToStagingConfigurationViaMoveIt2" + suffix,
                 memory=True,
                 children=[
                     # Goal configuration: target position
                     MoveIt2PositionConstraint(
-                        name="MoveToStagingPosePositionGoalConstraint"+suffix,
+                        name="MoveToStagingPosePositionGoalConstraint" + suffix,
                         ns=name,
                         inputs={
                             "position": self.staging_configuration_position,
@@ -281,7 +281,7 @@ class MoveFromMouthTree(MoveToTree):
                     ),
                     # Goal configuration: target orientation
                     MoveIt2OrientationConstraint(
-                        name="MoveToStagingPoseOrientationGoalConstraint"+suffix,
+                        name="MoveToStagingPoseOrientationGoalConstraint" + suffix,
                         ns=name,
                         inputs={
                             "quat_xyzw": self.staging_configuration_quat_xyzw,
@@ -296,7 +296,7 @@ class MoveFromMouthTree(MoveToTree):
                     get_staging_path_constraints(),
                     # Plan
                     MoveIt2Plan(
-                        name="MoveToStagingPosePlan"+suffix,
+                        name="MoveToStagingPosePlan" + suffix,
                         ns=name,
                         inputs={
                             "goal_constraints": BlackboardKey("goal_constraints"),
@@ -321,7 +321,7 @@ class MoveFromMouthTree(MoveToTree):
                     ),
                     # Execute
                     MoveIt2Execute(
-                        name="MoveToStagingPoseExecute"+suffix,
+                        name="MoveToStagingPoseExecute" + suffix,
                         ns=name,
                         inputs={"trajectory": BlackboardKey("trajectory")},
                         outputs={},
