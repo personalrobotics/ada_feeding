@@ -3,9 +3,16 @@
 const { chromium } = require('playwright')
 const logId = 'start_robot_browser.js'
 
-let robotHostname = 'localhost:' + process.env.REACT_APP_PORT
-if (process.argv.length > 2) {
-  robotHostname = process.argv[2]
+var argv = require('minimist')(process.argv.slice(2))
+let hostname = 'localhost'
+if (argv.hostname) {
+  hostname = argv.hostname
+}
+let port = 3000
+if (argv.port) {
+  if (!isNaN(parseInt(argv.port))) {
+    port = parseInt(argv.port)
+  }
 }
 
 ;(async () => {
@@ -19,6 +26,9 @@ if (process.argv.length > 2) {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
   ///////////////////////////////////////////////
+
+  let url = `http://${hostname}:${port}/robot`
+  console.log(logId + ': Accessing URL: ' + url)
 
   const browser = await chromium.launch({
     headless: true, // default is true
@@ -34,7 +44,7 @@ if (process.argv.length > 2) {
 
   while (num_tries < max_tries) {
     try {
-      await page.goto(`http://${robotHostname}/robot`)
+      await page.goto(url)
       console.log(logId + ': finished loading')
       break
     } catch (e) {

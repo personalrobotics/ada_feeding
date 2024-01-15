@@ -12,6 +12,7 @@ The overall user flow for this robot can be seen below.
 
 ## Dependencies
 - [Node.js](https://nodejs.org/en/download/package-manager)
+- [`serve` must be globally installed](https://create-react-app.dev/docs/deployment/) (ideally with `sudo`): `sudo npm install -g serve`
 
 ## Getting Started in Computer
 
@@ -33,7 +34,7 @@ If your workspace has already been built, you should run `source install/setup.b
     - If users will be accessing the app on a device other than the device running ROS, change `REACT_APP_ROS_SERVER_HOSTNAME` in `.env` to be the hostname of the device running ROS. Ensure that device is configured so that ports 8080 (web_video_server default) and 9090 (rosbridge default) can be accessed.
 3. Start the app: `npm start`
 4. Start the WebRTC signalling server: `node --env-file=.env server.js`
-5. Start the headless robot browser: `node --env-file=.env start_robot_browser.js`
+5. Start the headless robot browser: `node start_robot_browser.js`
 6. Use a web browser to navigate to `localhost:3000` to see the application.
 
 #### Launching Dummy Nodes
