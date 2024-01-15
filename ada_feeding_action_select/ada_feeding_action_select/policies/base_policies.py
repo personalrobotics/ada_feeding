@@ -131,7 +131,7 @@ class ConstantPolicy(Policy):
         self, context: npt.NDArray
     ) -> Union[List[Tuple[float, AcquisitionSchema]], str]:
         # Docstring copied from @override
-        return (1.0, self.library[self.index])
+        return [(1.0, self.library[self.index])]
 
     def update(
         self,

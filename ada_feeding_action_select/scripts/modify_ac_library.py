@@ -29,12 +29,11 @@ def main(in_fname: str, out_fname: str):
             )
             if tot < rad_thresh:
                 action[f"{prefix}_angular"] = [0.0, 0.0, 0.0]
-                action[f"{prefix}_duration"] = 0.0
                 continue
 
-            speed_ratio = float(target_rads / np.linalg.norm(
-                np.array(action[f"{prefix}_angular"])
-            ))
+            speed_ratio = float(
+                target_rads / np.linalg.norm(np.array(action[f"{prefix}_angular"]))
+            )
             action[f"{prefix}_angular"] = [
                 float(val * speed_ratio) for val in action[f"{prefix}_angular"]
             ]

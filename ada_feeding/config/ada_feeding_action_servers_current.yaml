@@ -2,5 +2,9 @@
 ada_feeding_action_servers:
   ros__parameters:
     current:
+      MoveToMouth.tree_kwargs.plan_distance_from_mouth:
+      - 0.025
+      - 0.0
+      - -0.01
       overridden_parameters:
-      - ""
+      - MoveToMouth.tree_kwargs.plan_distance_from_mouth

@@ -66,10 +66,10 @@ class PolicyServices(Node):
             namespace="",
             parameters=[
                 (
-                    f"{self.get_parameter('policy')}.policy_class",
+                    f"{self.get_parameter('policy').value}.policy_class",
                     None,
                     ParameterDescriptor(
-                        name="policy_class",
+                        name=f"{self.get_parameter('policy').value}.policy_class",
                         type=ParameterType.PARAMETER_STRING,
                         description=(
                             "The class of the policy to run, must subclass "
@@ -166,26 +166,28 @@ class PolicyServices(Node):
 
         ### Data Record Initialization
         self.record_dir = None
-        if self.get_parameter("record_dir") is not None:
+        if self.get_parameter("record_dir").value is not None:
             self.record_dir = os.path.join(
                 get_package_share_directory("ada_feeding_action_select"),
                 "data",
-                self.get_parameter("record_dir"),
+                self.get_parameter("record_dir").value,
             )
             if not os.path.isdir(self.record_dir):
                 self.get_logger().error(
                     f"Data record dir not found, cannot save: {self.record_dir}"
                 )
                 self.record_dir = None
+        if self.record_dir is not None:
+            self.get_logger().info(f"Saving records to: {self.record_dir}")
 
         ### Checkpoint Initialization
         # Checkpoint Directory
         self.checkpoint_dir = None
-        if self.get_parameter("checkpoint_dir") is not None:
+        if self.get_parameter("checkpoint_dir").value is not None:
             self.checkpoint_dir = os.path.join(
                 get_package_share_directory("ada_feeding_action_select"),
                 "data",
-                self.get_parameter("checkpoint_dir"),
+                self.get_parameter("checkpoint_dir").value,
             )
             if not os.path.isdir(self.checkpoint_dir):
                 self.get_logger().error(
@@ -196,8 +198,8 @@ class PolicyServices(Node):
         # Checkpoint Saving
         self.checkpoint_save_period = (
             0
-            if (self.get_parameter("checkpoint_save_period") < 1)
-            else self.get_parameter("checkpoint_save_period")
+            if (self.get_parameter("checkpoint_save_period").value < 1)
+            else self.get_parameter("checkpoint_save_period").value
         )
         self.n_successful_reports = 0
         if self.checkpoint_save_period > 0 and self.checkpoint_dir is not None:
@@ -205,7 +207,7 @@ class PolicyServices(Node):
 
         # Load latest checkpoint if requested
         if (
-            self.get_parameter("checkpoint_load_latest")
+            self.get_parameter("checkpoint_load_latest").value
             and self.checkpoint_dir is not None
         ):
             pt_files = sorted(
@@ -245,12 +247,12 @@ class PolicyServices(Node):
         self._declare_parameters()
 
         # Name of the Policy
-        policy_name = self.get_parameter("policy")
+        policy_name = self.get_parameter("policy").value
         if policy_name is None:
             raise ValueError("Policy Name is required.")
 
         # Import the policy class
-        policy_cls_name = self.get_parameter("policy_class")
+        policy_cls_name = self.get_parameter(f"{policy_name}.policy_class").value
         if policy_cls_name is None:
             raise ValueError("Policy Class is required.")
 
@@ -260,19 +262,19 @@ class PolicyServices(Node):
         policy_kwargs = self.get_kwargs(f"{policy_name}.kws", f"{policy_name}.kwargs")
 
         # Get the context adapter
-        context_cls = import_from_string(self.get_parameter("context_class"))
+        context_cls = import_from_string(self.get_parameter("context_class").value)
         assert issubclass(
             context_cls, ContextAdapter
-        ), f"{self.get_parameter('context_class')} must subclass ContextAdapter"
+        ), f"{self.get_parameter('context_class').value} must subclass ContextAdapter"
 
         context_kwargs = self.get_kwargs("context_kws", "context_kwargs")
         self.context_adapter = context_cls(**context_kwargs)
 
         # Get the posthoc adapter
-        posthoc_cls = import_from_string(self.get_parameter("posthoc_class"))
+        posthoc_cls = import_from_string(self.get_parameter("posthoc_class").value)
         assert issubclass(
             posthoc_cls, PosthocAdapter
-        ), f"{self.get_parameter('posthoc_class')} must subclass PosthocAdapter"
+        ), f"{self.get_parameter('posthoc_class').value} must subclass PosthocAdapter"
 
         posthoc_kwargs = self.get_kwargs("posthoc_kws", "posthoc_kwargs")
         self.posthoc_adapter = posthoc_cls(**posthoc_kwargs)
@@ -316,11 +318,14 @@ class PolicyServices(Node):
         context = self.context_adapter.get_context(request.food_context)
         if context.size != self.context_adapter.dim:
             response.status = "Bad Context"
+            self.get_logger().warning(
+                f"Context Adapter Failure: Incorrect Context Dim Returned"
+            )
             return response
 
         # Run the policy
         response.status = "Success"
-        choice = self.policy.choice(context, response)
+        choice = self.policy.choice(context)
         if isinstance(choice, str):
             response.status = choice
         else:
@@ -334,6 +339,9 @@ class PolicyServices(Node):
                 "response": copy.deepcopy(response),
             }
             response.id = select_id
+
+        if response.status != "Success":
+            self.get_logger().warning(f"Policy Choice Failure: '{response.status}'")
         return response
 
     def report_callback(

@@ -4,7 +4,7 @@ actions:
   - 0.0
   - 0.0
   - 0.0
-  ext_duration: 0.0
+  ext_duration: 1.5
   ext_force: 50.0
   ext_linear:
   - 0.0
@@ -41,7 +41,7 @@ actions:
   - 0.0
   - 0.0
   - 0.0
-  ext_duration: 0.0
+  ext_duration: 1.5
   ext_force: 50.0
   ext_linear:
   - 0.0
@@ -78,7 +78,7 @@ actions:
   - 0.0
   - 0.0
   - 0.0
-  ext_duration: 0.0
+  ext_duration: 1.5
   ext_force: 50.0
   ext_linear:
   - 0.0
@@ -496,7 +496,7 @@ actions:
   - 0.0
   - 0.0
   - 0.0
-  grasp_duration: 0.0
+  grasp_duration: 1.5199480056762695
   grasp_force: 32.62159643755134
   grasp_linear:
   - -0.00014181063490461415

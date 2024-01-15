@@ -8,7 +8,7 @@ https://github.com/personalrobotics/posthoc_learn
 
 # Standard imports
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional, Tuple
 
 # Third-party imports
 import numpy as np
@@ -47,10 +47,10 @@ class CropConfig:
     force_inc: float = 0.01  # Amount to increase thresh each crop loop
     min_len: int = 20  # Minimum length to crop
     recurse_pad: int = 10  # how far after noise to check each loop
-    lookahead: List[int] = [
+    lookahead: Tuple[int, ...] = (
         15,
         30,
-    ]  # Indices to lookahead to check for drop below thresh
+    )  # Indices to lookahead to check for drop below thresh
 
 
 def crop(
