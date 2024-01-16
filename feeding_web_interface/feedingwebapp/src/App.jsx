@@ -60,7 +60,6 @@ function App() {
 
   // Get the WebRTC signalling server URL
   const webrtcURL = 'http://'.concat(window.location.hostname, ':', process.env.REACT_APP_SIGNALLING_SERVER_PORT)
-  console.log(process.env)
 
   // Get the debug flag
   const debug = process.env.REACT_APP_DEBUG === 'true'

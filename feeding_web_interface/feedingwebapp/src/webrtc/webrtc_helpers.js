@@ -2,93 +2,99 @@
 
 import axios from 'axios'
 
-/**
- * Creates a peer connection to the given url and topic. This is intended to work with
- * the server in server.js.
- *
- * @param {string} url The url of the server to connect to.
- * @param {string} topic The topic to subscribe to.
- * @param {function} onTrackAdded The callback function to call when a track is added.
- * @param {function} onConnectionEnd The callback function to call when the connection ends.
- * @returns {object} The RTCPeerConnection.
- */
-export function createPeerConnection(url, topic, onTrackAdded, onConnectionEnd) {
-  try {
-    const peerConnection = new RTCPeerConnection({
-      iceServers: [
-        {
-          urls: 'stun:stun1.l.google.com:19302'
-        }
-      ]
-    })
+export class WebRTCConnection {
+  constructor({ url, topic, onTrackAdded, onConnectionEnd, transceiverKind = null, transceiverOptions = null, stream = null }) {
+    this.url = url
+    this.topic = topic
+    this.onTrackAdded = onTrackAdded
+    this.onConnectionEnd = onConnectionEnd
+    this.transceiverKind = transceiverKind
+    this.transceiverOptions = transceiverOptions
+    this.stream = stream
 
-    peerConnection.ontrack = onTrackAdded
-
-    peerConnection.onnegotiationneeded = async () => {
-      try {
-        const offer = await peerConnection.createOffer()
-        await peerConnection.setLocalDescription(offer)
-        const ip = await getIPAddress()
-        const payload = {
-          sdp: peerConnection.localDescription,
-          topic: topic,
-          ip: ip
-        }
-        console.log('sending payload', payload)
-        const { data } = await axios.post(url, payload)
-        const desc = new RTCSessionDescription(data.sdp)
-        peerConnection.setRemoteDescription(desc).catch((e) => console.log(e))
-      } catch (e) {
-        console.log(e)
-      }
-    }
-
-    peerConnection.oniceconnectionstatechange = () => {
-      if (!peerConnection) throw new Error('peerConnection is undefined')
-      if (peerConnection.iceConnectionState === 'failed') {
-        peerConnection.restartIce()
-      }
-    }
-
-    peerConnection.onconnectionstatechange = () => {
-      if (!peerConnection) throw new Error('peerConnection is undefined')
-      if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected') {
-        console.error(peerConnection.connectionState, 'Resetting the PeerConnection')
-        if (onConnectionEnd) onConnectionEnd()
-        // peerConnection = createPeerConnection(url, topic, onTrackAdded, onConnectionEnd)
-      }
-      console.log('peerConnection.onconnectionstatechange', peerConnection.connectionState)
-    }
-
-    peerConnection.onicecandidateerror = (event) => {
-      console.error('ICE candidate gathering error:', event.errorCode)
-    }
-
-    console.log('Created RTCPeerConnection')
-    return peerConnection
-  } catch (err) {
-    console.error('Failed to create PeerConnection, exception: ' + err.message)
-    return
+    this.createPeerConnection()
   }
-}
 
-/**
- * Closes the given peer connection.
- * @param {object} peerConnection The RTCPeerConnection to close.
- */
-export function closePeerConnection(peerConnection) {
-  if (!peerConnection) return
-  console.log('Closing RTCPeerConnection', peerConnection)
-  if (peerConnection.connectionState !== 'closed') {
-    const senders = peerConnection.getSenders()
-    senders.forEach((sender) => peerConnection.removeTrack(sender))
-    peerConnection.close()
-    console.log('Closed RTCPeerConnection')
+  createPeerConnection() {
+    try {
+      this.peerConnection = new RTCPeerConnection({
+        iceServers: [
+          {
+            urls: 'stun:stun1.l.google.com:19302'
+          }
+        ]
+      })
+
+      this.peerConnection.ontrack = this.onTrackAdded
+
+      this.peerConnection.onnegotiationneeded = async () => {
+        try {
+          const offer = await this.peerConnection.createOffer()
+          await this.peerConnection.setLocalDescription(offer)
+          const ip = await this.getIPAddress()
+          const payload = {
+            sdp: this.peerConnection.localDescription,
+            topic: this.topic,
+            ip: ip
+          }
+          console.log('sending payload', payload)
+          const { data } = await axios.post(this.url, payload)
+          const desc = new RTCSessionDescription(data.sdp)
+          this.peerConnection.setRemoteDescription(desc).catch((e) => console.log(e))
+        } catch (e) {
+          console.log(e)
+        }
+      }
+
+      this.peerConnection.oniceconnectionstatechange = () => {
+        if (!this.peerConnection) throw new Error('peerConnection is undefined')
+        if (this.peerConnection.iceConnectionState === 'failed') {
+          this.peerConnection.restartIce()
+        }
+      }
+
+      this.peerConnection.onconnectionstatechange = () => {
+        if (!this.peerConnection) throw new Error('peerConnection is undefined')
+        if (this.peerConnection.connectionState === 'failed' || this.peerConnection.connectionState === 'disconnected') {
+          console.error(this.peerConnection.connectionState, 'Resetting the PeerConnection')
+          if (this.onConnectionEnd) this.onConnectionEnd()
+          this.createPeerConnection()
+        }
+        console.log('peerConnection.onconnectionstatechange', this.peerConnection.connectionState)
+      }
+
+      this.peerConnection.onicecandidateerror = (event) => {
+        console.error('ICE candidate gathering error:', event.errorCode)
+      }
+
+      if (this.transceiverKind) {
+        this.peerConnection.addTransceiver(this.transceiverKind, this.transceiverOptions)
+      }
+
+      if (this.stream) {
+        this.stream.getTracks().forEach((track) => this.peerConnection.addTrack(track, this.stream))
+      }
+
+      console.log('Created RTCPeerConnection', this)
+    } catch (err) {
+      console.error('Failed to create PeerConnection, exception: ' + err.message)
+    }
   }
-}
 
-export async function getIPAddress() {
-  const res = await axios.get('https://api.ipify.org/?format=json')
-  console.log(res.data)
-  return res.data.ip
+  close() {
+    if (!this.peerConnection) return
+    console.log('Closing RTCPeerConnection', this.peerConnection)
+    if (this.peerConnection.connectionState !== 'closed') {
+      const senders = this.peerConnection.getSenders()
+      senders.forEach((sender) => this.peerConnection.removeTrack(sender))
+      this.peerConnection.close()
+      console.log('Closed RTCPeerConnection')
+    }
+  }
+
+  async getIPAddress() {
+    const res = await axios.get('https://api.ipify.org/?format=json')
+    console.log(res.data)
+    return res.data.ip
+  }
 }

@@ -1,5 +1,5 @@
 // React imports
-import React, { useMemo, useRef } from 'react'
+import React from 'react'
 import { useMediaQuery } from 'react-responsive'
 // The Modal is a screen that appears on top of the main app, and can be toggled
 // on and off.
@@ -10,7 +10,6 @@ import PropTypes from 'prop-types'
 
 // Local imports
 import { CAMERA_FEED_TOPIC } from '../Constants'
-import { convertRemToPixels } from '../../helpers'
 import VideoFeed from '../Home/VideoFeed'
 
 /**
@@ -19,12 +18,6 @@ import VideoFeed from '../Home/VideoFeed'
  * TODO: Consider what will happen if the connection to ROS isn't working.
  */
 function LiveVideoModal(props) {
-  // Variables to render the VideoFeed
-  const modalBodyRef = useRef(null)
-  // Margin for the video feed and between the mask buttons. Note this cannot
-  // be re-defined per render, otherwise it messes up re-rendering order upon
-  // resize in VideoFeed.
-  const margin = useMemo(() => convertRemToPixels(1), [])
   // Flag to check if the current orientation is portrait
   const isPortrait = useMediaQuery({ query: '(orientation: portrait)' })
   // Text font size for portrait and landscape orientations
@@ -47,19 +40,19 @@ function LiveVideoModal(props) {
           Live Video
         </Modal.Title>
       </Modal.Header>
-      <Modal.Body ref={modalBodyRef} style={{ overflow: 'hidden' }}>
-        <center>
-          <VideoFeed
-            topic={CAMERA_FEED_TOPIC}
-            updateRateHz={10}
-            parent={modalBodyRef}
-            marginTop={margin}
-            marginBottom={margin}
-            marginLeft={margin}
-            marginRight={margin}
-            webrtcURL={props.webrtcURL}
-          />
-        </center>
+      <Modal.Body
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+          height: '100%',
+          overflow: 'hidden'
+        }}
+      >
+        <VideoFeed topic={CAMERA_FEED_TOPIC} updateRateHz={10} webrtcURL={props.webrtcURL} />
       </Modal.Body>
     </Modal>
   )

@@ -1,5 +1,5 @@
 // React Imports
-import React, { useCallback, useMemo, useRef } from 'react'
+import React, { useCallback, useMemo } from 'react'
 // PropTypes is used to validate that the used props are in fact passed to this
 // Component
 import PropTypes from 'prop-types'
@@ -31,8 +31,6 @@ const PlateLocator = (props) => {
   // Indicator of how to arrange screen elements based on orientation
   let dimension = isPortrait ? 'column' : 'row'
 
-  // Variables to render the VideoFeed
-  const videoParentRef = useRef(null)
   // Margin for the video feed and between the mask buttons. Note this cannot
   // be re-defined per render, otherwise it messes up re-rendering order upon
   // resize in VideoFeed.
@@ -178,15 +176,8 @@ const PlateLocator = (props) => {
   // Render the component
   return (
     <View style={{ flex: 'auto', flexDirection: dimension, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
-      <View ref={videoParentRef} style={{ flex: 5, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-        <VideoFeed
-          parent={videoParentRef}
-          marginTop={margin}
-          marginBottom={margin}
-          marginLeft={margin}
-          marginRight={margin}
-          webrtcURL={props.webrtcURL}
-        />
+      <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+        <VideoFeed marginTop={margin} marginBottom={margin} marginLeft={margin} marginRight={margin} webrtcURL={props.webrtcURL} />
       </View>
       <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center' }}>
         {directionalArrows()}

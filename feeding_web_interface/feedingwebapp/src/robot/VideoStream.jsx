@@ -4,7 +4,7 @@ import PropTypes from 'prop-types'
 
 // Local imports
 import { useROS, subscribeToROSTopic, unsubscribeFromROSTopic } from '../ros/ros_helpers'
-import { createPeerConnection } from '../webrtc/webrtc_helpers'
+import { WebRTCConnection } from '../webrtc/webrtc_helpers'
 import { REALSENSE_WIDTH, REALSENSE_HEIGHT } from '../Pages/Constants'
 
 /**
@@ -76,17 +76,17 @@ function VideoStream(props) {
     const stream = canvas.current.captureStream()
 
     // Create the peer connection
-    console.log('Creating peer connection', createPeerConnection)
-    const peer = createPeerConnection(props.webrtcURL + '/publish', props.topic)
-
-    // Add the stream to the peer connection
-    stream.getTracks().forEach((track) => peer.addTrack(track, stream))
+    const webRTCConnection = new WebRTCConnection({
+      url: props.webrtcURL + '/publish',
+      topic: props.topic,
+      stream: stream
+    })
 
     // Draw the image on the canvas
     drawImage()
 
     return () => {
-      peer.close()
+      webRTCConnection.close()
     }
   }, [canvas, drawImage, props.topic, props.webrtcURL])
 

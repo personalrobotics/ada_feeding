@@ -39,8 +39,6 @@ const BiteSelection = (props) => {
   // Get icon image for move to mouth
   let moveToStagingConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingConfiguration]
 
-  // Reference to the DOM element of the parent of the video feed
-  const videoParentRef = useRef(null)
   // Margin for the video feed and between the mask buttons. Note this cannot
   // be re-defined per render, otherwise it messes up re-rendering order upon
   // resize in VideoFeed.
@@ -473,7 +471,6 @@ const BiteSelection = (props) => {
               <h5 style={{ textAlign: 'center', fontSize: textFontSize }}>Click on image to select food.</h5>
             </View>
             <View
-              ref={videoParentRef}
               style={{
                 flex: 9,
                 alignItems: 'center',
@@ -482,7 +479,7 @@ const BiteSelection = (props) => {
                 height: '100%'
               }}
             >
-              <VideoFeed parent={videoParentRef} pointClicked={imageClicked} webrtcURL={props.webrtcURL} />
+              <VideoFeed pointClicked={imageClicked} webrtcURL={props.webrtcURL} />
             </View>
           </View>
           <View
@@ -565,7 +562,6 @@ const BiteSelection = (props) => {
     actionStatusText,
     renderMaskButtons,
     skipAcquisisitionButton,
-    videoParentRef,
     imageClicked,
     props.debug,
     props.webrtcURL,

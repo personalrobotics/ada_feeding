@@ -38,7 +38,7 @@ app.post('/subscribe', async ({ body }, res) => {
   // Close any old peers on the same IP address
   const topic = body.topic
   const key = body.ip + ':' + topic
-  if (key in subscribePeers) {
+  if (key in subscribePeers && subscribePeers[key] && subscribePeers[key].connectionState !== 'closed') {
     const senders = subscribePeers[key].getSenders()
     senders.forEach((sender) => subscribePeers[key].removeTrack(sender))
     subscribePeers[key].close()
@@ -79,7 +79,7 @@ app.post('/publish', async ({ body }, res) => {
   // Close any old peers on the same IP address
   const topic = body.topic
   const key = body.ip + ':' + topic
-  if (key in publishPeers) {
+  if (key in publishPeers && publishPeers[key] && publishPeers[key].connectionState !== 'closed') {
     const senders = publishPeers[key].getSenders()
     senders.forEach((sender) => publishPeers[key].removeTrack(sender))
     publishPeers[key].close()

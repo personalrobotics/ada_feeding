@@ -1,12 +1,14 @@
 // React Imports
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import Button from 'react-bootstrap/Button'
 // PropTypes is used to validate that the used props are in fact passed to this Component
 import PropTypes from 'prop-types'
+import { View } from 'react-native'
 
 // Local Imports
 import { CAMERA_FEED_TOPIC, REALSENSE_WIDTH, REALSENSE_HEIGHT } from '../Constants'
 import { useWindowSize } from '../../helpers'
-import { createPeerConnection, closePeerConnection } from '../../webrtc/webrtc_helpers'
+import { WebRTCConnection } from '../../webrtc/webrtc_helpers'
 
 /**
  * Takes in an imageWidth and imageHeight, and returns a width and height that
@@ -80,38 +82,49 @@ const VideoFeed = (props) => {
   const [imgWidth, setImgWidth] = useState(0)
   const [imgHeight, setImgHeight] = useState(0)
   const [scaleFactor, setScaleFactor] = useState(0.0)
+  const [refreshCount, setRefreshCount] = useState(0)
 
   // Ref for the video element
   const videoRef = useRef(null)
+  const parentRef = useRef(null)
+
+  // Rendering variables
+  let textFontSize = '2.5vh'
 
   /**
    * Create the peer connection
    */
   useEffect(() => {
     // Create the peer connection
-    console.log('Creating peer connection', createPeerConnection, props.webrtcURL)
-    const peer = createPeerConnection(props.webrtcURL + '/subscribe', props.topic, (event) => {
-      console.log('Got track event', event)
-      if (event.streams && event.streams[0]) {
-        videoRef.current.srcObject = event.streams[0]
-        console.log('video', videoRef.current)
-      }
+    console.log('Creating peer connection', props.webrtcURL, refreshCount)
+    const webRTCConnection = new WebRTCConnection({
+      url: props.webrtcURL + '/subscribe',
+      topic: props.topic,
+      onTrackAdded: (event) => {
+        console.log('Got track event', event)
+        if (event.streams && event.streams[0]) {
+          videoRef.current.srcObject = event.streams[0]
+          console.log('video', videoRef.current)
+        }
+      },
+      transceiverKind: 'video',
+      transceiverOptions: { direction: 'recvonly' }
     })
-    peer.addTransceiver('video', { direction: 'recvonly' })
 
     return () => {
-      closePeerConnection(peer)
+      webRTCConnection.close()
     }
-  }, [props.topic, props.webrtcURL, videoRef])
+  }, [props.topic, props.webrtcURL, refreshCount, videoRef])
 
   // Callback to resize the image based on the parent width and height
   const resizeImage = useCallback(() => {
-    if (!props.parent.current) {
+    console.log('Resizing image', parentRef.current)
+    if (!parentRef.current) {
       return
     }
     // Get the width and height of the parent DOM element
-    let parentWidth = props.parent.current.clientWidth
-    let parentHeight = props.parent.current.clientHeight
+    let parentWidth = parentRef.current.clientWidth
+    let parentHeight = parentRef.current.clientHeight
 
     // Calculate the width and height of the video feed
     let {
@@ -133,12 +146,7 @@ const VideoFeed = (props) => {
     setImgWidth(childWidth)
     setImgHeight(childHeight)
     setScaleFactor(childScaleFactor)
-  }, [props.parent, props.marginTop, props.marginBottom, props.marginLeft, props.marginRight])
-
-  // When the component is first mounted, resize the image
-  useEffect(() => {
-    resizeImage()
-  }, [resizeImage])
+  }, [parentRef, props.marginTop, props.marginBottom, props.marginLeft, props.marginRight])
 
   /** When the resize event is triggered, the elements have not yet been laid out,
    * and hence the parent width/height might not be accurate yet based on the
@@ -149,6 +157,11 @@ const VideoFeed = (props) => {
     setTimeout(resizeImage, 0)
   }, [resizeImage])
   useWindowSize(resizeImageNextEventCycle)
+
+  // When the component is first mounted, resize the image
+  useEffect(() => {
+    resizeImageNextEventCycle()
+  }, [resizeImageNextEventCycle])
 
   // The callback for when the image is clicked.
   const imageClicked = useCallback(
@@ -172,32 +185,65 @@ const VideoFeed = (props) => {
   // Render the component
   return (
     <>
-      <video
-        playsInline
-        autoPlay
-        muted
-        ref={videoRef}
-        alt='Live video feed from the robot'
+      <View
+        ref={parentRef}
         style={{
-          width: imgWidth,
-          height: imgHeight,
-          display: 'block',
+          flex: 4,
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          width: '100%',
+          height: '100%'
         }}
-        onClick={props.pointClicked ? imageClicked : null}
-      />
+      >
+        <video
+          playsInline
+          autoPlay
+          muted
+          ref={videoRef}
+          alt='Live video feed from the robot'
+          style={{
+            width: imgWidth,
+            height: imgHeight,
+            display: 'block',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          onClick={props.pointClicked ? imageClicked : null}
+        />
+      </View>
+      <View
+        style={{
+          flex: 1,
+          // TODO: consider replacing 'center' with 'end' if the margin is 0.
+          alignItems: 'center',
+          justifyContent: 'start',
+          width: '100%',
+          height: '100%'
+        }}
+      >
+        <Button
+          variant='warning'
+          className='mx-2 mb-2 btn-huge'
+          size='lg'
+          style={{
+            fontSize: textFontSize,
+            width: '60%',
+            color: 'black'
+          }}
+          onClick={() => setRefreshCount(refreshCount + 1)}
+        >
+          Reload Video
+        </Button>
+      </View>
     </>
   )
 }
 VideoFeed.propTypes = {
-  // The ref to the parent DOM element. Null if the component is not yet mounted
-  parent: PropTypes.object.isRequired,
   // The margins around the video feed
-  marginTop: PropTypes.number.isRequired,
-  marginBottom: PropTypes.number.isRequired,
-  marginLeft: PropTypes.number.isRequired,
-  marginRight: PropTypes.number.isRequired,
+  marginTop: PropTypes.number,
+  marginBottom: PropTypes.number,
+  marginLeft: PropTypes.number,
+  marginRight: PropTypes.number,
   // The topic of the video feed
   topic: PropTypes.string.isRequired,
   /**
@@ -211,6 +257,10 @@ VideoFeed.propTypes = {
   webrtcURL: PropTypes.string.isRequired
 }
 VideoFeed.defaultProps = {
+  marginTop: 0,
+  marginBottom: 0,
+  marginLeft: 0,
+  marginRight: 0,
   topic: CAMERA_FEED_TOPIC
 }
 
