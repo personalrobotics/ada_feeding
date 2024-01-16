@@ -10,18 +10,18 @@ ada_feeding_action_servers:
       server_names:
         - MoveAbovePlate
         - AcquireFood
+        - MoveToRestingPosition
         - MoveToStagingConfiguration
         - MoveToMouth
-        - MoveFromMouthToStagingConfiguration
-        - MoveFromMouthToAbovePlate
-        - MoveFromMouthToRestingPosition
-        - MoveToRestingPosition
+        - MoveFromMouth
         - MoveToStowLocation
         - TestMoveToPose
         - StartServo
         - StopServo
 
       # Parameters for the MoveAbovePlate action
+      # TODO: Consider whether to make a version of this with a wheelchair wall
+      # for when moving away from the mouth.
       MoveAbovePlate: # required
         action_type: ada_feeding_msgs.action.MoveTo # required
         tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
@@ -59,25 +59,36 @@ ada_feeding_action_servers:
             -  4.99555 # j2n6s200_joint_6
         tick_rate: 10 # Hz, optional, default: 30
 
-    # Parameters for the MoveToRestingPosition action
+      # Parameters for the MoveToRestingPosition action
+      # TODO: Consider whether to make a version of this with a wheelchair wall
+      # for when moving away from the mouth.
       MoveToRestingPosition: # required
         action_type: ada_feeding_msgs.action.MoveTo # required
-        tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
+        tree_class: ada_feeding.trees.MoveToConfigurationWithWheelchairWallTree # required
         tree_kws: # optional
-          - joint_positions
-          - toggle_watchdog_listener
-          - f_mag
+          - goal_configuration
+          # - orientation_constraint_quaternion
+          # - orientation_constraint_tolerances
+          - allowed_planning_time
           - max_velocity_scaling_factor
         tree_kwargs: # optional
-          joint_positions: # required
+          goal_configuration: # required
             - -1.94672 # j2n6s200_joint_1
             -  2.51268 # j2n6s200_joint_2
             -  0.35653 # j2n6s200_joint_3
             - -4.76501 # j2n6s200_joint_4
             -  5.99991 # j2n6s200_joint_5
             -  4.99555 # j2n6s200_joint_6
-          toggle_watchdog_listener: false # optional, default: true
-          f_mag: 4.0 # N
+          orientation_constraint_quaternion: # perpendicular to the base link
+            - 0.707168 # x
+            - 0.0 # y
+            - 0.0 # z
+            - 0.707168 # w
+          orientation_constraint_tolerances: # Note that tolerances are w.r.t. the axes in quat_xyzw_path
+            - 0.6 # x, rad
+            - 3.14159 # y, rad
+            - 0.5 # z, rad
+          allowed_planning_time: 1.0 # secs
           max_velocity_scaling_factor: 0.65 # optional in (0.0, 1.0], default: 0.1
         tick_rate: 10 # Hz, optional, default: 30
 
@@ -139,26 +150,33 @@ ada_feeding_action_servers:
         tree_kwargs: # optional
           face_detection_msg_timeout: 10.0 # sec
           face_detection_timeout: 5.0 # sec
+          # The below has the fork slightly tilted at the mouth
+          # fork_target_orientation_from_mouth: # In mouth frame, +x out of mouth, +z towards top of head
+          #   - 0.5751716
+          #   - -0.5751716
+          #   - -0.4113121
+          #   - 0.4113121
           fork_target_orientation_from_mouth: # In mouth frame, +x out of mouth, +z towards top of head
-            - 0.5751716
-            - -0.5751716
-            - -0.4113121
-            - 0.4113121
+            - 0.5
+            - -0.5
+            - -0.5
+            - 0.5
           plan_distance_from_mouth:
             - 0.025 # m
             - 0.0 # m
             - -0.01 # m
         tick_rate: 10 # Hz, optional, default: 30
 
-      # Parameters for the MoveFromMouthToStagingConfiguration action.
-      # No need for orientation path constraints when moving above the plate
-      # because presumably there is no food on the fork.
-      MoveFromMouthToStagingConfiguration: # required
+      # Parameters for the MoveFromMouth action.
+      MoveFromMouth: # required
         action_type: ada_feeding_msgs.action.MoveTo # required
         tree_class: ada_feeding.trees.MoveFromMouthTree # required
         tree_kws: # optional
           - staging_configuration_position
           - staging_configuration_quat_xyzw
+          - max_velocity_scaling_factor_to_staging_configuration
+          - cartesian_jump_threshold_to_staging_configuration
+          - cartesian_max_step_to_staging_configuration
         tree_kwargs: # optional
           staging_configuration_position:
             -  0.28323 # x
@@ -169,81 +187,9 @@ ada_feeding_action_servers:
             -  0.69757 # y
             -  0.71645 # z
             - -0.00811 # w
-        tick_rate: 10 # Hz, optional, default: 30
-
-      # Parameters for the MoveFromMouthToAbovePlate action.
-      # No need for orientation path constraints when moving above the plate
-      # because presumably there is no food on the fork.
-      MoveFromMouthToAbovePlate: # required
-        action_type: ada_feeding_msgs.action.MoveTo # required
-        tree_class: ada_feeding.trees.MoveFromMouthTree # required
-        tree_kws: # optional
-          - staging_configuration_position
-          - staging_configuration_quat_xyzw
-          - end_configuration
-          - max_velocity_scaling_factor_to_end_configuration
-        tree_kwargs: # optional
-          staging_configuration_position:
-            -  0.28323 # x
-            -  0.07289 # y
-            -  0.69509 # z
-          staging_configuration_quat_xyzw:
-            -  0.00472 # x
-            -  0.69757 # y
-            -  0.71645 # z
-            - -0.00811 # w
-          end_configuration:
-            - -2.11666 # j2n6s200_joint_1
-            -  3.34967 # j2n6s200_joint_2
-            -  2.04129 # j2n6s200_joint_3
-            - -2.30031 # j2n6s200_joint_4
-            - -2.34026 # j2n6s200_joint_5
-            -  2.95450 # j2n6s200_joint_6
-          max_velocity_scaling_factor_to_end_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
-        tick_rate: 10 # Hz, optional, default: 30
-
-      # Parameters for the MoveFromMouthToRestingPosition action.
-      # Need orientation path constraints to end config because
-      # presumably there is still food on the fork.
-      MoveFromMouthToRestingPosition: # required
-        action_type: ada_feeding_msgs.action.MoveTo # required
-        tree_class: ada_feeding.trees.MoveFromMouthTree # required
-        tree_kws: # optional
-          - staging_configuration_position
-          - staging_configuration_quat_xyzw
-          - end_configuration
-          # - orientation_constraint_to_end_configuration_quaternion
-          # - orientation_constraint_to_end_configuration_tolerances
-          - allowed_planning_time_to_end_configuration
-          - max_velocity_scaling_factor_to_end_configuration
-        tree_kwargs: # optional
-          staging_configuration_position:
-            -  0.28323 # x
-            -  0.07289 # y
-            -  0.69509 # z
-          staging_configuration_quat_xyzw:
-            -  0.00472 # x
-            -  0.69757 # y
-            -  0.71645 # z
-            - -0.00811 # w
-          end_configuration:
-            - -1.94672 # j2n6s200_joint_1
-            -  2.51268 # j2n6s200_joint_2
-            -  0.35653 # j2n6s200_joint_3
-            - -4.76501 # j2n6s200_joint_4
-            -  5.99991 # j2n6s200_joint_5
-            -  4.99555 # j2n6s200_joint_6
-          orientation_constraint_to_end_configuration_quaternion: # perpendicular to the base link
-            - 0.707168 # x
-            - 0.0 # y
-            - 0.0 # z
-            - 0.707168 # w
-          orientation_constraint_to_end_configuration_tolerances: # Note that tolerances are w.r.t. the axes in quat_xyzw_path
-            - 0.6 # x, rad
-            - 3.14159 # y, rad
-            - 0.5 # z, rad
-          max_velocity_scaling_factor_to_end_configuration: 0.65 # optional in (0.0, 1.0], default: 0.1
-          allowed_planning_time_to_end_configuration: 1.0 # secs
+          max_velocity_scaling_factor_to_staging_configuration: 0.4 # optional in (0.0, 1.0], default: 0.1
+          cartesian_jump_threshold_to_staging_configuration: 2.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
+          cartesian_max_step_to_staging_configuration: 0.01 # m
         tick_rate: 10 # Hz, optional, default: 30
 
       # Parameters for the MoveToStowLocation action
