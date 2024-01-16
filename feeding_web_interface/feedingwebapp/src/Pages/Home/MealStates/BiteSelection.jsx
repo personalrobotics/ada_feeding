@@ -415,27 +415,6 @@ const BiteSelection = (props) => {
     return (
       <>
         {/**
-         * In addition to selecting their desired food item, the user has two
-         * other options on this page:
-         *   - If their desired food item is not visible on the plate, they can
-         *     decide to teleoperate the robot until it is visible.
-         *   - Instead of selecting their next bite, the user can indicate that
-         *     they are done eating.
-         */}
-        <View
-          style={{
-            flex: 2,
-            flexDirection: 'row',
-            justifyContent: 'center',
-            alignItems: 'center',
-            width: '100%'
-          }}
-        >
-          <Button className='doneButton' style={{ fontSize: textFontSize, marginTop: '0', marginBottom: '0' }} onClick={doneEatingClicked}>
-            ✅ Done Eating
-          </Button>
-        </View>
-        {/**
          * Below the buttons, one half of the screen will present the video feed.
          * The other half will present the action status text, the food buttons
          * if the action has succeeded, and a button to proceed without acquiring
@@ -443,7 +422,7 @@ const BiteSelection = (props) => {
          */}
         <View
           style={{
-            flex: 17,
+            flex: 20,
             flexDirection: dimension,
             alignItems: 'center',
             width: '100%'
@@ -451,7 +430,7 @@ const BiteSelection = (props) => {
         >
           <View
             style={{
-              flex: 1,
+              flex: 3,
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
@@ -472,7 +451,7 @@ const BiteSelection = (props) => {
             </View>
             <View
               style={{
-                flex: 9,
+                flex: 13,
                 alignItems: 'center',
                 justifyContent: 'center',
                 width: '100%',
@@ -484,7 +463,7 @@ const BiteSelection = (props) => {
           </View>
           <View
             style={{
-              flex: 1,
+              flex: 2,
               flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
@@ -505,7 +484,7 @@ const BiteSelection = (props) => {
             </View>
             <View
               style={{
-                flex: 9,
+                flex: 12,
                 alignItems: 'center',
                 justifyContent: 'center',
                 width: '100%',
@@ -526,14 +505,62 @@ const BiteSelection = (props) => {
               </View>
               <View
                 style={{
-                  flex: 4,
+                  flex: 3,
+                  flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
                   width: '100%',
                   height: '100%'
                 }}
               >
-                {skipAcquisisitionButton()}
+                <View
+                  style={{
+                    flex: 2,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '100%',
+                    height: '100%'
+                  }}
+                >
+                  {skipAcquisisitionButton()}
+                </View>
+                <View
+                  style={{
+                    flex: 2,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '100%',
+                    height: '100%'
+                  }}
+                >
+                  <View
+                    style={{
+                      flex: 1,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '100%',
+                      height: '100%'
+                    }}
+                  ></View>
+                  <View
+                    style={{
+                      flex: 4,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '100%',
+                      height: '100%'
+                    }}
+                  >
+                    <Button
+                      className='doneButton mx-2 btn-huge'
+                      size='lg'
+                      style={{ fontSize: textFontSize, marginTop: '0', marginBottom: '0', height: '90%' }}
+                      onClick={doneEatingClicked}
+                    >
+                      ✅ Done Eating
+                    </Button>
+                  </View>
+                </View>
               </View>
               {props.debug ? (
                 <View
