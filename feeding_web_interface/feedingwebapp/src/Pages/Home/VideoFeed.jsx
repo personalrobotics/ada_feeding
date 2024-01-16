@@ -6,7 +6,7 @@ import PropTypes from 'prop-types'
 // Local Imports
 import { CAMERA_FEED_TOPIC, REALSENSE_WIDTH, REALSENSE_HEIGHT } from '../Constants'
 import { useWindowSize } from '../../helpers'
-import { createPeerConnection } from '../../webrtc/webrtc_helpers'
+import { createPeerConnection, closePeerConnection } from '../../webrtc/webrtc_helpers'
 
 /**
  * Takes in an imageWidth and imageHeight, and returns a width and height that
@@ -100,7 +100,7 @@ const VideoFeed = (props) => {
     peer.addTransceiver('video', { direction: 'recvonly' })
 
     return () => {
-      peer.close()
+      closePeerConnection(peer)
     }
   }, [props.topic, props.webrtcURL, videoRef])
 

@@ -17,7 +17,7 @@ export function createPeerConnection(url, topic, onTrackAdded, onConnectionEnd) 
     const peerConnection = new RTCPeerConnection({
       iceServers: [
         {
-          urls: 'stun:stun.stunprotocol.org'
+          urls: 'stun:stun1.l.google.com:19302'
         }
       ]
     })
@@ -28,9 +28,11 @@ export function createPeerConnection(url, topic, onTrackAdded, onConnectionEnd) 
       try {
         const offer = await peerConnection.createOffer()
         await peerConnection.setLocalDescription(offer)
+        const ip = await getIPAddress()
         const payload = {
           sdp: peerConnection.localDescription,
-          topic: topic
+          topic: topic,
+          ip: ip
         }
         console.log('sending payload', payload)
         const { data } = await axios.post(url, payload)
@@ -53,7 +55,7 @@ export function createPeerConnection(url, topic, onTrackAdded, onConnectionEnd) 
       if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected') {
         console.error(peerConnection.connectionState, 'Resetting the PeerConnection')
         if (onConnectionEnd) onConnectionEnd()
-        createPeerConnection()
+        // peerConnection = createPeerConnection(url, topic, onTrackAdded, onConnectionEnd)
       }
       console.log('peerConnection.onconnectionstatechange', peerConnection.connectionState)
     }
@@ -68,4 +70,25 @@ export function createPeerConnection(url, topic, onTrackAdded, onConnectionEnd) 
     console.error('Failed to create PeerConnection, exception: ' + err.message)
     return
   }
+}
+
+/**
+ * Closes the given peer connection.
+ * @param {object} peerConnection The RTCPeerConnection to close.
+ */
+export function closePeerConnection(peerConnection) {
+  if (!peerConnection) return
+  console.log('Closing RTCPeerConnection', peerConnection)
+  if (peerConnection.connectionState !== 'closed') {
+    const senders = peerConnection.getSenders()
+    senders.forEach((sender) => peerConnection.removeTrack(sender))
+    peerConnection.close()
+    console.log('Closed RTCPeerConnection')
+  }
+}
+
+export async function getIPAddress() {
+  const res = await axios.get('https://api.ipify.org/?format=json')
+  console.log(res.data)
+  return res.data.ip
 }
