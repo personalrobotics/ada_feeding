@@ -4,7 +4,7 @@ import axios from 'axios'
 
 /**
  * Creates a connection to the WebRTC signalling server defined in `server.js`.
- * 
+ *
  * @param {Object} options
  *   @param {string} options.url - The URL of the WebRTC signalling server.
  *   @param {string} options.topic - The topic to subscribe to.
@@ -13,7 +13,7 @@ import axios from 'axios'
  *   @param {string} options.transceiverKind - The kind of transceiver to add to the peer connection.
  *   @param {Object} options.transceiverOptions - The options for the transceiver.
  *   @param {MediaStream} options.stream - The stream to add to the peer connection.
- *  
+ *
  * @returns {WebRTCConnection} The WebRTC connection.
  */
 export class WebRTCConnection {

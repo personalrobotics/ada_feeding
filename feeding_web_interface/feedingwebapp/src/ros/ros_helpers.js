@@ -170,3 +170,35 @@ export function cancelROSAction(actionClient) {
 export function destroyActionClient(actionClient) {
   actionClient.destroyClient()
 }
+
+/**
+ * Takes in an object of type ParameterValue and returns the actual parameter
+ * value. See the message definition for more details:
+ * https://github.com/ros2/rcl_interfaces/blob/rolling/rcl_interfaces/msg/ParameterValue.msg
+ *
+ * @param {object} parameterValue an object of message type ParameterValue
+ */
+export function getParameterValue(parameterValue) {
+  switch (parameterValue.type) {
+    case 1: // bool
+      return parameterValue.bool_value
+    case 2: // integer
+      return parameterValue.integer_value
+    case 3: // double
+      return parameterValue.double_value
+    case 4: // string
+      return parameterValue.string_value
+    case 5: // byte array
+      return parameterValue.byte_array_value
+    case 6: // bool array
+      return parameterValue.bool_array_value
+    case 7: // integer array
+      return parameterValue.integer_array_value
+    case 8: // double array
+      return parameterValue.double_array_value
+    case 9: // string array
+      return parameterValue.string_array_value
+    default: // not set
+      return null
+  }
+}

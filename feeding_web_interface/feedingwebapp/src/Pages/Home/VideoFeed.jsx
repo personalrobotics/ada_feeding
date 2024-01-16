@@ -173,13 +173,14 @@ const VideoFeed = (props) => {
       let x_raw = Math.round(x / scaleFactor) // x position within the raw image.
       let y_raw = Math.round(y / scaleFactor) // y position within the raw image.
       console.log('Button click on unscaled image: (' + x_raw + ', ' + y_raw + ')')
+      let pointClicked = props.pointClicked
 
       // Call the callback function if it exists
-      if (props.pointClicked) {
-        props.pointClicked(x_raw, y_raw)
+      if (pointClicked) {
+        pointClicked(x_raw, y_raw)
       }
     },
-    [props, scaleFactor]
+    [props.pointClicked, scaleFactor]
   )
 
   // Render the component

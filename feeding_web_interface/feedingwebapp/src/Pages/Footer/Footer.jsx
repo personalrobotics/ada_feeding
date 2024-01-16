@@ -9,13 +9,13 @@ import { useMediaQuery } from 'react-responsive'
 import PropTypes from 'prop-types'
 // Local imports
 import { MOVING_STATE_ICON_DICT } from '../Constants'
-import { useGlobalState } from '../GlobalState'
 
 /**
  * The Footer shows a pause button. When users click it, the app tells the robot
  * to immediately pause and displays a back button that allows them to return to
  * previous state and a resume button that allows them to resume current state.
  *
+ * @param {string} mealState - the current meal state
  * @param {bool} paused - whether the robot is currently paused
  * @param {function} pauseCallback - callback function for when the pause button
  *     is clicked
@@ -27,14 +27,12 @@ import { useGlobalState } from '../GlobalState'
  *     button is clicked. If null, don't render the resume button.
  */
 const Footer = (props) => {
-  // Get the current meal state
-  const mealState = useGlobalState((state) => state.mealState)
   // Flag to check if the current orientation is portrait
   const isPortrait = useMediaQuery({ query: '(orientation: portrait)' })
   // Icons for the footer buttons
   let pauseIcon = '/robot_state_imgs/pause_button_icon.svg'
   let backIcon = props.backMealState ? MOVING_STATE_ICON_DICT[props.backMealState] : ''
-  let resumeIcon = MOVING_STATE_ICON_DICT[mealState]
+  let resumeIcon = MOVING_STATE_ICON_DICT[props.mealState]
   // Sizes (width, height, fontsize) of footer buttons
   let pauseButtonWidth = '98vw'
   let backResumeButtonWidth = '47vw'
@@ -95,7 +93,7 @@ const Footer = (props) => {
     (config) => {
       return (
         <>
-          <Row className='justify-content-center'>
+          <Row className='justify-content-center' style={{ width: '100%' }}>
             <Button
               variant={config.variant}
               disabled={config.disabled}
@@ -163,34 +161,37 @@ const Footer = (props) => {
 
   // Render the component
   return (
-    <View>
+    <View style={{ wdith: '100%' }}>
       <MDBFooter bgColor='dark' className='text-center text-lg-left' style={{ width: '100vw' }}>
         <div className='text-center' style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)', paddingBottom: '5px', paddingTop: '5px' }}>
-          {props.paused ? (
-            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
-              <View
-                style={{ flex: 5, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}
-              >
-                {props.backCallback ? renderFooterButton(buttonConfig.back) : <></>}
-              </View>
-              <View
-                style={{ flex: 5, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}
-              >
-                {props.resumeCallback ? renderFooterButton(buttonConfig.resume) : <></>}
-              </View>
-            </View>
-          ) : (
-            renderFooterButton(buttonConfig.pause)
-          )}
+          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+            {props.paused ? (
+              <>
+                <View
+                  style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}
+                >
+                  {props.backCallback ? renderFooterButton(buttonConfig.back) : <></>}
+                </View>
+                <View
+                  style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}
+                >
+                  {props.resumeCallback ? renderFooterButton(buttonConfig.resume) : <></>}
+                </View>
+              </>
+            ) : (
+              renderFooterButton(buttonConfig.pause)
+            )}
+          </View>
         </div>
       </MDBFooter>
     </View>
   )
 }
 Footer.propTypes = {
+  mealState: PropTypes.string.isRequired,
   paused: PropTypes.bool.isRequired,
   pauseCallback: PropTypes.func.isRequired,
-  // If any of the below three are null, the Footer won't render that button
+  // If any of the below two are null, the Footer won't render that button
   resumeCallback: PropTypes.func,
   backCallback: PropTypes.func,
   backMealState: PropTypes.string
