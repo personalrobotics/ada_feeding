@@ -685,6 +685,10 @@ class AcquireFoodTree(MoveToTree):
 
         name = tree.root.name
         blackboard = py_trees.blackboard.Client(name=name, namespace=name)
+        blackboard.register_key(
+            key="action_response", access=py_trees.common.Access.READ
+        )
+        blackboard.register_key(key="action", access=py_trees.common.Access.READ)
 
         # TODO: add posthoc
         response.selection_id = blackboard.action_response.id
