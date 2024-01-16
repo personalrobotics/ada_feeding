@@ -181,6 +181,10 @@ class AcquireFoodTree(MoveToTree):
                                                 linear=Vector3(x=0.0, y=0.0, z=0.03),
                                                 angular=Vector3(),
                                             ),  # Default 1s duration
+                                            "pub_topic": "~/cartesian_twist_cmds",
+                                            "fail_near_collision": False,
+                                            "fail_on_collision": False,
+                                            "fail_on_singularity": False,
                                         },
                                     ),  # Auto Zero-Twist on terminate()
                                     ft_thresh_satisfied(name="FTThreshSatisfied"),
@@ -425,7 +429,11 @@ class AcquireFoodTree(MoveToTree):
                                         name=name,
                                         memory=True,
                                         children=[
-                                            StartServoTree(self._node)
+                                            StartServoTree(
+                                                self._node,
+                                                servo_controller_name="jaco_arm_cartesian_controller",
+                                                start_moveit_servo=False,
+                                            )
                                             .create_tree(name="StartServoScoped")
                                             .root,
                                         ],
@@ -441,7 +449,11 @@ class AcquireFoodTree(MoveToTree):
                                                 f_mag=1.0,
                                                 param_service_name="~/set_servo_controller_parameters",
                                             ),
-                                            StopServoTree(self._node)
+                                            StopServoTree(
+                                                self._node,
+                                                servo_controller_name="jaco_arm_cartesian_controller",
+                                                stop_moveit_servo=False,
+                                            )
                                             .create_tree(name="StopServoScoped")
                                             .root,
                                         ],
@@ -461,7 +473,7 @@ class AcquireFoodTree(MoveToTree):
                                                         retry_call_ros_service(
                                                             name="GraspFTThresh",
                                                             service_type=SetParameters,
-                                                            service_name="~/set_servo_controller_parameters",
+                                                            service_name="~/set_cartesian_controller_parameters",
                                                             # Blackboard, not Constant
                                                             request=None,
                                                             # Need absolute Blackboard name
@@ -524,6 +536,10 @@ class AcquireFoodTree(MoveToTree):
                                                                 "duration": BlackboardKey(
                                                                     "duration"
                                                                 ),
+                                                                "pub_topic": "~/cartesian_twist_cmds",
+                                                                "fail_near_collision": False,
+                                                                "fail_on_collision": False,
+                                                                "fail_on_singularity": False,
                                                             },
                                                         ),  # Auto Zero-Twist on terminate()
                                                         ### Extraction
@@ -593,6 +609,10 @@ class AcquireFoodTree(MoveToTree):
                                                                 "duration": BlackboardKey(
                                                                     "duration"
                                                                 ),
+                                                                "pub_topic": "~/cartesian_twist_cmds",
+                                                                "fail_near_collision": False,
+                                                                "fail_on_collision": False,
+                                                                "fail_on_singularity": False,
                                                             },
                                                         ),  # Auto Zero-Twist on terminate()
                                                         ft_thresh_satisfied(
