@@ -33,6 +33,7 @@ __pycache__/
 
 # Temp files
 *~
+*.bak
 
 # VIM
 [._]*.s[a-v][a-z]

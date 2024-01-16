@@ -680,6 +680,19 @@ class AcquireFoodTree(MoveToTree):
         # Note: if here, tree is root, not a subtree
         if action_type is not AcquireFood:
             return None
+        # Get MoveTo Params
+        response = super().get_result(tree, action_type)
 
-        # TODO: add action_index, posthoc, action_select_hash
-        return super().get_result(tree, action_type)
+        name = tree.root.name
+        blackboard = py_trees.blackboard.Client(name=name, namespace=name)
+
+        # TODO: add posthoc
+        response.selection_id = blackboard.action_response.id
+        try:
+            response.action_index = blackboard.action_response.actions.index(
+                blackboard.action
+            )
+        except ValueError:
+            response.status = response.STATUS_ACTION_NOT_TAKEN
+
+        return response
