@@ -424,7 +424,7 @@ const BiteSelection = (props) => {
          */}
         <View
           style={{
-            flex: 3,
+            flex: 2,
             flexDirection: 'row',
             justifyContent: 'center',
             alignItems: 'center',
