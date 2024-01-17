@@ -22,6 +22,7 @@ const DetectingFace = (props) => {
   // Keep track of whether a mouth has been detected or not
   const [mouthDetected, setMouthDetected] = useState(false)
   // Get the relevant global variables
+  const prevMealState = useGlobalState((state) => state.prevMealState)
   const setMealState = useGlobalState((state) => state.setMealState)
   const setMoveToMouthActionGoal = useGlobalState((state) => state.setMoveToMouthActionGoal)
   const faceDetectionAutoContinue = useGlobalState((state) => state.faceDetectionAutoContinue)
@@ -84,11 +85,14 @@ const DetectingFace = (props) => {
         face_detection: message
       })
       // Automatically move on to the next stage if a face is detected
-      if (faceDetectionAutoContinue) {
+      // If the app got to this screen after moving away from the user's mouth,
+      // don't auto-continue. Only do so if it gets to this page from
+      // R_MovingToStagingConfiguration
+      if (faceDetectionAutoContinue && prevMealState !== MEAL_STATE.R_MovingFromMouth) {
         moveToMouthCallback()
       }
     },
-    [faceDetectionAutoContinue, moveToMouthCallback, setMoveToMouthActionGoal]
+    [faceDetectionAutoContinue, moveToMouthCallback, prevMealState, setMoveToMouthActionGoal]
   )
 
   /** Get the full page view

@@ -103,11 +103,13 @@ export const SETTINGS_STATE = {
  */
 export const useGlobalState = create(
   persist(
-    (set) => ({
+    (set, get) => ({
       // The current app page
       appPage: APP_PAGE.Home,
       // The app's current meal state
       mealState: MEAL_STATE.U_PreMeal,
+      // The app's previous meal state
+      prevMealState: null,
       // The timestamp when the robot transitioned to its current meal state
       mealStateTransitionTime: Date.now(),
       // The currently displayed settings page
@@ -152,6 +154,7 @@ export const useGlobalState = create(
         set(() => {
           let retval = {
             mealState: mealState,
+            prevMealState: get().mealState,
             mealStateTransitionTime: Date.now(),
             biteTransferPageAtFace: false // Reset this flag when the meal state changes
           }
