@@ -9,7 +9,9 @@ sensor_msgs/CompressedImage mask
 # The RGB image that was used for segmentation, cropped to the roi.
 sensor_msgs/CompressedImage rgb_image
 
-# The average of the depth camera readings over the mask (in m)
+# The mean or median of the depth camera readings over the mask (in m)
+# (NOTE: SegmentFromPoint returns median. The name is "average" for legacy
+# purposes)
 float64 average_depth
 
 # An arbitrary ID that defines the segmented item
