@@ -15,6 +15,7 @@ import py_trees
 from py_trees.blackboard import Blackboard
 import py_trees_ros
 from rcl_interfaces.srv import SetParameters
+import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
 from std_msgs.msg import Header
@@ -66,10 +67,19 @@ class AcquireFoodTree(MoveToTree):
 
     """
 
+    # pylint: disable=too-many-arguments
+    # The many parameters makes this tree extremely configurable.
+
     def __init__(
         self,
         node: Node,
         resting_joint_positions: Optional[List[float]] = None,
+        max_velocity_scaling_move_above: Optional[float] = 0.8,
+        max_acceleration_scaling_move_above: Optional[float] = 0.8,
+        max_velocity_scaling_move_into: Optional[float] = 1.0,
+        max_acceleration_scaling_move_into: Optional[float] = 0.8,
+        max_velocity_scaling_to_resting_configuration: Optional[float] = 0.8,
+        max_acceleration_scaling_to_resting_configuration: Optional[float] = 0.8,
     ):
         """
         Initializes tree-specific parameters.
@@ -82,6 +92,16 @@ class AcquireFoodTree(MoveToTree):
         super().__init__(node)
 
         self.resting_joint_positions = resting_joint_positions
+        self.max_velocity_scaling_move_above = max_velocity_scaling_move_above
+        self.max_acceleration_scaling_move_above = max_acceleration_scaling_move_above
+        self.max_velocity_scaling_move_into = max_velocity_scaling_move_into
+        self.max_acceleration_scaling_move_into = max_acceleration_scaling_move_into
+        self.max_velocity_scaling_to_resting_configuration = (
+            max_velocity_scaling_to_resting_configuration
+        )
+        self.max_acceleration_scaling_to_resting_configuration = (
+            max_acceleration_scaling_to_resting_configuration
+        )
 
     @override
     def create_tree(
@@ -136,8 +156,8 @@ class AcquireFoodTree(MoveToTree):
                             ns=name,
                             inputs={
                                 "goal_constraints": BlackboardKey("goal_constraints"),
-                                "max_velocity_scale": 0.8,
-                                "max_acceleration_scale": 0.8,
+                                "max_velocity_scale": self.max_velocity_scaling_to_resting_configuration,
+                                "max_acceleration_scale": self.max_acceleration_scaling_to_resting_configuration,
                             },
                             outputs={"trajectory": BlackboardKey("trajectory")},
                         ),
@@ -242,7 +262,10 @@ class AcquireFoodTree(MoveToTree):
                                 inputs={
                                     "camera_info": BlackboardKey("camera_info"),
                                     "mask": BlackboardKey("mask"),
-                                    "timestamp": BlackboardKey("timestamp"),
+                                    # NOTE: We override the goal message timestamp
+                                    # since sometimes there isn't a recent enough TF
+                                    "timestamp": rclpy.time.Time(),
+                                    # "timestamp": BlackboardKey("timestamp"),
                                     # Default food_frame_id = "food"
                                     # Default world_frame = "world"
                                 },
@@ -319,8 +342,8 @@ class AcquireFoodTree(MoveToTree):
                             ns=name,
                             inputs={
                                 "goal_constraints": BlackboardKey("goal_constraints"),
-                                "max_velocity_scale": 0.8,
-                                "max_acceleration_scale": 0.8,
+                                "max_velocity_scale": self.max_velocity_scaling_move_above,
+                                "max_acceleration_scale": self.max_acceleration_scaling_move_above,
                                 "allowed_planning_time": 1.5,
                             },
                             outputs={"trajectory": BlackboardKey("trajectory")},
@@ -397,8 +420,8 @@ class AcquireFoodTree(MoveToTree):
                                         "goal_constraints": BlackboardKey(
                                             "goal_constraints"
                                         ),
-                                        "max_velocity_scale": 1.0,
-                                        "max_acceleration_scale": 0.8,
+                                        "max_velocity_scale": self.max_velocity_scaling_move_into,
+                                        "max_acceleration_scale": self.max_acceleration_scaling_move_into,
                                         "cartesian": True,
                                         "cartesian_max_step": 0.001,
                                         "cartesian_fraction_threshold": 0.95,

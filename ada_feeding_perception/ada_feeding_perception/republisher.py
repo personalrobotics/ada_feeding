@@ -216,6 +216,10 @@ class Republisher(Node):
         threshold_max : int
             The maximum value to use for the threshold post-processor.
         """
+
+        # pylint: disable=too-many-locals
+        # This needs many parameters given how flexible it is intended to be.
+
         # Read the from topics
         from_topics = self.declare_parameter(
             "from_topics",
