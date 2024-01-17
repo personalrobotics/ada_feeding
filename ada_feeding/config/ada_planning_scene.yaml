@@ -1,6 +1,7 @@
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 ada_planning_scene:
   ros__parameters:
+    publish_hz: 1.0 # the rate at which to publish the planning scene. default: 10.0
     object_ids: # list of objects to add to the planning scene
       - wheelchair
       - wheelchair_collision
