@@ -11,9 +11,7 @@ import os
 import sys
 
 parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--sim", action="store_true", help="If set, run the code in sim"
-)
+parser.add_argument("--sim", action="store_true", help="If set, run the code in sim")
 parser.add_argument(
     "-t",
     "--termination_wait_secs",
@@ -30,7 +28,10 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
-    "-c", "--close", action="store_true", help="If set, only terminate the code in the screens."
+    "-c",
+    "--close",
+    action="store_true",
+    help="If set, only terminate the code in the screens.",
 )
 
 
@@ -62,6 +63,7 @@ async def terminate_code_in_screen(screen_name: str) -> bool:
     await proc.communicate()
     return proc.returncode == 0
 
+
 async def main(args: argparse.Namespace, pwd: str) -> None:
     print(
         "################################################################################"
@@ -70,10 +72,18 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         print(f"# Starting the ada_feeding demo in **{'sim' if args.sim else 'real'}**")
         print("# Prerequisites / Notes:")
         print("#     1. Be in the top-level of your colcon workspace")
+        print(
+            "#     2. Your workspace should be built (e.g., `colcon build --symlink-install`)"
+        )
         if not args.sim:
-            print("#     2. This script does not start code on `nano`.")
+            print(
+                "#     3. The web app should be built (e.g., `npm run build` in `./src/feeding_web_interface/feedingwebapp`)."
+            )
+            print("#     4. Note that script does not start code on `nano`.")
     else:
-        print(f"# Terminating the ada_feeding demo in **{'sim' if args.sim else 'real'}**")
+        print(
+            f"# Terminating the ada_feeding demo in **{'sim' if args.sim else 'real'}**"
+        )
     print(
         "################################################################################"
     )
@@ -105,9 +115,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "feeding": [
                 "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false"
             ],
-            "moveit": [
-                "ros2 launch ada_moveit demo.launch.py sim:=mock"
-            ],
+            "moveit": ["ros2 launch ada_moveit demo.launch.py sim:=mock"],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
                 "node start_robot_browser.js",
@@ -160,15 +168,13 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         if screen_name in existing_screens:
             print(f"#    Found session `{screen_name}`: ", end="")
             await asyncio.create_subprocess_shell(
-                    f"screen -S {screen_name} -X stuff $'\003'"
-                )
+                f"screen -S {screen_name} -X stuff $'\003'"
+            )
             print("Sent SIGINT")
             terminated_screen = True
         elif not args.close:
             print(f"#    Creating session `{screen_name}`")
-            await asyncio.create_subprocess_shell(
-                    f"screen -dmS {screen_name}"
-                )
+            await asyncio.create_subprocess_shell(f"screen -dmS {screen_name}")
             await asyncio.sleep(args.launch_wait_secs)
 
     print(
@@ -196,25 +202,29 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 await asyncio.sleep(args.launch_wait_secs)
                 if command.startswith("sudo"):
                     if sudo_password is None:
-                        sudo_password = get_sudo_password(prompt="#         Enter your sudo password: ")
+                        sudo_password = get_sudo_password(
+                            prompt="#         Enter your sudo password: "
+                        )
                     await asyncio.create_subprocess_shell(
                         f"screen -S {screen_name} -X stuff '{sudo_password}\n'"
                     )
                     await asyncio.sleep(args.launch_wait_secs)
-            
-            
+
         print(
             "################################################################################"
         )
 
         print("# Done! Next steps:")
-        print("#     1. Check individual screens to verify code is working as expected.")
+        print(
+            "#     1. Check individual screens to verify code is working as expected."
+        )
         if not args.sim:
             print("#     2. Push the e-stop button to enable the robot.")
             print("#     3. Start the camera code on `nano`.")
             print("#     4. Note that this script starts the app on port 80.")
         else:
             print("#     2. Note that this script starts the app on port 3000.")
+
 
 def check_pwd_is_colcon_workspace() -> str:
     """
@@ -248,7 +258,8 @@ def check_pwd_is_colcon_workspace() -> str:
     # Return the absolute path to the current directory
     return os.path.abspath(".")
 
-def get_sudo_password(prompt: str='Password: ') -> str:
+
+def get_sudo_password(prompt: str = "Password: ") -> str:
     """
     Get the sudo password from the user.
     """
@@ -256,6 +267,7 @@ def get_sudo_password(prompt: str='Password: ') -> str:
     while not sudo_password:
         sudo_password = getpass.getpass(prompt)
     return sudo_password
+
 
 if __name__ == "__main__":
     # Get the arguments
