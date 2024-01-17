@@ -15,6 +15,7 @@ import py_trees
 from py_trees.blackboard import Blackboard
 import py_trees_ros
 from rcl_interfaces.srv import SetParameters
+import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
 from std_msgs.msg import Header
@@ -65,6 +66,9 @@ class AcquireFoodTree(MoveToTree):
     Tree Blackboard Outputs:
 
     """
+
+    # pylint: disable=too-many-arguments
+    # The many parameters makes this tree extremely configurable.
 
     def __init__(
         self,
@@ -258,7 +262,10 @@ class AcquireFoodTree(MoveToTree):
                                 inputs={
                                     "camera_info": BlackboardKey("camera_info"),
                                     "mask": BlackboardKey("mask"),
-                                    "timestamp": BlackboardKey("timestamp"),
+                                    # NOTE: We override the goal message timestamp
+                                    # since sometimes there isn't a recent enough TF
+                                    "timestamp": rclpy.time.Time(),
+                                    # "timestamp": BlackboardKey("timestamp"),
                                     # Default food_frame_id = "food"
                                     # Default world_frame = "world"
                                 },

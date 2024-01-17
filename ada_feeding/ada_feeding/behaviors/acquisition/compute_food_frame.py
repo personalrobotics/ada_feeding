@@ -187,7 +187,6 @@ class ComputeFoodFrame(BlackboardBehavior):
             self.logger.error("Missing camera_info or world_frame")
             return py_trees.common.Status.FAILURE
 
-        self.logger.info(f"Got Frames")
         camera_frame = self.blackboard_get("camera_info").header.frame_id
         world_frame = self.blackboard_get("world_frame")
         timestamp = self.blackboard_get("timestamp")
@@ -203,16 +202,15 @@ class ComputeFoodFrame(BlackboardBehavior):
             if not self.tf_buffer.can_transform(
                 world_frame,
                 camera_frame,
-                rclpy.time.Time(),
+                timestamp,
             ):
                 # Not yet, wait for it
                 # Use a Timeout decorator to determine failure.
-                self.logger.info(f"Waiting on TF")
                 return py_trees.common.Status.RUNNING
             transform = self.tf_buffer.lookup_transform(
                 world_frame,
                 camera_frame,
-                rclpy.time.Time(),
+                timestamp,
             )
 
         # Set up return objects
