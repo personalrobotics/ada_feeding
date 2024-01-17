@@ -77,7 +77,7 @@ class ADAPlanningScene(Node):
         # topic is available (to call to add to the planning scene)
         wait_for_moveit_hz = self.declare_parameter(
             "wait_for_moveit_hz",
-            30.0,  # default value
+            10.0,  # default value
             ParameterDescriptor(
                 name="wait_for_moveit_hz",
                 type=ParameterType.PARAMETER_DOUBLE,
@@ -89,6 +89,21 @@ class ADAPlanningScene(Node):
             ),
         )
         self.wait_for_moveit_hz = wait_for_moveit_hz.value
+
+        ## The rate (Hz) at which to publish each planning scene object
+        publish_hz = self.declare_parameter(
+            "publish_hz",
+            10.0,  # default value
+            ParameterDescriptor(
+                name="publish_hz",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The rate (Hz) at which to publish each planning scene object."
+                ),
+                read_only=True,
+            ),
+        )
+        self.publish_hz = publish_hz.value
 
         # Read the assets directory path
         assets_dir = self.declare_parameter(
@@ -253,8 +268,11 @@ class ADAPlanningScene(Node):
         """
         Initialize the planning scene with the objects.
         """
+        rate = self.create_rate(self.publish_hz)
         # Add each object to the planning scene
         for object_id, params in self.objects.items():
+            if not rclpy.ok():
+                break
             if params.primitive_type is None:
                 if params.attached:
                     self.moveit2.add_attached_collision_mesh(
@@ -293,7 +311,7 @@ class ADAPlanningScene(Node):
                         quat_xyzw=params.quat_xyzw,
                         frame_id=params.frame_id,
                     )
-            time.sleep(0.2)
+            rate.sleep()
 
 
 def main(args: List = None) -> None:

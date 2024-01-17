@@ -29,6 +29,7 @@ from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.time import Time
 from std_msgs.msg import Header
+from std_srvs.srv import Empty
 
 # Local imports
 from ada_feeding_msgs.action import MoveToMouth
@@ -47,6 +48,7 @@ from ada_feeding.behaviors.transfer import ComputeWheelchairCollisionTransform
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
     pre_moveto_config,
+    retry_call_ros_service,
     scoped_behavior,
     servo_until_pose,
     wait_for_secs,
@@ -84,6 +86,7 @@ class MoveToMouthTree(MoveToTree):
         self,
         node: Node,
         mouth_position_tolerance: float = 0.005,
+        relaxed_mouth_position_tolerance: float = 0.025,
         head_object_id: str = "head",
         max_linear_speed: float = 0.1,
         max_angular_speed: float = 0.15,
@@ -107,6 +110,9 @@ class MoveToMouthTree(MoveToTree):
         Parameters
         ----------
         mouth_position_tolerance: The tolerance for the movement to the mouth pose.
+        relaxed_mouth_position_tolerance: Although the robot will keep moving until
+            it gets to within `mouth_position_tolerance`, if it stops early (e.g., the
+            user leaned forward), it will still return success within `relaxed_mouth_position_tolerance`.
         head_object_id: The ID of the head collision object in the MoveIt2
             planning scene.
         max_linear_speed: The maximum linear speed (m/s) for the motion.
@@ -141,6 +147,7 @@ class MoveToMouthTree(MoveToTree):
 
         # Store the parameters
         self.mouth_position_tolerance = mouth_position_tolerance
+        self.relaxed_mouth_position_tolerance = relaxed_mouth_position_tolerance
         self.head_object_id = head_object_id
         self.max_linear_speed = max_linear_speed
         self.max_angular_speed = max_angular_speed
@@ -425,6 +432,16 @@ class MoveToMouthTree(MoveToTree):
                         "mesh_scale": BlackboardKey("wheelchair_collision_scale"),
                     },
                 ),
+                # Clear the Octomap. This is far enough before motion to mouth
+                # that the Octomap should still get populated before motion
+                # begins.
+                retry_call_ros_service(
+                    name=name + "ClearOctomap",
+                    service_type=Empty,
+                    service_name="~/clear_octomap",
+                    key_request=None,
+                    request=Empty.Request(),
+                ),
                 # The goal constraint of the fork is the mouth pose,
                 # translated `self.plan_distance_from_mouth` in front of the mouth,
                 # and rotated to match the forkTip orientation.
@@ -501,6 +518,9 @@ class MoveToMouthTree(MoveToTree):
                             ns=name,
                             target_pose_stamped_key=BlackboardKey("goal_pose"),
                             tolerance_position=self.mouth_position_tolerance,
+                            tolerance_orientation=0.09,
+                            relaxed_tolerance_position=self.relaxed_mouth_position_tolerance,
+                            relaxed_tolerance_orientation=0.15,
                             duration=10.0,
                             round_decimals=3,
                             # TODO: Consider making the speed slower closer to the mouth.
