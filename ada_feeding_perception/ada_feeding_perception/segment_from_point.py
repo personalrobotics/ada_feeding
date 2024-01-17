@@ -445,7 +445,8 @@ class SegmentFromPointNode(Node):
         #       Erosion/dilation could be useful here.
         cleaned_mask = get_connected_component(mask, seed_point)
         # Get the **median** depth over the mask
-        average_depth_mm = np.median(depth_img[cleaned_mask])
+        masked_depth = depth_img[cleaned_mask]
+        average_depth_mm = np.median(masked_depth[np.nonzero(masked_depth)])
         # Compute the bounding box
         bbox = bbox_from_mask(cleaned_mask)
         # Crop the image and the mask
