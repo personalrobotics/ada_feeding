@@ -39,12 +39,13 @@ async def get_existing_screens():
     """
     Get a list of active screen sessions.
 
-    Adapted from https://serverfault.com/questions/886405/create-screen-session-in-background-only-if-it-doesnt-already-exist
+    Adapted from
+    https://serverfault.com/questions/886405/create-screen-session-in-background-only-if-it-doesnt-already-exist
     """
     proc = await asyncio.create_subprocess_shell(
         "screen -ls", stdout=asyncio.subprocess.PIPE
     )
-    stdout, stderr = await proc.communicate()
+    stdout, _ = await proc.communicate()
     existing_screens = [
         line.split(".")[1].split("\t")[0].rstrip()
         for line in stdout.decode("utf-8").splitlines()
@@ -65,6 +66,19 @@ async def terminate_code_in_screen(screen_name: str) -> bool:
 
 
 async def main(args: argparse.Namespace, pwd: str) -> None:
+    """
+    Start the ada_feeding demo.
+
+    Args:
+        args: The command-line arguments.
+        pwd: The absolute path to the current directory.
+    """
+
+    # pylint: disable=too-many-branches, too-many-statements
+    # This is meant to be a flexible function, hence the many branches and statements.
+    # pylint: disable=redefined-outer-name
+    # That is okay in this case.
+
     print(
         "################################################################################"
     )
@@ -77,7 +91,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         )
         if not args.sim:
             print(
-                "#     3. The web app should be built (e.g., `npm run build` in `./src/feeding_web_interface/feedingwebapp`)."
+                "#     3. The web app should be built (e.g., `npm run build` in "
+                "`./src/feeding_web_interface/feedingwebapp`)."
             )
             print("#     4. Note that script does not start code on `nano`.")
     else:
@@ -104,10 +119,16 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "ros2 run ada_feeding dummy_ft_sensor.py",
             ],
             "perception": [
-                "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false run_web_bridge:=false",
+                (
+                    "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
+                    "run_motion:=false run_web_bridge:=false"
+                ),
             ],
             "republisher": [
-                "ros2 run ada_feeding_perception republisher --ros-args --params-file src/ada_feeding/ada_feeding_perception/config/republisher.yaml",
+                (
+                    "ros2 run ada_feeding_perception republisher --ros-args --params-file "
+                    "src/ada_feeding/ada_feeding_perception/config/republisher.yaml",
+                ),
             ],
             "rosbridge": [
                 "ros2 launch rosbridge_server rosbridge_websocket_launch.xml"
