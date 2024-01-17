@@ -4,20 +4,24 @@
 Test script for modifying the acquisition library
 """
 
-import numpy as np
 import os
 import sys
+
+import numpy as np
 import yaml
 
-
 def main(in_fname: str, out_fname: str):
+    """
+    Modify acquisition library
+    """
+
     target_rads = 0.3
     rad_thresh = 0.1
 
     # Load YAML
     print(f"Reading from: {in_fname}")
-    with open(in_fname, "r") as f:
-        data = yaml.safe_load(f)
+    with open(in_fname, "r", encoding="utf-8") as file:
+        data = yaml.safe_load(file)
     actions = data["actions"]
 
     # Scale Speeds

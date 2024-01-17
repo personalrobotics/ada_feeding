@@ -8,6 +8,7 @@ This service implement AcquisitionSelect and AcquisitionReport.
 # Standard imports
 import argparse
 import copy
+import errno
 import os
 import time
 from typing import Dict
@@ -164,6 +165,8 @@ class PolicyServices(Node):
         Seperate logic for checkpoint and data record
         """
 
+        # pylint: disable=too-many-branches
+
         ### Data Record Initialization
         self.record_dir = None
         if self.get_parameter("record_dir").value is not None:
@@ -319,7 +322,7 @@ class PolicyServices(Node):
         if context.size != self.context_adapter.dim:
             response.status = "Bad Context"
             self.get_logger().warning(
-                f"Context Adapter Failure: Incorrect Context Dim Returned"
+                "Context Adapter Failure: Incorrect Context Dim Returned"
             )
             return response
 
@@ -491,10 +494,18 @@ def set_data_folder():
         print(f"Error: Not a directory or does not exist; {data_dir}")
         return 1
 
-    os.symlink(
-        data_dir,
-        os.path.join(get_package_share_directory("ada_feeding_action_select"), "data"),
+    link_name = os.path.join(
+        get_package_share_directory("ada_feeding_action_select"), "data"
     )
+    try:
+        os.symlink(data_dir, link_name)
+    except OSError as error:
+        if error.errno == errno.EEXIST:
+            os.remove(link_name)
+            os.symlink(data_dir, link_name)
+        else:
+            raise error
+
     print("Success: Set installed data directory.")
     return 0
 
