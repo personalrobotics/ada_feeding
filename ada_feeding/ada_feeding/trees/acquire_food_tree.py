@@ -92,8 +92,12 @@ class AcquireFoodTree(MoveToTree):
         self.max_acceleration_scaling_move_above = max_acceleration_scaling_move_above
         self.max_velocity_scaling_move_into = max_velocity_scaling_move_into
         self.max_acceleration_scaling_move_into = max_acceleration_scaling_move_into
-        self.max_velocity_scaling_to_resting_configuration = max_velocity_scaling_to_resting_configuration
-        self.max_acceleration_scaling_to_resting_configuration = max_acceleration_scaling_to_resting_configuration
+        self.max_velocity_scaling_to_resting_configuration = (
+            max_velocity_scaling_to_resting_configuration
+        )
+        self.max_acceleration_scaling_to_resting_configuration = (
+            max_acceleration_scaling_to_resting_configuration
+        )
 
     @override
     def create_tree(
