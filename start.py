@@ -94,7 +94,6 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "#     3. The web app should be built (e.g., `npm run build` in "
                 "`./src/feeding_web_interface/feedingwebapp`)."
             )
-            print("#     4. Note that script does not start code on `nano`.")
     else:
         print(
             f"# Terminating the ada_feeding demo in **{'sim' if args.sim else 'real'}**"
@@ -151,6 +150,15 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "webrtc": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
                 "node --env-file=.env server.js",
+            ],
+            "camera": [
+                "ssh nano",
+                "ros2config",
+                (
+                    "ros2 launch realsense2_camera rs_launch.py rgb_camera.profile:='640,480,15' "
+                    "depth_module.profile:='640,480,15' align_depth.enable:='true' initial_reset:='true' "
+                    "publish_tf:='false'"
+                ),
             ],
             "ft": [
                 "ros2 run forque_sensor_hardware forque_sensor_hardware",
@@ -223,11 +231,19 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 await asyncio.sleep(args.launch_wait_secs)
                 if command.startswith("sudo"):
                     if sudo_password is None:
-                        sudo_password = get_sudo_password(
-                            prompt="#         Enter your sudo password: "
+                        sudo_password = getpass.getpass(
+                            prompt="#         Enter sudo password: "
                         )
                     await asyncio.create_subprocess_shell(
                         f"screen -S {screen_name} -X stuff '{sudo_password}\n'"
+                    )
+                    await asyncio.sleep(args.launch_wait_secs)
+                elif command.startswith("ssh"):
+                    ssh_password = getpass.getpass(
+                        prompt="#         Enter ssh password: "
+                    )
+                    await asyncio.create_subprocess_shell(
+                        f"screen -S {screen_name} -X stuff '{ssh_password}\n'"
                     )
                     await asyncio.sleep(args.launch_wait_secs)
 
@@ -241,8 +257,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         )
         if not args.sim:
             print("#     2. Push the e-stop button to enable the robot.")
-            print("#     3. Start the camera code on `nano`.")
-            print("#     4. Note that this script starts the app on port 80.")
+            print("#     3. Note that this script starts the app on port 80.")
         else:
             print("#     2. Note that this script starts the app on port 3000.")
 
@@ -278,16 +293,6 @@ def check_pwd_is_colcon_workspace() -> str:
 
     # Return the absolute path to the current directory
     return os.path.abspath(".")
-
-
-def get_sudo_password(prompt: str = "Password: ") -> str:
-    """
-    Get the sudo password from the user.
-    """
-    sudo_password = ""
-    while not sudo_password:
-        sudo_password = getpass.getpass(prompt)
-    return sudo_password
 
 
 if __name__ == "__main__":
