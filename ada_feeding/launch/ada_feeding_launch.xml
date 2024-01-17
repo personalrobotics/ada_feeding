@@ -26,6 +26,7 @@
     <remap from="~/ft_topic" to="/wireless_ft/ftSensor1" />
     <remap from="~/set_force_gate_controller_parameters" to="/jaco_arm_controller/set_parameters" />
     <remap from="~/set_servo_controller_parameters" to="/jaco_arm_servo_controller/set_parameters" />
+    <remap from="~/clear_octomap" to="/clear_octomap" />
     <remap from="~/toggle_face_detection" to="/toggle_face_detection" />
     <remap from="~/face_detection" to="/face_detection" />
     <remap from="~/switch_controller" to="/controller_manager/switch_controller" />

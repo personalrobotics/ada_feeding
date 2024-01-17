@@ -29,6 +29,7 @@ from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.time import Time
 from std_msgs.msg import Header
+from std_srvs.srv import Empty
 
 # Local imports
 from ada_feeding_msgs.action import MoveToMouth
@@ -47,6 +48,7 @@ from ada_feeding.behaviors.transfer import ComputeWheelchairCollisionTransform
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
     pre_moveto_config,
+    retry_call_ros_service,
     scoped_behavior,
     servo_until_pose,
     wait_for_secs,
@@ -424,6 +426,16 @@ class MoveToMouthTree(MoveToTree):
                         ),
                         "mesh_scale": BlackboardKey("wheelchair_collision_scale"),
                     },
+                ),
+                # Clear the Octomap. This is far enough before motion to mouth
+                # that the Octomap should still get populated before motion
+                # begins.
+                retry_call_ros_service(
+                    name=name + "ClearOctomap",
+                    service_type=Empty,
+                    service_name="~/clear_octomap",
+                    key_request=None,
+                    request=Empty.Request(),
                 ),
                 # The goal constraint of the fork is the mouth pose,
                 # translated `self.plan_distance_from_mouth` in front of the mouth,
