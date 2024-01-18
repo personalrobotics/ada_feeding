@@ -453,6 +453,9 @@ class SegmentFromPointNode(Node):
         cropped_image, cropped_mask, _ = crop_image_mask_and_point(
             image, cleaned_mask, seed_point, bbox
         )
+        cropped_depth, _, _ = crop_image_mask_and_point(
+            depth_img, cleaned_mask, seed_point, bbox
+        )
         # Convert the mask to an image
         mask_img = np.where(cropped_mask, 255, 0).astype(np.uint8)
 
@@ -467,6 +470,7 @@ class SegmentFromPointNode(Node):
         )
         mask_msg.mask = cv2_image_to_ros_msg(mask_img, compress=True)
         mask_msg.rgb_image = cv2_image_to_ros_msg(cropped_image, compress=True)
+        mask_msg.depth_image = cv2_image_to_ros_msg(cropped_depth, compress=False)
         mask_msg.average_depth = average_depth_mm / 1000.0
         mask_msg.item_id = item_id
         mask_msg.confidence = score

@@ -7,9 +7,9 @@ context and posthoc vectors from input data.
 
 # Standard imports
 from abc import ABC, abstractmethod
-from typing import Optional
 
 # Third-party imports
+from overrides import override
 import numpy as np
 import numpy.typing as npt
 
@@ -22,17 +22,6 @@ class ContextAdapter(ABC):
     An interface to translate a visual Mask to a context vector.
     """
 
-    def __init__(self):
-        """
-        Default self properties
-        """
-
-        # These attributes are used by the policy service
-        # To determine whether to pass image/depth data
-        # to get_context.
-        self.need_rgb = False
-        self.need_depth = False
-
     @property
     @abstractmethod
     def dim(self) -> int:
@@ -42,17 +31,13 @@ class ContextAdapter(ABC):
         raise NotImplementedError("dimension not implemented")
 
     @abstractmethod
-    def get_context(
-        self, mask: Mask, image: Optional[npt.NDArray], depth: Optional[npt.NDArray]
-    ) -> npt.NDArray:
+    def get_context(self, mask: Mask) -> npt.NDArray:
         """
         Create the context vector from the provided visual info
 
         Parameters
         ----------
         mask: See Mask.msg
-        image: Full camera image, None if self.need_rgb is False
-        image: Full depth image, None if self.need_depth is False
 
         Returns
         -------
@@ -96,13 +81,14 @@ class NoContext(ContextAdapter, PosthocAdapter):
     """
 
     @property
+    @override
     def dim(self) -> int:
-        return 1
+        return 0
 
-    def get_context(
-        self, mask: Mask, image: Optional[npt.NDArray], depth: Optional[npt.NDArray]
-    ) -> npt.NDArray:
-        return np.array([0.0])
+    @override
+    def get_context(self, mask: Mask) -> npt.NDArray:
+        return np.array([])
 
+    @override
     def get_posthoc(self, data: npt.NDArray) -> npt.NDArray:
-        return np.array([0.0])
+        return np.array([])

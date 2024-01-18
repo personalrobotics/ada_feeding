@@ -8,6 +8,8 @@ sensor_msgs/RegionOfInterest roi
 sensor_msgs/CompressedImage mask
 # The RGB image that was used for segmentation, cropped to the roi.
 sensor_msgs/CompressedImage rgb_image
+# The depth image cropped to the roi.
+sensor_msgs/Image depth_image
 
 # The mean or median of the depth camera readings over the mask (in m)
 # (NOTE: SegmentFromPoint returns median. The name is "average" for legacy

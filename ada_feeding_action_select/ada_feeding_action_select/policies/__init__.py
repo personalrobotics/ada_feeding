@@ -8,3 +8,6 @@ from .base_policies import Policy
 
 # Constant Policy
 from .base_policies import ConstantPolicy
+
+# Linear Policies
+from .linear_policies import RandomLinearPolicy

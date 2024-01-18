@@ -53,6 +53,7 @@ class ComputeFoodFrame(BlackboardBehavior):
         timestamp: Union[BlackboardKey, rclpy.time.Time] = rclpy.time.Time(),
         food_frame_id: Union[BlackboardKey, str] = "food",
         world_frame: Union[BlackboardKey, str] = "world",
+        flip_food_frame: Union[BlackboardKey, bool] = False,
     ) -> None:
         """
         Blackboard Inputs
@@ -66,6 +67,7 @@ class ComputeFoodFrame(BlackboardBehavior):
         food_frame_id (string): If len>0, TF frame to publish static transform
                                    (relative to world_frame)
         world_frame (string): ID of the TF frame to represent the food frame in
+        flip_food_frame (bool): whether to rotate the food frame 180 about Z
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -264,6 +266,9 @@ class ComputeFoodFrame(BlackboardBehavior):
         point2 = pyrealsense2.rs2_deproject_pixel_to_point(
             self.intrinsics, [point2[0], point2[1]], mask.average_depth
         )
+        # Flip X if requested
+        if self.blackboard_get("flip_food_frame"):
+            point1, point2 = point2, point1
         x_pos = Vector3Stamped()
         x_pos.header.frame_id = camera_frame
         x_pos.vector.x = point1[0] - point2[0]

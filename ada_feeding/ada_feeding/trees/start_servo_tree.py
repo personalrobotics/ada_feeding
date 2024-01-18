@@ -33,6 +33,7 @@ class StartServoTree(TriggerTree):
         node: Node,
         servo_controller_name: str = "jaco_arm_servo_controller",
         move_group_controller_name: str = "jaco_arm_controller",
+        start_moveit_servo: bool = True,
     ) -> None:
         """
         Initializes the behavior tree.
@@ -47,6 +48,7 @@ class StartServoTree(TriggerTree):
         super().__init__(node=node)
         self.servo_controller_name = servo_controller_name
         self.move_group_controller_name = move_group_controller_name
+        self.start_moveit_servo = start_moveit_servo
 
     @override
     def create_tree(
@@ -100,6 +102,9 @@ class StartServoTree(TriggerTree):
                 )
             ],
         )
+        children = [switch_controllers]
+        if self.start_moveit_servo:
+            children.append(start_servo)
 
         # Put them together in a sequence
         # pylint: disable=duplicate-code
@@ -107,9 +112,6 @@ class StartServoTree(TriggerTree):
             root=py_trees.composites.Sequence(
                 name=name,
                 memory=True,
-                children=[
-                    switch_controllers,
-                    start_servo,
-                ],
+                children=children,
             )
         )

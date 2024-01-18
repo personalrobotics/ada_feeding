@@ -36,12 +36,14 @@ class StopServoTree(TriggerTree):
       4. Calls the `~/switch_controller` service to turn off the servo controller.
     """
 
+    # pylint: disable=too-many-arguments
     def __init__(
         self,
         node: Node,
         base_frame_id: str = "j2n6s200_link_base",
         servo_controller_name: str = "jaco_arm_servo_controller",
         delay: float = 0.5,
+        stop_moveit_servo: bool = True,
     ) -> None:
         """
         Initializes the behavior tree.
@@ -57,6 +59,7 @@ class StopServoTree(TriggerTree):
         self.base_frame_id = base_frame_id
         self.servo_controller_name = servo_controller_name
         self.delay = delay
+        self.stop_moveit_servo = stop_moveit_servo
 
     @override
     def create_tree(
@@ -156,16 +159,18 @@ class StopServoTree(TriggerTree):
 
         # Put them together in a sequence with memory
         # pylint: disable=duplicate-code
+        children = [
+            update_timestamp,
+            twist_pub,
+            delay_behavior,
+        ]
+        if self.stop_moveit_servo:
+            children.append(stop_servo)
+        children.append(stop_controllers)
         return py_trees.trees.BehaviourTree(
             root=py_trees.composites.Sequence(
                 name=name,
                 memory=True,
-                children=[
-                    update_timestamp,
-                    twist_pub,
-                    delay_behavior,
-                    stop_servo,
-                    stop_controllers,
-                ],
+                children=children,
             )
         )

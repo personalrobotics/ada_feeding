@@ -324,7 +324,7 @@ class ComputeActionTwist(BlackboardBehavior):
                 linear_stamped, self.moveit2.base_link_name
             ).vector
 
-            ### Move Angular to Approach Frame
+            ### Move Angular to Base Link Frame
             # Get TF EE frame -> base link frame
             if not self.tf_buffer.can_transform(
                 self.moveit2.base_link_name,

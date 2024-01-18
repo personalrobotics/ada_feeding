@@ -152,13 +152,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "node --env-file=.env server.js",
             ],
             "camera": [
-                "ssh nano",
-                "ros2config",
-                (
-                    "ros2 launch realsense2_camera rs_launch.py rgb_camera.profile:='640,480,15' "
-                    "depth_module.profile:='640,480,15' align_depth.enable:='true' initial_reset:='true' "
-                    "publish_tf:='false'"
-                ),
+                "ssh nano './run_camera.sh'",
             ],
             "ft": [
                 "ros2 run forque_sensor_hardware forque_sensor_hardware",

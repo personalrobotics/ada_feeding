@@ -7,7 +7,8 @@ ada_feeding_action_select.
 
 # Standard imports
 import os
-from typing import List
+from typing import Any, List
+import logging
 import yaml
 
 # Third-party imports
@@ -15,6 +16,18 @@ from ament_index_python.packages import get_package_share_directory
 
 # Local imports
 from ada_feeding_msgs.msg import AcquisitionSchema
+
+logger = logging
+
+
+def register_logger(new_logger: Any) -> None:
+    """
+    Register global logger
+    """
+    # pylint: disable=global-statement
+    # This is effectively replacing a module.
+    global logger
+    logger = new_logger
 
 
 def get_action_library(
