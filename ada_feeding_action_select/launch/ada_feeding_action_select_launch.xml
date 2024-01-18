@@ -6,7 +6,7 @@
   <node pkg="ada_feeding_action_select" exec="policy_service" name="ada_feeding_action_select" respawn="false">
     <param from="$(find-pkg-share ada_feeding_action_select)/config/policies.yaml"/>
     <param name="policy" value="$(var policy)"/>
-    <param name="constant_override" value="$(var action)" />
+    <param name="constant.kwargs.index" value="$(var action)" />
     <remap from="~/image" to="/camera/color/image_raw/compressed"/>
     <remap from="~/aligned_depth" to="/camera/aligned_depth_to_color/image_raw"/>
   </node>

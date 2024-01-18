@@ -2,7 +2,8 @@
   <arg name="run_web_bridge" default="false" description="Whether to run the web bridge nodes" />
   <arg name="use_estop" default="true" description="Whether to use the e-stop. Should only be set false in sim, since we don't have a way of simulating the e-stop button." />
   <arg name="log_level" default="info" description="Log Level to pass to create_action_servers: debug, info, warn" />
-  <arg name="default_action_select" default="true" description="Whether to use the default action select: constant policy 0" />
+  <arg name="policy" default="constant" description="Which policy to use" />
+  <arg name="action" default="0" description="Which action to use with constant policy" />
 
   <group if="$(var run_web_bridge)">
     <!-- The ROSBridge Node -->
@@ -40,10 +41,11 @@
     <remap from="~/action_report" to="/ada_feeding_action_select/action_report" />
   </node>
 
-  <!-- Include Default Action Selection Server -->
-  <group if="$(var default_action_select)">
-    <include file="$(find-pkg-share ada_feeding_action_select)/launch/ada_feeding_action_select_launch.xml"/>
-  </group>
+  <!-- Include Action Selection Server -->
+  <include file="$(find-pkg-share ada_feeding_action_select)/launch/ada_feeding_action_select_launch.xml">
+    <arg name="policy" value="$(var policy)" />
+    <arg name="action" value="$(var action)" />
+  </include>
 
   <!-- Populate the planning scene -->
   <node pkg="ada_feeding" exec="ada_planning_scene.py" name="ada_planning_scene">
