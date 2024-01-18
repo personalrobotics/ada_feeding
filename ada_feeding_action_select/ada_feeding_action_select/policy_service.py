@@ -345,6 +345,8 @@ class PolicyServices(Node):
 
         if response.status != "Success":
             self.get_logger().warning(f"Policy Choice Failure: '{response.status}'")
+        else:
+            self.get_logger().info(f"AcquisitionSelect Success! Sending Response with ID: '{response.id}'")
         return response
 
     def report_callback(
@@ -353,8 +355,9 @@ class PolicyServices(Node):
         """
         Implement AcquisitionReport.srv
         """
+        self.get_logger().info(f"AcquisitionReport Request with ID: '{request.id}'")
 
-        # Collectd cached context
+        # Collect cached context
         if request.id not in self.cache:
             response.status = "id does not map to previous select call"
             self.get_logger().error(f"AcquistionReport: {response.status}")
