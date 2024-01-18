@@ -63,6 +63,19 @@ class PolicyServices(Node):
                 read_only=True,
             ),
         )
+        self.declare_parameter(
+            name="constant_override",
+            value=None,
+            descriptor=ParameterDescriptor(
+                name="constant_override",
+                type=ParameterType.PARAMETER_INTEGER,
+                description=(
+                    "Override constant.kwargs.index. "
+                    "Unfortunately, this can't be done from the launch file."
+                ),
+                read_only=True,
+            ),
+        )
         self.declare_parameters(
             namespace="",
             parameters=[
@@ -263,6 +276,10 @@ class PolicyServices(Node):
         assert issubclass(policy_cls, Policy), f"{policy_cls_name} must subclass Policy"
 
         policy_kwargs = self.get_kwargs(f"{policy_name}.kws", f"{policy_name}.kwargs")
+
+        # Constant Override
+        if self.get_parameter("constant_override").value is not None:
+            policy_kwargs["index"] = self.get_parameter("constant_override").value
 
         # Get the context adapter
         context_cls = import_from_string(self.get_parameter("context_class").value)
