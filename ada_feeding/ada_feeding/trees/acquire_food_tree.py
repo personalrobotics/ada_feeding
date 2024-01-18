@@ -217,6 +217,142 @@ class AcquireFoodTree(MoveToTree):
             ],  # End RecoverySequence.children
         )  # End RecoverySequence
 
+        def move_above_plan(
+            flip_food_frame: bool = False,
+        ) -> py_trees.behaviour.Behaviour:
+            return py_trees.composites.Sequence(
+                name="MoveAbovePlanningSeq",
+                memory=True,
+                children=[
+                    # Compute Food Frame
+                    py_trees.decorators.Timeout(
+                        name="ComputeFoodFrameTimeout",
+                        duration=1.0,
+                        child=ComputeFoodFrame(
+                            name="ComputeFoodFrame",
+                            ns=name,
+                            inputs={
+                                "camera_info": BlackboardKey("camera_info"),
+                                "mask": BlackboardKey("mask"),
+                                # NOTE: We override the goal message timestamp
+                                # since sometimes there isn't a recent enough TF
+                                "timestamp": rclpy.time.Time(),
+                                # "timestamp": BlackboardKey("timestamp"),
+                                # Default food_frame_id = "food"
+                                # Default world_frame = "world"
+                                "flip_food_frame": flip_food_frame,
+                            },
+                            outputs={
+                                "action_select_request": BlackboardKey(
+                                    "action_request"
+                                ),
+                                "food_frame": None,
+                            },
+                        ),
+                    ),
+                    # Get Action to Use
+                    py_trees_ros.service_clients.FromBlackboard(
+                        name="AcquisitionSelect",
+                        service_name="~/action_select",
+                        service_type=AcquisitionSelect,
+                        # Need absolute Blackboard name
+                        key_request=Blackboard.separator.join(
+                            [name, BlackboardKey("action_request")]
+                        ),
+                        key_response=Blackboard.separator.join(
+                            [name, BlackboardKey("action_response")]
+                        ),
+                        # Default fail if service is down
+                        wait_for_server_timeout_sec=0.0,
+                    ),
+                    # Get MoveIt2 Constraints
+                    py_trees.decorators.Timeout(
+                        name="ComputeActionConstraintsTimeout",
+                        duration=1.0,
+                        child=ComputeActionConstraints(
+                            name="ComputeActionConstraints",
+                            ns=name,
+                            inputs={
+                                "action_select_response": BlackboardKey(
+                                    "action_response"
+                                ),
+                                # Default move_above_dist_m = 0.05
+                                # Default food_frame_id = "food"
+                                # Default approach_frame_id = "approach"
+                            },
+                            outputs={
+                                "move_above_pose": BlackboardKey("move_above_pose"),
+                                "move_into_pose": BlackboardKey("move_into_pose"),
+                                "approach_thresh": BlackboardKey("approach_thresh"),
+                                "grasp_thresh": BlackboardKey("grasp_thresh"),
+                                "ext_thresh": BlackboardKey("ext_thresh"),
+                                "action": BlackboardKey("action"),
+                            },
+                        ),
+                    ),
+                    # Re-Tare FT Sensor and default to 4N threshold
+                    pre_moveto_config(name="PreAcquireFTTare"),
+                    ### Move Above Food
+                    MoveIt2PoseConstraint(
+                        name="MoveAbovePose",
+                        ns=name,
+                        inputs={
+                            "pose": BlackboardKey("move_above_pose"),
+                            "frame_id": "food",
+                            "tolerance_orientation": [
+                                0.001,
+                                0.001,
+                                0.01,
+                            ],  # x, y, z rotvec
+                            "parameterization": 1,
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("goal_constraints"),
+                        },
+                    ),
+                    MoveIt2Plan(
+                        name="MoveAbovePlan",
+                        ns=name,
+                        inputs={
+                            "goal_constraints": BlackboardKey("goal_constraints"),
+                            "max_velocity_scale": self.max_velocity_scaling_move_above,
+                            "max_acceleration_scale": self.max_acceleration_scaling_move_above,
+                            "allowed_planning_time": 2.0,
+                        },
+                        outputs={
+                            "trajectory": BlackboardKey("trajectory"),
+                            "end_joint_state": BlackboardKey("test_into_joints"),
+                        },
+                    ),
+                    ### Test MoveIntoFood
+                    MoveIt2PoseConstraint(
+                        name="MoveIntoPose",
+                        ns=name,
+                        inputs={
+                            "pose": BlackboardKey("move_into_pose"),
+                            "frame_id": "food",
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("goal_constraints"),
+                        },
+                    ),
+                    MoveIt2Plan(
+                        name="MoveIntoPlan",
+                        ns=name,
+                        inputs={
+                            "goal_constraints": BlackboardKey("goal_constraints"),
+                            "max_velocity_scale": self.max_velocity_scaling_move_into,
+                            "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                            "cartesian": True,
+                            "cartesian_max_step": 0.001,
+                            "cartesian_fraction_threshold": 0.95,
+                            "start_joint_state": BlackboardKey("test_into_joints"),
+                        },
+                        outputs={"trajectory": None},
+                    ),
+                ],
+            )
+
         ### Define Tree Logic
         # NOTE: If octomap clearing ends up being an issue, we should
         # consider adding a call to the /clear_octomap service to this tree.
@@ -256,101 +392,13 @@ class AcquireFoodTree(MoveToTree):
                             # Default fail if service is down
                             wait_for_server_timeout_sec=0.0,
                         ),
-                        # Compute Food Frame
-                        py_trees.decorators.Timeout(
-                            name="ComputeFoodFrameTimeout",
-                            duration=1.0,
-                            child=ComputeFoodFrame(
-                                name="ComputeFoodFrame",
-                                ns=name,
-                                inputs={
-                                    "camera_info": BlackboardKey("camera_info"),
-                                    "mask": BlackboardKey("mask"),
-                                    # NOTE: We override the goal message timestamp
-                                    # since sometimes there isn't a recent enough TF
-                                    "timestamp": rclpy.time.Time(),
-                                    # "timestamp": BlackboardKey("timestamp"),
-                                    # Default food_frame_id = "food"
-                                    # Default world_frame = "world"
-                                },
-                                outputs={
-                                    "action_select_request": BlackboardKey(
-                                        "action_request"
-                                    ),
-                                    "food_frame": None,
-                                },
-                            ),
-                        ),
-                        # Get Action to Use
-                        py_trees_ros.service_clients.FromBlackboard(
-                            name="AcquisitionSelect",
-                            service_name="~/action_select",
-                            service_type=AcquisitionSelect,
-                            # Need absolute Blackboard name
-                            key_request=Blackboard.separator.join(
-                                [name, BlackboardKey("action_request")]
-                            ),
-                            key_response=Blackboard.separator.join(
-                                [name, BlackboardKey("action_response")]
-                            ),
-                            # Default fail if service is down
-                            wait_for_server_timeout_sec=0.0,
-                        ),
-                        # Get MoveIt2 Constraints
-                        py_trees.decorators.Timeout(
-                            name="ComputeActionConstraintsTimeout",
-                            duration=1.0,
-                            child=ComputeActionConstraints(
-                                name="ComputeActionConstraints",
-                                ns=name,
-                                inputs={
-                                    "action_select_response": BlackboardKey(
-                                        "action_response"
-                                    ),
-                                    # Default move_above_dist_m = 0.05
-                                    # Default food_frame_id = "food"
-                                    # Default approach_frame_id = "approach"
-                                },
-                                outputs={
-                                    "move_above_pose": BlackboardKey("move_above_pose"),
-                                    "move_into_pose": BlackboardKey("move_into_pose"),
-                                    "approach_thresh": BlackboardKey("approach_thresh"),
-                                    "grasp_thresh": BlackboardKey("grasp_thresh"),
-                                    "ext_thresh": BlackboardKey("ext_thresh"),
-                                    "action": BlackboardKey("action"),
-                                },
-                            ),
-                        ),
-                        # Re-Tare FT Sensor and default to 4N threshold
-                        pre_moveto_config(name="PreAcquireFTTare"),
-                        ### Move Above Food
-                        MoveIt2PoseConstraint(
-                            name="MoveAbovePose",
-                            ns=name,
-                            inputs={
-                                "pose": BlackboardKey("move_above_pose"),
-                                "frame_id": "food",
-                                "tolerance_orientation": [
-                                    0.001,
-                                    0.001,
-                                    0.01,
-                                ],  # x, y, z rotvec
-                                "parameterization": 1,
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("goal_constraints"),
-                            },
-                        ),
-                        MoveIt2Plan(
-                            name="MoveAbovePlan",
-                            ns=name,
-                            inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
-                                "max_velocity_scale": self.max_velocity_scaling_move_above,
-                                "max_acceleration_scale": self.max_acceleration_scaling_move_above,
-                                "allowed_planning_time": 1.5,
-                            },
-                            outputs={"trajectory": BlackboardKey("trajectory")},
+                        py_trees.composites.Selector(
+                            name="BackupFlipFoodFrameSel",
+                            memory=True,
+                            children=[
+                                move_above_plan(False),
+                                move_above_plan(True),
+                            ],
                         ),
                         MoveIt2Execute(
                             name="MoveAbove",
@@ -587,7 +635,7 @@ class AcquireFoodTree(MoveToTree):
                                                         retry_call_ros_service(
                                                             name="ExtractionFTThresh",
                                                             service_type=SetParameters,
-                                                            service_name="~/set_servo_controller_parameters",
+                                                            service_name="~/set_cartesian_controller_parameters",
                                                             # Blackboard, not Constant
                                                             request=None,
                                                             # Need absolute Blackboard name

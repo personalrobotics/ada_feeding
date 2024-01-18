@@ -62,7 +62,7 @@ ada_feeding_action_select:
         - index
       kwargs:
         library: config/acquisition_library.yaml # path to library of actions (package share)
-        index: 0 # Which action to execute
+        index: 1 # Which action to execute
 
     random:
       policy_class: ada_feeding_action_select.policies.RandomLinearPolicy

@@ -4,12 +4,12 @@ actions:
   - 0.0
   - 0.0
   - 0.0
-  ext_duration: 1.5
+  ext_duration: 1.0
   ext_force: 50.0
   ext_linear:
   - 0.0
   - 0.0
-  - 0.1
+  - 0.08
   ext_torque: 4.0
   grasp_angular:
   - 0.0
@@ -41,12 +41,12 @@ actions:
   - 0.0
   - 0.0
   - 0.0
-  ext_duration: 1.5
+  ext_duration: 1.0
   ext_force: 50.0
   ext_linear:
   - 0.0
   - 0.0
-  - 0.1
+  - 0.08
   ext_torque: 4.0
   grasp_angular:
   - 0.0
@@ -78,12 +78,12 @@ actions:
   - 0.0
   - 0.0
   - 0.0
-  ext_duration: 1.5
+  ext_duration: 1.0
   ext_force: 50.0
   ext_linear:
   - 0.0
   - 0.0
-  - 0.1
+  - 0.08
   ext_torque: 4.0
   grasp_angular:
   - 0.0

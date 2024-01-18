@@ -10,6 +10,7 @@ import sys
 import numpy as np
 import yaml
 
+
 def main(in_fname: str, out_fname: str):
     """
     Modify acquisition library
