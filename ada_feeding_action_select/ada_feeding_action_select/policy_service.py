@@ -346,7 +346,9 @@ class PolicyServices(Node):
         if response.status != "Success":
             self.get_logger().warning(f"Policy Choice Failure: '{response.status}'")
         else:
-            self.get_logger().info(f"AcquisitionSelect Success! Sending Response with ID: '{response.id}'")
+            self.get_logger().info(
+                f"AcquisitionSelect Success! Sending Response with ID: '{response.id}'"
+            )
         return response
 
     def report_callback(
