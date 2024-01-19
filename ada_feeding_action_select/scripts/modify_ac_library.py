@@ -4,6 +4,7 @@
 Test script for modifying the acquisition library
 """
 
+import math
 import os
 import sys
 
@@ -16,17 +17,37 @@ def main(in_fname: str, out_fname: str):
     Modify acquisition library
     """
 
+    # Scale Angular Speeds
     target_rads = 0.3
+
+    # Clear low-angle motions
     rad_thresh = 0.1
+
+    # Max pre_offset x/y based on pre_pose
+    max_offset = 0.01
+
+    # Target below top of food
+    food_depth = -0.02
+
 
     # Load YAML
     print(f"Reading from: {in_fname}")
     with open(in_fname, "r", encoding="utf-8") as file:
         data = yaml.safe_load(file)
     actions = data["actions"]
-
-    # Scale Speeds
+    
     for action in actions:
+        # Add up to max_offset to pre_offset
+        norm = math.sqrt(action["pre_pos"][0]*action["pre_pos"][0] + action["pre_pos"][1]*action["pre_pos"][1])
+        if not np.isclose(norm, 0.0):
+            scale = min(max_offset, norm) / norm
+            action["pre_offset"][0] = scale * action["pre_pos"][0]
+            action["pre_offset"][1] = scale * action["pre_pos"][1]
+
+        # Target below top of food
+        action["pre_offset"][2] = food_depth
+
+        # Scale Angular Speeds and clear low-angle motions
         for prefix in ["grasp", "ext"]:
             tot = (
                 np.linalg.norm(np.array(action[f"{prefix}_angular"]))
