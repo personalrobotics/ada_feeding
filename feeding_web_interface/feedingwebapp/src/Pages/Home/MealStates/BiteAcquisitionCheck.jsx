@@ -1,13 +1,16 @@
 // React Imports
-import React, { useCallback } from 'react'
+import React, { useCallback, useRef } from 'react'
 import Button from 'react-bootstrap/Button'
 import { useMediaQuery } from 'react-responsive'
+import { toast } from 'react-toastify'
 import { View } from 'react-native'
 
 // Local Imports
 import '../Home.css'
 import { useGlobalState, MEAL_STATE } from '../../GlobalState'
 import { MOVING_STATE_ICON_DICT } from '../../Constants'
+import { useROS, createROSService, createROSServiceRequest } from '../../../ros/ros_helpers'
+import { ACQUISITION_REPORT_SERVICE_NAME, ACQUISITION_REPORT_SERVICE_TYPE } from '../../Constants'
 
 /**
  * The BiteAcquisitionCheck component appears after the robot has attempted to
@@ -31,14 +34,37 @@ const BiteAcquisitionCheck = () => {
   let iconWidth = isPortrait ? '28vh' : '28vw'
   let iconHeight = isPortrait ? '18vh' : '18vw'
 
+  // Configure AcquisitionReport service
+  const lastMotionActionResponse = useGlobalState((state) => state.lastMotionActionResponse)
+  /**
+   * Connect to ROS, if not already connected. Put this in useRef to avoid
+   * re-connecting upon re-renders.
+   */
+  const ros = useRef(useROS().ros)
+  /**
+   * Create the ROS Service Client for reporting success/failure
+   */
+  let acquisitionReportService = useRef(createROSService(ros.current, ACQUISITION_REPORT_SERVICE_NAME, ACQUISITION_REPORT_SERVICE_TYPE))
+
   /**
    * Callback function for when the user indicates that the bite acquisition
    * succeeded.
    */
   const acquisitionSuccess = useCallback(() => {
     console.log('acquisitionSuccess')
+    toast.info('Reporting Food Acquisition Success!')
+    // Create a service request
+    let request = createROSServiceRequest({
+      loss: 0.0,
+      action_index: lastMotionActionResponse.action_index,
+      posthoc: lastMotionActionResponse.posthoc,
+      id: lastMotionActionResponse.selection_id
+    })
+    // Call the service
+    let service = acquisitionReportService.current
+    service.callService(request, (response) => console.log('Got acquisition report response', response))
     setMealState(MEAL_STATE.R_MovingToStagingConfiguration)
-  }, [setMealState])
+  }, [lastMotionActionResponse, setMealState])
 
   /**
    * Callback function for when the user indicates that the bite acquisition
@@ -46,8 +72,19 @@ const BiteAcquisitionCheck = () => {
    */
   const acquisitionFailure = useCallback(() => {
     console.log('acquisitionFailure')
+    toast.info('Reporting Food Acquisition Failure.')
+    // Create a service request
+    let request = createROSServiceRequest({
+      loss: 1.0,
+      action_index: lastMotionActionResponse.action_index,
+      posthoc: lastMotionActionResponse.posthoc,
+      id: lastMotionActionResponse.selection_id
+    })
+    // Call the service
+    let service = acquisitionReportService.current
+    service.callService(request, (response) => console.log('Got acquisition report response', response))
     setMealState(MEAL_STATE.R_MovingAbovePlate)
-  }, [setMealState])
+  }, [lastMotionActionResponse, setMealState])
 
   /**
    * Get the ready for bite text to render.

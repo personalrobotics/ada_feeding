@@ -63,6 +63,9 @@ const RobotMotion = (props) => {
   const paused = useGlobalState((state) => state.paused)
   const setPaused = useGlobalState((state) => state.setPaused)
 
+  // Setter for last motion action response
+  const setLastMotionActionResponse = useGlobalState((state) => state.setLastMotionActionResponse)
+
   /**
    * Connect to ROS, if not already connected. Put this in useRef to avoid
    * re-connecting upon re-renders.
@@ -143,6 +146,7 @@ const RobotMotion = (props) => {
         setActionStatus({
           actionStatus: ROS_ACTION_STATUS_SUCCEED
         })
+        setLastMotionActionResponse(response.values)
         robotMotionDone()
       } else {
         if (
@@ -163,7 +167,7 @@ const RobotMotion = (props) => {
         }
       }
     },
-    [setActionStatus, setPaused, robotMotionDone]
+    [setLastMotionActionResponse, setActionStatus, setPaused, robotMotionDone]
   )
 
   /**

@@ -121,6 +121,8 @@ export const useGlobalState = create(
       // message received from the face detection node where a
       // face was detected and within the distance bounds of the camera.
       moveToMouthActionGoal: null,
+      // Last RobotMotion action response
+      lastMotionActionResponse: null,
       // Whether or not the currently-executing robot motion was paused by the user
       paused: false,
       // Flag to indicate robot motion trough teleoperation interface
@@ -170,6 +172,10 @@ export const useGlobalState = create(
       setBiteAcquisitionActionGoal: (biteAcquisitionActionGoal) =>
         set(() => ({
           biteAcquisitionActionGoal: biteAcquisitionActionGoal
+        })),
+      setLastMotionActionResponse: (lastMotionActionResponse) =>
+        set(() => ({
+          lastMotionActionResponse: lastMotionActionResponse
         })),
       setMoveToMouthActionGoal: (moveToMouthActionGoal) =>
         set(() => ({

@@ -109,6 +109,8 @@ ROS_SERVICE_NAMES[MEAL_STATE.R_DetectingFace] = {
 export { ROS_SERVICE_NAMES }
 export const CLEAR_OCTOMAP_SERVICE_NAME = 'clear_octomap'
 export const CLEAR_OCTOMAP_SERVICE_TYPE = 'std_srvs/srv/Empty'
+export const ACQUISITION_REPORT_SERVICE_NAME = 'ada_feeding_action_select/action_report'
+export const ACQUISITION_REPORT_SERVICE_TYPE = 'ada_feeding_msgs/srv/AcquisitionReport'
 export const GET_PARAMETERS_SERVICE_NAME = 'ada_feeding_action_servers/get_parameters'
 export const GET_PARAMETERS_SERVICE_TYPE = 'rcl_interfaces/srv/GetParameters'
 export const SET_PARAMETERS_SERVICE_NAME = 'ada_feeding_action_servers/set_parameters'
