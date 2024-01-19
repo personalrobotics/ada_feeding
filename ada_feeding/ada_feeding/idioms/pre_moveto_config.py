@@ -15,7 +15,9 @@ Specifically, it does the following:
 """
 
 # Standard imports
+from functools import partial
 import operator
+from typing import Any, Callable
 
 # Third-part_y imports
 import py_trees
@@ -25,6 +27,7 @@ from rcl_interfaces.srv import SetParameters
 from std_srvs.srv import SetBool
 
 # Local imports
+from ada_feeding.helpers import logger
 from .bite_transfer import get_toggle_watchdog_listener_behavior
 from .retry_call_ros_service import retry_call_ros_service
 
@@ -85,6 +88,27 @@ def create_ft_thresh_request(
             )
         )
     return SetParameters.Request(parameters=parameters)
+
+
+def add_logging_to_operator(
+    blackboard_val: Any,
+    comparison_val: Any,
+    operator_fn: Callable[[Any, Any], bool],
+    success_msg: str,
+    failure_msg: str,
+) -> bool:
+    """
+    Wraps any operator that could be used with py_trees.common.ComparisonExpression
+    into one that logs on success (debug level) and failure (warning level)
+    """
+    # pylint: disable=too-many-arguments
+
+    retval = operator_fn(blackboard_val, comparison_val)
+    if retval:
+        logger.debug(success_msg)
+    else:
+        logger.warning(failure_msg)
+    return retval
 
 
 def pre_moveto_config(
@@ -169,7 +193,12 @@ def pre_moveto_config(
                 py_trees.common.ComparisonExpression(
                     variable=re_tare_ft_sensor_key_response + ".success",
                     value=True,
-                    operator=operator.eq,
+                    operator=partial(
+                        add_logging_to_operator,
+                        operator_fn=operator.eq,
+                        success_msg="Succesfully retared F/T sensor",
+                        failure_msg="Failed to retare F/T sensor",
+                    ),
                 )
             ],
         )
@@ -206,7 +235,12 @@ def pre_moveto_config(
                 py_trees.common.ComparisonExpression(
                     variable=set_force_torque_thresholds_key_response,
                     value=SetParameters.Response(),  # Unused
-                    operator=set_parameter_response_all_success,
+                    operator=partial(
+                        add_logging_to_operator,
+                        operator_fn=set_parameter_response_all_success,
+                        success_msg="Succesfully set F/T threshold",
+                        failure_msg="Failed to set F/T threshold",
+                    ),
                 )
             ],
         )
