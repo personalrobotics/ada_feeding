@@ -81,6 +81,9 @@ class FTSensorCondition(WatchdogCondition):
             callback_group=self.ft_sensor_callback_group,
         )
 
+        # Get a function to take the abs of a Duration array
+        self.duration_array_abs = np.vectorize(FTSensorCondition.duration_abs)
+
     def __ft_sensor_callback(self, msg: WrenchStamped) -> None:
         """
         Callback function for the force-torque sensor topic.
@@ -132,6 +135,15 @@ class FTSensorCondition(WatchdogCondition):
             self.last_unique_values = last_unique_values
             self.last_unique_values_timestamp = last_unique_values_timestamp
 
+    @staticmethod
+    def duration_abs(duration: Duration) -> Duration:
+        """
+        Return the absolute value of a duration.
+        """
+        if duration.nanoseconds < 0:
+            return Duration(nanoseconds=-1.0 * duration.nanoseconds)
+        return duration
+
     def check_startup(self) -> List[Tuple[bool, str, str]]:
         """
         Check whether at least one FT sensor message has been received.
@@ -182,7 +194,8 @@ class FTSensorCondition(WatchdogCondition):
         now = self._node.get_clock().now()
         with self.last_unique_values_lock:
             status_1 = np.all(
-                (now - self.last_unique_values_timestamp) <= self.ft_timeout
+                self.duration_array_abs(now - self.last_unique_values_timestamp)
+                <= self.ft_timeout
             )
         if status_1:
             condition_1 = (
