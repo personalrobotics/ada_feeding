@@ -27,7 +27,7 @@ import yaml
 
 # Local imports
 from ada_feeding import ActionServerBT
-from ada_feeding.helpers import import_from_string
+from ada_feeding.helpers import import_from_string, register_logger
 
 
 class ActionServerParams:
@@ -93,6 +93,7 @@ class CreateActionServers(Node):
         happens when the action server receives a goal request.
         """
         super().__init__("create_action_servers")
+        register_logger(self.get_logger())
 
         # Read the parameters that specify what action servers to create.
         self.action_server_params = self.read_params()
@@ -565,7 +566,7 @@ class CreateActionServers(Node):
 
                         # Check the tree status
                         if tree.root.status == py_trees.common.Status.SUCCESS:
-                            self.get_logger().info("Goal succeeded")
+                            self.get_logger().info("Tree succeeded")
                             goal_handle.succeed()
                             result = tree_action_server.get_result(tree, action_type)
                             break
@@ -575,7 +576,7 @@ class CreateActionServers(Node):
                                 py_trees.common.Status.INVALID,
                             )
                         ):
-                            self.get_logger().info("Goal failed")
+                            self.get_logger().info("Tree failed")
                             goal_handle.abort()
                             result = tree_action_server.get_result(tree, action_type)
                             break

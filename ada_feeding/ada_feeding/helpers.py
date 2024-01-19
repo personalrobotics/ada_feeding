@@ -4,6 +4,7 @@ Ada Feeding project.
 """
 
 # Standard imports
+import logging
 from threading import Lock
 from typing import Any, Optional, Set, Tuple
 
@@ -29,6 +30,18 @@ import tf2_ros
 from tf2_ros.buffer import Buffer
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros.transform_listener import TransformListener
+
+logger = logging
+
+
+def register_logger(new_logger: Any) -> None:
+    """
+    Register global logger
+    """
+    # pylint: disable=global-statement
+    # This is effectively replacing a module.
+    global logger
+    logger = new_logger
 
 
 # Register a tf2 transform for TwistStamped, which isn't currently in tf2_geometry_msgs
