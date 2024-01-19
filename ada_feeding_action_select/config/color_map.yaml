@@ -1,0 +1,5 @@
+# Map of RGB colors to Action index
+color_map:
+    - # Default
+      color: [0.0, 0.0, 0.0]
+      index: 0

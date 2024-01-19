@@ -18,6 +18,8 @@ ada_feeding_action_select:
     #context_kwargs:
     #  checkpoint: checkpoint/adapter/food_spanet_all_rgb_wall_ckpt_best.pth
 
+    #context_class: ada_feeding_action_select.adapters.ColorContext
+
     context_class: ada_feeding_action_select.adapters.NoContext
 
     #### Posthoc Adapters
@@ -63,6 +65,15 @@ ada_feeding_action_select:
       kwargs:
         library: config/acquisition_library.yaml # path to library of actions (package share)
         index: 0 # Which action to execute, override in launch file with action:=<action>
+
+    color:
+      policy_class: ada_feeding_action_select.policies.ColorPolicy
+      kws:
+        - library
+        - color_map
+      kwargs:
+        library: config/acquisition_library.yaml # path to library of actions (package share)
+        index: config/color_map.yaml
 
     random:
       policy_class: ada_feeding_action_select.policies.RandomLinearPolicy
