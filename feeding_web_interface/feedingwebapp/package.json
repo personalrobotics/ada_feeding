@@ -32,6 +32,7 @@
     "react-toastify": "^9.0.7",
     "roslib": "github:personalrobotics/roslibjs",
     "rosreact": "^0.2.0",
+    "segfault-handler": "^1.3.0",
     "styled-components": "^5.3.9",
     "web-vitals": "^2.1.4",
     "webpack": "^5.82.1",

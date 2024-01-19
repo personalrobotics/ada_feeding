@@ -1,5 +1,5 @@
 // React Imports
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import PropTypes from 'prop-types'
 import { useMediaQuery } from 'react-responsive'
 import { View } from 'react-native'
@@ -7,7 +7,6 @@ import { View } from 'react-native'
 // Local Imports
 import { useROS, createROSService, createROSServiceRequest, subscribeToROSTopic, unsubscribeFromROSTopic } from '../../../ros/ros_helpers'
 import '../Home.css'
-import { convertRemToPixels } from '../../../helpers'
 import { MEAL_STATE } from '../../GlobalState'
 import { FACE_DETECTION_IMG_TOPIC, FACE_DETECTION_TOPIC, FACE_DETECTION_TOPIC_MSG, ROS_SERVICE_NAMES } from '../../Constants'
 import VideoFeed from '../VideoFeed'
@@ -29,10 +28,6 @@ const DetectingFaceSubcomponent = (props) => {
   // conidered valid. NOTE: This must match the values in the MoveToMouth tree.
   const min_face_distance = 0.4
   const max_face_distance = 1.25
-  // Margin for the video feed and between the mask buttons. Note this cannot
-  // be re-defined per render, otherwise it messes up re-rendering order upon
-  // resize in VideoFeed.
-  const margin = useMemo(() => convertRemToPixels(1), [])
 
   /**
    * Connect to ROS, if not already connected. Put this in useRef to avoid
@@ -130,14 +125,7 @@ const DetectingFaceSubcomponent = (props) => {
           height: '100%'
         }}
       >
-        <VideoFeed
-          marginTop={margin}
-          marginBottom={margin}
-          marginLeft={margin}
-          marginRight={margin}
-          topic={FACE_DETECTION_IMG_TOPIC}
-          webrtcURL={props.webrtcURL}
-        />
+        <VideoFeed topic={FACE_DETECTION_IMG_TOPIC} webrtcURL={props.webrtcURL} />
       </View>
     </>
   )

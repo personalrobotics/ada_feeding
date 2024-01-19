@@ -6,6 +6,8 @@
  * Each subscriber sees the video stream from the publisher.
  */
 
+const SegfaultHandler = require('segfault-handler')
+SegfaultHandler.registerHandler('crash.log')
 const express = require('express')
 const app = express()
 const bodyParser = require('body-parser')
@@ -65,6 +67,7 @@ app.post('/subscribe', async ({ body }, res) => {
     res.json(payload)
   } catch (err) {
     console.error('Failed to process subscriber, exception: ' + err.message)
+    res.sendStatus(500)
   }
 })
 
@@ -107,10 +110,12 @@ app.post('/publish', async ({ body }, res) => {
     res.json(payload)
   } catch (err) {
     console.error('Failed to process publisher, exception: ' + err.message)
+    res.sendStatus(500)
   }
 })
 
 function handleTrackEvent(e, topic) {
+  console.log('Handle track for publisher')
   senderStream[topic] = e.streams[0]
 }
 

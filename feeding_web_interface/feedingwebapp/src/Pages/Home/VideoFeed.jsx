@@ -143,10 +143,10 @@ const VideoFeed = (props) => {
     )
 
     // Set the width and height of the video feed
-    setImgWidth(childWidth)
-    setImgHeight(childHeight)
-    setScaleFactor(childScaleFactor)
-  }, [parentRef, props.marginTop, props.marginBottom, props.marginLeft, props.marginRight])
+    setImgWidth(childWidth * props.zoom)
+    setImgHeight(childHeight * props.zoom)
+    setScaleFactor(childScaleFactor * props.zoom)
+  }, [parentRef, props.marginTop, props.marginBottom, props.marginLeft, props.marginRight, props.zoom])
 
   /** When the resize event is triggered, the elements have not yet been laid out,
    * and hence the parent width/height might not be accurate yet based on the
@@ -183,6 +183,83 @@ const VideoFeed = (props) => {
     [props.pointClicked, scaleFactor]
   )
 
+  const renderZoomControls = useCallback(
+    (zoom, setZoom, zoomMin, zoomMax) => {
+      // Return three views, containing a button, -, to reduce the zoom, a button,
+      // +, to increase the zoom, and text in-between that indicates the zoom
+      // level.
+      return (
+        <>
+          <View
+            style={{
+              flex: 1,
+              alignItems: 'center',
+              justifyContent: 'start',
+              width: '100%',
+              height: '100%'
+            }}
+          >
+            <Button
+              variant='warning'
+              className='mx-2 mb-2 btn-huge'
+              size='lg'
+              style={{
+                fontSize: textFontSize,
+                color: 'black'
+              }}
+              onClick={() => setZoom(Math.max(zoomMin, zoom - 0.1))}
+              disabled={zoom <= zoomMin}
+            >
+              -
+            </Button>
+          </View>
+          <View
+            style={{
+              flex: 2,
+              alignItems: 'center',
+              justifyContent: 'start',
+              width: '60%',
+              height: '100%'
+            }}
+          >
+            <p
+              style={{
+                fontSize: textFontSize,
+                color: 'black'
+              }}
+            >
+              {Math.round(zoom * 100)}%
+            </p>
+          </View>
+          <View
+            style={{
+              flex: 1,
+              alignItems: 'center',
+              justifyContent: 'start',
+              width: '100%',
+              height: '100%'
+            }}
+          >
+            <Button
+              variant='warning'
+              className='mx-2 mb-2 btn-huge'
+              size='lg'
+              style={{
+                fontSize: textFontSize,
+                color: 'black'
+              }}
+              onClick={() => setZoom(Math.min(zoomMax, zoom + 0.1))}
+              disabled={zoom >= zoomMax}
+            >
+              +
+            </Button>
+          </View>
+        </>
+      )
+    },
+    [textFontSize]
+  )
+
   // Render the component
   return (
     <>
@@ -193,7 +270,8 @@ const VideoFeed = (props) => {
           alignItems: 'center',
           justifyContent: 'center',
           width: '100%',
-          height: '100%'
+          height: '100%',
+          overflow: 'hidden'
         }}
       >
         <video
@@ -215,26 +293,36 @@ const VideoFeed = (props) => {
       <View
         style={{
           flex: 1,
-          // TODO: consider replacing 'center' with 'end' if the margin is 0.
+          flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'start',
           width: '100%',
           height: '100%'
         }}
       >
-        <Button
-          variant='warning'
-          className='mx-2 mb-2 btn-huge'
-          size='lg'
+        {props.setZoom ? renderZoomControls(props.zoom, props.setZoom, props.zoomMin, props.zoomMax) : <></>}
+        <View
           style={{
-            fontSize: textFontSize,
-            width: '60%',
-            color: 'black'
+            flex: 4,
+            alignItems: 'center',
+            justifyContent: 'start',
+            width: '100%',
+            height: '100%'
           }}
-          onClick={() => setRefreshCount(refreshCount + 1)}
         >
-          Reload Video
-        </Button>
+          <Button
+            variant='warning'
+            className='mx-2 mb-2 btn-huge'
+            size='lg'
+            style={{
+              fontSize: textFontSize,
+              color: 'black'
+            }}
+            onClick={() => setRefreshCount(refreshCount + 1)}
+          >
+            Reload Video
+          </Button>
+        </View>
       </View>
     </>
   )
@@ -255,14 +343,24 @@ VideoFeed.propTypes = {
    */
   pointClicked: PropTypes.func,
   // The URL of the webrtc signalling server
-  webrtcURL: PropTypes.string.isRequired
+  webrtcURL: PropTypes.string.isRequired,
+  // How much to zoom the camera feed by
+  zoom: PropTypes.number.isRequired,
+  // Min/max zoom
+  zoomMin: PropTypes.number.isRequired,
+  zoomMax: PropTypes.number.isRequired,
+  // If this is set, then VideoFeed renders buttons to allow users to change the zoom
+  setZoom: PropTypes.func
 }
 VideoFeed.defaultProps = {
   marginTop: 0,
   marginBottom: 0,
   marginLeft: 0,
   marginRight: 0,
-  topic: CAMERA_FEED_TOPIC
+  topic: CAMERA_FEED_TOPIC,
+  zoom: 1.0,
+  zoomMin: 1.0,
+  zoomMax: 2.0
 }
 
 export default VideoFeed

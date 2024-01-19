@@ -38,10 +38,10 @@ const DetectingFace = (props) => {
   let otherDimension = isPortrait ? 'row' : 'column'
   // Font size for text
   let textFontSize = 3
-  let buttonWidth = 30
-  let buttonHeight = 18
-  let iconWidth = 28
-  let iconHeight = 16
+  // let buttonWidth = 22
+  let buttonHeight = 14
+  let iconWidth = 20
+  let iconHeight = 12
   let sizeSuffix = isPortrait ? 'vh' : 'vw'
 
   /**
@@ -130,10 +130,10 @@ const DetectingFace = (props) => {
             width: '100%'
           }}
         >
-          <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <View style={{ flex: 6, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
             <DetectingFaceSubcomponent faceDetectedCallback={faceDetectedCallback} webrtcURL={props.webrtcURL} />
           </View>
-          <View style={{ flex: 3, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <View style={{ flex: 2, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
             <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: textFontSize.toString() + sizeSuffix }}>
               {mouthDetected ? 'Continue' : 'Continue without detection'}
             </p>
@@ -144,7 +144,7 @@ const DetectingFace = (props) => {
               size='lg'
               onClick={moveToMouthCallback}
               style={{
-                width: buttonWidth.toString() + sizeSuffix,
+                width: '90%',
                 height: buttonHeight.toString() + sizeSuffix,
                 display: 'flex',
                 justifyContent: 'center',
@@ -180,8 +180,8 @@ const DetectingFace = (props) => {
                 size='lg'
                 onClick={moveToRestingCallback}
                 style={{
-                  width: (buttonWidth / 2).toString() + sizeSuffix,
-                  height: (buttonHeight / 2).toString() + sizeSuffix,
+                  width: '90%',
+                  height: ((buttonHeight * 2) / 3).toString() + sizeSuffix,
                   display: 'flex',
                   justifyContent: 'center',
                   alignContent: 'center'
@@ -191,7 +191,7 @@ const DetectingFace = (props) => {
                   src={moveToRestingImage}
                   alt='move_to_resting_image'
                   className='center'
-                  style={{ width: (iconWidth / 2).toString() + sizeSuffix, height: (iconHeight / 2).toString() + sizeSuffix }}
+                  style={{ width: (iconWidth / 2).toString() + sizeSuffix, height: ((iconHeight * 2) / 3).toString() + sizeSuffix }}
                 />
               </Button>
             </View>
@@ -206,8 +206,8 @@ const DetectingFace = (props) => {
                 size='lg'
                 onClick={moveAbovePlateCallback}
                 style={{
-                  width: (buttonWidth / 2).toString() + sizeSuffix,
-                  height: (buttonHeight / 2).toString() + sizeSuffix,
+                  width: '90%',
+                  height: ((buttonHeight * 2) / 3).toString() + sizeSuffix,
                   display: 'flex',
                   justifyContent: 'center',
                   alignContent: 'center'
@@ -217,7 +217,7 @@ const DetectingFace = (props) => {
                   src={moveAbovePlateImage}
                   alt='move_above_plate_image'
                   className='center'
-                  style={{ width: (iconWidth / 2).toString() + sizeSuffix, height: (iconHeight / 2).toString() + sizeSuffix }}
+                  style={{ width: (iconWidth / 2).toString() + sizeSuffix, height: ((iconHeight * 2) / 3).toString() + sizeSuffix }}
                 />
               </Button>
             </View>
@@ -239,7 +239,6 @@ const DetectingFace = (props) => {
     props.webrtcURL,
     textFontSize,
     buttonHeight,
-    buttonWidth,
     sizeSuffix,
     iconHeight,
     iconWidth,

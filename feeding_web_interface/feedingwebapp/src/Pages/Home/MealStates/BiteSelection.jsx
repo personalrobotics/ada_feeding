@@ -36,6 +36,8 @@ const BiteSelection = (props) => {
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
   const setBiteAcquisitionActionGoal = useGlobalState((state) => state.setBiteAcquisitionActionGoal)
+  const biteSelectionZoom = useGlobalState((state) => state.biteSelectionZoom)
+  const setBiteSelectionZoom = useGlobalState((state) => state.setBiteSelectionZoom)
   // Get icon image for move to mouth
   let moveToStagingConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingConfiguration]
 
@@ -458,7 +460,7 @@ const BiteSelection = (props) => {
                 height: '100%'
               }}
             >
-              <VideoFeed pointClicked={imageClicked} webrtcURL={props.webrtcURL} />
+              <VideoFeed pointClicked={imageClicked} webrtcURL={props.webrtcURL} zoom={biteSelectionZoom} setZoom={setBiteSelectionZoom} />
             </View>
           </View>
           <View
@@ -592,6 +594,8 @@ const BiteSelection = (props) => {
     imageClicked,
     props.debug,
     props.webrtcURL,
+    biteSelectionZoom,
+    setBiteSelectionZoom,
     debugButton
   ])
 

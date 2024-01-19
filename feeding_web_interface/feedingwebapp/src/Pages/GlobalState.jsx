@@ -138,6 +138,9 @@ export const useGlobalState = create(
       // this is the state we transition to after R_MovingFromMouth. In practice,
       // it is either R_MovingAbovePlate, R_MovingToRestingPosition, or R_DetectingFace.
       mostRecentBiteDoneResponse: MEAL_STATE.R_DetectingFace,
+      // How much the video on the Bite Selection page should be zoomed in.
+      biteSelectionZoom: 1.0,
+
       // Settings values
       // stagingPosition: SETTINGS.stagingPosition[0],
       // biteInitiation: SETTINGS.biteInitiation[0],
@@ -196,6 +199,10 @@ export const useGlobalState = create(
       setBiteTransferPageAtFace: (biteTransferPageAtFace) =>
         set(() => ({
           biteTransferPageAtFace: biteTransferPageAtFace
+        })),
+      setBiteSelectionZoom: (biteSelectionZoom) =>
+        set(() => ({
+          biteSelectionZoom: biteSelectionZoom
         }))
       // setStagingPosition: (stagingPosition) =>
       //   set(() => ({
