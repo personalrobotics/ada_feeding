@@ -208,6 +208,7 @@ class ComputeFoodFrame(BlackboardBehavior):
             ):
                 # Not yet, wait for it
                 # Use a Timeout decorator to determine failure.
+                self.logger.warning("ComputeFoodFrame waiting on world/camera TF...")
                 return py_trees.common.Status.RUNNING
             transform = self.tf_buffer.lookup_transform(
                 world_frame,

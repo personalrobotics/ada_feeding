@@ -29,16 +29,18 @@ def main(in_fname: str, out_fname: str):
     # Target below top of food
     food_depth = -0.02
 
-
     # Load YAML
     print(f"Reading from: {in_fname}")
     with open(in_fname, "r", encoding="utf-8") as file:
         data = yaml.safe_load(file)
     actions = data["actions"]
-    
+
     for action in actions:
         # Add up to max_offset to pre_offset
-        norm = math.sqrt(action["pre_pos"][0]*action["pre_pos"][0] + action["pre_pos"][1]*action["pre_pos"][1])
+        norm = math.sqrt(
+            action["pre_pos"][0] * action["pre_pos"][0]
+            + action["pre_pos"][1] * action["pre_pos"][1]
+        )
         if not np.isclose(norm, 0.0):
             scale = min(max_offset, norm) / norm
             action["pre_offset"][0] = scale * action["pre_pos"][0]
