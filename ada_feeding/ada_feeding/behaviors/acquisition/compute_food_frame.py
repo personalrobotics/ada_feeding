@@ -197,9 +197,14 @@ class ComputeFoodFrame(BlackboardBehavior):
         roi_cx = mask.roi.width // 2
         roi_cy = mask.roi.height // 2
 
-        self.node.get_logger().debug(
+        self.node.get_logger().info(
             f"get_mask_center c_x {c_x}, c_y {c_y}, median_depth {median_depth}, roi_cx {roi_cx}, roi_cy {roi_cy}"
         )
+        if np.isnan(median_depth) or np.isclose(median_depth, 0.0):
+            self.node.get_logger().info(
+                f"Nan, fixing depth to average: {mask.average_depth}"
+            )
+            median_depth = mask.average_depth
 
         if viz:
             mask_img_color = cv.cvtColor(mask_img, cv.COLOR_GRAY2BGR)

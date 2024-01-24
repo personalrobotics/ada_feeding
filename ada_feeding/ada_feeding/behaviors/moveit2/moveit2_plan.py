@@ -466,6 +466,8 @@ class MoveIt2Plan(BlackboardBehavior):
         """
 
         curr_joint_state = self.moveit2.joint_state
+        if curr_joint_state is None:
+            raise ValueError("Failed to read robot joint state.")
         tol = np.fabs(constraint_kwargs["tolerance"])
 
         des_positions = list(constraint_kwargs["joint_positions"])

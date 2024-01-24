@@ -72,7 +72,11 @@ class EStopCondition(WatchdogCondition):
 
         # Initialize the accumulators
         self.start_time = None
+        self.last_recv_data_time_lock = Lock()
+        self.last_recv_data_time = None
         self.prev_data_arr = None
+        self.prev_data_arr_std = None
+        self.prev_data_arr_std_lock = Lock()
         self.prev_button_click_start_time = None
         self.num_clicks = 0
         self.num_clicks_lock = Lock()
@@ -533,6 +537,10 @@ class EStopCondition(WatchdogCondition):
         time_info: the time info
         status: the status
         """
+        # Update the time it has received data
+        with self.last_recv_data_time_lock:
+            self.last_recv_data_time = self._node.get_clock().now()
+
         # Skip the first few seconds of data, to avoid initial noise
         if self.start_time is None:
             self.start_time = self._node.get_clock().now()
@@ -564,6 +572,8 @@ class EStopCondition(WatchdogCondition):
 
         # Return the data
         self.prev_data_arr = data_arr
+        with self.prev_data_arr_std_lock:
+            self.prev_data_arr_std = np.std(self.prev_data_arr)
         return (data, pyaudio.paContinue)
 
     def check_startup(self) -> List[Tuple[bool, str, str]]:
@@ -629,12 +639,36 @@ class EStopCondition(WatchdogCondition):
             "been clicked since the startup click"
         )
 
-        name_2 = "E-Stop Button Plugged in"
+        name_2 = "E-Stop Button Plugged In"
         with self.is_mic_unplugged_lock:
             status_2 = not self.is_mic_unplugged
-        condition_2 = f"E-stop button has {'not ' if status_1 else ''}been unplugged"
+        condition_2 = f"E-stop button has {'not ' if status_2 else ''}been unplugged"
 
-        return [(status_1, name_1, condition_1), (status_2, name_2, condition_2)]
+        name_3 = "E-Stop Button Streaming Data"
+        num_secs_threshold = 1.0
+        with self.last_recv_data_time_lock:
+            if self.last_recv_data_time is None:
+                status_3 = False
+            else:
+                status_3 = (
+                    self._node.get_clock().now() - self.last_recv_data_time
+                ).nanoseconds <= num_secs_threshold * 10**9.0
+        condition_3 = f"E-stop button has {'not ' if status_3 else ''}sent data for {num_secs_threshold} secs"
+
+        name_4 = "E-Stop Standard Deviation"
+        with self.prev_data_arr_std_lock:
+            if self.prev_data_arr_std is None:
+                status_4 = None
+            else:
+                status_4 = not np.isclose(self.prev_data_arr_std, 0.0)
+        condition_4 = f"E-stop button does {'not ' if status_4 else ''}have non-zero standard deviation"
+
+        return [
+            (status_1, name_1, condition_1),
+            (status_2, name_2, condition_2),
+            (status_3, name_3, condition_3),
+            (status_4, name_4, condition_4),
+        ]
 
     def terminate(self) -> None:
         """

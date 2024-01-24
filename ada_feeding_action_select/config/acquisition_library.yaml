@@ -63,7 +63,7 @@ actions:
   pre_offset:
   - 0.0
   - 0.0
-  - -0.02
+  - -0.04
   pre_pos:
   - 0.0
   - 0.0
@@ -98,7 +98,7 @@ actions:
   grasp_torque: 4.0
   pre_force: 15.0
   pre_offset:
-  - -0.01
+  - 0.0
   - 0.0
   - -0.02
   pre_pos:
@@ -517,4 +517,41 @@ actions:
   - 0.5522494
   - 0.7536649
   - -0.3491697
+  pre_torque: 4.0
+- ext_angular:
+  - -0.35
+  - 0.0
+  - 0.0
+  ext_duration: 3.0
+  ext_force: 20.0
+  ext_linear:
+  - -0.005
+  - 0.0
+  - 0.005
+  ext_torque: 4.0
+  grasp_angular:
+  - -0.01
+  - 0.0
+  - 1.0
+  grasp_duration: 8.0
+  grasp_force: 15.0
+  grasp_linear:
+  - 0.0
+  - 0.0
+  - 0.0
+  grasp_torque: 4.0
+  pre_force: 2.0
+  pre_offset:
+  - 0.0
+  - 0.0
+  - -0.03
+  pre_pos:
+  - 0.0
+  - 0.0
+  - 1.0
+  pre_quat:
+  - 0.0
+  - 0.7071068
+  - -0.7071068
+  - 0.0
   pre_torque: 4.0

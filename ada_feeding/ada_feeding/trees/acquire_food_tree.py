@@ -141,6 +141,14 @@ class AcquireFoodTree(MoveToTree):
                         "in_front_of_wheelchair_wall",
                     ),
                     workers=[
+                        py_trees_ros.service_clients.FromConstant(
+                            name="ClearOctomap",
+                            service_name="/clear_octomap",
+                            service_type=Empty,
+                            service_request=Empty.Request(),
+                            # Default fail if service is down
+                            wait_for_server_timeout_sec=0.0,
+                        ),
                         MoveIt2JointConstraint(
                             name="RestingConstraint",
                             ns=name,
