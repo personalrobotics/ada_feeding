@@ -17,6 +17,8 @@ def main(in_fname: str, out_fname: str):
     Modify acquisition library
     """
 
+    # pylint: disable=too-many-locals
+
     # Scale Angular Speeds
     target_rads = 0.3
 

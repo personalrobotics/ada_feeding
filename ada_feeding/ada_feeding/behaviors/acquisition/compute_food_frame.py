@@ -11,6 +11,7 @@ from typing import Optional, Tuple, Union
 import cv2 as cv
 from geometry_msgs.msg import PointStamped, TransformStamped, Vector3Stamped
 import numpy as np
+import numpy.typing as npt
 from overrides import override
 import py_trees
 import pyrealsense2
@@ -141,13 +142,27 @@ class ComputeFoodFrame(BlackboardBehavior):
             )
             self.intrinsics.model = pyrealsense2.distortion.none
 
-    def get_mask_center(self, mask: Mask) -> Tuple[int, int]:
+    def get_mask_center(
+        self,
+        mask: Mask,
+        mask_img: npt.NDArray,
+        kernel_size: int = 21,
+        viz: bool = False,
+    ) -> Tuple[int, int, float]:
         """
-        Returns the center of the mask.
+        Returns the center of the mask (u,v) and the median depth in a kernel_size
+        square around the center of the mask.
+
+        Parameters
+        ----------
+        mask: the ada_feeding_msgs.msg.Mask the user selected.
+        mask_img: the mask concerted to an OpenCV Matrix
+        kernel_size: get the median depth over the kernel_size by kernel_size
+            pixels around the mask center.
+        viz: whether to visualize the mask (note, this will block the main thread).
         """
-        mask_img = cv.imdecode(
-            np.frombuffer(mask.mask.data, np.uint8), cv.IMREAD_UNCHANGED
-        )
+
+        # pylint: disable=too-many-locals
 
         # Calculate the moments of the mask
         moments = cv.moments(mask_img)
@@ -156,21 +171,49 @@ class ComputeFoodFrame(BlackboardBehavior):
         c_x = int(round(moments["m10"] / moments["m00"]))
         c_y = int(round(moments["m01"] / moments["m00"]))
 
+        # Compute the median depth around the center point
+        half_kernel_size = kernel_size // 2
+        depth_img = ros_msg_to_cv2_image(mask.depth_image)
+        depth_within_kernel = depth_img[
+            max(0, c_y - half_kernel_size) : min(
+                mask.roi.height, c_y + half_kernel_size + 1
+            ),
+            max(0, c_x - half_kernel_size) : min(
+                mask.roi.width, c_x + half_kernel_size + 1
+            ),
+        ]
+        mask_within_kernel = mask_img[
+            max(0, c_y - half_kernel_size) : min(
+                mask.roi.height, c_y + half_kernel_size + 1
+            ),
+            max(0, c_x - half_kernel_size) : min(
+                mask.roi.width, c_x + half_kernel_size + 1
+            ),
+        ]
+        masked_depth = depth_within_kernel[mask_within_kernel == 255]
+        median_depth = np.median(masked_depth[np.nonzero(masked_depth)]) / 1000.0
+
+        # Compute the center of the ROI
         roi_cx = mask.roi.width // 2
         roi_cy = mask.roi.height // 2
 
-        self.node.get_logger().warn(
-            f"c_x {c_x}, c_y {c_y}, roi_cx {roi_cx}, roi_cy {roi_cy}"
+        self.node.get_logger().info(
+            f"get_mask_center c_x {c_x}, c_y {c_y}, median_depth {median_depth}, roi_cx {roi_cx}, roi_cy {roi_cy}"
         )
+        if np.isnan(median_depth) or np.isclose(median_depth, 0.0):
+            self.node.get_logger().info(
+                f"Nan, fixing depth to average: {mask.average_depth}"
+            )
+            median_depth = mask.average_depth
 
-        mask_img_color = cv.cvtColor(mask_img, cv.COLOR_GRAY2BGR)
-        cv.circle(mask_img_color, (c_x, c_y), 2, (0, 0, 255), -1)
-        cv.circle(mask_img_color, (roi_cx, roi_cy), 2, (255, 0, 0), -1)
+        if viz:
+            mask_img_color = cv.cvtColor(mask_img, cv.COLOR_GRAY2BGR)
+            cv.circle(mask_img_color, (c_x, c_y), 2, (0, 0, 255), -1)
+            cv.circle(mask_img_color, (roi_cx, roi_cy), 2, (255, 0, 0), -1)
+            cv.imshow("mask_img", mask_img_color)
+            cv.waitKey(0)
 
-        # cv.imshow("mask_img", mask_img_color)
-        # cv.waitKey(0)
-
-        return (mask.roi.x_offset + c_x, mask.roi.y_offset + c_y)
+        return (mask.roi.x_offset + c_x, mask.roi.y_offset + c_y, median_depth)
 
     @override
     def update(self) -> py_trees.common.Status:
@@ -222,15 +265,19 @@ class ComputeFoodFrame(BlackboardBehavior):
         world_to_food_transform.header.frame_id = world_frame
         world_to_food_transform.child_frame_id = self.blackboard_get("food_frame_id")
 
-        # De-project center of ROI
+        # Get Mask
         mask = self.blackboard_get("mask")
-        if mask.average_depth == 0.0:
-            self.logger.error("Invalid mask: average depth is zero.")
+        mask_cv = ros_msg_to_cv2_image(mask.mask)
+
+        # De-project center of ROI
+        c_x, c_y, median_depth = self.get_mask_center(mask, mask_cv)
+        if median_depth == 0.0:
+            self.logger.error("Invalid mask: median_depth is zero.")
             return py_trees.common.Status.FAILURE
         center_list = pyrealsense2.rs2_deproject_pixel_to_point(
             self.intrinsics,
-            self.get_mask_center(mask),
-            mask.average_depth,
+            (c_x, c_y),
+            median_depth,
         )
         center = PointStamped()
         center.header.frame_id = camera_frame
@@ -242,8 +289,6 @@ class ComputeFoodFrame(BlackboardBehavior):
         # Get angle from mask bounded ellipse
         # See: https://stackoverflow.com/questions/15956124/minarearect-angles-unsure-
         #      about-the-angle-returned
-        # Get Mask
-        mask_cv = ros_msg_to_cv2_image(mask.mask)
         # Threshold and get contours
         _, mask_thresh = cv.threshold(mask_cv, 127, 255, 0)
         contours, _ = cv.findContours(mask_thresh, 1, 2)
@@ -262,10 +307,10 @@ class ComputeFoodFrame(BlackboardBehavior):
             point2 = points[2]
         # Get vector in camera frame
         point1 = pyrealsense2.rs2_deproject_pixel_to_point(
-            self.intrinsics, [point1[0], point1[1]], mask.average_depth
+            self.intrinsics, [point1[0], point1[1]], median_depth
         )
         point2 = pyrealsense2.rs2_deproject_pixel_to_point(
-            self.intrinsics, [point2[0], point2[1]], mask.average_depth
+            self.intrinsics, [point2[0], point2[1]], median_depth
         )
         # Flip X if requested
         if self.blackboard_get("flip_food_frame"):

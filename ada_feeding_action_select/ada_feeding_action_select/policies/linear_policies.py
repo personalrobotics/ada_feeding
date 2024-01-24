@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-This module defines an abstract class (and defaults) for 
-selecting an action based on a policy.
+This module defines concrete linear policy classes.
 """
 # pylint: disable=too-many-instance-attributes
 # This is a dataclass, come on.

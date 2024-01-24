@@ -11,3 +11,6 @@ from .base_policies import ConstantPolicy
 
 # Linear Policies
 from .linear_policies import RandomLinearPolicy
+
+# Color Policy
+from .color_policy import ColorPolicy
