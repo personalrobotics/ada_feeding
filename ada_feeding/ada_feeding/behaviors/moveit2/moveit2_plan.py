@@ -139,9 +139,9 @@ class MoveIt2Plan(BlackboardBehavior):
         debug_trajectory_viz: Whether to generate and save a visualization of the
             trajectory in joint space. This is useful for debugging, but should
             be disabled in production.
-        max_path_len: Maximum distance in configuration space of trajectory 
+        max_path_len: Maximum distance in configuration space of trajectory
             (likely radians). Default 6.0 * pi (i.e. 180 degrees ea for a 6DOF robot)
-        max_path_len_joint: Maximum distance each joint (or subset of joints) 
+        max_path_len_joint: Maximum distance each joint (or subset of joints)
             is allowed to travel. As dictionary: <joint_name> -> <max_distance>
         """
         # TODO: consider cartesian parameter struct

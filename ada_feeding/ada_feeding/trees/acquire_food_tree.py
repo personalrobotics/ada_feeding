@@ -356,7 +356,7 @@ class AcquireFoodTree(MoveToTree):
                             "cartesian_fraction_threshold": 0.95,
                             "start_joint_state": BlackboardKey("test_into_joints"),
                         },
-                        outputs={"trajectory": None},
+                        outputs={"trajectory": BlackboardKey("move_into_trajectory")},
                     ),
                 ],
             )
@@ -502,24 +502,30 @@ class AcquireFoodTree(MoveToTree):
                                                 ),
                                             },
                                         ),
-                                        MoveIt2Plan(
-                                            name="MoveIntoPlan",
-                                            ns=name,
-                                            inputs={
-                                                "goal_constraints": BlackboardKey(
-                                                    "goal_constraints"
-                                                ),
-                                                "max_velocity_scale": self.max_velocity_scaling_move_into,
-                                                "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                                "cartesian": True,
-                                                "cartesian_max_step": 0.001,
-                                                "cartesian_fraction_threshold": 0.95,
-                                            },
-                                            outputs={
-                                                "trajectory": BlackboardKey(
-                                                    "trajectory"
-                                                )
-                                            },
+                                        # If this fails
+                                        # Auto-fallback to precomputed MoveInto
+                                        # From move_above_plan()
+                                        py_trees.decorators.FailureIsSuccess(
+                                            name="MoveIntoPlanFallbackPrecomputed",
+                                            child=MoveIt2Plan(
+                                                name="MoveIntoPlan",
+                                                ns=name,
+                                                inputs={
+                                                    "goal_constraints": BlackboardKey(
+                                                        "goal_constraints"
+                                                    ),
+                                                    "max_velocity_scale": self.max_velocity_scaling_move_into,
+                                                    "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                                                    "cartesian": True,
+                                                    "cartesian_max_step": 0.001,
+                                                    "cartesian_fraction_threshold": 0.95,
+                                                },
+                                                outputs={
+                                                    "trajectory": BlackboardKey(
+                                                        "move_into_trajectory"
+                                                    )
+                                                },
+                                            ),
                                         ),
                                         # MoveInto expect F/T failure
                                         py_trees.decorators.FailureIsSuccess(
@@ -529,7 +535,7 @@ class AcquireFoodTree(MoveToTree):
                                                 ns=name,
                                                 inputs={
                                                     "trajectory": BlackboardKey(
-                                                        "trajectory"
+                                                        "move_into_trajectory"
                                                     )
                                                 },
                                                 outputs={},
