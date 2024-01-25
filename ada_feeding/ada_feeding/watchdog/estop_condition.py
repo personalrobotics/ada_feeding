@@ -83,6 +83,12 @@ class EStopCondition(WatchdogCondition):
         self.is_mic_unplugged = False
         self.is_mic_unplugged_lock = Lock()
 
+        # Initialize STD EMA
+        # TODO: Make these parameters to pass in
+        self.std_ema = 2.0
+        self.std_ema_alpha = 0.1
+        self.std_thresh = 0.95
+
         # Start listening for ACPI events on a separate thread
         self.acpi_thread = Thread(target=self.__acpi_listener, daemon=True)
         self.acpi_thread.start()
@@ -609,9 +615,7 @@ class EStopCondition(WatchdogCondition):
         name_2 = "Startup: E-Stop Button Clicked"
         with self.num_clicks_lock:
             status_2 = self.num_clicks > 0
-        condition_2 = (
-            f"E-stop button has {'' if status_1 else 'not '}been clicked at least once"
-        )
+        condition_2 = "E-stop button must be clicked at least once"
 
         return [(status_1, name_1, condition_1), (status_2, name_2, condition_2)]
 
@@ -660,8 +664,14 @@ class EStopCondition(WatchdogCondition):
             if self.prev_data_arr_std is None:
                 status_4 = None
             else:
-                status_4 = not np.isclose(self.prev_data_arr_std, 0.0)
-        condition_4 = f"E-stop button does {'not ' if status_4 else ''}have non-zero standard deviation"
+                if self.std_ema < self.std_thresh:
+                    status_4 = False
+                else:
+                    self.std_ema = self.std_ema * (
+                        self.std_ema_alpha
+                    ) + self.prev_data_arr_std * (1.0 - self.std_ema_alpha)
+                    status_4 = self.std_ema > self.std_thresh
+            condition_4 = f"E-stop button experienced small standard deviation ({self.std_ema} < {self.std_thresh})"
 
         return [
             (status_1, name_1, condition_1),
