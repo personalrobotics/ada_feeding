@@ -5,9 +5,11 @@ server that takes in a seed point, segments the latest image with that seed
 point using Segment Anything, and returns the top n contender masks.
 """
 # Standard imports
+import math
 import os
+import reprlib
 import threading
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 # Third-party imports
 import cv2
@@ -99,6 +101,8 @@ class SegmentFromPointNode(Node):
         # NOTE: We assume this is in the same frame as the RGB image
         self.latest_depth_img_msg = None
         self.latest_depth_img_msg_lock = threading.Lock()
+        self.min_depth_mm = 330
+        self.max_depth_mm = 1500
         aligned_depth_topic = "~/aligned_depth"
         try:
             aligned_depth_type = get_img_msg_type(aligned_depth_topic, self)
@@ -410,7 +414,8 @@ class SegmentFromPointNode(Node):
             mask_msg = self.generate_mask_msg(
                 item_id, score.item(), mask, image, depth_img, seed_point
             )
-            result.detected_items.append(mask_msg)
+            if mask_msg is not None:
+                result.detected_items.append(mask_msg)
 
         # Return the result message
         return result
@@ -426,7 +431,7 @@ class SegmentFromPointNode(Node):
         image: npt.NDArray,
         depth_img: npt.NDArray,
         seed_point: Tuple[int, int],
-    ) -> Mask:
+    ) -> Optional[Mask]:
         """
         Convert a mask detected by SegmentAnything to a ROS Mask msg.
 
@@ -446,7 +451,19 @@ class SegmentFromPointNode(Node):
         cleaned_mask = get_connected_component(mask, seed_point)
         # Get the **median** depth over the mask
         masked_depth = depth_img[cleaned_mask]
-        average_depth_mm = np.median(masked_depth[np.nonzero(masked_depth)])
+        average_depth_mm = np.median(
+            masked_depth[
+                np.logical_and(
+                    masked_depth >= self.min_depth_mm, masked_depth <= self.max_depth_mm
+                )
+            ]
+        )
+        if np.isnan(average_depth_mm):
+            self.get_logger().warn(
+                f"No depth points within [{self.min_depth_mm}, {self.max_depth_mm}] mm range "
+                f"for mask {item_id}. Skipping mask."
+            )
+            return None
         # Compute the bounding box
         bbox = bbox_from_mask(cleaned_mask)
         # Crop the image and the mask
@@ -528,7 +545,10 @@ class SegmentFromPointNode(Node):
         result.status = result.STATUS_SUCCEEDED
         with self.active_goal_request_lock:
             self.active_goal_request = None  # Clear the active goal
-        self.get_logger().info(f"...Done {result}!")
+        self.get_logger().info(
+            "...Done. Got masks with average depth "
+            f"{[m.average_depth for m in result.detected_items]} m."
+        )
         return result
 
 
