@@ -6,6 +6,7 @@ e-stop button either being clicked or being unplugged and fails if so.
 """
 
 # Standard imports
+import math
 import socket
 import subprocess
 from threading import Lock, Thread
@@ -317,7 +318,7 @@ class EStopCondition(WatchdogCondition):
 
         std_ema_min_thresh = self._node.declare_parameter(
             "std_ema_min_thresh",
-            5.0,
+            0.0,
             ParameterDescriptor(
                 name="std_ema_min_thresh",
                 type=ParameterType.PARAMETER_DOUBLE,
@@ -332,7 +333,7 @@ class EStopCondition(WatchdogCondition):
 
         std_ema_max_thresh = self._node.declare_parameter(
             "std_ema_max_thresh",
-            15.0,
+            math.inf,
             ParameterDescriptor(
                 name="std_ema_max_thresh",
                 type=ParameterType.PARAMETER_DOUBLE,
