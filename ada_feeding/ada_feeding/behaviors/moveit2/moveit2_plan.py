@@ -140,7 +140,7 @@ class MoveIt2Plan(BlackboardBehavior):
             trajectory in joint space. This is useful for debugging, but should
             be disabled in production.
         max_path_len: Maximum distance in configuration space of trajectory
-            (likely radians). Default 6.0 * pi (i.e. 180 degrees ea for a 6DOF robot)
+            (likely radians). Default sqrt(6.0 * pi) (i.e. 180 degrees each for a 6DOF robot)
         max_path_len_joint: Maximum distance each joint (or subset of joints)
             is allowed to travel. As dictionary: <joint_name> -> <max_distance>
         """
@@ -503,7 +503,7 @@ class MoveIt2Plan(BlackboardBehavior):
             curr_pos = np.array(point.positions)
             seg_len = np.abs(curr_pos - prev_pos)
             total_len += np.linalg.norm(seg_len)
-            for index, name in path.joint_names:
+            for index, name in enumerate(path.joint_names):
                 joint_lens[name] += seg_len[index]
             prev_pos = curr_pos
 
