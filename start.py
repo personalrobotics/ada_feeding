@@ -149,7 +149,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             ],
             "webrtc": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
-                "node --env-file=.env server.js",
+                "pm2 delete server",
+                "pm2 start server.js",
             ],
             "camera": [
                 "ssh nano './run_camera.sh'",
