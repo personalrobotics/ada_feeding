@@ -174,7 +174,6 @@ class BoundingBox:
         self.xmax = xmax
         self.ymax = ymax
 
-
 def bbox_from_mask(mask: npt.NDArray[np.bool_]) -> BoundingBox:
     """
     Takes in a binary mask and returns the smallest axis-aligned bounding box
