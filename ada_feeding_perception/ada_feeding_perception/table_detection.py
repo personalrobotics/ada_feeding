@@ -45,6 +45,8 @@ class TableDetectionNode(Node):
         """
 		
 		super().__init__("table_detection")
+
+        self.get_logger().info(f"Table detection node is running! -------------------------------")
 		
 		# Create the service
         self.srv = self.create_service(
@@ -190,14 +192,22 @@ class TableDetectionNode(Node):
             depth_img_msg = self.latest_depth_img_msg
 
         # Get table depth from camera at the (u, v) coordinate (320, 240)
-        z = self.fit_table(
+        table_depth = self.fit_table(
             self, rgb_msg, depth_img_msg, 320, 240
         )
+
+        
+        self.get_logger().info(f"table depth, {table_depth}, {type(table_depth)}")
 
         # Get the camera matrix
         with self.camera_info_lock:
             camera_matrix = self.camera_matrix
         
+        # To be replaced with PoseStamped message
+        response.success = True
+        response.message = f"To be replaced with PoseStamped message"
+        
+        return response
 
     def camera_info_callback(self, msg: CameraInfo) -> None:
         """
@@ -237,14 +247,16 @@ def main(args=None):
     """
     Launch the ROS node and spin.
     """
+
+    asdfasd 
+    
+    self.get_logger().info(f"TableDetection node is running! -------------------------------")
+
     rclpy.init(args=args)
 
     table_detection = TableDetectionNode()
 
     rclpy.spin(table_detection)
-
-    # Terminate this node
-    rclpy.shutdown()
 
 
 if __name__ == "__main__":

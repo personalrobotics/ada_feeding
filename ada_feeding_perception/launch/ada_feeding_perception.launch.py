@@ -145,4 +145,12 @@ def generate_launch_description():
     )
     launch_description.add_action(face_detection)
 
+    # Load the table detection node
+    table_detection = Node(
+        package="ada_feeding_perception",
+        name="table_detection",
+        executable="table_detection",
+    )
+    launch_description.add_action(table_detection)
+
     return launch_description
