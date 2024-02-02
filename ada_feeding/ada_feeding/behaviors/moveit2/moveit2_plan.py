@@ -103,7 +103,7 @@ class MoveIt2Plan(BlackboardBehavior):
             BlackboardKey, Optional[Union[JointState, List[float]]]
         ] = None,
         debug_trajectory_viz: Union[BlackboardKey, bool] = False,
-        max_path_len: Optional[Union[BlackboardKey, float]] = np.sqrt(6.0 * np.pi),
+        max_path_len: Optional[Union[BlackboardKey, float]] = 10.0, #np.sqrt(6.0) * np.pi,
         max_path_len_joint: Optional[Union[BlackboardKey, Dict[str, float]]] = None,
     ) -> None:
         """
@@ -283,6 +283,7 @@ class MoveIt2Plan(BlackboardBehavior):
                     self.blackboard_set("end_joint_state", end_joint_state)
                     # Check Path Length
                     total_len, joint_len = MoveIt2Plan.get_path_len(traj)
+                    self.logger.warning(f"Path Length of Plan: {total_len}")
                     if (
                         self.blackboard_exists("max_path_len")
                         and self.blackboard_get("max_path_len") is not None

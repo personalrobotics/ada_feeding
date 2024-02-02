@@ -264,7 +264,7 @@ class AcquireFoodTree(MoveToTree):
                                         "max_acceleration_scale": self.max_acceleration_scaling_move_into,
                                         "cartesian": True,
                                         "cartesian_max_step": 0.001,
-                                        "cartesian_fraction_threshold": 0.95,
+                                        "cartesian_fraction_threshold": 0.92,
                                     },
                                     outputs={"trajectory": BlackboardKey("trajectory")},
                                 ),
@@ -409,7 +409,7 @@ class AcquireFoodTree(MoveToTree):
                             "max_acceleration_scale": self.max_acceleration_scaling_move_into,
                             "cartesian": True,
                             "cartesian_max_step": 0.001,
-                            "cartesian_fraction_threshold": 0.95,
+                            "cartesian_fraction_threshold": 0.92,
                             "start_joint_state": BlackboardKey("test_into_joints"),
                         },
                         outputs={"trajectory": BlackboardKey("move_into_trajectory")},
@@ -574,7 +574,7 @@ class AcquireFoodTree(MoveToTree):
                                                     "max_acceleration_scale": self.max_acceleration_scaling_move_into,
                                                     "cartesian": True,
                                                     "cartesian_max_step": 0.001,
-                                                    "cartesian_fraction_threshold": 0.95,
+                                                    "cartesian_fraction_threshold": 0.92,
                                                 },
                                                 outputs={
                                                     "trajectory": BlackboardKey(
