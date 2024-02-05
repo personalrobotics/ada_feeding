@@ -150,6 +150,7 @@ def generate_launch_description():
         package="ada_feeding_perception",
         name="table_detection",
         executable="table_detection",
+        remappings=realsense_remappings + face_detection_remappings,
     )
     launch_description.add_action(table_detection)
 

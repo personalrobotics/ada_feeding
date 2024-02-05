@@ -16,13 +16,14 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
-from sensor_msgs.msg import CameraInfo, CompressedImage, Image, RegionOfInterest
+from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 import torch
 import pyrealsense2
 from std_srvs.srv import Trigger
 
 
 # Local imports
+from ada_feeding_msgs.msg import Mask
 from ada_feeding_perception.helpers import (
     bbox_from_mask,
     crop_image_mask_and_point,
@@ -34,29 +35,27 @@ from ada_feeding_perception.helpers import (
 )
 
 class TableDetectionNode(Node):
-	"""
+    """
     This node fits a table to the received depth image and publishes a 3d PoseStamped location
-	of a specific point on the table with respect to the camera frame.
-	"""
-	
-	def __init__(self):
-		"""
-        Initialize the TableDetectionNode.
+    of a specific point on the table with respect to the camera frame.
+    """
+    
+    def __init__(self):
         """
-		
-		super().__init__("table_detection")
-
-        self.get_logger().info(f"Table detection node is running! -------------------------------")
-		
-		# Create the service
+        Initialize the TableDetectionNode.
+        """	
+        
+        super().__init__("table_detection")
+        
+        # Create the service
         self.srv = self.create_service(
             Trigger,
-			"~/fit_table",
-            self.table_detection_callback,
+            "~/fit_to_table",
+            self.fit_to_table_callback,
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
-		
-		# Subscribe to the camera info topic, to get the camera intrinsics
+
+        # Subscribe to the camera info topic, to get the camera intrinsics
         self.camera_info = None
         self.camera_info_lock = threading.Lock()
         self.camera_info_subscriber = self.create_subscription(
@@ -67,7 +66,8 @@ class TableDetectionNode(Node):
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
-        # Subscribe to the aligned depth image topic, to store the latest depth image        self.latest_depth_img_msg = None
+        # Subscribe to the aligned depth image topic, to store the latest depth image
+        self.latest_depth_img_msg = None
         self.latest_depth_img_msg_lock = threading.Lock()
         aligned_depth_topic = "~/aligned_depth"
         try:
@@ -129,7 +129,7 @@ class TableDetectionNode(Node):
 
         # Grayscale image
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) 
-
+        
         # Detect Largest Circle (Plate)
         circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, self._hough_accum, self._hough_min_dist,
             param1=self._hough_param1, param2=self._hough_param2, minRadius=self._hough_min, maxRadius=self._hough_max)
@@ -143,62 +143,61 @@ class TableDetectionNode(Node):
             if r > plate_r:
                 plate_uv = (x, y)
                 plate_r = r
-
+        
         # Create Mask for Depth Image
         plate_mask = np.zeros(image_depth.shape)
         cv2.circle(plate_mask, plate_uv, plate_r + table_buffer, 1.0, -1)
         cv2.circle(plate_mask, plate_uv, plate_r, 0.0, -1)
         depth_mask = (image_depth * (plate_mask).astype("uint16")).astype(float)
-
+        
         # Noise removal
         kernel = np.ones((6,6), np.uint8)
         depth_mask = cv2.morphologyEx(depth_mask, cv2.MORPH_OPEN, kernel, iterations = 3)
         depth_mask = cv2.morphologyEx(depth_mask, cv2.MORPH_CLOSE, kernel, iterations = 3)
-
+        
         # Remove Outliers
         depth_var = np.abs(depth_mask - np.mean(depth_mask[depth_mask > 0]))
         depth_std = np.std(depth_mask[depth_mask > 0])
         depth_mask[depth_var > 2.0*depth_std] = 0
-
+        
         # Fit Plane: depth = a*u + b*v + c
         d_idx = np.where(depth_mask > 0)
         d = depth_mask[d_idx].astype(float)
         coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1)))).astype(float)
         b, a, c = np.linalg.lstsq(coeffs, d)[0]
-
+        
         # Create Table Depth Image
         u = np.linspace(0, image_depth.shape[1], image_depth.shape[1], False)
         v = np.linspace(0, image_depth.shape[0], image_depth.shape[0], False)
         U, V = np.meshgrid(u, v)
         table = a*U + b*V + c
         table = table.astype("uint16")
-
+        
         return table[target_u][target_v]
-
-    def table_detection_callback(
+        
+    def fit_to_table_callback(
         self, request: Trigger.Request, response: Trigger.Response
     ):
         # Get the latest RGB image message
-            with self.latest_img_msg_lock:
-                rgb_msg = self.latest_img_msg
-            if rgb_msg is None:
-                self.get_logger().warn(
-                    "No RGB image message received.", throttle_duration_sec=1
-                )
-                continue
+        with self.latest_img_msg_lock:
+            rgb_msg = self.latest_img_msg
+        if rgb_msg is None:
+            self.get_logger().warn(
+                "No RGB image message received.", throttle_duration_sec=1
+            )
+            return 
         
         # Get the latest depth image
         with self.latest_depth_img_msg_lock:
             depth_img_msg = self.latest_depth_img_msg
-
+        
         # Get table depth from camera at the (u, v) coordinate (320, 240)
         table_depth = self.fit_table(
             self, rgb_msg, depth_img_msg, 320, 240
         )
-
         
         self.get_logger().info(f"table depth, {table_depth}, {type(table_depth)}")
-
+        
         # Get the camera matrix
         with self.camera_info_lock:
             camera_matrix = self.camera_matrix
@@ -248,17 +247,12 @@ def main(args=None):
     Launch the ROS node and spin.
     """
 
-    asdfasd 
-    
-    self.get_logger().info(f"TableDetection node is running! -------------------------------")
-
-    rclpy.init(args=args)
+    rclpy.init()
 
     table_detection = TableDetectionNode()
 
     rclpy.spin(table_detection)
-
-
+    
 if __name__ == "__main__":
     main()
 
