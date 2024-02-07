@@ -515,8 +515,8 @@ class CreateActionServers(Node):
             goal_uuid = "".join(format(x, "02x") for x in goal_handle.goal_id.uuid)
             self.get_logger().info(
                 f"{server_name}: "
-                f"Executing goal {goal_uuid} "
-                f"with request {goal_handle.request}"
+                f"Executing goal {goal_uuid}"
+                # f" with request {goal_handle.request}"
             )
 
             # pylint: disable=broad-exception-caught

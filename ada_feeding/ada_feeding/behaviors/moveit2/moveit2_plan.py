@@ -44,6 +44,20 @@ class MoveIt2ConstraintType(Enum):
     ORIENTATION = 2
 
 
+class MoveIt2PlanErrorCode(Enum):
+    """
+    Used to clarify reason for failure
+    """
+
+    SUCCESS = 0
+    PLANNING = 1
+    BAD_GOAL = 2
+    BAD_PATH = 3
+    INVALID_START = 4
+    PATH_LEN = 5
+    PATH_LEN_JOINT = 6
+
+
 class MoveIt2Plan(BlackboardBehavior):
     """
     Runs moveit2.py plan_async with the provided
@@ -63,6 +77,9 @@ class MoveIt2Plan(BlackboardBehavior):
     # pylint: disable=too-many-arguments
     # These are effectively config definitions
     # They require a lot of arguments.
+
+    # pylint: disable=too-many-locals
+    # Update function is long
 
     def blackboard_inputs(
         self,
@@ -86,6 +103,8 @@ class MoveIt2Plan(BlackboardBehavior):
             BlackboardKey, Optional[Union[JointState, List[float]]]
         ] = None,
         debug_trajectory_viz: Union[BlackboardKey, bool] = False,
+        max_path_len: Optional[Union[BlackboardKey, float]] = 10.0, #np.sqrt(6.0) * np.pi,
+        max_path_len_joint: Optional[Union[BlackboardKey, Dict[str, float]]] = None,
     ) -> None:
         """
         Blackboard Inputs
@@ -120,6 +139,10 @@ class MoveIt2Plan(BlackboardBehavior):
         debug_trajectory_viz: Whether to generate and save a visualization of the
             trajectory in joint space. This is useful for debugging, but should
             be disabled in production.
+        max_path_len: Maximum distance in configuration space of trajectory
+            (likely radians). Default sqrt(6.0 * pi) (i.e. 180 degrees each for a 6DOF robot)
+        max_path_len_joint: Maximum distance each joint (or subset of joints)
+            is allowed to travel. As dictionary: <joint_name> -> <max_distance>
         """
         # TODO: consider cartesian parameter struct
         # pylint: disable=unused-argument, duplicate-code
@@ -132,6 +155,7 @@ class MoveIt2Plan(BlackboardBehavior):
         self,
         trajectory: Optional[BlackboardKey],  # Optional[JointTrajectory]
         end_joint_state: Optional[BlackboardKey] = None,  # Optional[JointState]
+        error_code: Optional[BlackboardKey] = None,  # Optional[MoveIt2PlanErrorCodes]
     ) -> None:
         """
         Blackboard Outputs
@@ -143,6 +167,7 @@ class MoveIt2Plan(BlackboardBehavior):
                                       or goal is already satisfied
         end_joint_state (JointState): get the last joint state of the planned trajectoy,
                                       useful for chaining planning calls
+        error_code (MoveIt2PlanErrorCode): Reason for planning failure.
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -210,6 +235,8 @@ class MoveIt2Plan(BlackboardBehavior):
         # All raised exceptions map to a return statement.
         # This is the main function, it is okay for it to be long.
 
+        self.blackboard_set("error_code", MoveIt2PlanErrorCode.SUCCESS)
+
         # Lock MoveIt2 Object
         if self.moveit2_lock.locked():
             return py_trees.common.Status.RUNNING
@@ -231,6 +258,7 @@ class MoveIt2Plan(BlackboardBehavior):
                         self.logger.error(
                             f"{self.name} [MoveIt2Plan::update()] Planning Failure!"
                         )
+                        self.blackboard_set("error_code", MoveIt2PlanErrorCode.PLANNING)
                         return py_trees.common.Status.FAILURE
 
                     # MoveIt's default cartesian interpolator doesn't respect velocity
@@ -245,7 +273,7 @@ class MoveIt2Plan(BlackboardBehavior):
                     if self.blackboard_get("debug_trajectory_viz"):
                         MoveIt2Plan.visualize_trajectory(self.name, traj)
 
-                    # Write blackboard outputs and SUCCEED
+                    # Write blackboard outputs
                     self.blackboard_set("trajectory", traj)
                     end_joint_state = JointState()
                     end_joint_state.name = traj.joint_names[:]
@@ -253,6 +281,44 @@ class MoveIt2Plan(BlackboardBehavior):
                     end_joint_state.velocity = traj.points[-1].velocities[:]
                     end_joint_state.effort = traj.points[-1].effort[:]
                     self.blackboard_set("end_joint_state", end_joint_state)
+                    # Check Path Length
+                    total_len, joint_len = MoveIt2Plan.get_path_len(traj)
+                    self.logger.warning(f"Path Length of Plan: {total_len}")
+                    if (
+                        self.blackboard_exists("max_path_len")
+                        and self.blackboard_get("max_path_len") is not None
+                    ):
+                        max_path_len = self.blackboard_get("max_path_len")
+                        if total_len > max_path_len:
+                            self.logger.error(
+                                f"Path length check (total): {total_len} > {max_path_len}"
+                            )
+                            self.blackboard_set(
+                                "error_code", MoveIt2PlanErrorCode.PATH_LEN
+                            )
+                            return py_trees.common.Status.FAILURE
+                    if (
+                        self.blackboard_exists("max_path_len_joint")
+                        and self.blackboard_get("max_path_len_joint") is not None
+                    ):
+                        for name, value in self.blackboard_get(
+                            "max_path_len_joint"
+                        ).items():
+                            if name not in joint_len:
+                                self.logger.warning(
+                                    f"Path length check: joint {name} not in trajectory"
+                                )
+                                continue
+                            if joint_len[name] > value:
+                                self.logger.error(
+                                    f"Path length check ({name}): {joint_len[name]} > {value}"
+                                )
+                                self.blackboard_set(
+                                    "error_code", MoveIt2PlanErrorCode.PATH_LEN_JOINT
+                                )
+                            return py_trees.common.Status.FAILURE
+
+                    # All checks passed
                     return py_trees.common.Status.SUCCESS
                 # Planning goal still running
                 return py_trees.common.Status.RUNNING
@@ -304,6 +370,7 @@ class MoveIt2Plan(BlackboardBehavior):
                     self.logger.error(
                         f"Malformed Goal Constraint: {constraint_kwargs}; Error: {error}"
                     )
+                    self.blackboard_set("error_code", MoveIt2PlanErrorCode.BAD_GOAL)
                     return py_trees.common.Status.FAILURE
 
             # If all goals are satisfied, return SUCCESS, no planning necessary
@@ -373,6 +440,7 @@ class MoveIt2Plan(BlackboardBehavior):
                         self.logger.error(
                             f"Malformed Path Constraint: {constraint_kwargs}"
                         )
+                        self.blackboard_set("error_code", MoveIt2PlanErrorCode.BAD_PATH)
                         return py_trees.common.Status.FAILURE
 
                 # If any path constraints are unsatisfied, return FAILURE
@@ -384,6 +452,9 @@ class MoveIt2Plan(BlackboardBehavior):
                     if not paths_satisfied:
                         self.blackboard_set("end_joint_state", None)
                         self.blackboard_set("trajectory", None)
+                        self.blackboard_set(
+                            "error_code", MoveIt2PlanErrorCode.INVALID_START
+                        )
                         return py_trees.common.Status.FAILURE
 
             ### Begin Planning
@@ -404,6 +475,40 @@ class MoveIt2Plan(BlackboardBehavior):
         with self.moveit2_lock:
             self.moveit2.clear_goal_constraints()
             self.moveit2.clear_path_constraints()
+
+    @staticmethod
+    def get_path_len(path: JointTrajectory) -> Tuple[float, Dict[str, float]]:
+        """
+        Get the integrated path length of a trajectory in trajectory units.
+
+        Uses only the position component of waypoints.
+
+        Note: assumes joint values are in R1 (i.e. no wrap-around)
+
+        Returns:
+        * length of the path in joint config space
+        * Dict: joint_name -> distance that joint travels
+        """
+
+        total_len = 0.0
+        joint_lens = {}
+        if path is None or len(path.joint_names) == 0:
+            return total_len, joint_lens
+        for name in path.joint_names:
+            joint_lens[name] = 0.0
+        if len(path.points) == 0:
+            return total_len, joint_lens
+
+        prev_pos = np.array(path.points[0].positions)
+        for point in path.points:
+            curr_pos = np.array(point.positions)
+            seg_len = np.abs(curr_pos - prev_pos)
+            total_len += np.linalg.norm(seg_len)
+            for index, name in enumerate(path.joint_names):
+                joint_lens[name] += seg_len[index]
+            prev_pos = curr_pos
+
+        return total_len, joint_lens
 
     def transform_goal_to_base_link(self, constraint_kwargs: Dict[str, Any]) -> None:
         """

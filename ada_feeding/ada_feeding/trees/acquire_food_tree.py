@@ -32,6 +32,7 @@ from ada_feeding.behaviors.acquisition import (
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2JointConstraint,
     MoveIt2PoseConstraint,
+    MoveIt2PositionOffsetConstraint,
     MoveIt2Plan,
     MoveIt2Execute,
     ServoMove,
@@ -190,6 +191,16 @@ class AcquireFoodTree(MoveToTree):
                     f_mag=50.0,
                     param_service_name="~/set_servo_controller_parameters",
                 ),
+                # Clear Octomap
+                py_trees_ros.service_clients.FromConstant(
+                    name="ClearOctomap",
+                    service_name="/clear_octomap",
+                    service_type=Empty,
+                    service_request=Empty.Request(),
+                    # Default fail if service is down
+                    wait_for_server_timeout_sec=0.0,
+                ),
+                # Recovery Attempts
                 py_trees.composites.Selector(
                     name="RecoverySelector",
                     memory=True,
@@ -219,7 +230,52 @@ class AcquireFoodTree(MoveToTree):
                                 ],
                             ),
                         ),  # End Attempt 1: RecoveryServoRetry
-                        # TODO: Add other Recovery Attempts Here
+                        py_trees.composites.Sequence(
+                            name="RecoveryCartesianSequence",
+                            memory=True,
+                            children=[
+                                pre_moveto_config(
+                                    name="MaxFTRecoveryCartesian",
+                                    re_tare=False,
+                                    f_mag=50.0,
+                                ),  # Protected by scoped FTThresh in AcquireTree
+                                MoveIt2PositionOffsetConstraint(
+                                    name="RecoveryOffsetPose",
+                                    ns=name,
+                                    inputs={
+                                        "offset": Vector3(x=0.0, y=0.0, z=0.01),
+                                        # Default end effector link
+                                        # Default base link frame
+                                    },
+                                    outputs={
+                                        "constraints": BlackboardKey(
+                                            "goal_constraints"
+                                        ),
+                                    },
+                                ),
+                                MoveIt2Plan(
+                                    name="RecoveryOffsetPlan",
+                                    ns=name,
+                                    inputs={
+                                        "goal_constraints": BlackboardKey(
+                                            "goal_constraints"
+                                        ),
+                                        "max_velocity_scale": self.max_velocity_scaling_move_into,
+                                        "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                                        "cartesian": True,
+                                        "cartesian_max_step": 0.001,
+                                        "cartesian_fraction_threshold": 0.92,
+                                    },
+                                    outputs={"trajectory": BlackboardKey("trajectory")},
+                                ),
+                                MoveIt2Execute(
+                                    name="RecoveryOffset",
+                                    ns=name,
+                                    inputs={"trajectory": BlackboardKey("trajectory")},
+                                    outputs={},
+                                ),
+                            ],
+                        ),  # End Attempt 2: MoveIt2 Cartesian Planner
                     ],  # End RecoverySelector.children
                 ),  # End RecoverySelector
             ],  # End RecoverySequence.children
@@ -353,10 +409,10 @@ class AcquireFoodTree(MoveToTree):
                             "max_acceleration_scale": self.max_acceleration_scaling_move_into,
                             "cartesian": True,
                             "cartesian_max_step": 0.001,
-                            "cartesian_fraction_threshold": 0.95,
+                            "cartesian_fraction_threshold": 0.92,
                             "start_joint_state": BlackboardKey("test_into_joints"),
                         },
-                        outputs={"trajectory": None},
+                        outputs={"trajectory": BlackboardKey("move_into_trajectory")},
                     ),
                 ],
             )
@@ -502,24 +558,30 @@ class AcquireFoodTree(MoveToTree):
                                                 ),
                                             },
                                         ),
-                                        MoveIt2Plan(
-                                            name="MoveIntoPlan",
-                                            ns=name,
-                                            inputs={
-                                                "goal_constraints": BlackboardKey(
-                                                    "goal_constraints"
-                                                ),
-                                                "max_velocity_scale": self.max_velocity_scaling_move_into,
-                                                "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                                "cartesian": True,
-                                                "cartesian_max_step": 0.001,
-                                                "cartesian_fraction_threshold": 0.95,
-                                            },
-                                            outputs={
-                                                "trajectory": BlackboardKey(
-                                                    "trajectory"
-                                                )
-                                            },
+                                        # If this fails
+                                        # Auto-fallback to precomputed MoveInto
+                                        # From move_above_plan()
+                                        py_trees.decorators.FailureIsSuccess(
+                                            name="MoveIntoPlanFallbackPrecomputed",
+                                            child=MoveIt2Plan(
+                                                name="MoveIntoPlan",
+                                                ns=name,
+                                                inputs={
+                                                    "goal_constraints": BlackboardKey(
+                                                        "goal_constraints"
+                                                    ),
+                                                    "max_velocity_scale": self.max_velocity_scaling_move_into,
+                                                    "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                                                    "cartesian": True,
+                                                    "cartesian_max_step": 0.001,
+                                                    "cartesian_fraction_threshold": 0.92,
+                                                },
+                                                outputs={
+                                                    "trajectory": BlackboardKey(
+                                                        "move_into_trajectory"
+                                                    )
+                                                },
+                                            ),
                                         ),
                                         # MoveInto expect F/T failure
                                         py_trees.decorators.FailureIsSuccess(
@@ -529,7 +591,7 @@ class AcquireFoodTree(MoveToTree):
                                                 ns=name,
                                                 inputs={
                                                     "trajectory": BlackboardKey(
-                                                        "trajectory"
+                                                        "move_into_trajectory"
                                                     )
                                                 },
                                                 outputs={},

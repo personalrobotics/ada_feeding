@@ -1,7 +1,7 @@
 # This file was modifed by modify_ac_library.py
 actions:
 - ext_angular:
-  - 0.0
+  - -0.4
   - 0.0
   - 0.0
   ext_duration: 1.0
@@ -26,7 +26,7 @@ actions:
   pre_offset:
   - 0.0
   - 0.0
-  - -0.02
+  - -0.025
   pre_pos:
   - 0.0
   - 0.0
