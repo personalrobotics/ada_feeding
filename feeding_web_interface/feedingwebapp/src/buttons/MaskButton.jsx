@@ -46,16 +46,20 @@ function MaskButton(props) {
   const drawCircle = useCallback(() => {
     // Get the canvas
     const canvas = canvasRef.current
-    // Get the context
-    const ctx = canvas.getContext('2d')
-    // Clear the canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    // Draw a red filled circle
-    let radius = 5
-    ctx.beginPath()
-    ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, 2 * Math.PI)
-    ctx.fillStyle = 'red'
-    ctx.fill()
+    // Canvas might be null if the previous render had more MaskButtons
+    // than the current render.
+    if (canvas !== null) {
+      // Get the context
+      const ctx = canvas.getContext('2d')
+      // Clear the canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      // Draw a red filled circle
+      let radius = 5
+      ctx.beginPath()
+      ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, 2 * Math.PI)
+      ctx.fillStyle = 'red'
+      ctx.fill()
+    }
   }, [])
 
   // Draw a red filled circle on the middle of the canvas

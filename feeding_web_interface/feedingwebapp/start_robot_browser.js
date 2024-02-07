@@ -41,6 +41,9 @@ if (argv.port) {
     ]
   })
   const page = await browser.newPage()
+  page.on('console', (msg) => {
+    console.log(msg)
+  })
 
   while (num_tries < max_tries) {
     try {

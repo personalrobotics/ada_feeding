@@ -39,9 +39,9 @@ const DetectingFace = (props) => {
   // Font size for text
   let textFontSize = 3
   // let buttonWidth = 22
-  let buttonHeight = 14
+  let buttonHeight = 12
   let iconWidth = 20
-  let iconHeight = 12
+  let iconHeight = 10
   let sizeSuffix = isPortrait ? 'vh' : 'vw'
 
   /**

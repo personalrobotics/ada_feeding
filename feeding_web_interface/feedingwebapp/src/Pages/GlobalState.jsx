@@ -128,7 +128,7 @@ export const useGlobalState = create(
       // Flag to indicate robot motion trough teleoperation interface
       teleopIsMoving: false,
       // Flag to indicate whether to auto-continue after face detection
-      faceDetectionAutoContinue: false,
+      faceDetectionAutoContinue: true,
       // Whether the settings bite transfer page is currently at the user's face
       // or not. This is in the off-chance that the mealState is not at the user's
       // face, the settings page is, and the user refreshes -- the page should

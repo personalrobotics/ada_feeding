@@ -43,6 +43,7 @@ export class WebRTCConnection {
 
       this.peerConnection.onnegotiationneeded = async () => {
         try {
+          console.log('onnegotiationneeded')
           const offer = await this.peerConnection.createOffer()
           await this.peerConnection.setLocalDescription(offer)
           const ip = await this.getIPAddress()
@@ -61,6 +62,7 @@ export class WebRTCConnection {
       }
 
       this.peerConnection.oniceconnectionstatechange = () => {
+        console.log('oniceconnectionstatechange')
         if (!this.peerConnection) throw new Error('peerConnection is undefined')
         if (this.peerConnection.iceConnectionState === 'failed') {
           this.peerConnection.restartIce()
