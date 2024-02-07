@@ -101,6 +101,7 @@ class SegmentFromPointNode(Node):
         # NOTE: We assume this is in the same frame as the RGB image
         self.latest_depth_img_msg = None
         self.latest_depth_img_msg_lock = threading.Lock()
+        # TODO: make the min/max depth mm parameters
         self.min_depth_mm = 330
         self.max_depth_mm = 1500
         aligned_depth_topic = "~/aligned_depth"
