@@ -53,7 +53,7 @@ class TableDetectionNode(Node):
         self._hough_min_dist= 100
         self._hough_param1  = 100
         self._hough_param2  = 70 # Larger is more selective
-        self._hough_min     = 100
+        self._hough_min     = 75
         self._hough_max     = 150
         self._table_buffer  = 50 # Extra radius around plate to use for table
 
@@ -150,13 +150,26 @@ class TableDetectionNode(Node):
         circles = np.round(circles[0, :]).astype("int")
         plate_uv = (0, 0)
         plate_r = 0
+        print(len(circles))
         for (x,y,r) in circles:
-            print(len(circles))
             print("Radius: " + str(r))
             if r > plate_r:
                 plate_uv = (x, y)
                 plate_r = r
         
+        # Testing - Draw out the circles
+        if circles is not None:
+            circles = np.uint16(np.around(circles))
+            for (x,y,r) in circles:
+                center = (x, y)
+                # circle center
+                cv2.circle(gray, center, 1, (0, 100, 100), 3)
+                # circle outline
+                radius = r
+                cv2.circle(gray, center, radius, (255, 0, 255), 3)
+            cv2.imshow("detected circles", gray)
+            cv2.waitKey(0)
+
         # Create Mask for Depth Image
         plate_mask = np.zeros(image_depth.shape)
         cv2.circle(plate_mask, plate_uv, plate_r + self._table_buffer, 1.0, -1)
