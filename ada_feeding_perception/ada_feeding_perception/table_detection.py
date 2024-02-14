@@ -46,8 +46,16 @@ class TableDetectionNode(Node):
         """	
         
         super().__init__("table_detection")
-
         self.get_logger().info("Entering table detection node!")
+
+        # Table Plane Params
+        self._hough_accum   = 1.5
+        self._hough_min_dist= 100
+        self._hough_param1  = 100
+        self._hough_param2  = 70 # Larger is more selective
+        self._hough_min     = 100
+        self._hough_max     = 150
+        self._table_buffer  = 50 # Extra radius around plate to use for table
 
         # Create the service
         self.srv = self.create_service(
@@ -107,11 +115,10 @@ class TableDetectionNode(Node):
 
     def fit_table(
         self, 
-        image: npt.NDArray, 
-        image_depth: npt.NDArray, 
+        image_msg: Image, 
+        image_depth_msg: Image, 
         target_u: int,
-        target_v: int, 
-        table_buffer: float = 50
+        target_v: int,
     ):
         """
             Parameters
@@ -129,10 +136,12 @@ class TableDetectionNode(Node):
         """
 
         # Grayscale image
-        #image = ros_msg_to_cv2_image(image_msg, self.bridge)
-        self.get_logger().info(f"image, {image.data}, {type(image.data)}")
-        gray = cv2.cvtColor(image.data, cv2.COLOR_BGR2GRAY) 
-        
+        self.get_logger().info(f"image, {image_msg.data}, {type(image_msg.data)}")
+        image = ros_msg_to_cv2_image(image_msg, self.bridge)
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) 
+
+        image_depth = ros_msg_to_cv2_image(image_depth_msg, self.bridge)
+
         # Detect Largest Circle (Plate)
         circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, self._hough_accum, self._hough_min_dist,
             param1=self._hough_param1, param2=self._hough_param2, minRadius=self._hough_min, maxRadius=self._hough_max)
@@ -142,6 +151,7 @@ class TableDetectionNode(Node):
         plate_uv = (0, 0)
         plate_r = 0
         for (x,y,r) in circles:
+            print(len(circles))
             print("Radius: " + str(r))
             if r > plate_r:
                 plate_uv = (x, y)
@@ -149,7 +159,7 @@ class TableDetectionNode(Node):
         
         # Create Mask for Depth Image
         plate_mask = np.zeros(image_depth.shape)
-        cv2.circle(plate_mask, plate_uv, plate_r + table_buffer, 1.0, -1)
+        cv2.circle(plate_mask, plate_uv, plate_r + self._table_buffer, 1.0, -1)
         cv2.circle(plate_mask, plate_uv, plate_r, 0.0, -1)
         depth_mask = (image_depth * (plate_mask).astype("uint16")).astype(float)
         
@@ -176,8 +186,6 @@ class TableDetectionNode(Node):
         table = a*U + b*V + c
         table = table.astype("uint16")
 
-        self.get_logger().info(f"table depth, {table[target_u][target_v]}, {type(table)}")
-
         return table[target_u][target_v]
         
     def fit_to_table_callback(
@@ -185,13 +193,9 @@ class TableDetectionNode(Node):
     ):
         self.get_logger().info("Entering fit_table callback!")
         # Get the latest RGB image message
+        rgb_msg = None
         with self.latest_img_msg_lock:
             rgb_msg = self.latest_img_msg
-        if rgb_msg is None:
-            self.get_logger().warn(
-                "No RGB image message received.", throttle_duration_sec=1
-            )
-            return 
         
         # Get the latest depth image
         with self.latest_depth_img_msg_lock:
@@ -202,7 +206,7 @@ class TableDetectionNode(Node):
 
         # Get table depth from camera at the (u, v) coordinate (320, 240)
         table_depth = self.fit_table(
-            self, rgb_msg, depth_img_msg, 320, 240
+            rgb_msg, depth_img_msg, 320, 240
         )
         
         self.get_logger().info(f"table depth, {table_depth}, {type(table_depth)}")
