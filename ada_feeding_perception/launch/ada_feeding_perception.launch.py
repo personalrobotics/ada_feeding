@@ -145,12 +145,12 @@ def generate_launch_description():
     )
     launch_description.add_action(face_detection)
 
-    # Load the table detection node
+    
     table_detection = Node(
         package="ada_feeding_perception",
         name="table_detection",
         executable="table_detection",
-        remappings=realsense_remappings + face_detection_remappings,
+        remappings=realsense_remappings + food_detection_remappings,
     )
     launch_description.add_action(table_detection)
 

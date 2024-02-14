@@ -46,13 +46,14 @@ class TableDetectionNode(Node):
         """	
         
         super().__init__("table_detection")
-        
+
+        self.get_logger().info("Entering table detection node!")
+
         # Create the service
         self.srv = self.create_service(
             Trigger,
-            "~/fit_to_table",
+            'fit_to_table',
             self.fit_to_table_callback,
-            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # Subscribe to the camera info topic, to get the camera intrinsics
@@ -103,7 +104,7 @@ class TableDetectionNode(Node):
             1,
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
-    
+
     def fit_table(
         self, 
         image: npt.NDArray, 
@@ -128,7 +129,9 @@ class TableDetectionNode(Node):
         """
 
         # Grayscale image
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) 
+        #image = ros_msg_to_cv2_image(image_msg, self.bridge)
+        self.get_logger().info(f"image, {image.data}, {type(image.data)}")
+        gray = cv2.cvtColor(image.data, cv2.COLOR_BGR2GRAY) 
         
         # Detect Largest Circle (Plate)
         circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, self._hough_accum, self._hough_min_dist,
@@ -172,12 +175,15 @@ class TableDetectionNode(Node):
         U, V = np.meshgrid(u, v)
         table = a*U + b*V + c
         table = table.astype("uint16")
-        
+
+        self.get_logger().info(f"table depth, {table[target_u][target_v]}, {type(table)}")
+
         return table[target_u][target_v]
         
     def fit_to_table_callback(
         self, request: Trigger.Request, response: Trigger.Response
     ):
+        self.get_logger().info("Entering fit_table callback!")
         # Get the latest RGB image message
         with self.latest_img_msg_lock:
             rgb_msg = self.latest_img_msg
@@ -190,7 +196,10 @@ class TableDetectionNode(Node):
         # Get the latest depth image
         with self.latest_depth_img_msg_lock:
             depth_img_msg = self.latest_depth_img_msg
-        
+
+        # Convert between ROS and CV images
+        self.bridge = CvBridge()
+
         # Get table depth from camera at the (u, v) coordinate (320, 240)
         table_depth = self.fit_table(
             self, rgb_msg, depth_img_msg, 320, 240
