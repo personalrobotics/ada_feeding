@@ -40,6 +40,7 @@ setup(
             "MoveToRestingPosition = feeding_web_app_ros2_test.MoveToRestingPosition:main",
             "MoveToStagingConfiguration = feeding_web_app_ros2_test.MoveToStagingConfiguration:main",
             "MoveToMouth = feeding_web_app_ros2_test.MoveToMouth:main",
+            "MoveFromMouth = feeding_web_app_ros2_test.MoveFromMouth:main",
             "MoveFromMouthToStagingConfiguration = feeding_web_app_ros2_test.MoveFromMouthToStagingConfiguration:main",
             "MoveFromMouthToAbovePlate = feeding_web_app_ros2_test.MoveFromMouthToAbovePlate:main",
             "MoveFromMouthToRestingPosition = feeding_web_app_ros2_test.MoveFromMouthToRestingPosition:main",

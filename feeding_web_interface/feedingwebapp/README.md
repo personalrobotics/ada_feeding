@@ -2,18 +2,20 @@
 
 This directory contains the web app that users use to interact with the robot-assisted feeding system. This readme includes an overview and contribution guidelines, while [TechDocumentation.md](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp/TechDocumentation.md) includes more specific documentation of the technical aspects of the app.
 
-## Overview
-The overall user flow for this robot can be seen below.
+## Setup
 
-![newWebAppWorkflow](https://user-images.githubusercontent.com/26337328/223597500-5e520b7a-eb2b-45ad-b9e8-91fec1bdeba4.jpg)
-(Last Updated 2023/03/07)
+See the [`ada_feeding` top-level README for setup instructions](https://github.com/personalrobotics/ada_feeding/blob/ros2-devel/README.md).
+
+## Overview
+The _nominal_ user flow for this web app can be seen below.
+
+![Screenshot 2024-02-14 at 8 23 06 PM](https://github.com/personalrobotics/feeding_web_interface/assets/8277986/d944de8b-6d5a-4839-8d1b-1bc4d6f5db70)
+(Last Updated 2024/02/14)
+
+<!-- ![newWebAppWorkflow](https://user-images.githubusercontent.com/26337328/223597500-5e520b7a-eb2b-45ad-b9e8-91fec1bdeba4.jpg)
+(Last Updated 2023/03/07) -->
 <!-- ![Web App State Machine](https://user-images.githubusercontent.com/8277986/191333326-c71a1765-475c-40f6-87da-a79b7c73e0ee.png) 
 (Last Updated 2022/09/20) -->
-
-## Dependencies
-- [Node.js](https://nodejs.org/en/download/package-manager)
-- [`serve` must be globally installed](https://create-react-app.dev/docs/deployment/) (ideally with `sudo`): `sudo npm install -g serve`
-- [`pm2` must be globally installed](https://pm2.keymetrics.io/docs/usage/quick-start/): `npm install pm2@latest -g`
 
 ## Getting Started in Computer
 
