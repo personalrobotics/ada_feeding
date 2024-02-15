@@ -52,7 +52,7 @@ class TableDetectionNode(Node):
         self._hough_accum   = 1.5
         self._hough_min_dist= 100
         self._hough_param1  = 100 # Larger is more selective
-        self._hough_param2  = 200 # Larger is more selective/decreases chance of false positives
+        self._hough_param2  = 125 # Larger is more selective/decreases chance of false positives
         self._hough_min     = 75
         self._hough_max     = 200
         self._table_buffer  = 50 # Extra radius around plate to use for table
