@@ -11,11 +11,15 @@ import os
 import sys
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--sim", default="real", help=(
-    "`real`, `mock`, or `dummy` (default `real`). `real` executes all commands for running "
-    "the feeding code on the real robot, `mock` uses dummy perception and real motion code "
-    "with a simulated robot, and `dummy` uses dummy perception and motion code. All three "
-    "launch the web app."
+parser.add_argument(
+    "--sim",
+    default="real",
+    help=(
+        "`real`, `mock`, or `dummy` (default `real`). `real` executes all commands for running "
+        "the feeding code on the real robot, `mock` uses dummy perception and real motion code "
+        "with a simulated robot, and `dummy` uses dummy perception and motion code. All three "
+        "launch the web app."
+    ),
 )
 parser.add_argument(
     "-t",
@@ -114,21 +118,19 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         print(
             "#     2. Your workspace should be built (e.g., `colcon build --symlink-install`)"
         )
-        if args.sim == 'real':
+        if args.sim == "real":
             print(
                 "#     3. The web app should be built (e.g., `npm run build` in "
                 "`./src/feeding_web_interface/feedingwebapp`)."
             )
     else:
-        print(
-            f"# Terminating the ada_feeding demo in **{ args.sim}**"
-        )
+        print(f"# Terminating the ada_feeding demo in **{ args.sim}**")
     print(
         "################################################################################"
     )
 
     # Determine which screen sessions to start and what commands to run
-    if args.sim == 'mock':
+    if args.sim == "mock":
         screen_sessions = {
             "web": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
@@ -166,7 +168,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             ],
         }
         close_commands = {}
-    elif args.sim == 'dummy':
+    elif args.sim == "dummy":
         screen_sessions = {
             "web": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
@@ -303,7 +305,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         print(
             "#     1. Check individual screens to verify code is working as expected."
         )
-        if args.sim == 'real':
+        if args.sim == "real":
             print("#     2. Push the e-stop button to enable the robot.")
             print("#     3. Note that this script starts the app on port 80.")
         else:
@@ -347,8 +349,10 @@ if __name__ == "__main__":
     # Get the arguments
     args = parser.parse_args()
     # Check args
-    if args.sim not in ['real', 'mock', 'dummy']:
-        raise ValueError(f"Unknown sim value {args.sim}. Must be one of ['real', 'mock', 'dummy'].")
+    if args.sim not in ["real", "mock", "dummy"]:
+        raise ValueError(
+            f"Unknown sim value {args.sim}. Must be one of ['real', 'mock', 'dummy']."
+        )
 
     # Ensure the script is not being run as sudo. Sudo has a different screen
     # server and may have different versions of libraries installed.
