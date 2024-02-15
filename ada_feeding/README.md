@@ -4,7 +4,7 @@ The `ada_feeding` package contains the overarching code to run the robot-assiste
 
 ## Setup
 
-See the [`ada_feeding` top-level README for setup instructions](https://github.com/personalrobotics/ada_feeding/blob/amaln/rosdeps/README.md).
+See the [`ada_feeding` top-level README for setup instructions](https://github.com/personalrobotics/ada_feeding/blob/ros2-devel/README.md).
 
 ## Usage
 1. Build your workspace: `colcon build`

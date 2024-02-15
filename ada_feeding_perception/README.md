@@ -3,7 +3,7 @@ This code performs image segmentation using the [Segment Anything](https://githu
 
 ## Setup
 
-See the [`ada_feeding` top-level README for setup instructions](https://github.com/personalrobotics/ada_feeding/blob/amaln/rosdeps/README.md).
+See the [`ada_feeding` top-level README for setup instructions](https://github.com/personalrobotics/ada_feeding/blob/ros2-devel/README.md).
 
 For running SegmentAnything test scripts (below), be sure to unzip `test/food_img.zip`.
 
