@@ -1,18 +1,11 @@
 # Ada Feeding Perception
 This code performs image segmentation using the [Segment Anything](https://github.com/facebookresearch/segment-anything). It takes an input image and a point as input and generates masks for the regions of interest in the image.
 
-## Installation
-1. Clone this directory into the `src` folder of your ROS2 workspace.
-2. Install the Python dependencies:
-```
-source install.sh
-```
-3. Install the system dependencies:
-```
-sudo apt install ros-humble-image-transport ros-humble-compressed-image-transport
-```
+## Setup
 
-For testing, be sure to unzip `test/food_img.zip`.
+See the [`ada_feeding` top-level README for setup instructions](https://github.com/personalrobotics/ada_feeding/blob/ros2-devel/README.md).
+
+For running SegmentAnything test scripts (below), be sure to unzip `test/food_img.zip`.
 
 ## Usage
 
