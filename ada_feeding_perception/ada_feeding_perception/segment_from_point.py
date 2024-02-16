@@ -179,8 +179,10 @@ class SegmentFromPointNode(Node):
         max_depth_mm: The maximum depth in mm to consider for a mask.
         """
         (
-            model_name,
-            model_base_url,
+            sam_model_name,
+            sam_model_base_url,
+            efficient_sam_model_name,
+            efficient_sam_model_base_url,
             model_dir,
             use_efficient_sam,
             n_contender_masks,
@@ -191,24 +193,47 @@ class SegmentFromPointNode(Node):
             "",
             [
                 (
-                    "model_name",
+                    "sam_model_name",
                     None,
                     ParameterDescriptor(
-                        name="model_name",
+                        name="sam_model_name",
                         type=ParameterType.PARAMETER_STRING,
-                        description="The name of the model checkpoint to use",
+                        description="The name of the model checkpoint to use for SAM",
                         read_only=True,
                     ),
                 ),
                 (
-                    "model_base_url",
+                    "sam_model_base_url",
                     None,
                     ParameterDescriptor(
-                        name="model_base_url",
+                        name="sam_model_base_url",
                         type=ParameterType.PARAMETER_STRING,
                         description=(
                             "The URL to download the model checkpoint from if "
-                            "it is not already downloaded"
+                            "it is not already downloaded for SAM"
+                        ),
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "efficient_sam_model_name",
+                    None,
+                    ParameterDescriptor(
+                        name="efficient_sam_model_name",
+                        type=ParameterType.PARAMETER_STRING,
+                        description="The name of the model checkpoint to use for EfficientSAM",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "efficient_sam_model_base_url",
+                    None,
+                    ParameterDescriptor(
+                        name="efficient_sam_model_base_url",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "The URL to download the model checkpoint from if "
+                            "it is not already downloaded for EfficientSAM"
                         ),
                         read_only=True,
                     ),
@@ -278,9 +303,17 @@ class SegmentFromPointNode(Node):
                 ),
             ],
         )
+
+        if use_efficient_sam.value:
+            model_name = efficient_sam_model_name.value
+            model_base_url = efficient_sam_model_base_url.value
+        else:
+            model_name = sam_model_name.value
+            model_base_url = sam_model_base_url.value
+
         return (
-            model_name.value,
-            model_base_url.value,
+            model_name,
+            model_base_url,
             model_dir.value,
             use_efficient_sam.value,
             n_contender_masks.value,
