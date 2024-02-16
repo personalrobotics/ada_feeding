@@ -23,7 +23,7 @@ This README is the definitive source for downloading, installing, and running th
 
 4. Configure [`rosdep`](https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html):
 
-        sudo apt install install python3-rosdep # if not already installed
+        sudo apt install python3-rosdep # if not already installed
         sudo rosdep init # if this is the first time using rosdep
 
 5. (Temporary until [PR1](https://github.com/ros/rosdistro/pull/39905) and [PR2](https://github.com/ros/rosdistro/pull/39906) are merged in): Add the following two lines to `/etc/ros/rosdep/sources.list.d/*-default.list`:
@@ -33,8 +33,6 @@ This README is the definitive source for downloading, installing, and running th
 
 6. Install [`rosdep`](https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html) dependencies:
 
-        sudo apt install install python3-rosdep # if not already installed
-        sudo rosdep init # if this is the first time using rosdep
         rosdep update
         cd ~/colcon_ws
         rosdep install --from-paths src -y --ignore-src
