@@ -15,3 +15,6 @@ segment_from_point:
 
     # The number of contender masks to return
     n_contender_masks: 3
+
+    # The rate (hz) at which to return feedback
+    rate_hz: 10.0

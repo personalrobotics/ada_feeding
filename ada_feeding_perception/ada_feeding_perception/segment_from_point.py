@@ -73,6 +73,7 @@ class SegmentFromPointNode(Node):
             model_dir,
             self.use_efficient_sam,
             self.n_contender_masks,
+            self.rate_hz,
             self.min_depth_mm,
             self.max_depth_mm,
         ) = self.read_params()
@@ -173,6 +174,7 @@ class SegmentFromPointNode(Node):
         model_dir: The location of the directory where the model checkpoint is / should be stored
         use_efficient_sam: Whether to use EfficientSAM or SAM
         n_contender_masks: The number of contender masks to return per point.
+        rate_hz: The rate at which to return feedback.
         min_depth_mm: The minimum depth in mm to consider for a mask.
         max_depth_mm: The maximum depth in mm to consider for a mask.
         """
@@ -182,6 +184,7 @@ class SegmentFromPointNode(Node):
             model_dir,
             use_efficient_sam,
             n_contender_masks,
+            rate_hz,
             min_depth_mm,
             max_depth_mm,
         ) = self.declare_parameters(
@@ -244,6 +247,16 @@ class SegmentFromPointNode(Node):
                     ),
                 ),
                 (
+                    "rate_hz",
+                    10.0,
+                    ParameterDescriptor(
+                        name="rate_hz",
+                        type=ParameterType.PARAMETER_DOUBLE,
+                        description="The rate at which to return feedback.",
+                        read_only=True,
+                    ),
+                ),
+                (
                     "min_depth_mm",
                     330,
                     ParameterDescriptor(
@@ -271,6 +284,7 @@ class SegmentFromPointNode(Node):
             model_dir.value,
             use_efficient_sam.value,
             n_contender_masks.value,
+            rate_hz.value,
             min_depth_mm.value,
             max_depth_mm.value,
         )
@@ -507,7 +521,7 @@ class SegmentFromPointNode(Node):
         scores = predicted_iou[0, 0, :].cpu().detach().numpy()
         return masks, scores
 
-    def segment_image(
+    async def segment_image(
         self, seed_point: Tuple[int, int], image_msg: Image
     ) -> SegmentFromPoint.Result:
         """
@@ -522,6 +536,9 @@ class SegmentFromPointNode(Node):
         -------
         result: The result message containing the contender masks.
         """
+        # pylint: disable=too-many-locals
+        # All are necessary.
+
         self.get_logger().info("Segmenting image...")
         # Create the result
         result = SegmentFromPoint.Result()
@@ -670,21 +687,36 @@ class SegmentFromPointNode(Node):
         result: The result message containing the contender masks.
         """
         self.get_logger().info(f"Executing goal...{goal_handle}")
+        start_time = self.get_clock().now()
 
         # Get the latest image
         latest_img_msg = None
         with self.latest_img_msg_lock:
             latest_img_msg = self.latest_img_msg
 
-        # Segment the image
+        # Start image segmentation as a co-routine
         seed_point = (
             int(goal_handle.request.seed_point.point.x),
             int(goal_handle.request.seed_point.point.y),
         )
-        result = self.segment_image(seed_point, latest_img_msg)
+        rate = self.create_rate(self.rate_hz)
+        segment_image_task = self.executor.create_task(
+            self.segment_image, seed_point, latest_img_msg
+        )
+
+        # Keep returning feedback until the task is done
+        feedback = SegmentFromPoint.Feedback()
+        while (
+            rclpy.ok()
+            and not goal_handle.is_cancel_requested
+            and not segment_image_task.done()
+        ):
+            feedback.elapsed_time = (self.get_clock().now() - start_time).to_msg()
+            goal_handle.publish_feedback(feedback)
+            rate.sleep()
 
         # Check if there was a cancel request
-        if goal_handle.is_cancel_requested:
+        if goal_handle.is_cancel_requested or not rclpy.ok():
             self.get_logger().info("Goal canceled")
             goal_handle.canceled()
             result = SegmentFromPoint.Result()
@@ -693,6 +725,10 @@ class SegmentFromPointNode(Node):
                 self.active_goal_request = None  # Clear the active goal
             return result
         self.get_logger().info("Goal not canceled")
+
+        # Task must be done, given that we broke out of the while loop and
+        # did not land in the above conditional
+        result = segment_image_task.result()
 
         # Return the result
         self.get_logger().info("Segmentation succeeded, returning")
