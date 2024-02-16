@@ -26,6 +26,7 @@ from rclpy.parameter import Parameter
 from segment_anything import sam_model_registry, SamPredictor
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image, RegionOfInterest
 import torch
+from torchvision import transforms
 
 # Local imports
 from ada_feeding_msgs.action import SegmentFromPoint
@@ -481,10 +482,10 @@ class SegmentFromPointNode(Node):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         # Convert the image to a tensor
-        image_tensor = torch.tensor(image).to(device=self.device)
+        image_tensor = transforms.ToTensor()(image).to(device=self.device)
 
         # Convert the seed point to a tensor
-        input_points = torch.tensor(np.reshape(seed_point, (1, 1, 1, 2))).to(
+        input_points = torch.tensor(np.array(seed_point).reshape((1, 1, 1, 2))).to(
             device=self.device
         )
 
@@ -545,10 +546,15 @@ class SegmentFromPointNode(Node):
         depth_img = ros_msg_to_cv2_image(depth_img_msg, self.bridge)
 
         # Segment the image
+        start_time = self.get_clock().now()
         if self.use_efficient_sam:
             masks, scores = self.run_efficient_sam(image, seed_point)
         else:
             masks, scores = self.run_sam(image, seed_point)
+        elpased_time = self.get_clock().now() - start_time
+        self.get_logger().info(
+            f"Elapsed time Model: {elpased_time.nanoseconds / 10.0**9} secs"
+        )
 
         # Sort the masks from highest to lowest score
         scored_masks_sorted = sorted(
