@@ -7,6 +7,7 @@ from .moveit2_execute import MoveIt2Execute
 from .moveit2_constraints import (
     MoveIt2JointConstraint,
     MoveIt2PositionConstraint,
+    MoveIt2PositionOffsetConstraint,
     MoveIt2OrientationConstraint,
     MoveIt2PoseConstraint,
 )

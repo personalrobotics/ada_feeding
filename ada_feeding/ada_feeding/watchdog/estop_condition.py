@@ -6,6 +6,7 @@ e-stop button either being clicked or being unplugged and fails if so.
 """
 
 # Standard imports
+import math
 import socket
 import subprocess
 from threading import Lock, Thread
@@ -75,13 +76,15 @@ class EStopCondition(WatchdogCondition):
         self.last_recv_data_time_lock = Lock()
         self.last_recv_data_time = None
         self.prev_data_arr = None
-        self.prev_data_arr_std = None
-        self.prev_data_arr_std_lock = Lock()
         self.prev_button_click_start_time = None
         self.num_clicks = 0
         self.num_clicks_lock = Lock()
         self.is_mic_unplugged = False
         self.is_mic_unplugged_lock = Lock()
+
+        # Initialize STD Exponential Moving Average
+        self.std_ema = None
+        self.std_ema_lock = Lock()
 
         # Start listening for ACPI events on a separate thread
         self.acpi_thread = Thread(target=self.__acpi_listener, daemon=True)
@@ -99,6 +102,9 @@ class EStopCondition(WatchdogCondition):
         """
         Load the parameters for this watchdog condition.
         """
+
+        # pylint: disable=too-many-locals
+
         rate = self._node.declare_parameter(
             "rate",
             48000,
@@ -309,6 +315,65 @@ class EStopCondition(WatchdogCondition):
             "amixer_mic_control_names": amixer_mic_control_names.value,
             "amixer_mic_control_percentages": amixer_mic_control_percentages.value,
         }
+
+        std_ema_min_thresh = self._node.declare_parameter(
+            "std_ema_min_thresh",
+            0.0,
+            ParameterDescriptor(
+                name="std_ema_min_thresh",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "If the exponential moving average of the standard deviation of microphone "
+                    "readings is less than this value, fail the e-stop condition"
+                ),
+                read_only=True,
+            ),
+        )
+        self.std_ema_min_thresh = std_ema_min_thresh.value
+
+        std_ema_max_thresh = self._node.declare_parameter(
+            "std_ema_max_thresh",
+            math.inf,
+            ParameterDescriptor(
+                name="std_ema_max_thresh",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "If the exponential moving average of the standard deviation of microphone "
+                    "readings is lmoreess than this value, fail the e-stop condition"
+                ),
+                read_only=True,
+            ),
+        )
+        self.std_ema_max_thresh = std_ema_max_thresh.value
+
+        std_ema_alpha = self._node.declare_parameter(
+            "std_ema_alpha",
+            0.5,
+            ParameterDescriptor(
+                name="std_ema_alpha",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The alpha value to use when computing the exponential moving average "
+                    "of the standard deviation. Should be in [0, 1]"
+                ),
+                read_only=True,
+            ),
+        )
+        self.std_ema_alpha = std_ema_alpha.value
+
+        num_secs_threshold = self._node.declare_parameter(
+            "num_secs_threshold",
+            1.0,
+            ParameterDescriptor(
+                name="num_secs_threshold",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "If the e-stop button has not sent data for these many secs, fail."
+                ),
+                read_only=True,
+            ),
+        )
+        self.num_secs_threshold = num_secs_threshold.value
 
     def __set_system_volume(self) -> None:
         """
@@ -572,8 +637,14 @@ class EStopCondition(WatchdogCondition):
 
         # Return the data
         self.prev_data_arr = data_arr
-        with self.prev_data_arr_std_lock:
-            self.prev_data_arr_std = np.std(self.prev_data_arr)
+        with self.std_ema_lock:
+            prev_data_arr_std = np.std(self.prev_data_arr)
+            if self.std_ema is None:
+                self.std_ema = prev_data_arr_std
+            else:
+                self.std_ema = self.std_ema * (
+                    self.std_ema_alpha
+                ) + prev_data_arr_std * (1.0 - self.std_ema_alpha)
         return (data, pyaudio.paContinue)
 
     def check_startup(self) -> List[Tuple[bool, str, str]]:
@@ -609,9 +680,15 @@ class EStopCondition(WatchdogCondition):
         name_2 = "Startup: E-Stop Button Clicked"
         with self.num_clicks_lock:
             status_2 = self.num_clicks > 0
-        condition_2 = (
-            f"E-stop button has {'' if status_1 else 'not '}been clicked at least once"
-        )
+        condition_2 = "E-stop button must be clicked at least once"
+
+        # Print the std_ema, which can help with debugging
+        if not (status_1 and status_2):
+            with self.std_ema_lock:
+                self._node.get_logger().warning(
+                    f"At least one e-stop startup condition failed. std_ema {self.std_ema}",
+                    throttle_duration_sec=1,
+                )
 
         return [(status_1, name_1, condition_1), (status_2, name_2, condition_2)]
 
@@ -645,23 +722,36 @@ class EStopCondition(WatchdogCondition):
         condition_2 = f"E-stop button has {'not ' if status_2 else ''}been unplugged"
 
         name_3 = "E-Stop Button Streaming Data"
-        num_secs_threshold = 1.0
         with self.last_recv_data_time_lock:
             if self.last_recv_data_time is None:
                 status_3 = False
             else:
                 status_3 = (
                     self._node.get_clock().now() - self.last_recv_data_time
-                ).nanoseconds <= num_secs_threshold * 10**9.0
-        condition_3 = f"E-stop button has {'not ' if status_3 else ''}sent data for {num_secs_threshold} secs"
+                ).nanoseconds <= self.num_secs_threshold * 10**9.0
+        condition_3 = f"E-stop button has {'' if status_3 else 'not '}sent data within {self.num_secs_threshold} secs"
 
         name_4 = "E-Stop Standard Deviation"
-        with self.prev_data_arr_std_lock:
-            if self.prev_data_arr_std is None:
-                status_4 = None
+        with self.std_ema_lock:
+            if self.std_ema is None:
+                status_4 = False
             else:
-                status_4 = not np.isclose(self.prev_data_arr_std, 0.0)
-        condition_4 = f"E-stop button does {'not ' if status_4 else ''}have non-zero standard deviation"
+                status_4 = (
+                    self.std_ema_min_thresh <= self.std_ema
+                    and self.std_ema <= self.std_ema_max_thresh
+                )
+            condition_4 = (
+                f"E-stop button's standard deviation {self.std_ema} is {'' if status_4 else 'not '}"
+                f"within expected range [{self.std_ema_min_thresh}, {self.std_ema_max_thresh}]"
+            )
+
+        # Print the std_ema, which can help with debugging
+        if not (status_1 and status_2 and status_3 and status_4):
+            with self.std_ema_lock:
+                self._node.get_logger().warning(
+                    f"At least one e-stop condition failed. std_ema {self.std_ema}",
+                    throttle_duration_sec=1,
+                )
 
         return [
             (status_1, name_1, condition_1),
