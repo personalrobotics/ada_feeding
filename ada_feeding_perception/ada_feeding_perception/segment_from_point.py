@@ -72,6 +72,8 @@ class SegmentFromPointNode(Node):
             model_dir,
             self.use_efficient_sam,
             self.n_contender_masks,
+            self.min_depth_mm,
+            self.max_depth_mm,
         ) = self.read_params()
 
         # Download the checkpoint if it doesn't exist
@@ -101,9 +103,6 @@ class SegmentFromPointNode(Node):
         # NOTE: We assume this is in the same frame as the RGB image
         self.latest_depth_img_msg = None
         self.latest_depth_img_msg_lock = threading.Lock()
-        # TODO: make the min/max depth mm parameters
-        self.min_depth_mm = 330
-        self.max_depth_mm = 1500
         aligned_depth_topic = "~/aligned_depth"
         try:
             aligned_depth_type = get_img_msg_type(aligned_depth_topic, self)
@@ -173,6 +172,8 @@ class SegmentFromPointNode(Node):
         model_dir: The location of the directory where the model checkpoint is / should be stored
         use_efficient_sam: Whether to use EfficientSAM or SAM
         n_contender_masks: The number of contender masks to return per point.
+        min_depth_mm: The minimum depth in mm to consider for a mask.
+        max_depth_mm: The maximum depth in mm to consider for a mask.
         """
         (
             model_name,
@@ -180,6 +181,8 @@ class SegmentFromPointNode(Node):
             model_dir,
             use_efficient_sam,
             n_contender_masks,
+            min_depth_mm,
+            max_depth_mm,
         ) = self.declare_parameters(
             "",
             [
@@ -239,6 +242,26 @@ class SegmentFromPointNode(Node):
                         read_only=True,
                     ),
                 ),
+                (
+                    "min_depth_mm",
+                    330,
+                    ParameterDescriptor(
+                        name="min_depth_mm",
+                        type=ParameterType.PARAMETER_INTEGER,
+                        description="The minimum depth in mm to consider in a mask.",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "max_depth_mm",
+                    10150000,
+                    ParameterDescriptor(
+                        name="max_depth_mm",
+                        type=ParameterType.PARAMETER_INTEGER,
+                        description="The maximum depth in mm to consider in a mask.",
+                        read_only=True,
+                    ),
+                ),
             ],
         )
         return (
@@ -247,6 +270,8 @@ class SegmentFromPointNode(Node):
             model_dir.value,
             use_efficient_sam.value,
             n_contender_masks.value,
+            min_depth_mm.value,
+            max_depth_mm.value,
         )
 
     def initialize_sam(self, model_name: str, model_path: str) -> None:
