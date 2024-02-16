@@ -198,6 +198,8 @@ class TableDetectionNode(Node):
         table = a*U + b*V + c
         table = table.astype("uint16")
 
+	# TODO: table = a * 340 + b * 420 + c
+
         return table[target_u][target_v]
         
     def fit_to_table_callback(
