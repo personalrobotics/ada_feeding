@@ -5,15 +5,14 @@ server that takes in a seed point, segments the latest image with that seed
 point using Segment Anything, and returns the top n contender masks.
 """
 # Standard imports
-import math
 import os
-import reprlib
 import threading
 from typing import Optional, Tuple, Union
 
 # Third-party imports
 import cv2
 from cv_bridge import CvBridge
+from efficient_sam.efficient_sam import build_efficient_sam
 import numpy as np
 import numpy.typing as npt
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
@@ -27,6 +26,7 @@ from rclpy.parameter import Parameter
 from segment_anything import sam_model_registry, SamPredictor
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image, RegionOfInterest
 import torch
+from torchvision import transforms
 
 # Local imports
 from ada_feeding_msgs.action import SegmentFromPoint
@@ -71,7 +71,11 @@ class SegmentFromPointNode(Node):
             model_name,
             model_base_url,
             model_dir,
+            self.use_efficient_sam,
             self.n_contender_masks,
+            self.rate_hz,
+            self.min_depth_mm,
+            self.max_depth_mm,
         ) = self.read_params()
 
         # Download the checkpoint if it doesn't exist
@@ -101,9 +105,6 @@ class SegmentFromPointNode(Node):
         # NOTE: We assume this is in the same frame as the RGB image
         self.latest_depth_img_msg = None
         self.latest_depth_img_msg_lock = threading.Lock()
-        # TODO: make the min/max depth mm parameters
-        self.min_depth_mm = 330
-        self.max_depth_mm = 1500
         aligned_depth_topic = "~/aligned_depth"
         try:
             aligned_depth_type = get_img_msg_type(aligned_depth_topic, self)
@@ -140,7 +141,24 @@ class SegmentFromPointNode(Node):
         )
 
         # Initialize Segment Anything
-        self.initialize_food_segmentation(model_name, model_path)
+        if self.use_efficient_sam:
+            self.initialize_efficient_sam(model_name, model_path)
+        else:
+            self.initialize_sam(model_name, model_path)
+
+        # Convert between ROS and CV images
+        self.bridge = CvBridge()
+
+        # Create the Action Server
+        self._action_server = ActionServer(
+            self,
+            SegmentFromPoint,
+            "SegmentFromPoint",
+            self.execute_callback,
+            goal_callback=self.goal_callback,
+            cancel_callback=self.cancel_callback,
+            callback_group=MutuallyExclusiveCallbackGroup(),
+        )
 
     def read_params(
         self,
@@ -154,35 +172,68 @@ class SegmentFromPointNode(Node):
         model_base_url: The URL to download the model checkpoint from if it is
             not already downloaded
         model_dir: The location of the directory where the model checkpoint is / should be stored
+        use_efficient_sam: Whether to use EfficientSAM or SAM
         n_contender_masks: The number of contender masks to return per point.
+        rate_hz: The rate at which to return feedback.
+        min_depth_mm: The minimum depth in mm to consider for a mask.
+        max_depth_mm: The maximum depth in mm to consider for a mask.
         """
         (
-            model_name,
-            model_base_url,
+            sam_model_name,
+            sam_model_base_url,
+            efficient_sam_model_name,
+            efficient_sam_model_base_url,
             model_dir,
+            use_efficient_sam,
             n_contender_masks,
+            rate_hz,
+            min_depth_mm,
+            max_depth_mm,
         ) = self.declare_parameters(
             "",
             [
                 (
-                    "model_name",
+                    "sam_model_name",
                     None,
                     ParameterDescriptor(
-                        name="model_name",
+                        name="sam_model_name",
                         type=ParameterType.PARAMETER_STRING,
-                        description="The name of the Segment Anything model checkpoint to use",
+                        description="The name of the model checkpoint to use for SAM",
                         read_only=True,
                     ),
                 ),
                 (
-                    "model_base_url",
+                    "sam_model_base_url",
                     None,
                     ParameterDescriptor(
-                        name="model_base_url",
+                        name="sam_model_base_url",
                         type=ParameterType.PARAMETER_STRING,
                         description=(
                             "The URL to download the model checkpoint from if "
-                            "it is not already downloaded"
+                            "it is not already downloaded for SAM"
+                        ),
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "efficient_sam_model_name",
+                    None,
+                    ParameterDescriptor(
+                        name="efficient_sam_model_name",
+                        type=ParameterType.PARAMETER_STRING,
+                        description="The name of the model checkpoint to use for EfficientSAM",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "efficient_sam_model_base_url",
+                    None,
+                    ParameterDescriptor(
+                        name="efficient_sam_model_base_url",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "The URL to download the model checkpoint from if "
+                            "it is not already downloaded for EfficientSAM"
                         ),
                         read_only=True,
                     ),
@@ -201,6 +252,16 @@ class SegmentFromPointNode(Node):
                     ),
                 ),
                 (
+                    "use_efficient_sam",
+                    True,
+                    ParameterDescriptor(
+                        name="use_efficient_sam",
+                        type=ParameterType.PARAMETER_BOOL,
+                        description=("Whether to use EfficientSAM or SAM"),
+                        read_only=True,
+                    ),
+                ),
+                (
                     "n_contender_masks",
                     3,
                     ParameterDescriptor(
@@ -210,20 +271,62 @@ class SegmentFromPointNode(Node):
                         read_only=True,
                     ),
                 ),
+                (
+                    "rate_hz",
+                    10.0,
+                    ParameterDescriptor(
+                        name="rate_hz",
+                        type=ParameterType.PARAMETER_DOUBLE,
+                        description="The rate at which to return feedback.",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "min_depth_mm",
+                    330,
+                    ParameterDescriptor(
+                        name="min_depth_mm",
+                        type=ParameterType.PARAMETER_INTEGER,
+                        description="The minimum depth in mm to consider in a mask.",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "max_depth_mm",
+                    10150000,
+                    ParameterDescriptor(
+                        name="max_depth_mm",
+                        type=ParameterType.PARAMETER_INTEGER,
+                        description="The maximum depth in mm to consider in a mask.",
+                        read_only=True,
+                    ),
+                ),
             ],
         )
+
+        if use_efficient_sam.value:
+            model_name = efficient_sam_model_name.value
+            model_base_url = efficient_sam_model_base_url.value
+        else:
+            model_name = sam_model_name.value
+            model_base_url = sam_model_base_url.value
+
         return (
-            model_name.value,
-            model_base_url.value,
+            model_name,
+            model_base_url,
             model_dir.value,
+            use_efficient_sam.value,
             n_contender_masks.value,
+            rate_hz.value,
+            min_depth_mm.value,
+            max_depth_mm.value,
         )
 
-    def initialize_food_segmentation(self, model_name: str, model_path: str) -> None:
+    def initialize_sam(self, model_name: str, model_path: str) -> None:
         """
-        Initialize all attributes needed for food segmentation.
+        Initialize all attributes needed for food segmentation with SAM.
 
-        This includes loading the Segment Anything model, launching the action
+        This includes loading the SAM, launching the action
         server, and more. Note that we are guarenteed the model exists since
         it was downloaded in the __init__ function of this class.
 
@@ -236,7 +339,7 @@ class SegmentFromPointNode(Node):
         ------
         ValueError if the model name does not contain vit_h, vit_l, or vit_b
         """
-        self.get_logger().info("Initializing food segmentation...")
+        self.get_logger().info("Initializing SAM...")
         # Load the model and move it to the specified device
         if "vit_b" in model_name:  # base model
             model_type = "vit_b"
@@ -254,19 +357,42 @@ class SegmentFromPointNode(Node):
         # a lock.
         self.predictor = SamPredictor(sam)
 
-        # Convert between ROS and CV images
-        self.bridge = CvBridge()
+        self.get_logger().info("...Done!")
 
-        # Create the action server
-        self._action_server = ActionServer(
-            self,
-            SegmentFromPoint,
-            "SegmentFromPoint",
-            self.execute_callback,
-            goal_callback=self.goal_callback,
-            cancel_callback=self.cancel_callback,
-            callback_group=MutuallyExclusiveCallbackGroup(),
-        )
+    def initialize_efficient_sam(self, model_name: str, model_path: str) -> None:
+        """
+        Initialize all attributes needed for food segmentation with EfficientSAM.
+
+        This includes loading the EfficientSAM model, launching the action
+        server, and more. Note that we are guarenteed the model exists since
+        it was downloaded in the __init__ function of this class.
+
+        Parameters
+        ----------
+        model_name: The name of the model to load.
+        model_path: The path to the model checkpoint to load.
+
+        Raises
+        ------
+        ValueError if the model name does not contain efficient_sam
+        """
+        self.get_logger().info("Initializing EfficientSAM...")
+        # Hardcoded from https://github.com/yformer/EfficientSAM/blob/main/efficient_sam/build_efficient_sam.py
+        if "vits" in model_name:
+            encoder_patch_embed_dim = 384
+            encoder_num_heads = 6
+        elif "vitt" in model_name:
+            encoder_patch_embed_dim = 192
+            encoder_num_heads = 3
+        else:
+            raise ValueError(f"Unknown model type {model_name}")
+        self.efficient_sam = build_efficient_sam(
+            encoder_patch_embed_dim=encoder_patch_embed_dim,
+            encoder_num_heads=encoder_num_heads,
+            checkpoint=model_path,
+        ).eval()
+        self.efficient_sam.to(device=self.device)
+
         self.get_logger().info("...Done!")
 
     def camera_info_callback(self, msg: CameraInfo) -> None:
@@ -351,7 +477,84 @@ class SegmentFromPointNode(Node):
         self.get_logger().info("Received cancel request, accepting")
         return CancelResponse.ACCEPT
 
-    def segment_image(
+    def run_sam(
+        self, image: npt.NDArray, seed_point: Tuple[int, int]
+    ) -> list[Tuple[float, npt.NDArray[np.bool_]]]:
+        """
+        Run the SAM model on the image and seed point.
+
+        Parameters
+        ----------
+        image: The image to segment, in BGR.
+        seed_point: The seed point to segment from.
+
+        Returns
+        -------
+        masks: The masks outputted by the model.
+        scores: The scores outputted by the model.
+        """
+        self.get_logger().info("Segmenting image with SAM...")
+        # Convert image from BGR to RGB
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # Segment the image with that input point
+        self.predictor.set_image(image)
+        masks, scores, _ = self.predictor.predict(
+            point_coords=np.array([seed_point]),
+            point_labels=np.array([1]),
+            multimask_output=True,
+        )
+        return masks, scores
+
+    def run_efficient_sam(
+        self, image: npt.NDArray, seed_point: Tuple[int, int]
+    ) -> list[Tuple[float, npt.NDArray[np.bool_]]]:
+        """
+        Run the EfficientSAM model on the image and seed point.
+
+        Code adapted from https://github.com/yformer/EfficientSAM/blob/main/EfficientSAM_example.py
+
+        Parameters
+        ----------
+        image: The image to segment, in BGR.
+        seed_point: The seed point to segment from.
+
+        Returns
+        -------
+        masks: The masks outputted by the model.
+        scores: The scores outputted by the model.
+        """
+        self.get_logger().info("Segmenting image with EfficientSAM...")
+        # Convert image from BGR to RGB
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # Convert the image to a tensor
+        image_tensor = transforms.ToTensor()(image).to(device=self.device)
+
+        # Convert the seed point to a tensor
+        input_points = torch.tensor(np.array(seed_point).reshape((1, 1, 1, 2))).to(
+            device=self.device
+        )
+
+        # Convert the labels to a tensor
+        input_labels = torch.tensor([[[1]]]).to(device=self.device)
+
+        # Run the model
+        predicted_logits, predicted_iou = self.efficient_sam(
+            image_tensor[None, ...],
+            input_points,
+            input_labels,
+        )
+        sorted_ids = torch.argsort(predicted_iou, dim=-1, descending=True)
+        predicted_iou = torch.take_along_dim(predicted_iou, sorted_ids, dim=2)
+        predicted_logits = torch.take_along_dim(
+            predicted_logits, sorted_ids[..., None, None], dim=2
+        )
+        masks = torch.ge(predicted_logits[0, 0, :, :, :], 0).cpu().detach().numpy()
+        scores = predicted_iou[0, 0, :].cpu().detach().numpy()
+        return masks, scores
+
+    async def segment_image(
         self, seed_point: Tuple[int, int], image_msg: Image
     ) -> SegmentFromPoint.Result:
         """
@@ -366,6 +569,9 @@ class SegmentFromPointNode(Node):
         -------
         result: The result message containing the contender masks.
         """
+        # pylint: disable=too-many-locals
+        # All are necessary.
+
         self.get_logger().info("Segmenting image...")
         # Create the result
         result = SegmentFromPoint.Result()
@@ -385,23 +591,20 @@ class SegmentFromPointNode(Node):
         # Convert the image to OpenCV format
         image = ros_msg_to_cv2_image(image_msg, self.bridge)
 
-        # Convert the image to RGB for Segment Anything
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
         # Convert the depth image to OpenCV format. The depth image is a
         # 16-bit image with depth in mm.
         depth_img = ros_msg_to_cv2_image(depth_img_msg, self.bridge)
 
         # Segment the image
-        self.predictor.set_image(image)
-        masks, scores, _ = self.predictor.predict(
-            point_coords=np.array([seed_point]),
-            point_labels=np.array([1]),
-            multimask_output=True,
+        start_time = self.get_clock().now()
+        if self.use_efficient_sam:
+            masks, scores = self.run_efficient_sam(image, seed_point)
+        else:
+            masks, scores = self.run_sam(image, seed_point)
+        elpased_time = self.get_clock().now() - start_time
+        self.get_logger().info(
+            f"Elapsed time Model: {elpased_time.nanoseconds / 10.0**9} secs"
         )
-
-        # Convert the image back to BGR, which is OpenCV's default format
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
         # Sort the masks from highest to lowest score
         scored_masks_sorted = sorted(
@@ -421,9 +624,6 @@ class SegmentFromPointNode(Node):
         # Return the result message
         return result
 
-    # pylint: disable=too-many-arguments
-    # More arguments is fine here, since the purpose of this function is to consolidate
-    # multiple pieces of data into a single message.
     def generate_mask_msg(
         self,
         item_id: str,
@@ -445,6 +645,10 @@ class SegmentFromPointNode(Node):
         depth_img: The most recent depth image.
         seed_point: The seed point used to segment the image.
         """
+        # pylint: disable=too-many-arguments, too-many-locals
+        # More arguments is fine here, since the purpose of this function is to consolidate
+        # multiple pieces of data into a single message.
+
         # Clean the mask to only contain the connected component containing
         # the seed point
         # TODO: Thoroughly test this, in case we need to add more mask cleaning!
@@ -516,21 +720,36 @@ class SegmentFromPointNode(Node):
         result: The result message containing the contender masks.
         """
         self.get_logger().info(f"Executing goal...{goal_handle}")
+        start_time = self.get_clock().now()
 
         # Get the latest image
         latest_img_msg = None
         with self.latest_img_msg_lock:
             latest_img_msg = self.latest_img_msg
 
-        # Segment the image
+        # Start image segmentation as a co-routine
         seed_point = (
             int(goal_handle.request.seed_point.point.x),
             int(goal_handle.request.seed_point.point.y),
         )
-        result = self.segment_image(seed_point, latest_img_msg)
+        rate = self.create_rate(self.rate_hz)
+        segment_image_task = self.executor.create_task(
+            self.segment_image, seed_point, latest_img_msg
+        )
+
+        # Keep returning feedback until the task is done
+        feedback = SegmentFromPoint.Feedback()
+        while (
+            rclpy.ok()
+            and not goal_handle.is_cancel_requested
+            and not segment_image_task.done()
+        ):
+            feedback.elapsed_time = (self.get_clock().now() - start_time).to_msg()
+            goal_handle.publish_feedback(feedback)
+            rate.sleep()
 
         # Check if there was a cancel request
-        if goal_handle.is_cancel_requested:
+        if goal_handle.is_cancel_requested or not rclpy.ok():
             self.get_logger().info("Goal canceled")
             goal_handle.canceled()
             result = SegmentFromPoint.Result()
@@ -539,6 +758,10 @@ class SegmentFromPointNode(Node):
                 self.active_goal_request = None  # Clear the active goal
             return result
         self.get_logger().info("Goal not canceled")
+
+        # Task must be done, given that we broke out of the while loop and
+        # did not land in the above conditional
+        result = segment_image_task.result()
 
         # Return the result
         self.get_logger().info("Segmentation succeeded, returning")

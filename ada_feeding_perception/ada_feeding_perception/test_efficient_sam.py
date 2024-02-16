@@ -12,10 +12,11 @@ import time
 
 # Third-party imports
 import cv2
+from efficient_sam.efficient_sam import build_efficient_sam
 import matplotlib.pyplot as plt
 import numpy as np
-from segment_anything import sam_model_registry, SamPredictor
 import torch
+from torchvision import transforms
 
 # Local imports
 from ada_feeding_perception.helpers import (
@@ -36,46 +37,59 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+# Constant model parameters
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+MODEL_NAME = "efficient_sam_vitt.pt"
+CHECKPOINT_BASE_URL = (
+    "https://raw.githubusercontent.com/yformer/EfficientSAM/main/weights/"
+)
+
 # Read the command-line arguments
 image_path = args.input_image
 input_point = np.array(json.loads(args.input_point))
-
-# Constant model parameters
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-MODEL_TYPE = "vit_b"
-MODEL_NAME = "sam_vit_b_01ec64.pth"
-CHECKPOINT_BASE_URL = "https://dl.fbaipublicfiles.com/segment_anything/"
-
-# Download the model
-model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../", "model"))
-sam_checkpoint = os.path.join(model_dir, MODEL_NAME)
-# if the model can't be found download it
-if not os.path.isfile(sam_checkpoint):
-    print("SAM model checkpoint not found. Downloading...")
-    download_checkpoint(MODEL_NAME, model_dir, CHECKPOINT_BASE_URL)
-    print(f"Download complete! Model saved at {sam_checkpoint}")
+input_points = torch.tensor(input_point.reshape((1, 1, 1, 2))).to(device=DEVICE)
+input_labels = torch.tensor([[[1]]]).to(device=DEVICE)
 
 # Read the image
 image = cv2.imread(image_path)
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 print(f"Image shape: {image.shape}")
+image_tensor = transforms.ToTensor()(image).to(device=DEVICE)
+
+# Download the model
+model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../", "model"))
+efficient_sam_checkpoint = os.path.join(model_dir, MODEL_NAME)
+# if the model can't be found download it
+if not os.path.isfile(efficient_sam_checkpoint):
+    print("EfficientSAM model checkpoint not found. Downloading...")
+    download_checkpoint(MODEL_NAME, model_dir, CHECKPOINT_BASE_URL)
+    print(f"Download complete! Model saved at {efficient_sam_checkpoint}")
 
 # Load the model
-sam = sam_model_registry[MODEL_TYPE](checkpoint=sam_checkpoint)
-sam.to(device=DEVICE)
-predictor = SamPredictor(sam)
-
-# Segment the image with that input point
+efficient_sam = build_efficient_sam(
+    encoder_patch_embed_dim=192,
+    encoder_num_heads=3,
+    checkpoint=os.path.join(model_dir, MODEL_NAME),
+).eval()
+efficient_sam.to(device=DEVICE)
 time_start = time.time()
-predictor.set_image(image)
-masks, scores, logits = predictor.predict(
-    point_coords=np.array([input_point]),
-    point_labels=np.array([1]),
-    multimask_output=True,
-    # When False, it will return a single mask
+predicted_logits, predicted_iou = efficient_sam(
+    image_tensor[None, ...],
+    input_points,
+    input_labels,
 )
-
-# Sort the masks from highest to lowest score
+sorted_ids = torch.argsort(predicted_iou, dim=-1, descending=True)
+predicted_iou = torch.take_along_dim(predicted_iou, sorted_ids, dim=2)
+predicted_logits = torch.take_along_dim(
+    predicted_logits, sorted_ids[..., None, None], dim=2
+)
+# The masks are already sorted by their predicted IOUs.
+# The first dimension is the batch size (we have a single image. so it is 1).
+# The second dimension is the number of masks we want to generate (in this case, it is only 1)
+# The third dimension is the number of candidate masks output by the model.
+# For this demo we use the first mask.
+masks = torch.ge(predicted_logits[0, 0, :, :, :], 0).cpu().detach().numpy()
+scores = predicted_iou[0, 0, :].cpu().detach().numpy()
 scored_masks = list(zip(scores, masks))
 scored_masks_sorted = sorted(scored_masks, key=lambda x: x[0], reverse=True)
 time_end = time.time()
