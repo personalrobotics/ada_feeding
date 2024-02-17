@@ -487,6 +487,8 @@ def set_data_folder():
     Entry Point
     Create symlink from shared data directory
     """
+    logger = rclpy.logging.get_logger("policy_service")
+
     parser = argparse.ArgumentParser(
         prog="set_data_folder", description="Set data directory root."
     )
@@ -496,7 +498,7 @@ def set_data_folder():
     args = parser.parse_args()
     data_dir = args.directory[0]
     if not os.path.isdir(data_dir):
-        print(f"Error: Not a directory or does not exist; {data_dir}")
+        logger.error(f"Error: Not a directory or does not exist; {data_dir}")
         return 1
 
     link_name = os.path.join(
@@ -511,7 +513,7 @@ def set_data_folder():
         else:
             raise error
 
-    print("Success: Set installed data directory.")
+    logger.info("Success: Set installed data directory.")
     return 0
 
 
@@ -525,9 +527,14 @@ def main():
         get_package_share_directory("ada_feeding_action_select"), "data"
     )
     if not os.path.isdir(data_dir):
-        print("Error: No data directory set.")
-        print("Use `ros2 run ada_feeding_action_select set_data_folder <directory>`.")
-        return 1
+        logger = rclpy.logging.get_logger("policy_service")
+        logger.error("Error: No data directory set.")
+        logger.error(
+            "Create a folder where you want checkpoints and records saved in. "
+            "Then, symlink that folder to share/data by running: "
+            "`ros2 run ada_feeding_action_select set_data_folder <directory>`."
+        )
+        logger.error("For now, checkpoints and records will not be saved.")
 
     # Node Setup
     rclpy.init()
