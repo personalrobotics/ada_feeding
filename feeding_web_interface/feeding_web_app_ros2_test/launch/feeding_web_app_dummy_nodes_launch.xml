@@ -6,6 +6,8 @@
   <arg name="run_face_detection" default="true" description="Whether to run the dummy face detection node" />
   <arg name="run_real_sense" default="true" description="Whether to run the dummy RealSense node" />
   <arg name="run_motion" default="true"  description="Whether to run the dummy motion nodes" />
+  <arg name="rgb_path" default="above_plate_2_rgb.jpg"  description="The path to the RGB image/video to publish from the dummy node, relative to this node's share/data folder." />
+  <arg name="depth_path" default="above_plate_2_depth.png"  description="The path to the depth image to publish from the dummy node, relative to this node's share/data folder." />
 
   <group if="$(var run_web_bridge)">
     <!-- The ROSBridge Node -->
@@ -23,8 +25,8 @@
       <remap from="~/camera_info" to="/camera/color/camera_info"/>
       <remap from="~/aligned_depth/camera_info" to="/camera/aligned_depth_to_color/camera_info"/>
       <param name="fps" value="30"/>
-      <param name="rgb_path" value="$(find-pkg-share feeding_web_app_ros2_test)/../data/above_plate_1_rgb.jpg"/>
-      <param name="depth_path" value="$(find-pkg-share feeding_web_app_ros2_test)/../data/above_plate_1_depth.png"/>
+      <param name="rgb_path" value="$(find-pkg-share feeding_web_app_ros2_test)/../data/$(var rgb_path)"/>
+      <param name="depth_path" value="$(find-pkg-share feeding_web_app_ros2_test)/../data/$(var depth_path)"/>
     </node>
   </group>
 

@@ -27,23 +27,23 @@ def generate_launch_description():
 
     # Initialize Arguments
     request = LaunchConfiguration("request")
-
-    # Add dummy realsense node
     package_prefix = FindPackageShare("feeding_web_app_ros2_test")
-    ld.add_action(
-        IncludeLaunchDescription(
-            AnyLaunchDescriptionSource(
-                [package_prefix, "/launch/feeding_web_app_dummy_nodes_launch.xml"]
-            ),
-            launch_arguments={
-                "run_web_bridge": "false",
-                "run_food_detection": "false",
-                "run_face_detection": "false",
-                "run_motion": "false",
-                "run_real_sense": "true",
-            }.items(),
-        )
-    )
+
+    # # Add dummy realsense node
+    # ld.add_action(
+    #     IncludeLaunchDescription(
+    #         AnyLaunchDescriptionSource(
+    #             [package_prefix, "/launch/feeding_web_app_dummy_nodes_launch.xml"]
+    #         ),
+    #         launch_arguments={
+    #             "run_web_bridge": "false",
+    #             "run_food_detection": "false",
+    #             "run_face_detection": "false",
+    #             "run_motion": "false",
+    #             "run_real_sense": "true",
+    #         }.items(),
+    #     )
+    # )
 
     # Add Request
     request_path = {

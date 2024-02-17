@@ -9,7 +9,7 @@ import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from sensor_msgs.msg import CompressedImage, RegionOfInterest
+from sensor_msgs.msg import CompressedImage, Image, RegionOfInterest, CameraInfo
 from shapely.geometry import MultiPoint
 import threading
 import time
@@ -42,8 +42,35 @@ class SegmentFromPointNode(Node):
         self.latest_img_msg = None
         self.latest_img_msg_lock = threading.Lock()
 
+        # Subscribe to the depth topic, to store the latest image
+        self.depth_subscriber = self.create_subscription(
+            Image,
+            "/camera/aligned_depth_to_color/image_raw",
+            self.depth_callback,
+            1,
+        )
+        self.latest_depth_msg = None
+        self.latest_depth_msg_lock = threading.Lock()
+
+        # Subscribe to the camera info
+        self.camera_info_subscriber = self.create_subscription(
+            CameraInfo, "/camera/color/camera_info", self.camera_info_callback, 1
+        )
+        self.camera_info = None
+        self.camera_info_lock = threading.Lock()
+
         # Convert between ROS and CV images
         self.bridge = CvBridge()
+
+        # Create the action server
+        self._action_server = ActionServer(
+            self,
+            SegmentFromPoint,
+            "SegmentFromPoint",
+            self.execute_callback,
+            goal_callback=self.goal_callback,
+            cancel_callback=self.cancel_callback,
+        )
 
     def image_callback(self, msg):
         """
@@ -54,19 +81,29 @@ class SegmentFromPointNode(Node):
         msg: The image message.
         """
         with self.latest_img_msg_lock:
-            # Only create the action server after we have received at least one
-            # image
-            if self.latest_img_msg is None:
-                # Create the action server
-                self._action_server = ActionServer(
-                    self,
-                    SegmentFromPoint,
-                    "SegmentFromPoint",
-                    self.execute_callback,
-                    goal_callback=self.goal_callback,
-                    cancel_callback=self.cancel_callback,
-                )
             self.latest_img_msg = msg
+
+    def depth_callback(self, msg):
+        """
+        Store the latest depth message.
+
+        Parameters
+        ----------
+        msg: The depth message.
+        """
+        with self.latest_depth_msg_lock:
+            self.latest_depth_msg = msg
+
+    def camera_info_callback(self, msg):
+        """
+        Store the latest camera info message.
+
+        Parameters
+        ----------
+        msg: The camera info message.
+        """
+        with self.camera_info_lock:
+            self.camera_info = msg
 
     def goal_callback(self, goal_request):
         """
@@ -85,12 +122,28 @@ class SegmentFromPointNode(Node):
         goal_request: The goal request message.
         """
         self.get_logger().info("Received goal request")
-        if self.active_goal_request is None:
-            self.get_logger().info("Accepting goal request")
-            self.active_goal_request = goal_request
-            return GoalResponse.ACCEPT
-        self.get_logger().info("Rejecting goal request")
-        return GoalResponse.REJECT
+
+        # Reject if there is already an active goal
+        if self.active_goal_request is not None:
+            self.get_logger().info("Rejecting goal request")
+            return GoalResponse.REJECT
+
+        # Reject if this node has not received an RGB and depth image
+        with self.latest_img_msg_lock:
+            with self.latest_depth_msg_lock:
+                with self.camera_info_lock:
+                    if (
+                        self.latest_img_msg is None
+                        or self.latest_depth_msg is None
+                        or self.camera_info is None
+                    ):
+                        self.get_logger().info("Rejecting cancel request")
+                        return CancelResponse.REJECT
+
+        # Otherwise accept
+        self.get_logger().info("Accepting goal request")
+        self.active_goal_request = goal_request
+        return GoalResponse.ACCEPT
 
     def cancel_callback(self, goal_handle):
         """
@@ -122,9 +175,15 @@ class SegmentFromPointNode(Node):
         latest_img_msg = None
         with self.latest_img_msg_lock:
             latest_img_msg = self.latest_img_msg
+        with self.latest_depth_msg_lock:
+            latest_depth_msg = self.latest_depth_msg
+        with self.camera_info_lock:
+            camera_info = self.camera_info
         result.header = latest_img_msg.header
+        result.camera_info = camera_info
         img = self.bridge.compressed_imgmsg_to_cv2(latest_img_msg, "bgr8")
         width, height, _ = img.shape
+        depth_img = self.bridge.imgmsg_to_cv2(latest_depth_msg, "passthrough")
 
         # Sleep (dummy segmentation)
         time.sleep(self.sleep_time)
@@ -179,6 +238,12 @@ class SegmentFromPointNode(Node):
                 format="jpeg",
                 data=cv2.imencode(".jpg", img[y_min:y_max, x_min:x_max])[1].tostring(),
             )
+            mask_msg.depth_image = self.bridge.cv2_to_imgmsg(
+                depth_img[y_min:y_max, x_min:x_max], "passthrough"
+            )
+            mask_msg.average_depth = (
+                np.median(depth_img[y_min:y_max, x_min:x_max][mask_img > 0]) / 1000.0
+            )  # Convert to meters
             mask_msg.item_id = "dummy_food_id_%d" % (i)
             mask_msg.confidence = np.random.random()
             result.detected_items.append(mask_msg)
