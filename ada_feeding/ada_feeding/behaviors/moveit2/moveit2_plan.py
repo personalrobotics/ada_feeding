@@ -103,7 +103,9 @@ class MoveIt2Plan(BlackboardBehavior):
             BlackboardKey, Optional[Union[JointState, List[float]]]
         ] = None,
         debug_trajectory_viz: Union[BlackboardKey, bool] = False,
-        max_path_len: Optional[Union[BlackboardKey, float]] = 10.0, #np.sqrt(6.0) * np.pi,
+        max_path_len: Optional[
+            Union[BlackboardKey, float]
+        ] = 10.0,  # np.sqrt(6.0) * np.pi,
         max_path_len_joint: Optional[Union[BlackboardKey, Dict[str, float]]] = None,
     ) -> None:
         """
