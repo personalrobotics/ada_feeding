@@ -6,6 +6,7 @@ wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
+import pickle
 from typing import List, Optional
 
 # Third-party imports
@@ -81,6 +82,7 @@ class AcquireFoodTree(MoveToTree):
         max_acceleration_scaling_move_into: Optional[float] = 0.8,
         max_velocity_scaling_to_resting_configuration: Optional[float] = 0.8,
         max_acceleration_scaling_to_resting_configuration: Optional[float] = 0.8,
+        pickle_goal_path: Optional[str] = None,
     ):
         """
         Initializes tree-specific parameters.
@@ -88,6 +90,13 @@ class AcquireFoodTree(MoveToTree):
         Parameters
         ----------
         resting_joint_positions: Final joint position after acquisition
+        max_velocity_scaling_move_above: Max velocity scaling for move above
+        max_acceleration_scaling_move_above: Max acceleration scaling for move above
+        max_velocity_scaling_move_into: Max velocity scaling for move into
+        max_acceleration_scaling_move_into: Max acceleration scaling for move into
+        max_velocity_scaling_to_resting_configuration: Max velocity scaling for move to resting configuration
+        max_acceleration_scaling_to_resting_configuration: Max acceleration scaling for move to resting configuration
+        pickle_goal_path: Path to pickle goal for debugging
         """
         # Initialize ActionServerBT
         super().__init__(node)
@@ -103,6 +112,7 @@ class AcquireFoodTree(MoveToTree):
         self.max_acceleration_scaling_to_resting_configuration = (
             max_acceleration_scaling_to_resting_configuration
         )
+        self.pickle_goal_path = pickle_goal_path
 
     @override
     def create_tree(
@@ -825,6 +835,12 @@ class AcquireFoodTree(MoveToTree):
         # Check goal type
         if not isinstance(goal, AcquireFood.Goal):
             return False
+
+        # Pickle goal for debugging
+        if self.pickle_goal_path is not None:
+            with open(self.pickle_goal_path, "wb") as file:
+                pickle.dump(goal, file)
+            self._node.get_logger().info(f"Pickled goal to {self.pickle_goal_path}")
 
         # Write tree inputs to blackboard
         name = tree.root.name
