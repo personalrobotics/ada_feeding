@@ -6,7 +6,7 @@ This README is the definitive source for downloading, installing, and running th
 
 ### Setup (Robot Software)
 
-1. [Install ROS2 Humble](https://docs.ros.org/en/humble/Installation.html), [configure your environment](https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Configuring-ROS2-Environment.html), and [create a workspace](https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Creating-A-Workspace/Creating-A-Workspace.html#).
+1. [Install ROS2 Humble (binary packages are recommended over building from source)](https://docs.ros.org/en/humble/Installation.html), [configure your environment](https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Configuring-ROS2-Environment.html), and [create a workspace](https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Creating-A-Workspace/Creating-A-Workspace.html#).
     1. **NOTE**: In the remainder of the instructions, replace `~\colcon_ws` with the path to your workspace.
 2. Configure [`pr-rosinstalls`](https://github.com/personalrobotics/pr-rosinstalls) in order to download all necessary repositories.
 
@@ -80,7 +80,7 @@ We use the convenience script `start.py` to launch the software. This script has
 This option starts the web app and the real robot code, and can be used to test the entire system. This will by default start the web app on port `80`, and requires `sudo` access.
 
 ```
-cd ~/colcon_ws
+cd ~/colcon_wsUbuntu (Debian packages)
 python3 src/ada_feeding/start.py
 ```
 
