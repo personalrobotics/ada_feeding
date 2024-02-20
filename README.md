@@ -26,24 +26,19 @@ This README is the definitive source for downloading, installing, and running th
         sudo apt install python3-rosdep # if not already installed
         sudo rosdep init # if this is the first time using rosdep
 
-5. (Temporary until [PR1](https://github.com/ros/rosdistro/pull/39905) and [PR2](https://github.com/ros/rosdistro/pull/39906) are merged in): Add the following two lines to `/etc/ros/rosdep/sources.list.d/*-default.list`:
-
-        yaml https://raw.githubusercontent.com/amalnanavati/rosdistro/patch-1/rosdep/python.yaml
-        yaml https://raw.githubusercontent.com/amalnanavati/rosdistro/skspatial/rosdep/python.yaml
-
-6. Install [`rosdep`](https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html) dependencies:
+5. Install [`rosdep`](https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html) dependencies:
 
         rosdep update
         cd ~/colcon_ws
         rosdep install --from-paths src -y --ignore-src
 
-7. Install non-`rosdep` dependencies:
+6. Install non-`rosdep` dependencies:
     - Install SegmentAnythingModel: `python3 -m pip install git+https://github.com/facebookresearch/segment-anything.git`
     - Install EfficientSAM: `python3 -m pip install git+https://github.com/yformer/EfficientSAM.git`
     - Upgrade `transforms3d`, since [the release on Ubuntu packages is outdated](https://github.com/matthew-brett/transforms3d/issues/65): `python3 -m pip install transforms3d -U`
     - [`pyrealsense2` is not released for ARM systems](https://github.com/IntelRealSense/librealsense/issues/6449#issuecomment-650784066), so ARM users will have to [build from source](https://github.com/IntelRealSense/librealsense/blob/master/wrappers/python/readme.md#building-from-source). You make have to add the `-DPYTHON_EXECUTABLE=/usr/bin/python3` flag to the `cmake` command. When running `sudo make install`, pay close attention to which path `pyrealsense2` is installed to and add *that path* to the `PYTHONPATH` -- it should be `/use/local/lib` but may be `/usr/local/OFF`.
-8. Install the JACO SDK (real robot only). All SDKs are listed [here](https://www.kinovarobotics.com/resources?r=79301&s); PRL currently uses the [Gen2 SDK v1.5.1](https://drive.google.com/file/d/1UEQAow0XLcVcPCeQfHK9ERBihOCclkJ9/view). Note that although the latest version of that SDK is for Ubuntu 16.04, it still works on Ubuntu 22.04 (only for x86 systems, not ARM system).
-9. Build your workspace:
+7. Install the JACO SDK (real robot only). All SDKs are listed [here](https://www.kinovarobotics.com/resources?r=79301&s); PRL currently uses the [Gen2 SDK v1.5.1](https://drive.google.com/file/d/1UEQAow0XLcVcPCeQfHK9ERBihOCclkJ9/view). Note that although the latest version of that SDK is for Ubuntu 16.04, it still works on Ubuntu 22.04 (only for x86 systems, not ARM system).
+8. Build your workspace:
 
         cd ~/colcon_ws
         colcon build --symlink-install # if sim-only, add '--packages-skip ada_hardware'
