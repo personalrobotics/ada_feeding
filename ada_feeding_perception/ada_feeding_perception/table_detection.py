@@ -197,7 +197,7 @@ class TableDetectionNode(Node):
         # Fit Plane: depth = a*u + b*v + c
         d_idx = np.where(depth_mask > 0)
         d = depth_mask[d_idx].astype(float)
-        #d = np.full(len(d_idx[0]), depth_median)
+        # d = np.full(len(d_idx[0]), depth_median)
         # self.get_logger().info(f"d, {d}, {d.shape}")
         coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1)))).astype(float)
         b, a, c = np.linalg.lstsq(coeffs, d)[0] # coefficients b and a are reversed because of matrix row/col structure and its correspondence to x/y
