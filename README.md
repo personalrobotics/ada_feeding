@@ -93,8 +93,6 @@ To close, run `python3 src/ada_feeding/start.py -c`
 
 This option starts the web app, runs dummy nodes for perception, runs the **real** robot motion code, but runs a mock robot in MoveIt. This is useful for testing robot motion code in simulation before moving onto the real robot. This will start the web app on port `3000` and does not require `sudo` access.
 
-**NOTE**: Before running `mock`, it is recommended to disable the Octomap by [changing the name of `default_sensor/image_topic` to a topic that is not published](https://github.com/personalrobotics/ada_ros2/blob/e5256bfc89c358cb71699c6be95e78bf846eed63/ada_moveit/config/sensors_3d.yaml#L7). Be sure to re-build after the change.
-
 ```
 cd ~/colcon_ws
 python3 src/ada_feeding/start.py --sim mock
