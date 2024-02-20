@@ -377,61 +377,61 @@ class MoveToMouthTree(MoveToTree):
                         ),
                     ],
                 ),
-                # At this stage of the tree, we are guarenteed to have a
-                # `mouth_pose` on the blackboard -- else the tree would have failed.
-                # Move the head to the detected mouth pose.
-                ModifyCollisionObject(
-                    name=name + " MoveHead",
-                    ns=name,
-                    inputs={
-                        "operation": ModifyCollisionObjectOperation.MOVE,
-                        "collision_object_id": self.head_object_id,
-                        "collision_object_position": BlackboardKey(
-                            "mouth_pose.pose.position"
-                        ),
-                        "collision_object_orientation": BlackboardKey(
-                            "mouth_pose.pose.orientation"
-                        ),
-                    },
-                ),
-                # Compute the transform of the wheelchair collision object
-                # based on the detected head pose
-                ComputeWheelchairCollisionTransform(
-                    name=name + " ComputeWheelchairCollisionTransform",
-                    ns=name,
-                    inputs={
-                        "detected_head_pose": BlackboardKey("mouth_pose"),
-                    },
-                    outputs={
-                        "wheelchair_position": BlackboardKey(
-                            "wheelchair_collision_position"
-                        ),
-                        "wheelchair_orientation": BlackboardKey(
-                            "wheelchair_collision_orientation"
-                        ),
-                        "wheelchair_scale": BlackboardKey("wheelchair_collision_scale"),
-                    },
-                ),
-                # Move the wheelchair collision object to the desired pose.
-                ModifyCollisionObject(
-                    name=name + " MoveWheelchairCollision",
-                    ns=name,
-                    inputs={
-                        "operation": ModifyCollisionObjectOperation.ADD,
-                        "collision_object_id": self.wheelchair_collision_object_id,
-                        "collision_object_position": BlackboardKey(
-                            "wheelchair_collision_position"
-                        ),
-                        "collision_object_orientation": BlackboardKey(
-                            "wheelchair_collision_orientation"
-                        ),
-                        "mesh_filepath": os.path.join(
-                            get_package_share_directory("ada_feeding"),
-                            "assets/wheelchair_collision.stl",
-                        ),
-                        "mesh_scale": BlackboardKey("wheelchair_collision_scale"),
-                    },
-                ),
+                # # At this stage of the tree, we are guarenteed to have a
+                # # `mouth_pose` on the blackboard -- else the tree would have failed.
+                # # Move the head to the detected mouth pose.
+                # ModifyCollisionObject(
+                #     name=name + " MoveHead",
+                #     ns=name,
+                #     inputs={
+                #         "operation": ModifyCollisionObjectOperation.MOVE,
+                #         "collision_object_id": self.head_object_id,
+                #         "collision_object_position": BlackboardKey(
+                #             "mouth_pose.pose.position"
+                #         ),
+                #         "collision_object_orientation": BlackboardKey(
+                #             "mouth_pose.pose.orientation"
+                #         ),
+                #     },
+                # ),
+                # # Compute the transform of the wheelchair collision object
+                # # based on the detected head pose
+                # ComputeWheelchairCollisionTransform(
+                #     name=name + " ComputeWheelchairCollisionTransform",
+                #     ns=name,
+                #     inputs={
+                #         "detected_head_pose": BlackboardKey("mouth_pose"),
+                #     },
+                #     outputs={
+                #         "wheelchair_position": BlackboardKey(
+                #             "wheelchair_collision_position"
+                #         ),
+                #         "wheelchair_orientation": BlackboardKey(
+                #             "wheelchair_collision_orientation"
+                #         ),
+                #         "wheelchair_scale": BlackboardKey("wheelchair_collision_scale"),
+                #     },
+                # ),
+                # # Move the wheelchair collision object to the desired pose.
+                # ModifyCollisionObject(
+                #     name=name + " MoveWheelchairCollision",
+                #     ns=name,
+                #     inputs={
+                #         "operation": ModifyCollisionObjectOperation.ADD,
+                #         "collision_object_id": self.wheelchair_collision_object_id,
+                #         "collision_object_position": BlackboardKey(
+                #             "wheelchair_collision_position"
+                #         ),
+                #         "collision_object_orientation": BlackboardKey(
+                #             "wheelchair_collision_orientation"
+                #         ),
+                #         "mesh_filepath": os.path.join(
+                #             get_package_share_directory("ada_feeding"),
+                #             "assets/wheelchair_collision.stl",
+                #         ),
+                #         "mesh_scale": BlackboardKey("wheelchair_collision_scale"),
+                #     },
+                # ),
                 # Clear the Octomap. This is far enough before motion to mouth
                 # that the Octomap should still get populated before motion
                 # begins.

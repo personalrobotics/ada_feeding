@@ -14,6 +14,7 @@ import time
 from typing import List
 
 # Third-party imports
+from geometry_msgs.msg import PoseStamped
 from pymoveit2 import MoveIt2
 from pymoveit2.robots import kinova
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
@@ -21,6 +22,13 @@ import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
+from tf2_ros.transform_listener import TransformListener
+
+# Local imports
+from ada_feeding_msgs.msg import FaceDetection
 
 CollisionObjectParams = namedtuple(
     "CollisionObjectParams",
@@ -51,10 +59,18 @@ class ADAPlanningScene(Node):
         """
         Initialize the planning scene.
         """
+        # pylint: disable=too-many-instance-attributes
+        # The number of attributes is necessary for this node.
+
         super().__init__("ada_planning_scene")
 
         # Load the parameters
         self.load_parameters()
+
+        # Initialize the TF listeners and broadcasters
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_broadcaster = StaticTransformBroadcaster(self)
 
         # Initialize the MoveIt2 interface
         # Using ReentrantCallbackGroup to align with the examples from pymoveit2.
@@ -69,10 +85,28 @@ class ADAPlanningScene(Node):
             callback_group=callback_group,
         )
 
+        # Subscribe to the face detection topic
+        self.face_detection_sub = self.create_subscription(
+            FaceDetection,
+            "~/face_detection",
+            self.face_detection_callback,
+            1,
+        )
+        self.latest_face_detection = None
+        self.latest_face_detection_lock = threading.Lock()
+
+        # Create a timer to update planning scene for face detection
+        self.face_detection_timer = self.create_timer(
+            1.0 / self.update_face_hz, self.update_face_detection
+        )
+
     def load_parameters(self) -> None:
         """
         Load the parameters for the planning scene.
         """
+        # pylint: disable=too-many-locals
+        # The number of parameters is necessary for this node.
+
         # At what frequency (Hz) to check whether the `/collision_object`
         # topic is available (to call to add to the planning scene)
         wait_for_moveit_hz = self.declare_parameter(
@@ -89,6 +123,25 @@ class ADAPlanningScene(Node):
             ),
         )
         self.wait_for_moveit_hz = wait_for_moveit_hz.value
+
+        # How long to sleep (in seconds) after the `/collision_object` topic
+        # is available, to account for dropped messages when a topic is first
+        # advertised.
+        wait_for_moveit_sleep = self.declare_parameter(
+            "wait_for_moveit_sleep",
+            2.5,  # default value
+            ParameterDescriptor(
+                name="wait_for_moveit_sleep",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "How long to sleep (in seconds) after the `/collision_object` "
+                    "topic is available, to account for dropped messages when a topic "
+                    "is first advertised."
+                ),
+                read_only=True,
+            ),
+        )
+        self.wait_for_moveit_sleep = wait_for_moveit_sleep.value
 
         ## The rate (Hz) at which to publish each planning scene object
         publish_hz = self.declare_parameter(
@@ -251,6 +304,36 @@ class ADAPlanningScene(Node):
                 touch_links=touch_links,
             )
 
+        update_face_hz = self.declare_parameter(
+            "update_face_hz",
+            3.0,  # default value
+            descriptor=ParameterDescriptor(
+                name="update_face_hz",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The rate (Hz) at which to update the planning scene based on the results "
+                    "of face detection."
+                ),
+                read_only=True,
+            ),
+        )
+        self.update_face_hz = update_face_hz.value
+
+        head_object_id = self.declare_parameter(
+            "head_object_id",
+            "head",
+            descriptor=ParameterDescriptor(
+                name="head_object_id",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The object ID of the head in the planning scene. "
+                    "This is used to move the head based on face detection."
+                ),
+                read_only=True,
+            ),
+        )
+        self.head_object_id = head_object_id.value
+
     def wait_for_moveit(self) -> None:
         """
         Wait for the MoveIt2 interface to be ready. Specifically, it waits
@@ -263,6 +346,10 @@ class ADAPlanningScene(Node):
             if self.moveit2._get_planning_scene_service.service_is_ready():
                 break
             rate.sleep()
+
+        # Sleep to avoid the period after the topic is advertised but before
+        # is it processing messages.
+        time.sleep(self.wait_for_moveit_sleep)
 
     def initialize_planning_scene(self) -> None:
         """
@@ -313,6 +400,57 @@ class ADAPlanningScene(Node):
                     )
             rate.sleep()
 
+    def face_detection_callback(self, msg: FaceDetection) -> None:
+        """
+        Callback for the face detection topic.
+        """
+        with self.latest_face_detection_lock:
+            self.latest_face_detection = msg
+
+    def update_face_detection(self) -> None:
+        """
+        First, get the latest face detection message. Then, transform the
+        detected mouth center from the camera frame into the base frame. Add a
+        fixed quaternion to the mouth center to create a pose. Finally, move the
+        head in the planning scene to that pose.
+        """
+        with self.latest_face_detection_lock:
+            if self.latest_face_detection is None:
+                return
+            msg = self.latest_face_detection
+            self.latest_face_detection = None
+
+        base_frame = "j2n6s200_link_base"
+
+        # Transform the detected mouth center from the camera frame into the base frame
+        detected_mouth_center = self.tf_buffer.transform(
+            msg.detected_mouth_center,
+            base_frame,
+            0.5 / self.update_face_hz,
+        )
+
+        # Convert to a pose
+        detected_mouth_pose = PoseStamped()
+        detected_mouth_pose.header = detected_mouth_center.header
+        detected_mouth_pose.pose.position = detected_mouth_center.point
+        # Fixed orientation facing away from the wheelchair backrest
+        detected_mouth_pose.pose.orientation.x = 0.0
+        detected_mouth_pose.pose.orientation.y = 0.0
+        detected_mouth_pose.pose.orientation.z = -0.7071068
+        detected_mouth_pose.pose.orientation.w = 0.7071068
+
+        # Move the head in the planning scene to that pose
+        self.moveit2.move_collision(
+            id=self.head_object_id,
+            position=detected_mouth_pose.pose.position,
+            quat_xyzw=detected_mouth_pose.pose.orientation,
+            frame_id=base_frame,
+        )
+
+        # TODO: Add the static mouth pose to TF
+        # TODO: Scale the wheelchair collision object based on the user's head
+        # pose.
+
 
 def main(args: List = None) -> None:
     """
@@ -344,12 +482,13 @@ def main(args: List = None) -> None:
     ada_planning_scene.initialize_planning_scene()
     ada_planning_scene.get_logger().info("Planning scene initialized.")
 
-    # Sleep to allow the messages to go through
-    time.sleep(10.0)
+    # # Sleep to allow the messages to go through
+    # time.sleep(10.0)
 
-    # Terminate this node
-    ada_planning_scene.destroy_node()
-    rclpy.shutdown()
+    # # Terminate this node
+    # ada_planning_scene.destroy_node()
+    # rclpy.shutdown()
+
     # Join the spin thread (so it is spinning in the main thread)
     spin_thread.join()
 
