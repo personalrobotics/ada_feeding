@@ -64,8 +64,10 @@ class TableDetectionNode(Node):
             self.fit_to_table_callback,
         )
 
+        # Approximate values of current camera intrinsics matrix
+        # (updated with subscription)
+        self.camera_matrix = [614, 0, 312, 0, 614, 223, 0, 0, 1]
         # Subscribe to the camera info topic, to get the camera intrinsics
-        self.camera_info = None
         self.camera_info_lock = threading.Lock()
         self.camera_info_subscriber = self.create_subscription(
             CameraInfo,
@@ -132,7 +134,7 @@ class TableDetectionNode(Node):
 
             Returns
             ----------
-            table[target_u][target_v]: the depth to the table at coordinates (target_u, target_v)
+            table_depth: the depth to the table at coordinates (target_u, target_v)
         """
 
         # Convert ROS images to CV images
@@ -166,6 +168,7 @@ class TableDetectionNode(Node):
                 # circle outline
                 radius = r
                 cv2.circle(gray, center, radius, (255, 0, 255), 3)
+                cv2.circle(gray, center, radius + self._table_buffer, (255, 0, 255), 3)
             cv2.imshow("detected circles", gray)
             cv2.waitKey(0)
 
@@ -184,21 +187,28 @@ class TableDetectionNode(Node):
         depth_var = np.abs(depth_mask - np.mean(depth_mask[depth_mask > 0]))
         depth_std = np.std(depth_mask[depth_mask > 0])
         depth_mask[depth_var > 2.0*depth_std] = 0
+
+        # Get Median of Mask
+        # d_idx = np.where(depth_mask > 0)
+        # d = depth_mask[d_idx].astype(float)
+        # depth_median = np.median(d).astype("uint16")
+        # self.get_logger().info(f"depth median, {depth_median}")
         
         # Fit Plane: depth = a*u + b*v + c
         d_idx = np.where(depth_mask > 0)
         d = depth_mask[d_idx].astype(float)
+        #d = np.full(len(d_idx[0]), depth_median)
+        # self.get_logger().info(f"d, {d}, {d.shape}")
         coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1)))).astype(float)
-        b, a, c = np.linalg.lstsq(coeffs, d)[0]
+        b, a, c = np.linalg.lstsq(coeffs, d)[0] # coefficients b and a are reversed because of matrix row/col structure and its correspondence to x/y
+
+        # TODO: add a comment describing flipped coefficients a & b
         
         # Create Table Depth Image
-        u = np.linspace(0, image_depth.shape[1], image_depth.shape[1], False)
-        v = np.linspace(0, image_depth.shape[0], image_depth.shape[0], False)
-        U, V = np.meshgrid(u, v)
-        table = a*U + b*V + c
-        table = table.astype("uint16")
+        table_depth = a*target_u + b*target_v + c
+        table_depth = table_depth.astype("uint16")
 
-        return table[target_u][target_v]
+        return table_depth
         
     def fit_to_table_callback(
         self, request: Trigger.Request, response: Trigger.Response
@@ -242,7 +252,7 @@ class TableDetectionNode(Node):
         msg: The camera info message.
         """
         with self.camera_info_lock:
-            self.camera_info = msg
+            self.camera_matrix = msg.k
 
     def depth_image_callback(self, msg: Union[Image, CompressedImage]) -> None:
         """

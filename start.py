@@ -213,7 +213,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         screen_sessions = {
             "web": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
-                "sudo serve -s build -l 80",
+                "npm run start",
             ],
             "webrtc": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
@@ -238,7 +238,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "ros2 launch ada_moveit demo.launch.py use_rviz:=false",
             ],
             "feeding": [
-                "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=true run_web_bridge:=false",
+                "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false run_web_bridge:=false",
             ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
