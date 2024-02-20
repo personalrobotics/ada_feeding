@@ -397,6 +397,7 @@ const BiteSelection = (props) => {
               src={moveToStagingConfigurationImage}
               style={{
                 height: '90%',
+                width: '90%',
                 '--bs-btn-padding-x': '0rem',
                 '--bs-btn-padding-y': '0rem'
               }}
