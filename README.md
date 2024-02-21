@@ -81,6 +81,8 @@ We use the convenience script `start.py` to launch the software. This script has
 
 This option starts the web app and the real robot code, and can be used to test the entire system. This will by default start the web app on port `80`, and requires `sudo` access.
 
+**NOTE**: If not running on the production machine i.e., `lovelace`, it's recommended that you append the command line flag `--dev` to the start script. This will launch RVIZ, will not require the e-stop button to be plugged in, and will not require sudo access to launch the web app.
+
 ```
 cd ~/colcon_wsUbuntu (Debian packages)
 python3 src/ada_feeding/start.py
