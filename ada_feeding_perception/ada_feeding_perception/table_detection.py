@@ -20,7 +20,7 @@ from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 import torch
 import pyrealsense2
 from std_srvs.srv import Trigger
-
+import math
 
 # Local imports
 from ada_feeding_msgs.msg import Mask
@@ -198,7 +198,10 @@ class TableDetectionNode(Node):
         # d = np.full(len(d_idx[0]), depth_median)
         # self.get_logger().info(f"d, {d}, {d.shape}")
         coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1)))).astype(float)
-        b, a, c = np.linalg.lstsq(coeffs, d)[0] # coefficients b and a are reversed because of matrix row/col structure and its correspondence to x/y
+        b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[0] # coefficients b and a are reversed because of matrix row/col structure and its correspondence to x/y
+        self.get_logger().info(f"d_idx, {d_idx}")
+        self.get_logger().info(f"d, {d}")
+        self.get_logger().info(f"coeffs, {coeffs}, {coeffs.shape}")
 
         # TODO: add a comment describing flipped coefficients a & b
         
@@ -240,12 +243,50 @@ class TableDetectionNode(Node):
             )
             intrinsics.model = pyrealsense2.distortion.none
         
-        # Calculate real world 3D coordinates of the center pixel of table depth image
-        center = pyrealsense2.rs2_deproject_pixel_to_point(
-            intrinsics, [target_u, target_v], table_depth[target_v][target_u] / 1000 
-        )
+        # Deproject all pixels from table depth image to 3D coordinates
+        table_deprojected = np.zeros((table_depth.shape[1], table_depth.shape[0], 3))
+        xy_d = []
+        depth_d = []
+        self.get_logger().info(f"table_depth shape, {table_depth.shape}")
+        for v in range(0, len(table_depth)):
+            for u in range(0, len(table_depth[v])):
+                table_deprojected[u][v] = pyrealsense2.rs2_deproject_pixel_to_point(
+                    intrinsics, [u, v], table_depth[v][u] / 1000
+                )
+                xy_d.append([table_deprojected[u][v][0], table_deprojected[u][v][1]])
+                depth_d.append(table_deprojected[u][v][2])
+        self.get_logger().info(f"xy_d, {np.vstack(xy_d)}") 
+        self.get_logger().info(f"depth_d, {np.vstack(depth_d)}")
 
+        # Store 3D coordinates of the center pixel of table depth image
+        center = table_deprojected[320][240]
         self.get_logger().info(f"table center, {center}")
+        
+        # Fit Plane: z = a*x + b*y + c
+        coeffs = np.hstack((np.vstack(xy_d), np.ones((len(xy_d), 1)))).astype(float)
+        self.get_logger().info(f"get orientation coeffs, {coeffs}")
+        a, b, c = np.linalg.lstsq(coeffs, depth_d, rcond=None)[0]
+        self.get_logger().info(f"coefficients: a = {a}, b = {b}, c = {c}")
+
+        # Get points that are a distance 1 away from origin in the table's +x, +y, +z dimensions, respectively
+        x_p = [center[0] - 0.1, center[1], a*(center[0] - 0.1) + b*center[1] + c]
+        x_ref = [center[0] - x_p[0], center[1] - x_p[1], center[2] - x_p[2]]
+        x_ref_norm = np.linalg.norm(x_ref)
+        self.get_logger().info(f"magnitude of normalized +x vector = {np.linalg.norm(x_ref / x_ref_norm)}")
+        x_ref = np.add(x_ref / x_ref_norm, center)
+        
+        y_p = [center[0], center[1] - 0.1, a*center[0] + b*(center[1] - 0.1) + c]
+        y_ref = [center[0] - y_p[0], center[1] - y_p[1], center[2] - y_p[2]]
+        y_ref_norm = np.linalg.norm(y_ref)
+        self.get_logger().info(f"magnitude of normalized +y vector = {np.linalg.norm(y_ref / y_ref_norm)}")
+        y_ref = np.add(y_ref / y_ref_norm, center)
+        
+        # Why -1 if we want point in +z dimension
+        z_ref = [a, b, -1] / np.linalg.norm([a, b, -1]) 
+        self.get_logger().info(f"magnitude of normalized +z vector = {np.linalg.norm(z_ref)}")
+        z_ref = np.add(z_ref, center)
+
+        self.get_logger().info(f"x_ref, y_ref, z_ref coordinates: x_ref = {x_ref}, y_ref = {y_ref}, z_ref = {z_ref}")
 
         return 0
         
