@@ -75,11 +75,11 @@ This README is the definitive source for downloading, installing, and running th
 
 ## Running the Software
 
-We use the convenience script `start.py` to launch the software. This script has several command-line arguements, which can be seen by passing the `-h` flag when running the script.
+We use the convenience script `start.py` to launch the software. This script has several command-line arguments, which can be seen by passing the `-h` flag when running the script.
 
 ### **Recommended** Option A: Run the Web App with the Real Robot
 
-This option starts the web app and the real robot code, and can be used to test the entire system. This will by default start the web app on port `80`, and requires `sudo` access.
+This option starts the web app and the real robot code, and can be used to test the entire system. This will by default start the web app on port `80`, and requires `sudo` access. The robot's HDMI connection must be plugged into your computer, and your computer should be connected to the robot's router with an ethernet cable.
 
 **NOTE**: If not running on the production machine i.e., `lovelace`, it's recommended that you append the command line flag `--dev` to the start script. This will launch RVIZ, will not require the e-stop button to be plugged in, and will not require sudo access to launch the web app.
 
@@ -88,7 +88,7 @@ cd ~/colcon_wsUbuntu (Debian packages)
 python3 src/ada_feeding/start.py
 ```
 
-In a browser, access `127.0.0.1` (if on the same device serving the web app), or the IP address of the device hosting the web app (if on a different device connected to the same network). You should now be able to run the system! Note that upon startup, the watchdog is in a failing state until the e-stop is clicked exactly once, allowing the system to verify that it is connected and working.
+In a browser, access `127.0.0.1` (if on the same device serving the web app), or the IP address of the device hosting the web app (if on a different device connected to the same network, e.g. a cell phone connected to the LOVELACE_5g network). You should now be able to run the system! Note that upon startup, the watchdog is in a failing state until the e-stop is clicked exactly once, allowing the system to verify that it is connected and working.
 
 To close, run `python3 src/ada_feeding/start.py -c`
 
