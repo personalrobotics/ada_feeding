@@ -30,7 +30,7 @@ This README is the definitive source for downloading, installing, and running th
 
         rosdep update
         cd ~/colcon_ws
-        rosdep install --from-paths src -y --ignore-src as-root=pip:false --filter-for-installers pip
+        rosdep install --from-paths src -y --ignore-src --as-root=pip:false --filter-for-installers pip
 
    If you have sudo access and are setting up a computer for the first time, run the last command without `--filter-for-installers pip` to install all apt dependencies that require sudo access.
 
