@@ -53,13 +53,13 @@ This README is the definitive source for downloading, installing, and running th
         nvm install 21
         nvm use 21
 
-3. Make Node available to all users, including root:
+3. (Only for users with sudo access; this should already be configured on PRL computers) Make Node available to all users, including root:
 
         sudo ln -s "$NVM_DIR/versions/node/$(nvm version)/bin/node" "/usr/local/bin/node"
         sudo ln -s "$NVM_DIR/versions/node/$(nvm version)/bin/npm" "/usr/local/bin/npm"
         sudo ln -s "$NVM_DIR/versions/node/$(nvm version)/bin/npx" "/usr/local/bin/npx"
 
-4. Install `serve` and `pm2` globally. Root access is necessary for `serve` so it can access port 80.
+4. (Only for users with sudo access; this should already be configured on PRL computers) Install `serve` and `pm2` globally. Root access is necessary for `serve` so it can access port 80.
 
         sudo npm install -g serve
         npm install -g pm2@latest
