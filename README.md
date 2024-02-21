@@ -64,7 +64,7 @@ This README is the definitive source for downloading, installing, and running th
         sudo npm install -g serve
         npm install -g pm2@latest
 
-5. Install the web app dependencies. (Note: there will be some vulnerabilities in dependencies. That is okay, since )
+5. Install the web app dependencies. (Note: there will be some vulnerabilities in dependencies.)
 
         cd ~/colcon_ws/src/feeding_web_interface/feedingwebapp
         npm install --legacy-peer-deps
