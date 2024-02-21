@@ -67,6 +67,7 @@ class TableDetectionNode(Node):
         # Approximate values of current camera intrinsics matrix
         # (updated with subscription)
         self.camera_matrix = [614, 0, 312, 0, 614, 223, 0, 0, 1]
+        self.camera_info = None
         # Subscribe to the camera info topic, to get the camera intrinsics
         self.camera_info_lock = threading.Lock()
         self.camera_info_subscriber = self.create_subscription(
@@ -119,8 +120,6 @@ class TableDetectionNode(Node):
         self, 
         image_msg: Image, 
         image_depth_msg: Image, 
-        target_u: int,
-        target_v: int,
     ):
         """
             Parameters
@@ -130,11 +129,10 @@ class TableDetectionNode(Node):
             image_depth(image matrix): depth image of plate
             target_u: u coordinate to obtain table depth 
             target_v: v coordinate to obtain table depth 
-            table_buffer: buffer for plate radius 
 
             Returns
             ----------
-            table_depth: the depth to the table at coordinates (target_u, target_v)
+            table: depth array of the table
         """
 
         # Convert ROS images to CV images
@@ -205,10 +203,51 @@ class TableDetectionNode(Node):
         # TODO: add a comment describing flipped coefficients a & b
         
         # Create Table Depth Image
-        table_depth = a*target_u + b*target_v + c
-        table_depth = table_depth.astype("uint16")
+        u = np.linspace(0, depth_mask.shape[1], depth_mask.shape[1], False)
+        v = np.linspace(0, depth_mask.shape[0], depth_mask.shape[0], False)
+        U, V = np.meshgrid(u, v)
+        table = a*U + b*V + c
+        table = table.astype("uint16")
+        # table_depth = a*target_u + b*target_v + c
+        # table_depth = table_depth.astype("uint16")
 
-        return table_depth
+        return table
+
+    def get_orientation(
+        self, 
+        camera_info: CameraInfo, 
+        table_depth: Image, 
+        target_u: int,
+        target_v: int,
+    ):
+        # Construct camera intrinsics
+        intrinsics = pyrealsense2.intrinsics()
+        intrinsics.width = camera_info.width
+        intrinsics.height = camera_info.height
+        intrinsics.ppx = camera_info.k[2]
+        intrinsics.ppy = camera_info.k[5]
+        intrinsics.fx = camera_info.k[0]
+        intrinsics.fy = camera_info.k[4]
+        if camera_info.distortion_model == "plumb_bob":
+            intrinsics.model = pyrealsense2.distortion.brown_conrady
+            intrinsics.coeffs = list(camera_info.d)
+        elif camera_info.distortion_model == "equidistant":
+            intrinsics.model = pyrealsense2.distortion.kannala_brandt4
+            intrinsics.coeffs = list(camera_info.d)
+        else:
+            logger.warning(
+                f"Unsupported camera distortion model: {camera_info.distortion_model}"
+            )
+            intrinsics.model = pyrealsense2.distortion.none
+        
+        # Calculate real world 3D coordinates of the center pixel of table depth image
+        center = pyrealsense2.rs2_deproject_pixel_to_point(
+            intrinsics, [target_u, target_v], table_depth[target_v][target_u] / 1000 
+        )
+
+        self.get_logger().info(f"table center, {center}")
+
+        return 0
         
     def fit_to_table_callback(
         self, request: Trigger.Request, response: Trigger.Response
@@ -228,15 +267,28 @@ class TableDetectionNode(Node):
 
         # Get table depth from camera at the (u, v) coordinate (320, 240)
         table_depth = self.fit_table(
-            rgb_msg, depth_img_msg, 320, 240
+            rgb_msg, depth_img_msg
         )
         
         self.get_logger().info(f"table depth, {table_depth}, {type(table_depth)}")
         
         # Get the camera matrix
+        cam_info = None
         with self.camera_info_lock:
             camera_matrix = self.camera_matrix
+            if self.camera_info is not None:
+                cam_info = self.camera_info
+            else:
+                self.get_logger().warn(
+                    "Camera info not received, not including in result message"
+                )
         
+        orientation = self.get_orientation(
+            cam_info, table_depth, 320, 240
+        )
+
+        self.get_logger().info(f"orientation, {orientation}, {type(orientation)}")
+
         # To be replaced with PoseStamped message
         response.success = True
         response.message = f"To be replaced with PoseStamped message"
@@ -253,6 +305,7 @@ class TableDetectionNode(Node):
         """
         with self.camera_info_lock:
             self.camera_matrix = msg.k
+            self.camera_info = msg
 
     def depth_image_callback(self, msg: Union[Image, CompressedImage]) -> None:
         """
