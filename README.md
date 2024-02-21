@@ -30,15 +30,17 @@ This README is the definitive source for downloading, installing, and running th
 
         rosdep update
         cd ~/colcon_ws
-        rosdep install --from-paths src -y --ignore-src
+        rosdep install --from-paths src -y --ignore-src as-root=pip:false --filter-for-installers pip
 
-6. Install non-`rosdep` dependencies:
+   If you have sudo access and are setting up a computer for the first time, run the last command without '--filter-for-installers pip' to install all apt dependencies that require sudo access.
+
+7. Install non-`rosdep` dependencies:
     - Install SegmentAnythingModel: `python3 -m pip install git+https://github.com/facebookresearch/segment-anything.git`
     - Install EfficientSAM: `python3 -m pip install git+https://github.com/yformer/EfficientSAM.git`
     - Upgrade `transforms3d`, since [the release on Ubuntu packages is outdated](https://github.com/matthew-brett/transforms3d/issues/65): `python3 -m pip install transforms3d -U`
     - [`pyrealsense2` is not released for ARM systems](https://github.com/IntelRealSense/librealsense/issues/6449#issuecomment-650784066), so ARM users will have to [build from source](https://github.com/IntelRealSense/librealsense/blob/master/wrappers/python/readme.md#building-from-source). You make have to add the `-DPYTHON_EXECUTABLE=/usr/bin/python3` flag to the `cmake` command. When running `sudo make install`, pay close attention to which path `pyrealsense2` is installed to and add *that path* to the `PYTHONPATH` -- it should be `/use/local/lib` but may be `/usr/local/OFF`.
-7. Install the JACO SDK (real robot only). All SDKs are listed [here](https://www.kinovarobotics.com/resources?r=79301&s); PRL currently uses the [Gen2 SDK v1.5.1](https://drive.google.com/file/d/1UEQAow0XLcVcPCeQfHK9ERBihOCclkJ9/view). Note that although the latest version of that SDK is for Ubuntu 16.04, it still works on Ubuntu 22.04 (only for x86 systems, not ARM system).
-8. Build your workspace:
+8. Install the JACO SDK (real robot only). All SDKs are listed [here](https://www.kinovarobotics.com/resources?r=79301&s); PRL currently uses the [Gen2 SDK v1.5.1](https://drive.google.com/file/d/1UEQAow0XLcVcPCeQfHK9ERBihOCclkJ9/view). Note that although the latest version of that SDK is for Ubuntu 16.04, it still works on Ubuntu 22.04 (only for x86 systems, not ARM system).
+9. Build your workspace:
 
         cd ~/colcon_ws
         colcon build --symlink-install # if sim-only, add '--packages-skip ada_hardware'
