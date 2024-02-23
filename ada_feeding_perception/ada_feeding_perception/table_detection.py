@@ -182,6 +182,7 @@ class TableDetectionNode(Node):
         depth_mask = cv2.morphologyEx(depth_mask, cv2.MORPH_CLOSE, kernel, iterations = 3)
         
         # Remove Outliers
+        # TODO: Consider outlier removal using median + iqr for the future
         depth_var = np.abs(depth_mask - np.mean(depth_mask[depth_mask > 0]))
         depth_std = np.std(depth_mask[depth_mask > 0])
         depth_mask[depth_var > 2.0*depth_std] = 0
@@ -266,25 +267,35 @@ class TableDetectionNode(Node):
         coeffs = np.hstack((np.vstack(xy_d), np.ones((len(xy_d), 1)))).astype(float)
         self.get_logger().info(f"get orientation coeffs, {coeffs}")
         a, b, c = np.linalg.lstsq(coeffs, depth_d, rcond=None)[0]
+        center[2] = a*center[0]+ b*center[1] + c
         self.get_logger().info(f"coefficients: a = {a}, b = {b}, c = {c}")
+        self.get_logger().info(f"{center}, {(center[0], center[1], a*center[0]+ b*center[1] + c)}")
 
         # Get points that are a distance 1 away from origin in the table's +x, +y, +z dimensions, respectively
+        # TODO: don't hard code constant
         x_p = [center[0] - 0.1, center[1], a*(center[0] - 0.1) + b*center[1] + c]
         x_ref = [center[0] - x_p[0], center[1] - x_p[1], center[2] - x_p[2]]
-        x_ref_norm = np.linalg.norm(x_ref)
-        self.get_logger().info(f"magnitude of normalized +x vector = {np.linalg.norm(x_ref / x_ref_norm)}")
-        x_ref = np.add(x_ref / x_ref_norm, center)
+        x_ref /= np.linalg.norm(x_ref)
+        self.get_logger().info(f"magnitude of normalized +x vector = {np.linalg.norm(x_ref)}")
+        # x_ref = np.add(x_ref , center)
         
         y_p = [center[0], center[1] - 0.1, a*center[0] + b*(center[1] - 0.1) + c]
         y_ref = [center[0] - y_p[0], center[1] - y_p[1], center[2] - y_p[2]]
-        y_ref_norm = np.linalg.norm(y_ref)
-        self.get_logger().info(f"magnitude of normalized +y vector = {np.linalg.norm(y_ref / y_ref_norm)}")
-        y_ref = np.add(y_ref / y_ref_norm, center)
-        
+        y_ref /= np.linalg.norm(y_ref)
+        self.get_logger().info(f"magnitude of normalized +y vector = {np.linalg.norm(y_ref)}")
+        # y_ref = np.add(y_ref, center)
+
         # Why -1 if we want point in +z dimension
+        
         z_ref = [a, b, -1] / np.linalg.norm([a, b, -1]) 
         self.get_logger().info(f"magnitude of normalized +z vector = {np.linalg.norm(z_ref)}")
-        z_ref = np.add(z_ref, center)
+        # z_ref = np.add(z_ref, center)
+
+        
+        self.get_logger().info(f"dot product of +x and +y vector = {np.dot(y_ref, x_ref)}")
+        self.get_logger().info(f"dot product of +x and +z vector = {np.dot(x_ref, z_ref)}")
+        self.get_logger().info(f"dot product of +y and +z vector = {np.dot(y_ref, z_ref)}")
+
 
         self.get_logger().info(f"x_ref, y_ref, z_ref coordinates: x_ref = {x_ref}, y_ref = {y_ref}, z_ref = {z_ref}")
 
