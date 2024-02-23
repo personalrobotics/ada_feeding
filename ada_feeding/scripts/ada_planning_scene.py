@@ -14,7 +14,14 @@ import time
 from typing import List
 
 # Third-party imports
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import (
+    Point,
+    Pose,
+    Quaternion,
+    QuaternionStamped,
+    Transform,
+    Vector3,
+)
 from pymoveit2 import MoveIt2
 from pymoveit2.robots import kinova
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
@@ -22,6 +29,7 @@ import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from tf2_geometry_msgs import PointStamped, PoseStamped, TransformStamped
 from tf2_ros import TransformException
 from tf2_ros.buffer import Buffer
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
@@ -55,13 +63,12 @@ class ADAPlanningScene(Node):
 
     # pylint: disable=duplicate-code
     # The MoveIt2 object will have similar code in any file it is created.
+    # pylint: disable=too-many-instance-attributes
+    # The number of attributes is necessary for this node.
     def __init__(self) -> None:
         """
         Initialize the planning scene.
         """
-        # pylint: disable=too-many-instance-attributes
-        # The number of attributes is necessary for this node.
-
         super().__init__("ada_planning_scene")
 
         # Load the parameters
@@ -334,6 +341,21 @@ class ADAPlanningScene(Node):
         )
         self.head_object_id = head_object_id.value
 
+        body_object_id = self.declare_parameter(
+            "body_object_id",
+            "wheelchair_collision",
+            descriptor=ParameterDescriptor(
+                name="body_object_id",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The object ID of the body in the planning scene. "
+                    "This is used to move and scale the body based on face detection."
+                ),
+                read_only=True,
+            ),
+        )
+        self.body_object_id = body_object_id.value
+
     def wait_for_moveit(self) -> None:
         """
         Wait for the MoveIt2 interface to be ready. Specifically, it waits
@@ -355,6 +377,10 @@ class ADAPlanningScene(Node):
         """
         Initialize the planning scene with the objects.
         """
+        # TODO: MoveIt2 doesn't always process the messages to add the objects.
+        # We should look into another way to do it (e.g., the `/planning_scene` topic,
+        # or by continuing to call the `/collision_object` topic until it is processed).
+
         rate = self.create_rate(self.publish_hz)
         # Add each object to the planning scene
         for object_id, params in self.objects.items():
@@ -415,19 +441,28 @@ class ADAPlanningScene(Node):
         head in the planning scene to that pose.
         """
         with self.latest_face_detection_lock:
-            if self.latest_face_detection is None:
+            if (
+                self.latest_face_detection is None
+                or not self.latest_face_detection.is_face_detected
+            ):
                 return
             msg = self.latest_face_detection
             self.latest_face_detection = None
 
-        base_frame = "j2n6s200_link_base"
+        base_frame = "root"
 
         # Transform the detected mouth center from the camera frame into the base frame
-        detected_mouth_center = self.tf_buffer.transform(
-            msg.detected_mouth_center,
-            base_frame,
-            0.5 / self.update_face_hz,
-        )
+        try:
+            detected_mouth_center = self.tf_buffer.transform(
+                msg.detected_mouth_center,
+                base_frame,
+                rclpy.duration.Duration(seconds=0.5 / self.update_face_hz),
+            )
+        except TransformException as e:
+            self.get_logger().error(
+                f"Failed to transform the detected mouth center: {e}"
+            )
+            return
 
         # Convert to a pose
         detected_mouth_pose = PoseStamped()
@@ -440,6 +475,8 @@ class ADAPlanningScene(Node):
         detected_mouth_pose.pose.orientation.w = 0.7071068
 
         # Move the head in the planning scene to that pose
+        # NOTE: I've seen a bug where sometimes MoveIt2 doesn't
+        # receive or process this update. Unclear why.
         self.moveit2.move_collision(
             id=self.head_object_id,
             position=detected_mouth_pose.pose.position,
@@ -447,9 +484,94 @@ class ADAPlanningScene(Node):
             frame_id=base_frame,
         )
 
-        # TODO: Add the static mouth pose to TF
-        # TODO: Scale the wheelchair collision object based on the user's head
+        # Add the static mouth pose to TF. Although it is done once in MoveToTree,
+        # doing it here as well enables it to keep updating, effectively having
+        # the robot visual servo to the user's mouth.
+        self.tf_broadcaster.sendTransform(
+            TransformStamped(
+                header=detected_mouth_pose.header,
+                child_frame_id="mouth",
+                transform=Transform(
+                    translation=Vector3(
+                        x=detected_mouth_pose.pose.position.x,
+                        y=detected_mouth_pose.pose.position.y,
+                        z=detected_mouth_pose.pose.position.z,
+                    ),
+                    rotation=detected_mouth_pose.pose.orientation,
+                ),
+            )
+        )
+
+        # Scale the wheelchair collision object based on the user's head
         # pose.
+        if (
+            detected_mouth_pose.header.frame_id
+            != self.objects[self.head_object_id].frame_id
+            or detected_mouth_pose.header.frame_id
+            != self.objects[self.body_object_id].frame_id
+        ):
+            self.get_logger().error(
+                "The detected mouth pose frame_id does not match the expected frame_id."
+            )
+            return
+        original_head_pose = Pose(
+            position=Point(
+                x=self.objects[self.head_object_id].position[0],
+                y=self.objects[self.head_object_id].position[1],
+                z=self.objects[self.head_object_id].position[2],
+            ),
+            orientation=Quaternion(
+                x=self.objects[self.head_object_id].quat_xyzw[0],
+                y=self.objects[self.head_object_id].quat_xyzw[1],
+                z=self.objects[self.head_object_id].quat_xyzw[2],
+                w=self.objects[self.head_object_id].quat_xyzw[3],
+            ),
+        )
+        original_wheelchair_collision_pose = Pose(
+            position=Point(
+                x=self.objects[self.body_object_id].position[0],
+                y=self.objects[self.body_object_id].position[1],
+                z=self.objects[self.body_object_id].position[2],
+            ),
+            orientation=Quaternion(
+                x=self.objects[self.body_object_id].quat_xyzw[0],
+                y=self.objects[self.body_object_id].quat_xyzw[1],
+                z=self.objects[self.body_object_id].quat_xyzw[2],
+                w=self.objects[self.body_object_id].quat_xyzw[3],
+            ),
+        )
+
+        # Compute the new wheelchair collision pose
+        wheelchair_position = PointStamped(
+            header=detected_mouth_pose.header,
+            point=original_wheelchair_collision_pose.position,
+        )
+        wheelchair_orientation = QuaternionStamped(
+            header=detected_mouth_pose.header,
+            quaternion=original_wheelchair_collision_pose.orientation,
+        )
+        wheelchair_scale = (
+            1.0,
+            1.0,
+            (
+                detected_mouth_pose.pose.position.z
+                - original_wheelchair_collision_pose.position.z
+            )
+            / (
+                original_head_pose.position.z
+                - original_wheelchair_collision_pose.position.z
+            ),
+        )
+
+        params = self.objects[self.body_object_id]
+        self.moveit2.add_collision_mesh(
+            id=self.body_object_id,
+            filepath=params.filepath,
+            position=wheelchair_position.point,
+            quat_xyzw=wheelchair_orientation.quaternion,
+            frame_id=params.frame_id,
+            scale=wheelchair_scale,
+        )
 
 
 def main(args: List = None) -> None:
