@@ -1,0 +1,17 @@
+# NOTE: You have to change this node name if you change the node name in the launchfile.
+food_on_fork_detection:
+  ros__parameters:
+    # The FoodOnFork class to use
+    model_class: "ada_feeding_perception.food_on_fork_detectors.FoodOnForkDummyDetector"
+    # The path to load the model from. Ignored if the empty string.
+    # Should be relative to ada_feeding_perception's share directory.
+    model_path: ""
+    # Keywords to pass to the FoodOnFork class's constructor
+    model_kws:
+      - proba
+    # Keyword arguments to pass to the FoodOnFork class's constructor
+    model_kwargs:
+      proba: 0.5
+    
+    # The rate at which to detect and publish the confidence that there is food on the fork
+    rate_hz: 10.0

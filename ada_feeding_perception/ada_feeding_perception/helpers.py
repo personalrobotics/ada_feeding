@@ -44,6 +44,7 @@ def ros_msg_to_cv2_image(
             bridge = CvBridge()
         return bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
     if isinstance(msg, CompressedImage):
+        # TODO: This shoudl use bridge as well
         return cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_UNCHANGED)
     raise ValueError("msg must be a ROS Image or CompressedImage")
 
