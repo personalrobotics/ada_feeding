@@ -21,6 +21,13 @@ import torch
 import pyrealsense2
 from std_srvs.srv import Trigger
 import math
+from tf.transformation import quaternion_from_matrix
+from geometry_msgs.msg import (
+    Pose,
+    PoseStamped,
+    Point, 
+    Quaternion,
+)
 
 # Local imports
 from ada_feeding_msgs.msg import Mask
@@ -258,6 +265,7 @@ class TableDetectionNode(Node):
                 depth_d.append(table_deprojected[u][v][2])
         self.get_logger().info(f"xy_d, {np.vstack(xy_d)}") 
         self.get_logger().info(f"depth_d, {np.vstack(depth_d)}")
+        # TODO: Make this a matrix multiplication process
 
         # Store 3D coordinates of the center pixel of table depth image
         center = table_deprojected[320][240]
@@ -267,11 +275,11 @@ class TableDetectionNode(Node):
         coeffs = np.hstack((np.vstack(xy_d), np.ones((len(xy_d), 1)))).astype(float)
         self.get_logger().info(f"get orientation coeffs, {coeffs}")
         a, b, c = np.linalg.lstsq(coeffs, depth_d, rcond=None)[0]
-        center[2] = a*center[0]+ b*center[1] + c
+        center[2] = a*center[0]+ b*center[1] + c  # Modify the z coordinate of the center given the fitted plane (i.e. make the center the origin of the table plane) 
         self.get_logger().info(f"coefficients: a = {a}, b = {b}, c = {c}")
         self.get_logger().info(f"{center}, {(center[0], center[1], a*center[0]+ b*center[1] + c)}")
 
-        # Get points that are a distance 1 away from origin in the table's +x, +y, +z dimensions, respectively
+        # Get the direction vectors of the table plane from the camera's frame of perspective 
         # TODO: don't hard code constant
         x_p = [center[0] - 0.1, center[1], a*(center[0] - 0.1) + b*center[1] + c]
         x_ref = [center[0] - x_p[0], center[1] - x_p[1], center[2] - x_p[2]]
@@ -279,25 +287,36 @@ class TableDetectionNode(Node):
         self.get_logger().info(f"magnitude of normalized +x vector = {np.linalg.norm(x_ref)}")
         # x_ref = np.add(x_ref , center)
         
-        y_p = [center[0], center[1] - 0.1, a*center[0] + b*(center[1] - 0.1) + c]
-        y_ref = [center[0] - y_p[0], center[1] - y_p[1], center[2] - y_p[2]]
-        y_ref /= np.linalg.norm(y_ref)
-        self.get_logger().info(f"magnitude of normalized +y vector = {np.linalg.norm(y_ref)}")
-        # y_ref = np.add(y_ref, center)
-
-        # Why -1 if we want point in +z dimension
-        
         z_ref = [a, b, -1] / np.linalg.norm([a, b, -1]) 
         self.get_logger().info(f"magnitude of normalized +z vector = {np.linalg.norm(z_ref)}")
         # z_ref = np.add(z_ref, center)
 
-        
+        # Direction vector of y calculated through a system of linear equations consisting of: the dot product of x and y, dot product of z and y, & norm of y = 1  
+        denom = math.sqrt(math.pow(x_ref[2]*z_ref[1] - x_ref[1]*z_ref[2], 2) 
+                            + math.pow(x_ref[0]*z_ref[2] - x_ref[2]*z_ref[0], 2) 
+                            + math.pow(x_ref[1]*z_ref[0] - x_ref[0]*z_ref[1], 2))
+        y_ref = [(x_ref[2]*z_ref[1] - x_ref[1]*z_ref[2]) / denom, 
+                    (x_ref[0]*z_ref[2] - x_ref[2]*z_ref[0]) / denom, 
+                    (x_ref[1]*z_ref[0] - x_ref[0]*z_ref[1]) / denom]
+        self.get_logger().info(f"magnitude of normalized +y vector = {np.linalg.norm(y_ref)}")
+        # y_p = [center[0], center[1] - 0.1, a*center[0] + b*(center[1] - 0.1) + c]
+        # y_ref = [center[0] - y_p[0], center[1] - y_p[1], center[2] - y_p[2]]
+        # y_ref /= np.linalg.norm(y_ref)
+
         self.get_logger().info(f"dot product of +x and +y vector = {np.dot(y_ref, x_ref)}")
         self.get_logger().info(f"dot product of +x and +z vector = {np.dot(x_ref, z_ref)}")
         self.get_logger().info(f"dot product of +y and +z vector = {np.dot(y_ref, z_ref)}")
-
-
         self.get_logger().info(f"x_ref, y_ref, z_ref coordinates: x_ref = {x_ref}, y_ref = {y_ref}, z_ref = {z_ref}")
+
+        # Construct rotation matrix from direction vectors
+        R = [[x_ref[0], x_ref[1], x_ref[2]], 
+                [y_ref[0], y_ref[1], y_ref[2]],
+                [z_ref[0], z_ref[1], z_ref[2]]]
+        self.get_logger().info(f"rotation matrix = {R}")
+
+        # Derive quaternion from rotation matrix  
+        q = quaternion_from_matrix(R)
+        self.get_logger().info(f"quaternion = {q}")
 
         return 0
         
