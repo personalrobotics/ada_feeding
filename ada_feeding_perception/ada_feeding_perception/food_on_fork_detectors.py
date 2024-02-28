@@ -5,11 +5,13 @@ image and returns a confidence in [0,1] that there is food on the fork.
 # Standard imports
 from abc import ABC, abstractmethod
 from enum import Enum
+import time
 from typing import Optional
 
 # Third-party imports
 import numpy as np
 import numpy.typing as npt
+from overrides import override
 from sensor_msgs.msg import CameraInfo
 from tf2_ros.buffer import Buffer
 
@@ -36,6 +38,7 @@ class FoodOnForkDetector(ABC):
         """
         self.__camera_info = None
         self.__tf_buffer = None
+        self.__seed = int(time.time() * 1000)
 
     @property
     def camera_info(self) -> Optional[CameraInfo]:
@@ -81,6 +84,28 @@ class FoodOnForkDetector(ABC):
         """
         self.__tf_buffer = tf_buffer
 
+    @property
+    def seed(self) -> int:
+        """
+        The random seed to use in the detector.
+
+        Returns
+        -------
+        seed: The random seed to use in the detector.
+        """
+        return self.__seed
+
+    @seed.setter
+    def seed(self, seed: int) -> None:
+        """
+        Sets the random seed to use in the detector.
+
+        Parameters
+        ----------
+        seed: The random seed to use in the detector.
+        """
+        self.__seed = seed
+
     @abstractmethod
     def fit(self, X: npt.NDArray, y: npt.NDArray[FoodOnForkLabel]) -> None:
         """
@@ -94,23 +119,30 @@ class FoodOnForkDetector(ABC):
         """
 
     @abstractmethod
-    def save(self, path: str) -> None:
+    def save(self, path: str) -> str:
         """
-        Saves the perception algorithm to a file.
+        Saves the model to a file.
 
         Parameters
         ----------
-        path: The path to save the perception algorithm to.
+        path: The path to save the perception algorithm to. This file should not
+            have an extension; this function will add the appropriate extension.
+
+        Returns
+        -------
+        save_path: The path that the model was saved to.
         """
 
     @abstractmethod
     def load(self, path: str) -> None:
         """
-        Loads the perception algorithm from a file.
+        Loads the model a file.
 
         Parameters
         ----------
-        path: The path to load the perception algorithm from.
+        path: The path to load the perception algorithm from. If the path does
+            not have an extension, this function will add the appropriate
+            extension.
         """
 
     @abstractmethod
@@ -129,7 +161,11 @@ class FoodOnForkDetector(ABC):
         """
 
     def predict(
-        self, X: npt.NDArray, lower_thresh: float, upper_thresh: float
+        self,
+        X: npt.NDArray,
+        lower_thresh: float,
+        upper_thresh: float,
+        proba: Optional[npt.NDArray] = None,
     ) -> npt.NDArray[FoodOnForkLabel]:
         """
         Predicts whether there is food on the fork for a set of depth images.
@@ -139,17 +175,22 @@ class FoodOnForkDetector(ABC):
         X: The depth images to predict on.
         lower_thresh: The lower threshold for food on the fork.
         upper_thresh: The upper threshold for food on the fork.
+        proba: The predicted probabilities that there is food on the fork. If
+            None, this function will call predict_proba to get the probabilities.
 
         Returns
         -------
         y: The predicted labels for whether there is food on the fork.
         """
-        proba = self.predict_proba(X)
+        if proba is None:
+            proba = self.predict_proba(X)
         return np.where(
             proba < lower_thresh,
-            FoodOnForkLabel.NO_FOOD,
+            FoodOnForkLabel.NO_FOOD.value,
             np.where(
-                proba > upper_thresh, FoodOnForkLabel.FOOD, FoodOnForkLabel.UNSURE
+                proba > upper_thresh,
+                FoodOnForkLabel.FOOD.value,
+                FoodOnForkLabel.UNSURE.value,
             ),
         )
 
@@ -170,14 +211,18 @@ class FoodOnForkDummyDetector(FoodOnForkDetector):
         super().__init__()
         self.proba = proba
 
+    @override
     def fit(self, X: npt.NDArray, y: npt.NDArray[FoodOnForkLabel]) -> None:
         pass
 
-    def save(self, path: str) -> None:
-        pass
+    @override
+    def save(self, path: str) -> str:
+        return ""
 
+    @override
     def load(self, path: str) -> None:
         pass
 
+    @override
     def predict_proba(self, X: npt.NDArray) -> npt.NDArray[FoodOnForkLabel]:
         return np.full(X.shape[0], self.proba)

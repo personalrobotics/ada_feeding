@@ -308,11 +308,10 @@ class FoodOnForkDetectionNode(Node):
             try:
                 proba = self.model.predict_proba(X)[0]
                 food_on_fork_detection_msg.probability = proba
+            # pylint: disable=broad-except
+            # This is necessary because we don't know what exceptions the model
+            # might raise.
             except Exception as err:
-                # pylint: disable=broad-except
-                # This is necessary because we don't know what exceptions the model
-                # might raise.
-
                 err_str = f"Error predicting food on fork: {err}"
                 self.get_logger().error(err_str)
                 food_on_fork_detection_msg.probability = -1.0
