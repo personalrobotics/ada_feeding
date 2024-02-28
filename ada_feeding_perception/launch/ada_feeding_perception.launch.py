@@ -145,4 +145,35 @@ def generate_launch_description():
     )
     launch_description.add_action(face_detection)
 
+    # Load the food-on-fork detection node
+    food_on_fork_detection_config = os.path.join(
+        ada_feeding_perception_share_dir, "config", "food_on_fork_detection.yaml"
+    )
+    food_on_fork_detection_params = {}
+    food_on_fork_detection_params["model_dir"] = ParameterValue(
+        os.path.join(ada_feeding_perception_share_dir, "model"), value_type=str
+    )
+    food_on_fork_detection_remappings = [
+        ("~/food_on_fork_detection", "/food_on_fork_detection"),
+        ("~/toggle_food_on_fork_detection", "/toggle_food_on_fork_detection"),
+        (
+            "~/aligned_depth",
+            PythonExpression(
+                expression=[
+                    "'",
+                    prefix,
+                    "/camera/aligned_depth_to_color/image_raw'",
+                ]
+            ),
+        ),
+    ]
+    food_on_fork_detection = Node(
+        package="ada_feeding_perception",
+        name="food_on_fork_detection",
+        executable="food_on_fork_detection",
+        parameters=[food_on_fork_detection_config, food_on_fork_detection_params],
+        remappings=realsense_remappings + food_on_fork_detection_remappings,
+    )
+    launch_description.add_action(food_on_fork_detection)
+
     return launch_description

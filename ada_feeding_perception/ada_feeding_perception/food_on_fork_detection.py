@@ -306,7 +306,7 @@ class FoodOnForkDetectionNode(Node):
 
             # Get the probability that there is food on the fork
             try:
-                proba = self.model.predict_proba(X)
+                proba = self.model.predict_proba(X)[0]
                 food_on_fork_detection_msg.probability = proba
             except Exception as err:
                 # pylint: disable=broad-except

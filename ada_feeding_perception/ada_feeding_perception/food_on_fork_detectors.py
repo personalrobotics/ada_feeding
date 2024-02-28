@@ -5,6 +5,7 @@ image and returns a confidence in [0,1] that there is food on the fork.
 # Standard imports
 from abc import ABC, abstractmethod
 from enum import Enum
+from typing import Optional
 
 # Third-party imports
 import numpy as np
@@ -37,15 +38,14 @@ class FoodOnForkDetector(ABC):
         self.__tf_buffer = None
 
     @property
-    def camera_info(self) -> CameraInfo:
+    def camera_info(self) -> Optional[CameraInfo]:
         """
         The camera info for the depth image.
 
         Returns
         -------
-        camera_info: The camera info for the depth image.
+        camera_info: The camera info for the depth image, or None if not set.
         """
-        assert self.__camera_info is not None, "Camera Info has not been set."
         return self.__camera_info
 
     @camera_info.setter
@@ -60,15 +60,14 @@ class FoodOnForkDetector(ABC):
         self.__camera_info = camera_info
 
     @property
-    def tf_buffer(self) -> Buffer:
+    def tf_buffer(self) -> Optional[Buffer]:
         """
         The tf buffer for the depth image.
 
         Returns
         -------
-        tf_buffer: The tf buffer for the depth image.
+        tf_buffer: The tf buffer for the depth image, or None if not set.
         """
-        assert self.__tf_buffer is not None, "TF Buffer has not been set."
         return self.__tf_buffer
 
     @tf_buffer.setter
