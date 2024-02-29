@@ -14,7 +14,7 @@
   <node pkg="ada_feeding" exec="ada_watchdog.py" name="ada_watchdog">
     <param from="$(find-pkg-share ada_feeding)/config/ada_watchdog.yaml"/>
     <param name="use_estop" value="$(var use_estop)"/>
-    <remap from="~/ft_topic" to="/wireless_ft/ftSensor1" />
+    <remap from="~/ft_topic" to="/wireless_ft/ftSensor3" />
   </node>
 
   <!-- Launch the action servers necessary to move the robot -->
@@ -24,7 +24,7 @@
     <remap from="~/watchdog" to="/ada_watchdog/watchdog" />
     <remap from="~/toggle_watchdog_listener" to="/ada_watchdog_listener/toggle_watchdog_listener" />
     <remap from="~/re_tare_ft" to="/wireless_ft/set_bias" />
-    <remap from="~/ft_topic" to="/wireless_ft/ftSensor1" />
+    <remap from="~/ft_topic" to="/wireless_ft/ftSensor3" />
     <remap from="~/set_force_gate_controller_parameters" to="/jaco_arm_controller/set_parameters" />
     <remap from="~/set_servo_controller_parameters" to="/jaco_arm_servo_controller/set_parameters" />
     <remap from="~/set_cartesian_controller_parameters" to="/jaco_arm_cartesian_controller/set_parameters" />
