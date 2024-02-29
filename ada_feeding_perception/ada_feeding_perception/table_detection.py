@@ -21,16 +21,19 @@ import torch
 import pyrealsense2
 from std_srvs.srv import Trigger
 import math
-from tf.transformation import quaternion_from_matrix
+# from tf.transformation import quaternion_from_matrix
+from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import (
     Pose,
     PoseStamped,
     Point, 
     Quaternion,
 )
+from std_msgs.msg import Header
 
 # Local imports
 from ada_feeding_msgs.msg import Mask
+from ada_feeding_msgs.srv import PoseStamped
 from ada_feeding_perception.helpers import (
     bbox_from_mask,
     crop_image_mask_and_point,
@@ -64,9 +67,15 @@ class TableDetectionNode(Node):
         self._hough_max     = 200
         self._table_buffer  = 50 # Extra radius around plate to use for table
 
+        # Depth Image Deprojection Constants
+        self.crop_x_min=297
+        self.crop_y_min=248
+        self.crop_x_max=425
+        self.crop_y_max=332
+
         # Create the service
         self.srv = self.create_service(
-            Trigger,
+            PoseStamped,
             'fit_to_table',
             self.fit_to_table_callback,
         )
@@ -224,6 +233,37 @@ class TableDetectionNode(Node):
 
         return table
 
+    def deproject_depth_image(self, depth_img: Image, camera_info: CameraInfo):
+        # For every non-zero depth point, calculate the corresponding 3D point
+        # in the camera frame
+        u = np.tile(np.arange(depth_img.shape[1]), (depth_img.shape[0], 1)) # + self.crop_x_min
+        self.get_logger().info(f"u, {u}, {u.shape}, {u.min()}, {u.max()}")
+        # print("us", us, us.shape, us.min(), us.max())
+        v = np.tile(np.arange(depth_img.shape[0]), (depth_img.shape[1], 1)).T # + self.crop_y_min
+        self.get_logger().info(f"v, {v}, {v.shape}, {v.min()}, {v.max()}")
+        # print("vs", vs, vs.shape, vs.min(), vs.max())
+        
+        # Mask out any points where depth is 0
+        mask = depth_img > 0
+        depth_img_masked = depth_img[mask]
+        u_masked = u[mask]
+        v_masked = v[mask]
+        # print("depth_img_masked", depth_img_masked.shape, "us_masked", us_masked.shape, "vs_masked", vs_masked.shape)
+        
+        # Deproject x, y, and z coordinates from u, v coordinates and depth image
+        x = np.multiply(u_masked - camera_info.k[2], np.divide(depth_img_masked, 1000.0 * camera_info.k[0]))
+        self.get_logger().info(f"x, {x}, {x.shape}")
+        y = np.multiply(v_masked - camera_info.k[5], np.divide(depth_img_masked, 1000.0 * camera_info.k[4]))
+        self.get_logger().info(f"y, {y}, {y.shape}")
+        z = np.divide(depth_img_masked, 1000.0)
+        
+        # Concatenate the x and y coordinates together 
+        xy = np.concatenate((x[..., np.newaxis], y[..., np.newaxis]), axis = 1)
+        # Calculate center
+        center = [x[319 * 239], y[319 * 239], z[319 * 239]]
+        # img_3d_points = np.concatenate((x[..., np.newaxis], y[..., np.newaxis], z[..., np.newaxis]), axis=1)
+        return np.array(xy), np.array(z), center
+
     def get_orientation(
         self, 
         camera_info: CameraInfo, 
@@ -252,23 +292,26 @@ class TableDetectionNode(Node):
             intrinsics.model = pyrealsense2.distortion.none
         
         # Deproject all pixels from table depth image to 3D coordinates
-        table_deprojected = np.zeros((table_depth.shape[1], table_depth.shape[0], 3))
-        xy_d = []
-        depth_d = []
-        self.get_logger().info(f"table_depth shape, {table_depth.shape}")
-        for v in range(0, len(table_depth)):
-            for u in range(0, len(table_depth[v])):
-                table_deprojected[u][v] = pyrealsense2.rs2_deproject_pixel_to_point(
-                    intrinsics, [u, v], table_depth[v][u] / 1000
-                )
-                xy_d.append([table_deprojected[u][v][0], table_deprojected[u][v][1]])
-                depth_d.append(table_deprojected[u][v][2])
-        self.get_logger().info(f"xy_d, {np.vstack(xy_d)}") 
+        # table_deprojected = np.zeros((table_depth.shape[1], table_depth.shape[0], 3))
+        # xy_d = []
+        # depth_d = []
+        # self.get_logger().info(f"table_depth shape, {table_depth.shape}")
+        # for v in range(0, len(table_depth)):
+        #     for u in range(0, len(table_depth[v])):
+        #         table_deprojected[u][v] = pyrealsense2.rs2_deproject_pixel_to_point(
+        #             intrinsics, [u, v], table_depth[v][u] / 1000
+        #         )
+        #         xy_d.append([table_deprojected[u][v][0], table_deprojected[u][v][1]])
+        #         depth_d.append(table_deprojected[u][v][2])
+        xy_d, depth_d, center = self.deproject_depth_image(table_depth, camera_info)
+        self.get_logger().info(f"xy_d, {np.vstack(xy_d)}")
+        self.get_logger().info(f"xy_d shape, {xy_d.shape[0]} x {xy_d.shape[1]}")
         self.get_logger().info(f"depth_d, {np.vstack(depth_d)}")
+        self.get_logger().info(f"depth_d shape, {depth_d.shape}")
         # TODO: Make this a matrix multiplication process
 
         # Store 3D coordinates of the center pixel of table depth image
-        center = table_deprojected[320][240]
+        # center = table_deprojected[320][240]
         self.get_logger().info(f"table center, {center}")
         
         # Fit Plane: z = a*x + b*y + c
@@ -309,19 +352,21 @@ class TableDetectionNode(Node):
         self.get_logger().info(f"x_ref, y_ref, z_ref coordinates: x_ref = {x_ref}, y_ref = {y_ref}, z_ref = {z_ref}")
 
         # Construct rotation matrix from direction vectors
-        R = [[x_ref[0], x_ref[1], x_ref[2]], 
-                [y_ref[0], y_ref[1], y_ref[2]],
-                [z_ref[0], z_ref[1], z_ref[2]]]
+        rot_matrix = [[x_ref[0], y_ref[0], z_ref[0]], 
+                [x_ref[1], y_ref[1], z_ref[1]],
+                [x_ref[2], y_ref[2], z_ref[2]]]
         self.get_logger().info(f"rotation matrix = {R}")
 
         # Derive quaternion from rotation matrix  
-        q = quaternion_from_matrix(R)
+        q = R.from_matrix(rot_matrix)
+        q = q.as_quat()
+        #q = quaternion_from_matrix(R)
         self.get_logger().info(f"quaternion = {q}")
 
-        return 0
+        return center, q
         
     def fit_to_table_callback(
-        self, request: Trigger.Request, response: Trigger.Response
+        self, request: PoseStamped.Request, response: PoseStamped.Response
     ):
         self.get_logger().info("Entering fit_table callback!")
         # Get the latest RGB image message
@@ -354,15 +399,33 @@ class TableDetectionNode(Node):
                     "Camera info not received, not including in result message"
                 )
         
-        orientation = self.get_orientation(
+        center, orientation = self.get_orientation(
             cam_info, table_depth, 320, 240
         )
 
         self.get_logger().info(f"orientation, {orientation}, {type(orientation)}")
 
         # To be replaced with PoseStamped message
-        response.success = True
-        response.message = f"To be replaced with PoseStamped message"
+        # response.success = True
+        # response.message = f"To be replaced with PoseStamped message"
+
+        response.header = Header(
+            stamp=self.get_clock().now().to_msg(),
+            frame_id="",
+        )
+        response.pose = Pose(
+            position=Point(
+                x=center[0],
+                y=center[1],
+                z=center[2],
+            ),
+            orientation=Quaternion(
+                x=orientation[0],
+                y=orientation[1],
+                z=orientation[2],
+                w=orientation[3],
+            )
+        )
         
         return response
 
