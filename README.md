@@ -26,19 +26,28 @@ This README is the definitive source for downloading, installing, and running th
         sudo apt install python3-rosdep # if not already installed
         sudo rosdep init # if this is the first time using rosdep
 
-5. Install [`rosdep`](https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html) dependencies:
+5. (Only for users **with** sudo access) Install [`rosdep`](https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html) dependencies:
 
         rosdep update
         cd ~/colcon_ws
-        rosdep install --from-paths src -y --ignore-src --as-root=pip:false 
+        rosdep install --from-paths src -y --ignore-src --as-root=pip:false
 
-7. Install non-`rosdep` dependencies:
+6. (Only for users **without** sudo access) Install pip dependencies:
+
+        cd ~/colcon_ws/src/ada_feeding
+        python3 pip install -r requirements.txt
+
+7. Remove the duplicate matplotlib pip installation caused by installing scikit-spatial with pip: 
+
+        python3 pip uninstall matplotlib
+   
+9. Install non-`rosdep` dependencies:
     - Install SegmentAnythingModel: `python3 -m pip install git+https://github.com/facebookresearch/segment-anything.git`
     - Install EfficientSAM: `python3 -m pip install git+https://github.com/yformer/EfficientSAM.git`
     - Upgrade `transforms3d`, since [the release on Ubuntu packages is outdated](https://github.com/matthew-brett/transforms3d/issues/65): `python3 -m pip install transforms3d -U`
     - [`pyrealsense2` is not released for ARM systems](https://github.com/IntelRealSense/librealsense/issues/6449#issuecomment-650784066), so ARM users will have to [build from source](https://github.com/IntelRealSense/librealsense/blob/master/wrappers/python/readme.md#building-from-source). You may have to add the `-DPYTHON_EXECUTABLE=/usr/bin/python3` flag to the `cmake` command. When running `sudo make install`, pay close attention to which path `pyrealsense2` is installed to and add *that path* to the `PYTHONPATH` -- it should be `/use/local/lib` but may be `/usr/local/OFF`.
-8. Install the JACO SDK (real robot only). All SDKs are listed [here](https://www.kinovarobotics.com/resources?r=79301&s); PRL currently uses the [Gen2 SDK v1.5.1](https://drive.google.com/file/d/1UEQAow0XLcVcPCeQfHK9ERBihOCclkJ9/view). Note that although the latest version of that SDK is for Ubuntu 16.04, it still works on Ubuntu 22.04 (only for x86 systems, not ARM system).
-9. Build your workspace:
+10. Install the JACO SDK (real robot only). All SDKs are listed [here](https://www.kinovarobotics.com/resources?r=79301&s); PRL currently uses the [Gen2 SDK v1.5.1](https://drive.google.com/file/d/1UEQAow0XLcVcPCeQfHK9ERBihOCclkJ9/view). Note that although the latest version of that SDK is for Ubuntu 16.04, it still works on Ubuntu 22.04 (only for x86 systems, not ARM system).
+11. Build your workspace:
 
         cd ~/colcon_ws
         colcon build --symlink-install # if sim-only, add '--packages-skip ada_hardware'
@@ -46,18 +55,18 @@ This README is the definitive source for downloading, installing, and running th
 ### Setup (Web App)
 
 1. Install the Node Version Manager (nvm): https://github.com/nvm-sh/nvm?tab=readme-ov-file#install--update-script
-2. Install and use NodeJS 21:
+2. Install and use NodeJS 21 (Note: if you have just installed nvm using the previous command, you will need to source your .bashrc or open a new terminal to run these commands):
 
         nvm install 21
         nvm use 21
 
-3. (Only for users with sudo access; this should already be configured on PRL computers) Make Node available to all users, including root:
+3. (Only for users **with** sudo access; this should already be configured on PRL computers) Make Node available to all users, including root:
 
         sudo ln -s "$NVM_DIR/versions/node/$(nvm version)/bin/node" "/usr/local/bin/node"
         sudo ln -s "$NVM_DIR/versions/node/$(nvm version)/bin/npm" "/usr/local/bin/npm"
         sudo ln -s "$NVM_DIR/versions/node/$(nvm version)/bin/npx" "/usr/local/bin/npx"
 
-4. (Only for users with sudo access; this should already be configured on PRL computers) Install `serve` and `pm2` globally. Root access is necessary for `serve` so it can access port 80.
+4. (Only for users **with** sudo access; this should already be configured on PRL computers) Install `serve` and `pm2` globally. Root access is necessary for `serve` so it can access port 80.
 
         sudo npm install -g serve
         npm install -g pm2@latest
