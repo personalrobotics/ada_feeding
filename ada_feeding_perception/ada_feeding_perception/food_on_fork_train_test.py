@@ -9,7 +9,7 @@ import json
 import os
 import textwrap
 import time
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 # Third-party imports
 import cv2
@@ -19,15 +19,15 @@ import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
-    f1_score,
-    precision_score,
-    recall_score,
 )
 from sklearn.model_selection import train_test_split
 
 # Local imports
 from ada_feeding.helpers import import_from_string
-from ada_feeding_perception.food_on_fork_detectors import FoodOnForkDetector
+from ada_feeding_perception.food_on_fork_detectors import (
+    FoodOnForkDetector,
+    FoodOnForkLabel,
+)
 
 
 def read_args() -> argparse.Namespace:
@@ -115,6 +115,7 @@ def read_args() -> argparse.Namespace:
     parser.add_argument(
         "--seed",
         default=None,
+        type=int,
         help=(
             "The random seed to use for the train-test split and in the detector. "
             "If unspecified, the seed will be the current time."
@@ -158,6 +159,15 @@ def read_args() -> argparse.Namespace:
         help=(
             "If the predicted probability of food on fork is > this value, the "
             "detector will predict that there is food on the fork."
+        ),
+    )
+    parser.add_argument(
+        "--max-eval-n",
+        default=None,
+        type=int,
+        help=(
+            "The maximum number of evaluations to perform. If None, all evaluations "
+            "will be performed. Typically used when debugging a detector"
         ),
     )
 
@@ -205,7 +215,10 @@ def load_data(
     elif data_type == "png":
         food_dir = os.path.join(absolute_data_dir, "food")
         no_food_dir = os.path.join(absolute_data_dir, "no_food")
-        for data_path, label in [(food_dir, 1), (no_food_dir, 0)]:
+        for data_path, label in [
+            (food_dir, FoodOnForkLabel.FOOD.value),
+            (no_food_dir, FoodOnForkLabel.NO_FOOD.value),
+        ]:
             print(f"Loading data from {data_path} with label {label}...", end="")
             n = 0
             for filename in os.listdir(data_path):
@@ -304,6 +317,7 @@ def evaluate_models(
     output_dir: str,
     lower_thresh: float,
     upper_thresh: float,
+    max_eval_n: Optional[int] = None,
 ) -> None:
     """
     Test the models on the testing data.
@@ -328,6 +342,9 @@ def evaluate_models(
     upper_thresh: float
         If the predicted probability of food on fork is > this value, the
         detector will predict that there is food on the fork.
+    max_eval_n: int, optional
+        The maximum number of evaluations to perform. If None, all evaluations
+        will be performed. Typically used when debugging a detector.
     """
     # pylint: disable=too-many-locals, too-many-arguments
     # This function is meant to be flexible.
@@ -357,6 +374,9 @@ def evaluate_models(
             ("train", (train_X, train_y)),
             ("test", (test_X, test_y)),
         ]:
+            if max_eval_n is not None:
+                X = X[:max_eval_n]
+                y = y[:max_eval_n]
             print(f"Evaluating model {model_id} on {label} dataset...", end="")
             y_pred_proba = model.predict_proba(X)
             y_pred = model.predict(X, lower_thresh, upper_thresh, y_pred_proba)
@@ -373,9 +393,6 @@ def evaluate_models(
             for metric in [
                 accuracy_score,
                 confusion_matrix,
-                f1_score,
-                precision_score,
-                recall_score,
             ]:
                 txt = textwrap.indent(f"{metric.__name__}:\n", " " * 8)
                 results_txt += txt
@@ -443,6 +460,7 @@ def main() -> None:
         args.output_dir,
         args.lower_thresh,
         args.upper_thresh,
+        args.max_eval_n,
     )
 
 

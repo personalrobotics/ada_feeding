@@ -5,13 +5,13 @@ food_on_fork_detection:
     model_class: "ada_feeding_perception.food_on_fork_detectors.FoodOnForkDummyDetector"
     # The path to load the model from. Ignored if the empty string.
     # Should be relative to ada_feeding_perception's share directory.
-    model_path: ""
+    model_path: "model/pointcloud_t_test_detector.npz"
     # Keywords to pass to the FoodOnFork class's constructor
     model_kws:
-      - proba
+      - camera_matrix
     # Keyword arguments to pass to the FoodOnFork class's constructor
     model_kwargs:
-      proba: 0.5
+      camera_matrix: [614.5933227539062, 0.0, 312.1358947753906, 0.0, 614.6914672851562, 223.70831298828125, 0.0, 0.0, 1.0]
     
     # The rate at which to detect and publish the confidence that there is food on the fork
     rate_hz: 10.0
