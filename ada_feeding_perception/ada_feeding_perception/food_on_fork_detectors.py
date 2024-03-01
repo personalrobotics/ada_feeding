@@ -43,6 +43,8 @@ class FoodOnForkDetector(ABC):
         verbose: Whether to print debug messages.
         """
         self.__camera_info = None
+        self.__crop_top_left = (0, 0)
+        self.__crop_bottom_right = (640, 480)
         self.__tf_buffer = None
         self.__seed = int(time.time() * 1000)
         self.verbose = verbose
@@ -68,6 +70,54 @@ class FoodOnForkDetector(ABC):
         camera_info: The camera info for the depth image.
         """
         self.__camera_info = camera_info
+
+    @property
+    def crop_top_left(self) -> Tuple[int, int]:
+        """
+        The top left corner of the region of interest in the depth image.
+
+        Returns
+        -------
+        crop_top_left: The top left corner of the region of interest in the depth
+            image.
+        """
+        return self.__crop_top_left
+
+    @crop_top_left.setter
+    def crop_top_left(self, crop_top_left: Tuple[int, int]) -> None:
+        """
+        Sets the top left corner of the region of interest in the depth image.
+
+        Parameters
+        ----------
+        crop_top_left: The top left corner of the region of interest in the depth
+            image.
+        """
+        self.__crop_top_left = crop_top_left
+
+    @property
+    def crop_bottom_right(self) -> Tuple[int, int]:
+        """
+        The bottom right corner of the region of interest in the depth image.
+
+        Returns
+        -------
+        crop_bottom_right: The bottom right corner of the region of interest in
+            the depth image.
+        """
+        return self.__crop_bottom_right
+
+    @crop_bottom_right.setter
+    def crop_bottom_right(self, crop_bottom_right: Tuple[int, int]) -> None:
+        """
+        Sets the bottom right corner of the region of interest in the depth image.
+
+        Parameters
+        ----------
+        crop_bottom_right: The bottom right corner of the region of interest in
+            the depth image.
+        """
+        self.__crop_bottom_right = crop_bottom_right
 
     @property
     def tf_buffer(self) -> Optional[Buffer]:
@@ -251,10 +301,6 @@ class FoodOnForkPointCloudTTestDetector(FoodOnForkDetector):
     def __init__(
         self,
         camera_matrix: npt.NDArray,
-        crop_top_left: Tuple[float, float] = (297, 248),
-        crop_bottom_right: Tuple[float, float] = (425, 332),
-        depth_min_mm: int = 310,
-        depth_max_mm: int = 370,
         min_points: int = 40,
         verbose: bool = False,
     ) -> None:
@@ -264,11 +310,6 @@ class FoodOnForkPointCloudTTestDetector(FoodOnForkDetector):
         Parameters
         ----------
         camera_matrix: The camera intrinsic matrix (K).
-        crop_top_left, crop_bottom_right: Specifies the subset of the depth image
-            to convert to a pointcloud. This is a rectanglar region around the fork.
-        depth_min_mm, depth_max_mm: The minimum and maximum depth values to
-            consider for the pointcloud. Points outside this range will be
-            ignored.
         min_points: The minimum number of points in a pointcloud to consider it
             for comparison. If a pointcloud has fewer points than this, it will
             return a probability of nan (prediction of UNSURE).
@@ -278,48 +319,32 @@ class FoodOnForkPointCloudTTestDetector(FoodOnForkDetector):
         # Necessary for this class.
         super().__init__(verbose)
         self.camera_matrix = camera_matrix
-        self.crop_top_left = crop_top_left
-        self.crop_bottom_right = crop_bottom_right
-        self.depth_min_mm = depth_min_mm
-        self.depth_max_mm = depth_max_mm
         self.min_points = min_points
 
         self.no_fof_means = None
         self.no_fof_covs = None
         self.no_fof_ns = None
 
-    def depth_to_pointcloud(
-        self, depth_image: npt.NDArray, is_cropped: bool = False
-    ) -> npt.NDArray:
+    def depth_to_pointcloud(self, depth_image: npt.NDArray) -> npt.NDArray:
         """
         Converts a depth image to a point cloud.
 
         Parameters
         ----------
         depth_image: The depth image to convert to a point cloud.
-        is_cropped: Whether the depth image has already been cropped to the
-            region of interest.
 
         Returns
         -------
         pointcloud: The point cloud representation of the depth image.
         """
-        # Get the depth values
-        if is_cropped:
-            depth_values = depth_image
-        else:
-            depth_values = depth_image[
-                int(self.crop_top_left[1]) : int(self.crop_bottom_right[1]),
-                int(self.crop_top_left[0]) : int(self.crop_bottom_right[0]),
-            ]
         # Get the pixel coordinates
         pixel_coords = np.mgrid[
             int(self.crop_top_left[1]) : int(self.crop_bottom_right[1]),
             int(self.crop_top_left[0]) : int(self.crop_bottom_right[0]),
         ]
         # Mask out values outside the depth range
-        mask = (depth_values > self.depth_min_mm) & (depth_values < self.depth_max_mm)
-        depth_values = depth_values[mask]
+        mask = depth_image > 0
+        depth_values = depth_image[mask]
         pixel_coords = pixel_coords[:, mask]
         # Convert mm to m
         depth_values = np.divide(depth_values, 1000.0)
@@ -351,13 +376,13 @@ class FoodOnForkPointCloudTTestDetector(FoodOnForkDetector):
         """
         # Get the most up-to-date camera info
         if self.camera_info is not None:
-            self.camera_matrix = np.array(self.camera_info.K)
+            self.camera_matrix = np.array(self.camera_info.k)
         no_fof_imgs = X[y == FoodOnForkLabel.NO_FOOD.value]
-        # TODO: remove the `is_cropped` from below once we move to ROS bags as
-        # the training set.
-        no_fof_pointclouds = [
-            self.depth_to_pointcloud(img, is_cropped=True) for img in no_fof_imgs
-        ]
+        no_fof_pointclouds = []
+        for img in no_fof_imgs:
+            pointcloud = self.depth_to_pointcloud(img)
+            if len(pointcloud) >= self.min_points:
+                no_fof_pointclouds.append(pointcloud)
         self.no_fof_means = np.array([np.mean(pc, axis=0) for pc in no_fof_pointclouds])
         self.no_fof_covs = np.array(
             [np.cov(pc, rowvar=False, bias=False) for pc in no_fof_pointclouds]
@@ -386,7 +411,7 @@ class FoodOnForkPointCloudTTestDetector(FoodOnForkDetector):
 
     @override
     def load(self, path: str) -> None:
-        prefix, ext = os.path.splitext(path)
+        ext = os.path.splitext(path)[1]
         if len(ext) == 0:
             path = path + ".npz"
         params = np.load(path)
@@ -394,8 +419,6 @@ class FoodOnForkPointCloudTTestDetector(FoodOnForkDetector):
         self.no_fof_covs = params["no_fof_covs"]
         self.no_fof_ns = params["no_fof_ns"]
 
-    # pylint: disable=too--many-arguments, too-many-locals
-    # Necessary for this function.
     @staticmethod
     def hotellings_t_test(
         samp1_means: npt.NDArray,
@@ -428,6 +451,9 @@ class FoodOnForkPointCloudTTestDetector(FoodOnForkDetector):
         -------
         ps: The p-values of the pairwise tests between samp1 and every sample in samp2.
         """
+        # pylint: disable=too-many-arguments, too-many-locals
+        # Necessary for this function.
+
         # Get sizes
         m, k = samp1_means.shape
 
@@ -475,10 +501,10 @@ class FoodOnForkPointCloudTTestDetector(FoodOnForkDetector):
         # Calculate the corresponding F value
         f_vals = np.multiply(np.divide(df2 - df1 + 1, df1 * df2), t_sq)
 
-        # Calculate the p value
-        p = 1 - scipy.stats.f.cdf(f_vals, df1, df2 - df1 + 1)
+        # Calculate the p values
+        ps = 1 - scipy.stats.f.cdf(f_vals, df1, df2 - df1 + 1)
 
-        return p
+        return ps
 
     @override
     def predict_proba(self, X: npt.NDArray) -> npt.NDArray:
@@ -490,18 +516,16 @@ class FoodOnForkPointCloudTTestDetector(FoodOnForkDetector):
             raise ValueError(
                 "The model has not been trained yet. Call fit before predicting."
             )
-        # TODO: remove the `is_cropped` from below once we move to ROS bags as
-        # the training set.
-        pointclouds = [self.depth_to_pointcloud(img, is_cropped=True) for img in X]
+        pointclouds = [self.depth_to_pointcloud(img) for img in X]
         probas = []
         n = len(pointclouds)
-        for i in range(len(pointclouds)):
+        for i, pointcloud in enumerate(pointclouds):
             if self.verbose:
                 print(f"Predicting on pointcloud {i+1}/{n}")
-            pointcloud = pointclouds[i]
             m = pointcloud.shape[0]
             if m < self.min_points:
-                probas.append(np.nan)
+                # probas.append(np.nan)
+                probas.append(0.0)
                 continue
             # Calculate the T^2 statistic and p-value
             ps = FoodOnForkPointCloudTTestDetector.hotellings_t_test(

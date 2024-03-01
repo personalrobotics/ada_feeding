@@ -18,6 +18,8 @@
   <exec_depend>python3-matplotlib</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-pandas</exec_depend>
+  <exec_depend>python3-rosbags-pip</exec_depend>
   <exec_depend>python3-scikit-spatial-pip</exec_depend>
   <exec_depend>python3-scipy</exec_depend>
   <exec_depend>python3-shapely</exec_depend>

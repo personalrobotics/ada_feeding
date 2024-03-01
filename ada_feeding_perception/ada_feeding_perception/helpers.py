@@ -15,12 +15,17 @@ import numpy as np
 import numpy.typing as npt
 import rclpy
 from rclpy.node import Node
+from rosbags.typesys.types import (
+    sensor_msgs__msg__CompressedImage as rCompressedImage,
+    sensor_msgs__msg__Image as rImage,
+)
 from sensor_msgs.msg import CompressedImage, Image
 from skimage.morphology import flood_fill
 
 
 def ros_msg_to_cv2_image(
-    msg: Union[Image, CompressedImage], bridge: Optional[CvBridge] = None
+    msg: Union[Image, rImage, CompressedImage, rCompressedImage],
+    bridge: Optional[CvBridge] = None,
 ) -> npt.NDArray:
     """
     Convert a ROS Image or CompressedImage message to a cv2 image. By default,
@@ -39,12 +44,12 @@ def ros_msg_to_cv2_image(
         is a ROS Image message. If `bridge` is None, a new CvBridge will be
         created.
     """
-    if isinstance(msg, Image):
+    if isinstance(msg, (Image, rImage)):
         if bridge is None:
             bridge = CvBridge()
         return bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
-    if isinstance(msg, CompressedImage):
-        # TODO: This shoudl use bridge as well
+    if isinstance(msg, (CompressedImage, rCompressedImage)):
+        # TODO: This should use bridge as well
         return cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_UNCHANGED)
     raise ValueError("msg must be a ROS Image or CompressedImage")
 

@@ -59,6 +59,10 @@ class FoodOnForkDetectionNode(Node):
             model_dir,
             model_kwargs,
             self.rate_hz,
+            self.crop_top_left,
+            self.crop_bottom_right,
+            self.depth_min_mm,
+            self.depth_max_mm,
         ) = self.read_params()
 
         # Construct the FoodOnForkDetector model
@@ -120,7 +124,11 @@ class FoodOnForkDetectionNode(Node):
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
-    def read_params(self) -> Tuple[str, str, str, Dict[str, Any], float]:
+    def read_params(
+        self,
+    ) -> Tuple[
+        str, str, str, Dict[str, Any], float, Tuple[int, int], Tuple[int, int], int, int
+    ]:
         """
         Reads the parameters for the FoodOnForkDetection.
 
@@ -132,6 +140,10 @@ class FoodOnForkDetectionNode(Node):
         model_dir: The directory to load the model from.
         model_kwargs: The keywords to pass to the FoodOnFork class's constructor.
         rate_hz: The rate (Hz) at which to publish.
+        crop_top_left: The top left corner of the crop box.
+        crop_bottom_right: The bottom right corner of the crop box.
+        depth_min_mm: The minimum depth (mm) to consider.
+        depth_max_mm: The maximum depth (mm) to consider.
         """
         # Read the model_class
         model_class = self.declare_parameter(
@@ -217,12 +229,64 @@ class FoodOnForkDetectionNode(Node):
         )
         rate_hz = rate_hz.value
 
+        # Get the crop box
+        crop_top_left = self.declare_parameter(
+            "crop_top_left",
+            (0, 0),
+            descriptor=ParameterDescriptor(
+                name="crop_top_left",
+                type=ParameterType.PARAMETER_INTEGER_ARRAY,
+                description="The top left corner of the crop box.",
+                read_only=True,
+            ),
+        )
+        crop_top_left = crop_top_left.value
+        crop_bottom_right = self.declare_parameter(
+            "crop_bottom_right",
+            (0, 0),
+            descriptor=ParameterDescriptor(
+                name="crop_bottom_right",
+                type=ParameterType.PARAMETER_INTEGER_ARRAY,
+                description="The bottom right corner of the crop box.",
+                read_only=True,
+            ),
+        )
+        crop_bottom_right = crop_bottom_right.value
+
+        # Get the depth range
+        depth_min_mm = self.declare_parameter(
+            "depth_min_mm",
+            0,
+            descriptor=ParameterDescriptor(
+                name="depth_min_mm",
+                type=ParameterType.PARAMETER_INTEGER,
+                description="The minimum depth (mm) to consider.",
+                read_only=True,
+            ),
+        )
+        depth_min_mm = depth_min_mm.value
+        depth_max_mm = self.declare_parameter(
+            "depth_max_mm",
+            20000,
+            descriptor=ParameterDescriptor(
+                name="depth_max_mm",
+                type=ParameterType.PARAMETER_INTEGER,
+                description="The maximum depth (mm) to consider.",
+                read_only=True,
+            ),
+        )
+        depth_max_mm = depth_max_mm.value
+
         return (
             model_class,
             model_path,
             model_dir,
             model_kwargs,
             rate_hz,
+            crop_top_left,
+            crop_bottom_right,
+            depth_min_mm,
+            depth_max_mm,
         )
 
     def toggle_food_on_fork_detection(
@@ -302,6 +366,16 @@ class FoodOnForkDetectionNode(Node):
 
             # Convert the depth image to a cv2 image
             depth_img_cv2 = ros_msg_to_cv2_image(depth_img_msg, self.cv_bridge)
+            depth_img_cv2 = depth_img_cv2[
+                self.crop_top_left[1] : self.crop_bottom_right[1],
+                self.crop_top_left[0] : self.crop_bottom_right[0],
+            ]
+            depth_img_cv2 = np.where(
+                (depth_img_cv2 >= self.depth_min_mm)
+                & (depth_img_cv2 <= self.depth_max_mm),
+                depth_img_cv2,
+                0,
+            )
             X = np.expand_dims(depth_img_cv2, axis=0)
 
             # Get the probability that there is food on the fork

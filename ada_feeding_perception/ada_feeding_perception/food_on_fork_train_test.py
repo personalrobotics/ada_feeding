@@ -13,9 +13,13 @@ from typing import Any, Dict, Optional, Tuple
 
 # Third-party imports
 import cv2
+from cv_bridge import CvBridge
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from rosbags.rosbag2 import Reader
+from rosbags.serde import deserialize_cdr
+from sensor_msgs.msg import CameraInfo
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -28,6 +32,25 @@ from ada_feeding_perception.food_on_fork_detectors import (
     FoodOnForkDetector,
     FoodOnForkLabel,
 )
+from ada_feeding_perception.helpers import ros_msg_to_cv2_image
+
+
+def show_normalized_depth_img(img, wait=True):
+    """
+    Show the normalized depth image. Useful for debugging.
+
+    Parameters
+    ----------
+    img: npt.NDArray
+        The depth image to show.
+    wait: bool, optional
+        If True, wait for a key press before closing the window.
+    """
+    # Show the normalized depth image
+    img_normalized = ((img - img.min()) / (img.max() - img.min()) * 255).astype("uint8")
+    cv2.imshow("img", img_normalized)
+    if wait:
+        cv2.waitKey(0)
 
 
 def read_args() -> argparse.Namespace:
@@ -66,43 +89,66 @@ def read_args() -> argparse.Namespace:
         ),
     )
 
+    # Configure the cropping/masking of depth images. These should exactly match
+    # the cropping/masking done in the real-time detector (in config/food_on_fork_detection.yaml).
+    parser.add_argument(
+        "--crop-top-left",
+        default=(0, 0),
+        type=int,
+        nargs="+",
+        help=("The top-left corner of the crop rectangle. The format is (x, y)."),
+    )
+    parser.add_argument(
+        "--crop-bottom-right",
+        default=(640, 480),
+        type=int,
+        nargs="+",
+        help=("The bottom-right corner of the crop rectangle. The format is (x, y)."),
+    )
+    parser.add_argument(
+        "--depth-min-mm",
+        default=0,
+        type=int,
+        help=("The minimum depth value to consider in the depth images."),
+    )
+    parser.add_argument(
+        "--depth-max-mm",
+        default=20000,
+        type=int,
+        help=("The maximum depth value to consider in the depth images."),
+    )
+
     # Configure the dataset
     parser.add_argument(
         "--data-dir",
         default="../data/food_on_fork",
         help=(
-            "The directory containing the training and testing data. The path should be "
-            "relative to **this file's** location. This directory should have two "
-            "subdirectories: 'food' and 'no_food', each containing either .png files "
-            "corresponding to depth images or ROS bag files with the topics specified "
-            "in command line arguments."
+            "The directory containing the training and testing data. This path should "
+            "have a file called `bags_metadata.csv` that contains the labels for bagfiles, "
+            "and one folder per bagfile referred to in the CSV. This path should be "
+            "relative to **this file's** location."
         ),
-    )
-    parser.add_argument(
-        "--data-type",
-        help=(
-            "The type of data to use. Either 'bag' or 'png'. If 'bag', the data "
-            "subdirectoryies should contain ROS bag files. If 'png', the data "
-            "subdirectories should contain .png files."
-        ),
-        choices=["bag", "png"],
-        required=True,
     )
     parser.add_argument(
         "--depth-topic",
         default="/local/camera/aligned_depth_to_color/image_raw",
-        help=(
-            "The topic to use for depth images. This is only used if --data-type is "
-            "'bag'."
-        ),
+        help=("The topic to use for depth images."),
+    )
+    parser.add_argument(
+        "--color-topic",
+        default="/local/camera/color/image_raw/compressed",
+        help=("The topic to use for color images. Used for debugging."),
     )
     parser.add_argument(
         "--camera-info-topic",
         default="/local/camera/color/camera_info",
-        help=(
-            "The topic to use for camera info. This is only used if --data-type is "
-            "'bag'."
-        ),
+        help=("The topic to use for camera info."),
+    )
+    parser.add_argument(
+        "--include-motion",
+        default=False,
+        action="store_true",
+        help=("If set, include images when the robot arm is moving in the dataset."),
     )
 
     # Configure the training and testing operations
@@ -175,8 +221,17 @@ def read_args() -> argparse.Namespace:
 
 
 def load_data(
-    data_dir: str, data_type: str, depth_topic: str, camera_info_topic: str
-) -> Tuple[npt.NDArray, npt.NDArray]:
+    data_dir: str,
+    depth_topic: str,
+    color_topic: str,
+    camera_info_topic: str,
+    crop_top_left: Tuple[int, int],
+    crop_bottom_right: Tuple[int, int],
+    depth_min_mm: int,
+    depth_max_mm: int,
+    include_motion: bool,
+    viz: bool = False,
+) -> Tuple[npt.NDArray, npt.NDArray[int], CameraInfo]:
     """
     Load the data specified in the command line arguments.
 
@@ -188,59 +243,139 @@ def load_data(
         subdirectories: 'food' and 'no_food', each containing either .png files
         corresponding to depth images or ROS bag files with the topics specified
         in command line arguments.
-    data_type: str
-        The type of data to use. Either 'bag' or 'png'. If 'bag', the data
-        subdirectoryies should contain ROS bag files. If 'png', the data
-        subdirectories should contain .png files.
     depth_topic: str
-        The topic to use for depth images. This is only used if --data-type is
-        'bag'.
+        The topic to use for depth images.
+    color_topic: str
+        The topic to use for color images. Used for debugging.
     camera_info_topic: str
-        The topic to use for camera info. This is only used if --data-type is
-        'bag'.
+        The topic to use for camera info.
+    crop_top_left, crop_bottom_right: Tuple[int, int]
+        The top-left and bottom-right corners of the crop rectangle.
+    depth_min_mm, depth_max_mm: int
+        The minimum and maximum depth values to consider in the depth images.
+    include_motion: bool
+        If True, include images when the robot arm is moving in the dataset.
+    viz: bool, optional
+        If True, visualize the depth images as they are loaded.
 
     Returns
     -------
     X: npt.NDArray
         The depth images to predict on.
-    y: npt.NDArray
+    y: npt.NDArray[int]
         The labels for whether there is food on the fork.
+    camera_info: CameraInfo
+        The camera info for the depth images. We assume it is static across all
+        depth images.
     """
+    # pylint: disable=too-many-locals, too-many-arguments, too-many-branches, too-many-statements
+    # Okay since we want to make it a flexible method.
+
     absolute_data_dir = os.path.join(os.path.dirname(__file__), data_dir)
 
-    X = []
-    y = []
-    if data_type == "bag":
-        raise NotImplementedError("Bag file loading not implemented yet.")
-    elif data_type == "png":
-        food_dir = os.path.join(absolute_data_dir, "food")
-        no_food_dir = os.path.join(absolute_data_dir, "no_food")
-        for data_path, label in [
-            (food_dir, FoodOnForkLabel.FOOD.value),
-            (no_food_dir, FoodOnForkLabel.NO_FOOD.value),
-        ]:
-            print(f"Loading data from {data_path} with label {label}...", end="")
-            n = 0
-            for filename in os.listdir(data_path):
-                if filename.endswith(".png"):
-                    # Load the image
-                    image = cv2.imread(
-                        os.path.join(data_path, filename), cv2.IMREAD_UNCHANGED
+    w = crop_bottom_right[0] - crop_top_left[0]
+    h = crop_bottom_right[1] - crop_top_left[1]
+    X = np.zeros((0, h, w), dtype=np.uint16)
+    y = np.zeros(0, dtype=int)
+
+    # Load the metadata
+    metadata = pd.read_csv(os.path.join(absolute_data_dir, "bags_metadata.csv"))
+    bagname_to_annotations = {}
+    for _, row in metadata.iterrows():
+        rosbag_name = row["rosbag_name"]
+        time_from_start = row["time_from_start"]
+        food_on_fork = row["food_on_fork"]
+        arm_moving = row["arm_moving"]
+        if rosbag_name not in bagname_to_annotations:
+            bagname_to_annotations[rosbag_name] = []
+        bagname_to_annotations[rosbag_name].append(
+            (time_from_start, food_on_fork, arm_moving)
+        )
+
+    # Load the data
+    bridge = CvBridge()
+    camera_info = None
+    for rosbag_name, annotations in bagname_to_annotations.items():
+        annotations.sort()
+        i = 0
+        with Reader(os.path.join(absolute_data_dir, rosbag_name)) as reader:
+            # Get the depth message count
+            for connection in reader.connections:
+                if connection.topic == depth_topic:
+                    depth_msg_count = connection.msgcount
+                    break
+            # Extend X and y by depth_msg_count
+            j = y.shape[0]
+            X = np.concatenate((X, np.zeros((depth_msg_count, h, w), dtype=np.uint16)))
+            y = np.concatenate((y, np.zeros(depth_msg_count, dtype=int)))
+
+            start_time = None
+            for connection, timestamp, rawdata in reader.messages():
+                if start_time is None:
+                    start_time = timestamp
+                # Depth Image
+                if connection.topic == depth_topic:
+                    msg = deserialize_cdr(rawdata, connection.msgtype)
+                    elapsed_time = (timestamp - start_time) / 10.0**9
+                    while (
+                        i < len(annotations) - 1
+                        and elapsed_time > annotations[i + 1][0]
+                    ):
+                        i += 1
+                    arm_moving = annotations[i][2]
+                    if not include_motion and arm_moving:
+                        # Skip images when the robot arm is moving
+                        continue
+                    if annotations[i][1] == FoodOnForkLabel.FOOD.value:
+                        label = 1
+                    elif annotations[i][1] == FoodOnForkLabel.NO_FOOD.value:
+                        label = 0
+                    else:
+                        # Skip images with unknown label
+                        continue
+                    img = ros_msg_to_cv2_image(msg, bridge)
+                    img = img[
+                        crop_top_left[1] : crop_bottom_right[1],
+                        crop_top_left[0] : crop_bottom_right[0],
+                    ]
+                    img = np.where(
+                        (img >= depth_min_mm) & (img <= depth_max_mm), img, 0
                     )
+                    X[j, :, :] = img
+                    y[j] = label
+                    j += 1
+                # Camera Info
+                elif connection.topic == camera_info_topic and camera_info is None:
+                    camera_info = deserialize_cdr(rawdata, connection.msgtype)
+                # RGB Image
+                elif connection.topic == color_topic and viz:
+                    msg = deserialize_cdr(rawdata, connection.msgtype)
+                    print((timestamp - start_time) / 10.0**9)
+                    img = ros_msg_to_cv2_image(msg, bridge)
+                    # A box around the forktip
+                    x0, y0 = 308, 242
+                    w, h = 128, 128
+                    fof_color = (0, 255, 0)
+                    no_fof_color = (255, 0, 0)
+                    color = fof_color if len(y) == 0 or y[-1] == 1 else no_fof_color
+                    img = cv2.rectangle(img, (x0, y0), (x0 + w, y0 + h), color, 2)
+                    img = cv2.circle(img, (x0 + w // 2, y0 + h // 2), 5, color, -1)
+                    cv2.imshow("RGB Image", img)
+                    cv2.waitKey(10)
 
-                    # Add the image and label to the dataset
-                    X.append(image)
-                    y.append(label)
-                    n += 1
-            print(f"Loaded {n} images.")
-    else:
-        raise ValueError(f"Invalid data type: {data_type}. Must be 'bag' or 'png'.")
+    # Truncate extra all-zero rows on the end of Z and y
+    X = X[:j]
+    y = y[:j]
 
-    return np.array(X), np.array(y)
+    return X, y, camera_info
 
 
 def load_models(
-    model_classes: str, model_kwargs: str, seed: int
+    model_classes: str,
+    model_kwargs: str,
+    seed: int,
+    crop_top_left: Tuple[int, int],
+    crop_bottom_right: Tuple[int, int],
 ) -> Dict[str, FoodOnForkDetector]:
     """
     Load the models specified in the command line arguments.
@@ -255,6 +390,8 @@ def load_models(
         dictionary of keyword arguments to pass to the model's constructor.
     seed: int
         The random seed to use in the detector.
+    crop_top_left, crop_bottom_right: Tuple[int, int]
+        The top-left and bottom-right corners of the crop rectangle.
 
     Returns
     -------
@@ -276,6 +413,8 @@ def load_models(
         # Create the model
         models[model_id] = model_class(**kwargs)
         models[model_id].seed = seed
+        models[model_id].crop_top_left = crop_top_left
+        models[model_id].crop_bottom_right = crop_bottom_right
 
     return models
 
@@ -318,6 +457,7 @@ def evaluate_models(
     lower_thresh: float,
     upper_thresh: float,
     max_eval_n: Optional[int] = None,
+    viz: bool = False,
 ) -> None:
     """
     Test the models on the testing data.
@@ -345,8 +485,10 @@ def evaluate_models(
     max_eval_n: int, optional
         The maximum number of evaluations to perform. If None, all evaluations
         will be performed. Typically used when debugging a detector.
+    viz: bool, optional
+        If True, visualize the depth images as they are evaluated.
     """
-    # pylint: disable=too-many-locals, too-many-arguments
+    # pylint: disable=too-many-locals, too-many-arguments, too-many-nested-blocks
     # This function is meant to be flexible.
 
     absolute_model_dir = os.path.join(os.path.dirname(__file__), model_dir)
@@ -385,6 +527,18 @@ def evaluate_models(
                     [model_id, y[i], y_pred_proba[i], y_pred[i], model.seed, label]
                 )
             print("Done.")
+
+            if viz:
+                # Visualize all images where the model was wrong
+                last_0_0 = None
+                for i in range(y_pred_proba.shape[0]):
+                    if y[i] != y_pred[i]:
+                        print(f"y_true: {y[i]}, y_pred: {y_pred[i]}")
+                        show_normalized_depth_img(X[i], wait=True)
+                        if last_0_0 is not None:
+                            show_normalized_depth_img(X[last_0_0], wait=True)
+                    if y[i] == 0 and y_pred[i] == 0:
+                        last_0_0 = i
 
             # Compute the summary statistics
             txt = textwrap.indent(f"Results on {label} dataset:\n", " " * 4)
@@ -429,9 +583,19 @@ def main() -> None:
     args = read_args()
 
     # Load the dataset
-    X, y = load_data(
-        args.data_dir, args.data_type, args.depth_topic, args.camera_info_topic
+    X, y, camera_info = load_data(
+        args.data_dir,
+        args.depth_topic,
+        args.color_topic,
+        args.camera_info_topic,
+        args.crop_top_left,
+        args.crop_bottom_right,
+        args.depth_min_mm,
+        args.depth_max_mm,
+        args.include_motion,
+        viz=False,
     )
+    print("X.shape", X.shape, "y.shape", y.shape)
 
     # Do a train-test split of the dataset
     if args.seed is None:
@@ -443,7 +607,15 @@ def main() -> None:
     )
 
     # Load the models
-    models = load_models(args.model_classes, args.model_kwargs, seed)
+    models = load_models(
+        args.model_classes,
+        args.model_kwargs,
+        seed,
+        args.crop_top_left,
+        args.crop_bottom_right,
+    )
+    for _, model in models.items():
+        model.camera_info = camera_info
 
     # Train the model
     if not args.no_train:
@@ -461,6 +633,7 @@ def main() -> None:
         args.lower_thresh,
         args.upper_thresh,
         args.max_eval_n,
+        viz=False,
     )
 
 

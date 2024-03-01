@@ -15,3 +15,9 @@ food_on_fork_detection:
     
     # The rate at which to detect and publish the confidence that there is food on the fork
     rate_hz: 10.0
+    # The top-left  and bottom-right corners to crop the depth image to
+    crop_top_left: [308, 242]
+    crop_bottom_right: [436, 370]
+    # The min and max depth to consider for the food on the fork
+    depth_min_mm: 310
+    depth_max_mm: 370
