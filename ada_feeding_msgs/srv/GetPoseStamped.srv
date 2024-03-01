@@ -1,0 +1,5 @@
+# The interface for a service that returns the pose of the table.  
+---
+# std_msgs/Header header
+# geometry_msgs/Pose pose
+geometry_msgs/PoseStamped pose_stamped

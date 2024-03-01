@@ -5,7 +5,7 @@ ada_planning_scene:
     object_ids: # list of objects to add to the planning scene
       - wheelchair
       - wheelchair_collision
-      # - table
+      - table
       - head
       - workspace_wall_front
       - workspace_wall_left

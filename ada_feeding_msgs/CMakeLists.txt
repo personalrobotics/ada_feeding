@@ -34,7 +34,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetSettings.srv"
   "srv/SetSettings.srv"
   "srv/ToggleFaceDetection.srv"
-  "srv/PoseStamped.srv"
+  "srv/GetPoseStamped.srv"
 
   DEPENDENCIES geometry_msgs sensor_msgs std_msgs
 )

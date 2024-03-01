@@ -62,7 +62,7 @@ class SaveImage(Node):
         self.latest_color_image_lock = threading.Lock()
         self.create_subscription(
             Image,
-            "/camera/color/image_raw",
+            "/local/camera/color/image_raw",
             self.color_image_callback,
             1,
         )
