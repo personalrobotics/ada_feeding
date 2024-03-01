@@ -9,7 +9,7 @@ node.
 
 Usage:
 - Run the node: `ros2 run ada_feeding dummy_ft_sensor`
-- Subscribe to the sensor data: `ros2 topic echo /wireless_ft/ftSensor1`
+- Subscribe to the sensor data: `ros2 topic echo /wireless_ft/ftSensor3`
 - Turn the sensor off: `ros2 param set /dummy_ft_sensor is_on False`
 - Start publishing zero-variance data: 
     `ros2 param set /dummy_ft_sensor std [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]`
@@ -101,7 +101,7 @@ class DummyForceTorqueSensor(Node):
         # Create the publisher
         self.ft_msg = WrenchStamped()
         self.publisher_ = self.create_publisher(
-            WrenchStamped, "/wireless_ft/ftSensor1", 1
+            WrenchStamped, "/wireless_ft/ftSensor3", 1
         )
 
         # Publish at the specified rate
