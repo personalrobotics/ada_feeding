@@ -9,7 +9,7 @@ import json
 import os
 import textwrap
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # Third-party imports
 import cv2
@@ -35,7 +35,7 @@ from ada_feeding_perception.food_on_fork_detectors import (
 from ada_feeding_perception.helpers import ros_msg_to_cv2_image
 
 
-def show_normalized_depth_img(img, wait=True):
+def show_normalized_depth_img(img, wait=True, window_name="img"):
     """
     Show the normalized depth image. Useful for debugging.
 
@@ -45,12 +45,13 @@ def show_normalized_depth_img(img, wait=True):
         The depth image to show.
     wait: bool, optional
         If True, wait for a key press before closing the window.
+    window_name: str, optional
+        The name of the window to show the image in.
     """
     # Show the normalized depth image
     img_normalized = ((img - img.min()) / (img.max() - img.min()) * 255).astype("uint8")
-    cv2.imshow("img", img_normalized)
-    if wait:
-        cv2.waitKey(0)
+    cv2.imshow(window_name, img_normalized)
+    cv2.waitKey(0 if wait else 1)
 
 
 def read_args() -> argparse.Namespace:
@@ -150,6 +151,20 @@ def read_args() -> argparse.Namespace:
         action="store_true",
         help=("If set, include images when the robot arm is moving in the dataset."),
     )
+    parser.add_argument(
+        "--rosbags-select",
+        default=[],
+        type=str,
+        nargs="+",
+        help="If set, only rosbags listed here will be included",
+    )
+    parser.add_argument(
+        "--rosbags-skip",
+        default=[],
+        type=str,
+        nargs="+",
+        help="If set, rosbags listed here will be excluded",
+    )
 
     # Configure the training and testing operations
     parser.add_argument(
@@ -216,6 +231,12 @@ def read_args() -> argparse.Namespace:
             "will be performed. Typically used when debugging a detector"
         ),
     )
+    parser.add_argument(
+        "--viz",
+        default=False,
+        action="store_true",
+        help="If set, visualize images during the process",
+    )
 
     return parser.parse_args()
 
@@ -230,6 +251,8 @@ def load_data(
     depth_min_mm: int,
     depth_max_mm: int,
     include_motion: bool,
+    rosbags_select: List[str] = [],
+    rosbags_skip: List[str] = [],
     viz: bool = False,
 ) -> Tuple[npt.NDArray, npt.NDArray[int], CameraInfo]:
     """
@@ -255,6 +278,10 @@ def load_data(
         The minimum and maximum depth values to consider in the depth images.
     include_motion: bool
         If True, include images when the robot arm is moving in the dataset.
+    rosbags_select: List[str], optional
+        If set, only rosbags in this list will be included
+    rosbags_skip: List[str], optional
+        If set, rosbags in this list will be excluded
     viz: bool, optional
         If True, visualize the depth images as they are loaded.
 
@@ -296,8 +323,15 @@ def load_data(
     bridge = CvBridge()
     camera_info = None
     for rosbag_name, annotations in bagname_to_annotations.items():
+        if (
+            (len(rosbags_select) > 0 and rosbag_name not in rosbags_select) or 
+            (len(rosbags_skip) > 0 and rosbag_name in rosbags_skip)
+        ):
+            print(f"Skipping rosbag {rosbag_name}")
+            continue
         annotations.sort()
         i = 0
+        num_images_no_points = 0
         with Reader(os.path.join(absolute_data_dir, rosbag_name)) as reader:
             # Get the depth message count
             for connection in reader.connections:
@@ -341,6 +375,8 @@ def load_data(
                     img = np.where(
                         (img >= depth_min_mm) & (img <= depth_max_mm), img, 0
                     )
+                    if np.all(img == 0):
+                        num_images_no_points += 1
                     X[j, :, :] = img
                     y[j] = label
                     j += 1
@@ -361,9 +397,10 @@ def load_data(
                     img = cv2.rectangle(img, (x0, y0), (x0 + w, y0 + h), color, 2)
                     img = cv2.circle(img, (x0 + w // 2, y0 + h // 2), 5, color, -1)
                     cv2.imshow("RGB Image", img)
-                    cv2.waitKey(10)
+                    cv2.waitKey(1)
 
     # Truncate extra all-zero rows on the end of Z and y
+    print(f"Proportion of img with no pixels: {num_images_no_points/j}")
     X = X[:j]
     y = y[:j]
 
@@ -534,9 +571,9 @@ def evaluate_models(
                 for i in range(y_pred_proba.shape[0]):
                     if y[i] != y_pred[i]:
                         print(f"y_true: {y[i]}, y_pred: {y_pred[i]}")
-                        show_normalized_depth_img(X[i], wait=True)
+                        show_normalized_depth_img(X[i], wait=False, window_name="misclassified_img")
                         if last_0_0 is not None:
-                            show_normalized_depth_img(X[last_0_0], wait=True)
+                            show_normalized_depth_img(X[last_0_0], wait=False, window_name="last_correct_no_fof_img")
                     if y[i] == 0 and y_pred[i] == 0:
                         last_0_0 = i
 
@@ -593,7 +630,9 @@ def main() -> None:
         args.depth_min_mm,
         args.depth_max_mm,
         args.include_motion,
-        viz=False,
+        args.rosbags_select,
+        args.rosbags_skip,
+        # viz=args.viz,
     )
     print("X.shape", X.shape, "y.shape", y.shape)
 
@@ -633,7 +672,7 @@ def main() -> None:
         args.lower_thresh,
         args.upper_thresh,
         args.max_eval_n,
-        viz=False,
+        viz=args.viz,
     )
 
 
