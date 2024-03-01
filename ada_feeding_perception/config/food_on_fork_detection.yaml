@@ -2,10 +2,10 @@
 food_on_fork_detection:
   ros__parameters:
     # The FoodOnFork class to use
-    model_class: "ada_feeding_perception.food_on_fork_detectors.FoodOnForkDummyDetector"
+    model_class: "ada_feeding_perception.food_on_fork_detectors.FoodOnForkPointCloudTTestDetector"
     # The path to load the model from. Ignored if the empty string.
-    # Should be relative to ada_feeding_perception's share directory.
-    model_path: "model/pointcloud_t_test_detector.npz"
+    # Should be relative to the `model_dir` parameter, specified in the launchfile.
+    model_path: "pointcloud_t_test_detector.npz"
     # Keywords to pass to the FoodOnFork class's constructor
     model_kws:
       - camera_matrix
