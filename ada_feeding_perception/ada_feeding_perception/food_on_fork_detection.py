@@ -71,6 +71,8 @@ class FoodOnForkDetectionNode(Node):
             food_on_fork_class, FoodOnForkDetector
         ), f"Model {model_class} must subclass FoodOnForkDetector"
         self.model = food_on_fork_class(**model_kwargs)
+        self.model.crop_top_left = self.crop_top_left
+        self.model.crop_bottom_right = self.crop_bottom_right
         if len(model_path) > 0:
             self.model.load(os.path.join(model_dir, model_path))
 

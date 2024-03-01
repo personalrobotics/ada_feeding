@@ -15,10 +15,16 @@ import numpy as np
 import numpy.typing as npt
 import rclpy
 from rclpy.node import Node
-from rosbags.typesys.types import (
-    sensor_msgs__msg__CompressedImage as rCompressedImage,
-    sensor_msgs__msg__Image as rImage,
-)
+try:
+    from rosbags.typesys.types import (
+        sensor_msgs__msg__CompressedImage as rCompressedImage,
+        sensor_msgs__msg__Image as rImage,
+    )
+except (TypeError, ModuleNotFoundError) as err:
+    rclpy.logging.get_logger("ada_feeding_perception_helpers").warn(
+        "rosbags is not installed, or a wrong version is installed (needs 0.9.19). "
+        f"Typechecking against rosbag types will not work. Error: {err}"
+    )
 from sensor_msgs.msg import CompressedImage, Image
 from skimage.morphology import flood_fill
 
@@ -44,11 +50,19 @@ def ros_msg_to_cv2_image(
         is a ROS Image message. If `bridge` is None, a new CvBridge will be
         created.
     """
-    if isinstance(msg, (Image, rImage)):
+    imageTypes = [Image]
+    compressedImageTypes = [CompressedImage]
+    try:
+        imageTypes.append(rImage)
+        compressedImageTypes.append(rCompressedImage)
+    except NameError as _:
+        # This only happens if rosbags wasn't imported, which is logged above.
+        pass
+    if isinstance(msg, tuple(imageTypes)):
         if bridge is None:
             bridge = CvBridge()
         return bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
-    if isinstance(msg, (CompressedImage, rCompressedImage)):
+    if isinstance(msg, tuple(compressedImageTypes)):
         # TODO: This should use bridge as well
         return cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_UNCHANGED)
     raise ValueError("msg must be a ROS Image or CompressedImage")

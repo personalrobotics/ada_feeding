@@ -19,7 +19,9 @@
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
   <exec_depend>python3-pandas</exec_depend>
-  <exec_depend>python3-rosbags-pip</exec_depend>
+  <!-- NOTE Version 0.9.19 of rosbags specifically is necessary. rosdep does not
+  provide a way to install specific versions. https://gitlab.com/ternaris/rosbags/-/issues/73 -->
+  <!-- <exec_depend>python3-rosbags-pip</exec_depend> -->
   <exec_depend>python3-scikit-spatial-pip</exec_depend>
   <exec_depend>python3-scipy</exec_depend>
   <exec_depend>python3-shapely</exec_depend>
