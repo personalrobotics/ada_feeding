@@ -15,6 +15,7 @@ import numpy as np
 import numpy.typing as npt
 import rclpy
 from rclpy.node import Node
+
 try:
     from rosbags.typesys.types import (
         sensor_msgs__msg__CompressedImage as rCompressedImage,

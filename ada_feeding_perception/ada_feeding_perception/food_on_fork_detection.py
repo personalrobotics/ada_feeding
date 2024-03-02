@@ -32,6 +32,10 @@ from ada_feeding_perception.helpers import (
     get_img_msg_type,
     ros_msg_to_cv2_image,
 )
+from .depth_post_processors import (
+    create_spatial_post_processor,
+    create_temporal_post_processor,
+)
 
 
 class FoodOnForkDetectionNode(Node):
@@ -63,7 +67,16 @@ class FoodOnForkDetectionNode(Node):
             self.crop_bottom_right,
             self.depth_min_mm,
             self.depth_max_mm,
+            temporal_window_size,
+            spatial_num_pixels,
         ) = self.read_params()
+
+        # Create the post-processors
+        self.cv_bridge = CvBridge()
+        self.post_processors = [
+            create_temporal_post_processor(temporal_window_size, self.cv_bridge),
+            create_spatial_post_processor(spatial_num_pixels, self.cv_bridge),
+        ]
 
         # Construct the FoodOnForkDetector model
         food_on_fork_class = import_from_string(model_class)
@@ -106,7 +119,6 @@ class FoodOnForkDetectionNode(Node):
         )
 
         # Create the depth image subscriber
-        self.cv_bridge = CvBridge()
         self.depth_img = None
         self.depth_img_lock = threading.Lock()
         aligned_depth_topic = "~/aligned_depth"
@@ -129,7 +141,17 @@ class FoodOnForkDetectionNode(Node):
     def read_params(
         self,
     ) -> Tuple[
-        str, str, str, Dict[str, Any], float, Tuple[int, int], Tuple[int, int], int, int
+        str,
+        str,
+        str,
+        Dict[str, Any],
+        float,
+        Tuple[int, int],
+        Tuple[int, int],
+        int,
+        int,
+        int,
+        int,
     ]:
         """
         Reads the parameters for the FoodOnForkDetection.
@@ -146,6 +168,10 @@ class FoodOnForkDetectionNode(Node):
         crop_bottom_right: The bottom right corner of the crop box.
         depth_min_mm: The minimum depth (mm) to consider.
         depth_max_mm: The maximum depth (mm) to consider.
+        temporal_window_size: The size of the temporal window for post-processing.
+            Disabled by default.
+        spatial_num_pixels: The number of pixels for the spatial post-processor.
+            Disabled by default.
         """
         # Read the model_class
         model_class = self.declare_parameter(
@@ -279,6 +305,30 @@ class FoodOnForkDetectionNode(Node):
         )
         depth_max_mm = depth_max_mm.value
 
+        # Configure the post-processors
+        temporal_window_size = self.declare_parameter(
+            "temporal_window_size",
+            1,
+            descriptor=ParameterDescriptor(
+                name="temporal_window_size",
+                type=ParameterType.PARAMETER_INTEGER,
+                description="The size of the temporal window for post-processing. Disabled by default.",
+                read_only=True,
+            ),
+        )
+        temporal_window_size = temporal_window_size.value
+        spatial_num_pixels = self.declare_parameter(
+            "spatial_num_pixels",
+            1,
+            descriptor=ParameterDescriptor(
+                name="spatial_num_pixels",
+                type=ParameterType.PARAMETER_INTEGER,
+                description="The number of pixels for the spatial post-processor. Disabled by default.",
+                read_only=True,
+            ),
+        )
+        spatial_num_pixels = spatial_num_pixels.value
+
         return (
             model_class,
             model_path,
@@ -289,6 +339,8 @@ class FoodOnForkDetectionNode(Node):
             crop_bottom_right,
             depth_min_mm,
             depth_max_mm,
+            temporal_window_size,
+            spatial_num_pixels,
         )
 
     def toggle_food_on_fork_detection(
@@ -337,6 +389,8 @@ class FoodOnForkDetectionNode(Node):
         ----------
         msg: The depth image message.
         """
+        for post_processor in self.post_processors:
+            msg = post_processor(msg)
         with self.depth_img_lock:
             self.depth_img = msg
 

@@ -24,7 +24,7 @@ setup(
         # Include all model files.
         (
             os.path.join("share", package_name, "model"),
-            glob(os.path.join("model", "*")),
+            glob(os.path.join("model", "*.*")),
         ),
         # Include all config files.
         (

@@ -33,6 +33,10 @@ from ada_feeding_perception.food_on_fork_detectors import (
     FoodOnForkLabel,
 )
 from ada_feeding_perception.helpers import ros_msg_to_cv2_image
+from ada_feeding_perception.depth_post_processors import (
+    create_spatial_post_processor,
+    create_temporal_post_processor,
+)
 
 
 def show_normalized_depth_img(img, wait=True, window_name="img"):
@@ -87,6 +91,26 @@ def read_args() -> argparse.Namespace:
             "A JSON-encoded string where keys are the model ID and values are "
             "a dictionary of keyword arguments to pass to the model's constructor. e.g., "
             '{"dummy_detector": {"proba": 0.1}}'
+        ),
+    )
+
+    # Configure post-processing of the depth images
+    parser.add_argument(
+        "--temporal-window-size",
+        default=None,
+        type=int,
+        help=(
+            "The size of the temporal window to use for post-processing. If unset, "
+            "no temporal post-processing will be done."
+        ),
+    )
+    parser.add_argument(
+        "--spatial-num-pixels",
+        default=None,
+        type=int,
+        help=(
+            "The number of pixels to use for the spatial post-processing. If unset, "
+            "no spatial post-processing will be done."
         ),
     )
 
@@ -253,6 +277,8 @@ def load_data(
     include_motion: bool,
     rosbags_select: List[str] = [],
     rosbags_skip: List[str] = [],
+    temporal_window_size: Optional[int] = None,
+    spatial_num_pixels: Optional[int] = None,
     viz: bool = False,
 ) -> Tuple[npt.NDArray, npt.NDArray[int], CameraInfo]:
     """
@@ -282,6 +308,12 @@ def load_data(
         If set, only rosbags in this list will be included
     rosbags_skip: List[str], optional
         If set, rosbags in this list will be excluded
+    temporal_window_size: int, optional
+        The size of the temporal window to use for post-processing. If unset,
+        no temporal post-processing will be done.
+    spatial_num_pixels: int, optional
+        The number of pixels to use for the spatial post-processing. If unset,
+        no spatial post-processing will be done.
     viz: bool, optional
         If True, visualize the depth images as they are loaded.
 
@@ -297,6 +329,18 @@ def load_data(
     """
     # pylint: disable=too-many-locals, too-many-arguments, too-many-branches, too-many-statements
     # Okay since we want to make it a flexible method.
+
+    # Set up the post-processors
+    bridge = CvBridge()
+    post_processors = []
+    if temporal_window_size is not None:
+        post_processors.append(
+            create_temporal_post_processor(temporal_window_size, bridge)
+        )
+    if spatial_num_pixels is not None:
+        post_processors.append(
+            create_spatial_post_processor(spatial_num_pixels, bridge)
+        )
 
     absolute_data_dir = os.path.join(os.path.dirname(__file__), data_dir)
 
@@ -320,12 +364,10 @@ def load_data(
         )
 
     # Load the data
-    bridge = CvBridge()
     camera_info = None
     for rosbag_name, annotations in bagname_to_annotations.items():
-        if (
-            (len(rosbags_select) > 0 and rosbag_name not in rosbags_select) or 
-            (len(rosbags_skip) > 0 and rosbag_name in rosbags_skip)
+        if (len(rosbags_select) > 0 and rosbag_name not in rosbags_select) or (
+            len(rosbags_skip) > 0 and rosbag_name in rosbags_skip
         ):
             print(f"Skipping rosbag {rosbag_name}")
             continue
@@ -367,6 +409,9 @@ def load_data(
                     else:
                         # Skip images with unknown label
                         continue
+                    # Post-process the image
+                    for post_processor in post_processors:
+                        msg = post_processor(msg)
                     img = ros_msg_to_cv2_image(msg, bridge)
                     img = img[
                         crop_top_left[1] : crop_bottom_right[1],
@@ -571,9 +616,15 @@ def evaluate_models(
                 for i in range(y_pred_proba.shape[0]):
                     if y[i] != y_pred[i]:
                         print(f"y_true: {y[i]}, y_pred: {y_pred[i]}")
-                        show_normalized_depth_img(X[i], wait=False, window_name="misclassified_img")
+                        show_normalized_depth_img(
+                            X[i], wait=False, window_name="misclassified_img"
+                        )
                         if last_0_0 is not None:
-                            show_normalized_depth_img(X[last_0_0], wait=False, window_name="last_correct_no_fof_img")
+                            show_normalized_depth_img(
+                                X[last_0_0],
+                                wait=False,
+                                window_name="last_correct_no_fof_img",
+                            )
                     if y[i] == 0 and y_pred[i] == 0:
                         last_0_0 = i
 
@@ -632,6 +683,8 @@ def main() -> None:
         args.include_motion,
         args.rosbags_select,
         args.rosbags_skip,
+        args.temporal_window_size,
+        args.spatial_num_pixels,
         # viz=args.viz,
     )
     print("X.shape", X.shape, "y.shape", y.shape)

@@ -21,3 +21,8 @@ food_on_fork_detection:
     # The min and max depth to consider for the food on the fork
     depth_min_mm: 310
     depth_max_mm: 370
+
+    # The size of the temporal window for the "temporal" post-processor.
+    temporal_window_size: 5
+    # The size of the square kernel for the "spatial" post-processor.
+    spatial_num_pixels: 10
