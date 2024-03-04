@@ -42,6 +42,14 @@ parser.add_argument(
     action="store_true",
     help="If set, only terminate the code in the screens.",
 )
+parser.add_argument(
+    "--dev",
+    action="store_true",
+    help=(
+        "If set, do not use the e-stop in `feeding`, and show RVIZ in `moveit`. "
+        "Also launch the web app on port 3000. Only applies to `real`."
+    ),
+)
 
 
 async def get_existing_screens():
@@ -213,7 +221,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         screen_sessions = {
             "web": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
-                "sudo serve -s build -l 80",
+                "npm run start" if args.dev else "sudo npx serve -s build -l 80",
             ],
             "webrtc": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
@@ -233,12 +241,15 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "ros2 launch ada_feeding_perception ada_feeding_perception.launch.py",
             ],
             "moveit": [
-                "Xvfb :5 -screen 0 800x600x24 &",
-                "export DISPLAY=:5",
-                "ros2 launch ada_moveit demo.launch.py use_rviz:=false",
+                "Xvfb :5 -screen 0 800x600x24 &" if not args.dev else "",
+                "export DISPLAY=:5" if not args.dev else "",
+                f"ros2 launch ada_moveit demo.launch.py use_rviz:={'true' if args.dev else 'false'}",
             ],
             "feeding": [
-                "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=true run_web_bridge:=false",
+                (
+                    "ros2 launch ada_feeding ada_feeding_launch.xml "
+                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false"
+                ),
             ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
@@ -307,7 +318,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         )
         if args.sim == "real":
             print("#     2. Push the e-stop button to enable the robot.")
-            print("#     3. Note that this script starts the app on port 80.")
+            print(f"#     3. Note that this script starts the app on port {3000 if args.dev else 80}.")
         else:
             print("#     2. Note that this script starts the app on port 3000.")
 
