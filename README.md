@@ -32,22 +32,22 @@ This README is the definitive source for downloading, installing, and running th
         cd ~/colcon_ws
         rosdep install --from-paths src -y --ignore-src --as-root=pip:false
 
-6. (Only for users **without** sudo access) Install pip dependencies:
+6. Install and fix pip/non-`rosdep` dependencies:
 
         cd ~/colcon_ws/src/ada_feeding
-        python3 pip install -r requirements.txt
-
-7. Remove the duplicate matplotlib pip installation caused by installing scikit-spatial with pip: 
-
-        python3 pip uninstall matplotlib
+        python3 -m pip install -r requirements.txt
    
-9. Install non-`rosdep` dependencies:
-    - Install SegmentAnythingModel: `python3 -m pip install git+https://github.com/facebookresearch/segment-anything.git`
-    - Install EfficientSAM: `python3 -m pip install git+https://github.com/yformer/EfficientSAM.git`
     - Upgrade `transforms3d`, since [the release on Ubuntu packages is outdated](https://github.com/matthew-brett/transforms3d/issues/65): `python3 -m pip install transforms3d -U`
+    - Remove the duplicate matplotlib pip installation caused by installing scikit-spatial with pip (some accounts have required sudo access for this command, other have not. If you do not have sudo access and encounter this, contact a lab member who does):
+  
+      ```
+        python3 -m pip uninstall matplotlib
+      ```
+      
     - [`pyrealsense2` is not released for ARM systems](https://github.com/IntelRealSense/librealsense/issues/6449#issuecomment-650784066), so ARM users will have to [build from source](https://github.com/IntelRealSense/librealsense/blob/master/wrappers/python/readme.md#building-from-source). You may have to add the `-DPYTHON_EXECUTABLE=/usr/bin/python3` flag to the `cmake` command. When running `sudo make install`, pay close attention to which path `pyrealsense2` is installed to and add *that path* to the `PYTHONPATH` -- it should be `/use/local/lib` but may be `/usr/local/OFF`.
-10. Install the JACO SDK (real robot only). All SDKs are listed [here](https://www.kinovarobotics.com/resources?r=79301&s); PRL currently uses the [Gen2 SDK v1.5.1](https://drive.google.com/file/d/1UEQAow0XLcVcPCeQfHK9ERBihOCclkJ9/view). Note that although the latest version of that SDK is for Ubuntu 16.04, it still works on Ubuntu 22.04 (only for x86 systems, not ARM system).
-11. Build your workspace:
+   
+7. Install the JACO SDK (real robot only). All SDKs are listed [here](https://www.kinovarobotics.com/resources?r=79301&s); PRL currently uses the [Gen2 SDK v1.5.1](https://drive.google.com/file/d/1UEQAow0XLcVcPCeQfHK9ERBihOCclkJ9/view). Note that although the latest version of that SDK is for Ubuntu 16.04, it still works on Ubuntu 22.04 (only for x86 systems, not ARM system).
+8. Build your workspace:
 
         cd ~/colcon_ws
         colcon build --symlink-install # if sim-only, add '--packages-skip ada_hardware'
@@ -71,7 +71,7 @@ This README is the definitive source for downloading, installing, and running th
         sudo npm install -g serve
         npm install -g pm2@latest
 
-5. Install the web app dependencies. (Note: there will be some vulnerabilities in dependencies.)
+5. Install the web app dependencies. (Note: there will be some vulnerabilities in dependencies. This is okay, since access to the web app is shielded behind our secure router.)
 
         cd ~/colcon_ws/src/feeding_web_interface/feedingwebapp
         npm install --legacy-peer-deps
@@ -91,7 +91,7 @@ This option starts the web app and the real robot code, and can be used to test 
 **NOTE**: If not running on the production machine i.e., `lovelace`, it's recommended that you append the command line flag `--dev` to the start script. This will launch RVIZ, will not require the e-stop button to be plugged in, and will not require sudo access to launch the web app.
 
 ```
-cd ~/colcon_wsUbuntu (Debian packages)
+cd ~/colcon_ws
 python3 src/ada_feeding/start.py
 ```
 
