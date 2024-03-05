@@ -18,11 +18,10 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 import torch
-import pyrealsense2
 from std_srvs.srv import Trigger
 import math
 
-# from tf.transformation import quaternion_from_matrix
+from tf_transformations import quaternion_from_matrix
 from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import (
     Pose,
@@ -93,9 +92,6 @@ class TableDetectionNode(Node):
             self.fit_to_table_callback,
         )
 
-        # Approximate values of current camera intrinsics matrix
-        # (updated with subscription)
-        self.camera_matrix = [614, 0, 312, 0, 614, 223, 0, 0, 1]
         self.camera_info = None
         # Subscribe to the camera info topic, to get the camera intrinsics
         self.camera_info_lock = threading.Lock()
@@ -204,8 +200,8 @@ class TableDetectionNode(Node):
                 radius = r
                 cv2.circle(gray, center, radius, (255, 0, 255), 3)
                 cv2.circle(gray, center, radius + self._table_buffer, (255, 0, 255), 3)
-            cv2.imshow("detected circles", gray)
-            cv2.waitKey(0)
+            # cv2.imshow("detected circles", gray)
+            # cv2.waitKey(0)
 
         # Create Mask for Depth Image
         plate_mask = np.zeros(image_depth.shape)
@@ -224,23 +220,16 @@ class TableDetectionNode(Node):
         depth_std = np.std(depth_mask[depth_mask > 0])
         depth_mask[depth_var > 2.0 * depth_std] = 0
 
-        # Get Median of Mask
-        # d_idx = np.where(depth_mask > 0)
-        # d = depth_mask[d_idx].astype(float)
-        # depth_median = np.median(d).astype("uint16")
-        # self.get_logger().info(f"depth median, {depth_median}")
-
         # Fit Plane: depth = a*u + b*v + c
         d_idx = np.where(depth_mask > 0)
         d = depth_mask[d_idx].astype(float)
-        # d = np.full(len(d_idx[0]), depth_median)
-        # self.get_logger().info(f"d, {d}, {d.shape}")
         coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1)))).astype(
             float
         )
+        # coefficients b and a are reversed because of matrix row/col structure and its correspondence to x/y
         b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[
             0
-        ]  # coefficients b and a are reversed because of matrix row/col structure and its correspondence to x/y
+        ]  
         self.get_logger().info(f"d_idx, {d_idx}")
         self.get_logger().info(f"d, {d}")
         self.get_logger().info(f"coeffs, {coeffs}, {coeffs.shape}")
@@ -253,8 +242,6 @@ class TableDetectionNode(Node):
         U, V = np.meshgrid(u, v)
         table = a * U + b * V + c
         table = table.astype("uint16")
-        # table_depth = a*target_u + b*target_v + c
-        # table_depth = table_depth.astype("uint16")
 
         return table
 
@@ -265,19 +252,19 @@ class TableDetectionNode(Node):
             np.arange(depth_img.shape[1]), (depth_img.shape[0], 1)
         )  # + self.crop_x_min
         self.get_logger().info(f"u, {u}, {u.shape}, {u.min()}, {u.max()}")
-        # print("us", us, us.shape, us.min(), us.max())
+
         v = np.tile(
             np.arange(depth_img.shape[0]), (depth_img.shape[1], 1)
         ).T  # + self.crop_y_min
         self.get_logger().info(f"v, {v}, {v.shape}, {v.min()}, {v.max()}")
-        # print("vs", vs, vs.shape, vs.min(), vs.max())
-
+        
         # Mask out any points where depth is 0
         mask = depth_img > 0
         depth_img_masked = depth_img[mask]
         u_masked = u[mask]
         v_masked = v[mask]
-        # print("depth_img_masked", depth_img_masked.shape, "us_masked", us_masked.shape, "vs_masked", vs_masked.shape)
+        self.get_logger().info(f"u_masked, {u_masked}, {u_masked.shape}")
+        self.get_logger().info(f"v_masked, {v_masked}, {v_masked.shape}")
 
         # Deproject x, y, and z coordinates from u, v coordinates and depth image
         x = np.multiply(
@@ -294,9 +281,10 @@ class TableDetectionNode(Node):
 
         # Concatenate the x and y coordinates together
         xy = np.concatenate((x[..., np.newaxis], y[..., np.newaxis]), axis=1)
+
         # Calculate center
-        center = [x[319 * 239], y[319 * 239], z[319 * 239]]
-        # img_3d_points = np.concatenate((x[..., np.newaxis], y[..., np.newaxis], z[..., np.newaxis]), axis=1)
+        center = [x[640 * 239 + 320 - 1], y[640 * 239 + 320 - 1], z[640 * 239 + 320 - 1]]
+        
         return np.array(xy), np.array(z), center
 
     def get_orientation(
@@ -306,26 +294,6 @@ class TableDetectionNode(Node):
         target_u: int,
         target_v: int,
     ):
-        # Construct camera intrinsics
-        intrinsics = pyrealsense2.intrinsics()
-        intrinsics.width = camera_info.width
-        intrinsics.height = camera_info.height
-        intrinsics.ppx = camera_info.k[2]
-        intrinsics.ppy = camera_info.k[5]
-        intrinsics.fx = camera_info.k[0]
-        intrinsics.fy = camera_info.k[4]
-        if camera_info.distortion_model == "plumb_bob":
-            intrinsics.model = pyrealsense2.distortion.brown_conrady
-            intrinsics.coeffs = list(camera_info.d)
-        elif camera_info.distortion_model == "equidistant":
-            intrinsics.model = pyrealsense2.distortion.kannala_brandt4
-            intrinsics.coeffs = list(camera_info.d)
-        else:
-            logger.warning(
-                f"Unsupported camera distortion model: {camera_info.distortion_model}"
-            )
-            intrinsics.model = pyrealsense2.distortion.none
-
         # Deproject all pixels from table depth image to 3D coordinates
         # table_deprojected = np.zeros((table_depth.shape[1], table_depth.shape[0], 3))
         # xy_d = []
@@ -343,10 +311,6 @@ class TableDetectionNode(Node):
         self.get_logger().info(f"xy_d shape, {xy_d.shape[0]} x {xy_d.shape[1]}")
         self.get_logger().info(f"depth_d, {np.vstack(depth_d)}")
         self.get_logger().info(f"depth_d shape, {depth_d.shape}")
-        # TODO: Make this a matrix multiplication process
-
-        # Store 3D coordinates of the center pixel of table depth image
-        # center = table_deprojected[320][240]
         self.get_logger().info(f"table center, {center}")
 
         # Fit Plane: z = a*x + b*y + c
@@ -362,7 +326,6 @@ class TableDetectionNode(Node):
         )
 
         # Get the direction vectors of the table plane from the camera's frame of perspective
-        # TODO: don't hard code constant
         x_p = [
             center[0] - self.dir_constant,
             center[1],
@@ -373,13 +336,11 @@ class TableDetectionNode(Node):
         self.get_logger().info(
             f"magnitude of normalized +x vector = {np.linalg.norm(x_ref)}"
         )
-        # x_ref = np.add(x_ref , center)
-
+        
         z_ref = [a, b, -1] / np.linalg.norm([a, b, -1])
         self.get_logger().info(
             f"magnitude of normalized +z vector = {np.linalg.norm(z_ref)}"
         )
-        # z_ref = np.add(z_ref, center)
 
         # Direction vector of y calculated through a system of linear equations consisting of: 
         # the dot product of x and y, dot product of z and y, & norm of y = 1
@@ -396,6 +357,8 @@ class TableDetectionNode(Node):
         self.get_logger().info(
             f"magnitude of normalized +y vector = {np.linalg.norm(y_ref)}"
         )
+
+        # Original direction vector of y calculation: 
         # y_p = [center[0], center[1] - 0.1, a*center[0] + b*(center[1] - 0.1) + c]
         # y_ref = [center[0] - y_p[0], center[1] - y_p[1], center[2] - y_p[2]]
         # y_ref /= np.linalg.norm(y_ref)
@@ -439,6 +402,7 @@ class TableDetectionNode(Node):
             rgb_msg = self.latest_img_msg
 
         # Get the latest depth image
+        depth_img_msg = None
         with self.latest_depth_img_msg_lock:
             depth_img_msg = self.latest_depth_img_msg
 
@@ -453,14 +417,12 @@ class TableDetectionNode(Node):
         # Get the camera matrix
         cam_info = None
         with self.camera_info_lock:
-            camera_matrix = self.camera_matrix
             if self.camera_info is not None:
                 cam_info = self.camera_info
             else:
                 self.get_logger().warn(
                     "Camera info not received, not including in result message"
                 )
-                
 
         center, orientation = self.get_orientation(cam_info, table_depth, 320, 240)
 
@@ -501,7 +463,6 @@ class TableDetectionNode(Node):
         msg: The camera info message.
         """
         with self.camera_info_lock:
-            self.camera_matrix = msg.k
             self.camera_info = msg
 
     def depth_image_callback(self, msg: Union[Image, CompressedImage]) -> None:
