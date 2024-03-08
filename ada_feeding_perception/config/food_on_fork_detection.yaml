@@ -2,10 +2,10 @@
 food_on_fork_detection:
   ros__parameters:
     # The FoodOnFork class to use
-    model_class: "ada_feeding_perception.food_on_fork_detectors.FoodOnForkPointCloudTTestDetector"
+    model_class: "ada_feeding_perception.food_on_fork_detectors.FoodOnForkDistanceToNoFOFDetector"
     # The path to load the model from. Ignored if the empty string.
     # Should be relative to the `model_dir` parameter, specified in the launchfile.
-    model_path: "pointcloud_t_test_detector.npz"
+    model_path: "distance_no_fof_detector_with_filters.npz"
     # Keywords to pass to the FoodOnFork class's constructor
     model_kws:
       - camera_matrix
@@ -16,13 +16,16 @@ food_on_fork_detection:
     # The rate at which to detect and publish the confidence that there is food on the fork
     rate_hz: 10.0
     # The top-left  and bottom-right corners to crop the depth image to
-    crop_top_left: [308, 242]
-    crop_bottom_right: [436, 370]
+    crop_top_left: [344, 272]
+    crop_bottom_right: [408, 336]
     # The min and max depth to consider for the food on the fork
     depth_min_mm: 310
-    depth_max_mm: 370
+    depth_max_mm: 340
 
     # The size of the temporal window for the "temporal" post-processor.
     temporal_window_size: 5
     # The size of the square kernel for the "spatial" post-processor.
     spatial_num_pixels: 10
+
+    # Whether to visualize the output of the detector
+    viz: True

@@ -32,30 +32,14 @@ from ada_feeding_perception.food_on_fork_detectors import (
     FoodOnForkDetector,
     FoodOnForkLabel,
 )
-from ada_feeding_perception.helpers import ros_msg_to_cv2_image
+from ada_feeding_perception.helpers import (
+    ros_msg_to_cv2_image,
+    show_normalized_depth_img,
+)
 from ada_feeding_perception.depth_post_processors import (
     create_spatial_post_processor,
     create_temporal_post_processor,
 )
-
-
-def show_normalized_depth_img(img, wait=True, window_name="img"):
-    """
-    Show the normalized depth image. Useful for debugging.
-
-    Parameters
-    ----------
-    img: npt.NDArray
-        The depth image to show.
-    wait: bool, optional
-        If True, wait for a key press before closing the window.
-    window_name: str, optional
-        The name of the window to show the image in.
-    """
-    # Show the normalized depth image
-    img_normalized = ((img - img.min()) / (img.max() - img.min()) * 255).astype("uint8")
-    cv2.imshow(window_name, img_normalized)
-    cv2.waitKey(0 if wait else 1)
 
 
 def read_args() -> argparse.Namespace:
@@ -365,6 +349,7 @@ def load_data(
 
     # Load the data
     camera_info = None
+    num_images_no_points = 0
     for rosbag_name, annotations in bagname_to_annotations.items():
         if (len(rosbags_select) > 0 and rosbag_name not in rosbags_select) or (
             len(rosbags_skip) > 0 and rosbag_name in rosbags_skip
@@ -434,13 +419,15 @@ def load_data(
                     print((timestamp - start_time) / 10.0**9)
                     img = ros_msg_to_cv2_image(msg, bridge)
                     # A box around the forktip
-                    x0, y0 = 308, 242
-                    w, h = 128, 128
+                    x0, y0 = crop_top_left
+                    x1, y1 = crop_bottom_right
                     fof_color = (0, 255, 0)
                     no_fof_color = (255, 0, 0)
                     color = fof_color if len(y) == 0 or y[-1] == 1 else no_fof_color
-                    img = cv2.rectangle(img, (x0, y0), (x0 + w, y0 + h), color, 2)
-                    img = cv2.circle(img, (x0 + w // 2, y0 + h // 2), 5, color, -1)
+                    img = cv2.rectangle(img, (x0, y0), (x1, y1), color, 2)
+                    img = cv2.circle(
+                        img, ((x0 + x1) // 2, (y0 + y1) // 2), 5, color, -1
+                    )
                     cv2.imshow("RGB Image", img)
                     cv2.waitKey(1)
 

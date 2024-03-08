@@ -4,13 +4,14 @@ This file contains helper functions for the ada_feeding_perception package.
 # Standard imports
 import os
 import pprint
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 from urllib.parse import urljoin
 from urllib.request import urlretrieve
 
 # Third-party imports
 import cv2
 from cv_bridge import CvBridge
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import rclpy
@@ -28,6 +29,118 @@ except (TypeError, ModuleNotFoundError) as err:
     )
 from sensor_msgs.msg import CompressedImage, Image
 from skimage.morphology import flood_fill
+
+
+def show_normalized_depth_img(img, wait=True, window_name="img"):
+    """
+    Show the normalized depth image. Useful for debugging.
+
+    Parameters
+    ----------
+    img: npt.NDArray
+        The depth image to show.
+    wait: bool, optional
+        If True, wait for a key press before closing the window.
+    window_name: str, optional
+        The name of the window to show the image in.
+    """
+    # Show the normalized depth image
+    img_normalized = ((img - img.min()) / (img.max() - img.min()) * 255).astype("uint8")
+    cv2.imshow(window_name, img_normalized)
+    cv2.waitKey(0 if wait else 1)
+
+
+def show_3d_scatterplot(
+    pointclouds: List[npt.NDArray],
+    colors: List[npt.NDArray],
+    sizes: List[int],
+    markerstyles: List[str],
+    labels: List[str],
+    title: str,
+    mean_colors: Optional[List[npt.NDArray]] = None,
+    mean_sizes: Optional[List[int]] = None,
+    mean_markerstyles: Optional[List[str]] = None,
+):
+    """
+    Show a 3D scatterplot of the given point clouds.
+
+    Parameters
+    ----------
+    pointclouds: List[npt.NDArray]
+        The point clouds to show. Each point cloud should be a Nx3 array of
+        points.
+    colors: List[npt.NDArray]
+        The colors to use for the points. Each color should be a size 3 array of
+        colors RGB colos in range [0,1].
+    sizes: List[int]
+        The sizes to use for the points.
+    markerstyles: List[str]
+        The marker styles to use for the point clouds.
+    labels: List[str]
+        The labels to use for the point clouds.
+    title: str
+        The title of the plot.
+    """
+    # Check that the inputs are valid
+    assert (
+        len(pointclouds)
+        == len(colors)
+        == len(sizes)
+        == len(markerstyles)
+        == len(labels)
+    )
+    if mean_colors is not None:
+        assert mean_sizes is not None
+        assert mean_markerstyles is not None
+        assert len(mean_colors) == len(mean_sizes) == len(mean_markerstyles)
+
+    # Create the plot
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
+
+    # Plot each point cloud
+    configs = [pointclouds, colors, sizes, markerstyles, labels]
+    if mean_colors is not None:
+        configs += [mean_colors, mean_sizes, mean_markerstyles]
+    for i, config in enumerate(zip(*configs)):
+        pointcloud = config[0]
+        color = config[1]
+        size = config[2]
+        markerstyle = config[3]
+        label = config[4]
+        ax.scatter(
+            pointcloud[:, 0],
+            pointcloud[:, 1],
+            pointcloud[:, 2],
+            color=color,
+            s=size,
+            label=label,
+            marker=markerstyle,
+        )
+        if len(config) > 5:
+            mean_color = config[5]
+            mean_size = config[6]
+            mean_markerstyle = config[7]
+            mean = pointcloud.mean(axis=0)
+            ax.scatter(
+                mean[0].reshape((1, 1)),
+                mean[1].reshape((1, 1)),
+                mean[2].reshape((1, 1)),
+                color=mean_color,
+                s=mean_size,
+                label=label + " mean",
+                marker=mean_markerstyle,
+            )
+
+    # Set the title and labels
+    ax.set_title(title)
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+    ax.legend()
+
+    # Show the plot
+    plt.show()
 
 
 def ros_msg_to_cv2_image(

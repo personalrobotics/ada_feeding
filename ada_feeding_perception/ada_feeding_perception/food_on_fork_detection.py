@@ -6,20 +6,21 @@ on, subscribes to the depth image topic and publishes the confidence that there 
 on the fork.
 """
 # Standard imports
-import collections.abc
+import collections
 import os
 import threading
 from typing import Any, Dict, Tuple
 
 # Third-party imports
 from cv_bridge import CvBridge
+import cv2
 import numpy as np
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from sensor_msgs.msg import CameraInfo, Image
+from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from std_srvs.srv import SetBool
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
@@ -29,8 +30,10 @@ from ada_feeding.helpers import import_from_string
 from ada_feeding_msgs.msg import FoodOnForkDetection
 from ada_feeding_perception.food_on_fork_detectors import FoodOnForkDetector
 from ada_feeding_perception.helpers import (
+    cv2_image_to_ros_msg,
     get_img_msg_type,
     ros_msg_to_cv2_image,
+    show_3d_scatterplot,
 )
 from .depth_post_processors import (
     create_spatial_post_processor,
@@ -69,6 +72,10 @@ class FoodOnForkDetectionNode(Node):
             self.depth_max_mm,
             temporal_window_size,
             spatial_num_pixels,
+            self.viz,
+            self.viz_upper_thresh,
+            self.viz_lower_thresh,
+            rgb_image_buffer,
         ) = self.read_params()
 
         # Create the post-processors
@@ -138,6 +145,30 @@ class FoodOnForkDetectionNode(Node):
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
+        # If the visualization flag is set, create a subscriber to the RGB image
+        # and publisher for the RGB visualization
+        if self.viz:
+            self.rgb_pub = self.create_publisher(
+                Image, "~/food_on_fork_detection_img", 1
+            )
+            self.img_buffer = collections.deque(maxlen=rgb_image_buffer)
+            self.img_buffer_lock = threading.Lock()
+            image_topic = "~/image"
+            try:
+                image_type = get_img_msg_type(image_topic, self)
+            except ValueError as err:
+                self.get_logger().error(
+                    f"Error getting type of image topic. Defaulting to CompressedImage. {err}"
+                )
+                image_type = CompressedImage
+            self.img_subscription = self.create_subscription(
+                image_type,
+                image_topic,
+                self.camera_callback,
+                1,
+                callback_group=MutuallyExclusiveCallbackGroup(),
+            )
+
     def read_params(
         self,
     ) -> Tuple[
@@ -151,6 +182,10 @@ class FoodOnForkDetectionNode(Node):
         int,
         int,
         int,
+        int,
+        bool,
+        float,
+        float,
         int,
     ]:
         """
@@ -172,6 +207,10 @@ class FoodOnForkDetectionNode(Node):
             Disabled by default.
         spatial_num_pixels: The number of pixels for the spatial post-processor.
             Disabled by default.
+        viz: Whether to publish a visualization of the result as an RGB image.
+        viz_upper_thresh: The upper threshold for declaring FoF in the viz.
+        viz_lower_thresh: The lower threshold for declaring FoF in the viz.
+        rgb_image_buffer: The number of RGB images to store at a time for visualization.
         """
         # Read the model_class
         model_class = self.declare_parameter(
@@ -329,6 +368,52 @@ class FoodOnForkDetectionNode(Node):
         )
         spatial_num_pixels = spatial_num_pixels.value
 
+        # Get the visualization parameters
+        viz = self.declare_parameter(
+            "viz",
+            False,
+            descriptor=ParameterDescriptor(
+                name="viz",
+                type=ParameterType.PARAMETER_BOOL,
+                description="Whether to publish a visualization of the result as an RGB image.",
+                read_only=True,
+            ),
+        )
+        viz = viz.value
+        viz_upper_thresh = self.declare_parameter(
+            "viz_upper_thresh",
+            0.5,
+            descriptor=ParameterDescriptor(
+                name="viz_upper_thresh",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="The upper threshold for declaring FoF in the viz.",
+                read_only=True,
+            ),
+        )
+        viz_upper_thresh = viz_upper_thresh.value
+        viz_lower_thresh = self.declare_parameter(
+            "viz_lower_thresh",
+            0.5,
+            descriptor=ParameterDescriptor(
+                name="viz_lower_thresh",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="The lower threshold for declaring FoF in the viz.",
+                read_only=True,
+            ),
+        )
+        viz_lower_thresh = viz_lower_thresh.value
+        rgb_image_buffer = self.declare_parameter(
+            "rgb_image_buffer",
+            30,
+            descriptor=ParameterDescriptor(
+                name="rgb_image_buffer",
+                type=ParameterType.PARAMETER_INTEGER,
+                description="The number of RGB images to store at a time for visualization. Default: 30",
+                read_only=True,
+            ),
+        )
+        rgb_image_buffer = rgb_image_buffer.value
+
         return (
             model_class,
             model_path,
@@ -341,6 +426,10 @@ class FoodOnForkDetectionNode(Node):
             depth_max_mm,
             temporal_window_size,
             spatial_num_pixels,
+            viz,
+            viz_upper_thresh,
+            viz_lower_thresh,
+            rgb_image_buffer,
         )
 
     def toggle_food_on_fork_detection(
@@ -394,6 +483,17 @@ class FoodOnForkDetectionNode(Node):
         with self.depth_img_lock:
             self.depth_img = msg
 
+    def camera_callback(self, msg: Image) -> None:
+        """
+        Callback for the camera image.
+
+        Parameters
+        ----------
+        msg: The camera image message.
+        """
+        with self.img_buffer_lock:
+            self.img_buffer.append(msg)
+
     def run(self) -> None:
         """
         Runs the FoodOnForkDetection.
@@ -438,6 +538,8 @@ class FoodOnForkDetectionNode(Node):
             try:
                 proba = self.model.predict_proba(X)[0]
                 food_on_fork_detection_msg.probability = proba
+                if np.isnan(proba):
+                    food_on_fork_detection_msg.message = "Could not assess food on fork"
             # pylint: disable=broad-except
             # This is necessary because we don't know what exceptions the model
             # might raise.
@@ -446,6 +548,91 @@ class FoodOnForkDetectionNode(Node):
                 self.get_logger().error(err_str)
                 food_on_fork_detection_msg.probability = -1.0
                 food_on_fork_detection_msg.message = err_str
+
+            # Visualize the results
+            if self.viz:
+                # show_3d_scatterplot(
+                #     [self.model.depth_to_pointcloud(depth_img_cv2)],
+                #     colors=[[0, 0, 1]],
+                #     sizes=[5],
+                #     markerstyles=["o"],
+                #     labels=["Test"],
+                #     title="Test Points",
+                # )
+
+                # Get the RGB image with timestamp closest to the depth image
+                with self.img_buffer_lock:
+                    img_msg = None
+                    # At the end of this for loop, img_message will be the most
+                    # recent image that is older than the depth image, or the
+                    # oldest image if there are no images older than the depth
+                    # image.
+                    for i, img_msg in enumerate(self.img_buffer):
+                        img_msg_stamp = (
+                            img_msg.header.stamp.sec
+                            + img_msg.header.stamp.nanosec * 1e-9
+                        )
+                        depth_img_stamp = (
+                            depth_img_msg.header.stamp.sec
+                            + depth_img_msg.header.stamp.nanosec * 1e-9
+                        )
+                        if img_msg_stamp > depth_img_stamp:
+                            if i > 0:
+                                img_msg = self.img_buffer[i - 1]
+                            break
+                # If img_msg is None, that means we haven't received an RGB image yet
+                if img_msg is not None:
+                    # Convert the RGB image to a cv2 image
+                    img_cv2 = ros_msg_to_cv2_image(img_msg, self.cv_bridge)
+
+                    # Get the message to write on the image
+                    if proba > self.viz_upper_thresh:
+                        pred = "Food on Fork"
+                        color = (0, 255, 0)
+                    elif proba <= self.viz_lower_thresh or np.isnan(proba):
+                        pred = "No Food on Fork"
+                        color = (0, 0, 255)
+                    else:
+                        pred = "Uncertain (Ask User)"
+                        color = (255, 0, 0)
+                    msg = f"{pred}: {proba:.2f}"
+
+                    # Write the message on the top-left corner of the image
+                    cv2.putText(
+                        img_cv2,
+                        msg,
+                        (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        color,
+                        2,
+                        cv2.LINE_AA,
+                    )
+
+                    # Add a rectangular border around the image in the specified color
+                    cv2.rectangle(
+                        img_cv2,
+                        (0, 0),
+                        (img_cv2.shape[1], img_cv2.shape[0]),
+                        color,
+                        10,
+                    )
+
+                    # Also add a rectangle around the crop box
+                    cv2.rectangle(
+                        img_cv2,
+                        self.crop_top_left,
+                        self.crop_bottom_right,
+                        color,
+                        2,
+                    )
+
+                    # Publish the image
+                    self.rgb_pub.publish(
+                        cv2_image_to_ros_msg(
+                            img_cv2, compress=False, bridge=self.cv_bridge
+                        )
+                    )
 
             # Publish the FoodOnForkDetection message
             self.pub.publish(food_on_fork_detection_msg)
