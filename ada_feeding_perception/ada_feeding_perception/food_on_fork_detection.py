@@ -33,7 +33,6 @@ from ada_feeding_perception.helpers import (
     cv2_image_to_ros_msg,
     get_img_msg_type,
     ros_msg_to_cv2_image,
-    show_3d_scatterplot,
 )
 from .depth_post_processors import (
     create_spatial_post_processor,
@@ -212,6 +211,9 @@ class FoodOnForkDetectionNode(Node):
         viz_lower_thresh: The lower threshold for declaring FoF in the viz.
         rgb_image_buffer: The number of RGB images to store at a time for visualization.
         """
+        # pylint: disable=too-many-locals
+        # There are many parameters to load.
+
         # Read the model_class
         model_class = self.declare_parameter(
             "model_class",
@@ -408,7 +410,9 @@ class FoodOnForkDetectionNode(Node):
             descriptor=ParameterDescriptor(
                 name="rgb_image_buffer",
                 type=ParameterType.PARAMETER_INTEGER,
-                description="The number of RGB images to store at a time for visualization. Default: 30",
+                description=(
+                    "The number of RGB images to store at a time for visualization. Default: 30"
+                ),
                 read_only=True,
             ),
         )
@@ -494,6 +498,94 @@ class FoodOnForkDetectionNode(Node):
         with self.img_buffer_lock:
             self.img_buffer.append(msg)
 
+    def visualize_result(self, result: FoodOnForkDetection) -> None:
+        """
+        Annotates the nearest RGB image message with the result and publishes it.
+
+        Parameters
+        ----------
+        result: The result of the food on fork detection.
+        """
+        # Get the RGB image with timestamp closest to the depth image
+        with self.img_buffer_lock:
+            img_msg = None
+            # At the end of this for loop, img_message will be the most
+            # recent image that is older than the depth image, or the
+            # oldest image if there are no images older than the depth
+            # image.
+            for i, img_msg in enumerate(self.img_buffer):
+                img_msg_stamp = (
+                    img_msg.header.stamp.sec + img_msg.header.stamp.nanosec * 1e-9
+                )
+                result_stamp = (
+                    result.header.stamp.sec + result.header.stamp.nanosec * 1e-9
+                )
+                if img_msg_stamp > result_stamp:
+                    if i > 0:
+                        img_msg = self.img_buffer[i - 1]
+                    break
+        # If img_msg is None, that means we haven't received an RGB image yet
+        if img_msg is None:
+            return
+
+        # Convert the RGB image to a cv2 image
+        img_cv2 = ros_msg_to_cv2_image(img_msg, self.cv_bridge)
+
+        # Get the message to write on the image
+        proba = result.probability
+        status = result.status
+        if proba > self.viz_upper_thresh:
+            pred = "Food on Fork"
+            color = (0, 255, 0)
+        elif (
+            proba <= self.viz_lower_thresh
+            or status == FoodOnForkDetection.ERROR_TOO_FEW_POINTS
+        ):
+            pred = "No Food on Fork"
+            color = (0, 0, 255)
+        elif status == FoodOnForkDetection.SUCCESS:
+            pred = "Uncertain (Ask User)"
+            color = (255, 0, 0)
+        else:
+            pred = "Unknown Error"
+            color = (255, 255, 255)
+        msg = f"{pred}: {proba:.2f}"
+
+        # Write the message on the top-left corner of the image
+        cv2.putText(
+            img_cv2,
+            msg,
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            color,
+            2,
+            cv2.LINE_AA,
+        )
+
+        # Add a rectangular border around the image in the specified color
+        cv2.rectangle(
+            img_cv2,
+            (0, 0),
+            (img_cv2.shape[1], img_cv2.shape[0]),
+            color,
+            10,
+        )
+
+        # Also add a rectangle around the crop box
+        cv2.rectangle(
+            img_cv2,
+            self.crop_top_left,
+            self.crop_bottom_right,
+            color,
+            2,
+        )
+
+        # Publish the image
+        self.rgb_pub.publish(
+            cv2_image_to_ros_msg(img_cv2, compress=False, bridge=self.cv_bridge)
+        )
+
     def run(self) -> None:
         """
         Runs the FoodOnForkDetection.
@@ -520,7 +612,8 @@ class FoodOnForkDetectionNode(Node):
                 continue
             food_on_fork_detection_msg.header = depth_img_msg.header
 
-            # Convert the depth image to a cv2 image
+            # Convert the depth image to a cv2 image, crop it, and remove depth
+            # values outside the range of interest
             depth_img_cv2 = ros_msg_to_cv2_image(depth_img_msg, self.cv_bridge)
             depth_img_cv2 = depth_img_cv2[
                 self.crop_top_left[1] : self.crop_bottom_right[1],
@@ -536,103 +629,33 @@ class FoodOnForkDetectionNode(Node):
 
             # Get the probability that there is food on the fork
             try:
-                proba = self.model.predict_proba(X)[0]
+                proba, status = self.model.predict_proba(X)
+                proba = proba[0]
+                status = status[0]
                 food_on_fork_detection_msg.probability = proba
-                if np.isnan(proba):
-                    food_on_fork_detection_msg.message = "Could not assess food on fork"
+                food_on_fork_detection_msg.status = status
+                if status == FoodOnForkDetection.SUCCESS:
+                    food_on_fork_detection_msg.message = (
+                        "Successfully assessed food on fork"
+                    )
+                elif status == FoodOnForkDetection.ERROR_TOO_FEW_POINTS:
+                    food_on_fork_detection_msg.message = (
+                        "Too few detected points. This typically means there is "
+                        "no food on the fork."
+                    )
             # pylint: disable=broad-except
             # This is necessary because we don't know what exceptions the model
             # might raise.
             except Exception as err:
                 err_str = f"Error predicting food on fork: {err}"
                 self.get_logger().error(err_str)
-                food_on_fork_detection_msg.probability = -1.0
+                food_on_fork_detection_msg.probability = np.nan
+                food_on_fork_detection_msg.status = FoodOnForkDetection.UNKNOWN_ERROR
                 food_on_fork_detection_msg.message = err_str
 
             # Visualize the results
             if self.viz:
-                # show_3d_scatterplot(
-                #     [self.model.depth_to_pointcloud(depth_img_cv2)],
-                #     colors=[[0, 0, 1]],
-                #     sizes=[5],
-                #     markerstyles=["o"],
-                #     labels=["Test"],
-                #     title="Test Points",
-                # )
-
-                # Get the RGB image with timestamp closest to the depth image
-                with self.img_buffer_lock:
-                    img_msg = None
-                    # At the end of this for loop, img_message will be the most
-                    # recent image that is older than the depth image, or the
-                    # oldest image if there are no images older than the depth
-                    # image.
-                    for i, img_msg in enumerate(self.img_buffer):
-                        img_msg_stamp = (
-                            img_msg.header.stamp.sec
-                            + img_msg.header.stamp.nanosec * 1e-9
-                        )
-                        depth_img_stamp = (
-                            depth_img_msg.header.stamp.sec
-                            + depth_img_msg.header.stamp.nanosec * 1e-9
-                        )
-                        if img_msg_stamp > depth_img_stamp:
-                            if i > 0:
-                                img_msg = self.img_buffer[i - 1]
-                            break
-                # If img_msg is None, that means we haven't received an RGB image yet
-                if img_msg is not None:
-                    # Convert the RGB image to a cv2 image
-                    img_cv2 = ros_msg_to_cv2_image(img_msg, self.cv_bridge)
-
-                    # Get the message to write on the image
-                    if proba > self.viz_upper_thresh:
-                        pred = "Food on Fork"
-                        color = (0, 255, 0)
-                    elif proba <= self.viz_lower_thresh or np.isnan(proba):
-                        pred = "No Food on Fork"
-                        color = (0, 0, 255)
-                    else:
-                        pred = "Uncertain (Ask User)"
-                        color = (255, 0, 0)
-                    msg = f"{pred}: {proba:.2f}"
-
-                    # Write the message on the top-left corner of the image
-                    cv2.putText(
-                        img_cv2,
-                        msg,
-                        (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1,
-                        color,
-                        2,
-                        cv2.LINE_AA,
-                    )
-
-                    # Add a rectangular border around the image in the specified color
-                    cv2.rectangle(
-                        img_cv2,
-                        (0, 0),
-                        (img_cv2.shape[1], img_cv2.shape[0]),
-                        color,
-                        10,
-                    )
-
-                    # Also add a rectangle around the crop box
-                    cv2.rectangle(
-                        img_cv2,
-                        self.crop_top_left,
-                        self.crop_bottom_right,
-                        color,
-                        2,
-                    )
-
-                    # Publish the image
-                    self.rgb_pub.publish(
-                        cv2_image_to_ros_msg(
-                            img_cv2, compress=False, bridge=self.cv_bridge
-                        )
-                    )
+                self.visualize_result(food_on_fork_detection_msg)
 
             # Publish the FoodOnForkDetection message
             self.pub.publish(food_on_fork_detection_msg)

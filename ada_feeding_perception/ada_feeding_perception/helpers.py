@@ -81,6 +81,9 @@ def show_3d_scatterplot(
     title: str
         The title of the plot.
     """
+    # pylint: disable=too-many-arguments, too-many-locals
+    # This is meant to be a flexible function to help with debugging.
+
     # Check that the inputs are valid
     assert (
         len(pointclouds)
@@ -102,7 +105,7 @@ def show_3d_scatterplot(
     configs = [pointclouds, colors, sizes, markerstyles, labels]
     if mean_colors is not None:
         configs += [mean_colors, mean_sizes, mean_markerstyles]
-    for i, config in enumerate(zip(*configs)):
+    for config in zip(*configs):
         pointcloud = config[0]
         color = config[1]
         size = config[2]
@@ -143,6 +146,67 @@ def show_3d_scatterplot(
     plt.show()
 
 
+def depth_img_to_pointcloud(
+    depth_image: npt.NDArray,
+    u_offset: int,
+    v_offset: int,
+    f_x: float,
+    f_y: float,
+    c_x: float,
+    c_y: float,
+    unit_conversion: float = 1000.0,
+) -> npt.NDArray:
+    """
+    Converts a depth image to a point cloud.
+
+    Parameters
+    ----------
+    depth_image: The depth image to convert to a point cloud.
+    u_offset: An offset to add to the column index of every pixel in the depth
+        image. This is useful if the depth image was cropped.
+    v_offset: An offset to add to the row index of every pixel in the depth
+        image. This is useful if the depth image was cropped.
+    f_x: The focal length of the camera in the x direction, using the pinhole
+        camera model.
+    f_y: The focal length of the camera in the y direction, using the pinhole
+        camera model.
+    c_x: The x-coordinate of the principal point of the camera, using the pinhole
+        camera model.
+    c_y: The y-coordinate of the principal point of the camera, using the pinhole
+        camera model.
+    unit_conversion: The depth values are divided by this constant. Defaults to 1000,
+        as RealSense returns depth in mm, but we want the pointcloud in m.
+
+    Returns
+    -------
+    pointcloud: The point cloud representation of the depth image.
+    """
+    # pylint: disable=too-many-arguments
+    # Although we could reduce it by passing in a camera matrix, I prefer to
+    # keep the arguments explicit.
+
+    # Get the pixel coordinates
+    pixel_coords = np.mgrid[: depth_image.shape[0], : depth_image.shape[1]]
+    pixel_coords[0] += v_offset
+    pixel_coords[1] += u_offset
+
+    # Mask out values outside the depth range
+    mask = depth_image > 0
+    depth_values = depth_image[mask]
+    pixel_coords = pixel_coords[:, mask]
+
+    # Convert units (e.g., mm to m)
+    depth_values = np.divide(depth_values, unit_conversion)
+
+    # Convert to 3D coordinates
+    pointcloud = np.zeros((depth_values.shape[0], 3))
+    pointcloud[:, 0] = np.multiply(pixel_coords[1] - c_x, np.divide(depth_values, f_x))
+    pointcloud[:, 1] = np.multiply(pixel_coords[0] - c_y, np.divide(depth_values, f_y))
+    pointcloud[:, 2] = depth_values
+
+    return pointcloud
+
+
 def ros_msg_to_cv2_image(
     msg: Union[Image, rImage, CompressedImage, rCompressedImage],
     bridge: Optional[CvBridge] = None,
@@ -164,21 +228,20 @@ def ros_msg_to_cv2_image(
         is a ROS Image message. If `bridge` is None, a new CvBridge will be
         created.
     """
-    imageTypes = [Image]
-    compressedImageTypes = [CompressedImage]
+    image_types = [Image]
+    compressed_image_types = [CompressedImage]
     try:
-        imageTypes.append(rImage)
-        compressedImageTypes.append(rCompressedImage)
+        image_types.append(rImage)
+        compressed_image_types.append(rCompressedImage)
     except NameError as _:
         # This only happens if rosbags wasn't imported, which is logged above.
         pass
-    if isinstance(msg, tuple(imageTypes)):
-        if bridge is None:
-            bridge = CvBridge()
+    if bridge is None:
+        bridge = CvBridge()
+    if isinstance(msg, tuple(image_types)):
         return bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
-    if isinstance(msg, tuple(compressedImageTypes)):
-        # TODO: This should use bridge as well
-        return cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_UNCHANGED)
+    if isinstance(msg, tuple(compressed_image_types)):
+        return bridge.compressed_imgmsg_to_cv2(msg, desired_encoding="passthrough")
     raise ValueError("msg must be a ROS Image or CompressedImage")
 
 
@@ -210,13 +273,7 @@ def cv2_image_to_ros_msg(
     if bridge is None:
         bridge = CvBridge()
     if compress:
-        success, compressed_image = cv2.imencode(".jpg", image)
-        if success:
-            return CompressedImage(
-                format="jpeg",
-                data=compressed_image.tostring(),
-            )
-        raise RuntimeError("Failed to compress image")
+        return bridge.cv2_to_compressed_imgmsg(image, dst_format="jpeg")
     # If we get here, we're not compressing the image
     return bridge.cv2_to_imgmsg(image, encoding=encoding)
 

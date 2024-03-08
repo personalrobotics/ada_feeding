@@ -29,3 +29,6 @@ food_on_fork_detection:
 
     # Whether to visualize the output of the detector
     viz: True
+    # The upper and lower thresholds for the visualization to say there is(n't) food-on-fork
+    viz_lower_thresh: 0.5
+    viz_upper_thresh: 0.5

@@ -1,6 +1,9 @@
 """
 This script takes in a variety of command line arguments and then trains and test a
-FoodOnForkDetector as configured by the arguments.
+FoodOnForkDetector as configured by the arguments. Note that although this is not
+a ROS node, it relies on helper functions and types in ada_feeding, ada_feeding_msgs,
+and ada_feeding_perception packages. The easiest way to access those is to build
+your workspace and source it, before running this script.
 """
 
 # Standard Imports
@@ -32,10 +35,7 @@ from ada_feeding_perception.food_on_fork_detectors import (
     FoodOnForkDetector,
     FoodOnForkLabel,
 )
-from ada_feeding_perception.helpers import (
-    ros_msg_to_cv2_image,
-    show_normalized_depth_img,
-)
+from ada_feeding_perception.helpers import ros_msg_to_cv2_image
 from ada_feeding_perception.depth_post_processors import (
     create_spatial_post_processor,
     create_temporal_post_processor,
@@ -63,8 +63,7 @@ def read_args() -> argparse.Namespace:
         help=(
             "A JSON-encoded string where keys are an arbitrary model ID and "
             "values are the class names to use for that model. e.g., "
-            '{"dummy_detector": "ada_feeding_perception.food_on_fork_detectors.FoodOnForkDummyDetector", '
-            '"t_test_detector": "ada_feeding_perception.food_on_fork_detectors.FoodOnForkTTestDetector"}'
+            '{"dummy_detector": "ada_feeding_perception.food_on_fork_detectors.FoodOnForkDummyDetector"}'
         ),
         required=True,
     )
@@ -85,7 +84,8 @@ def read_args() -> argparse.Namespace:
         type=int,
         help=(
             "The size of the temporal window to use for post-processing. If unset, "
-            "no temporal post-processing will be done."
+            "no temporal post-processing will be done. See depth_post_processors.py "
+            "for more details."
         ),
     )
     parser.add_argument(
@@ -94,7 +94,8 @@ def read_args() -> argparse.Namespace:
         type=int,
         help=(
             "The number of pixels to use for the spatial post-processing. If unset, "
-            "no spatial post-processing will be done."
+            "no spatial post-processing will be done. See depth_post_processors.py "
+            "for more details."
         ),
     )
 
@@ -105,14 +106,14 @@ def read_args() -> argparse.Namespace:
         default=(0, 0),
         type=int,
         nargs="+",
-        help=("The top-left corner of the crop rectangle. The format is (x, y)."),
+        help=("The top-left corner of the crop rectangle. The format is (u, v)."),
     )
     parser.add_argument(
         "--crop-bottom-right",
         default=(640, 480),
         type=int,
         nargs="+",
-        help=("The bottom-right corner of the crop rectangle. The format is (x, y)."),
+        help=("The bottom-right corner of the crop rectangle. The format is (u, v)."),
     )
     parser.add_argument(
         "--depth-min-mm",
@@ -154,10 +155,10 @@ def read_args() -> argparse.Namespace:
         help=("The topic to use for camera info."),
     )
     parser.add_argument(
-        "--include-motion",
+        "--exclude-motion",
         default=False,
         action="store_true",
-        help=("If set, include images when the robot arm is moving in the dataset."),
+        help=("If set, exclude images when the robot arm is moving in the dataset."),
     )
     parser.add_argument(
         "--rosbags-select",
@@ -236,14 +237,27 @@ def read_args() -> argparse.Namespace:
         type=int,
         help=(
             "The maximum number of evaluations to perform. If None, all evaluations "
-            "will be performed. Typically used when debugging a detector"
+            "will be performed. Typically used when debugging a detector."
         ),
     )
     parser.add_argument(
-        "--viz",
+        "--viz-rosbags",
         default=False,
         action="store_true",
-        help="If set, visualize images during the process",
+        help=(
+            "If set, render the color images in the rosbag and the label while "
+            "loading the data. This is useful for find-tuning ground-truth labels."
+        ),
+    )
+    parser.add_argument(
+        "--viz-evaluation",
+        default=False,
+        action="store_true",
+        help=(
+            "If set, visualize all images where the model was wrong. This is useful "
+            "for debugging, but note that it will block after every wrong prediction "
+            "until the visualization window is closed."
+        ),
     )
 
     return parser.parse_args()
@@ -258,9 +272,9 @@ def load_data(
     crop_bottom_right: Tuple[int, int],
     depth_min_mm: int,
     depth_max_mm: int,
-    include_motion: bool,
-    rosbags_select: List[str] = [],
-    rosbags_skip: List[str] = [],
+    exclude_motion: bool,
+    rosbags_select: Optional[List[str]] = None,
+    rosbags_skip: Optional[List[str]] = None,
     temporal_window_size: Optional[int] = None,
     spatial_num_pixels: Optional[int] = None,
     viz: bool = False,
@@ -286,8 +300,8 @@ def load_data(
         The top-left and bottom-right corners of the crop rectangle.
     depth_min_mm, depth_max_mm: int
         The minimum and maximum depth values to consider in the depth images.
-    include_motion: bool
-        If True, include images when the robot arm is moving in the dataset.
+    exclude_motion: bool
+        If True, exclude images when the robot arm is moving in the dataset.
     rosbags_select: List[str], optional
         If set, only rosbags in this list will be included
     rosbags_skip: List[str], optional
@@ -313,6 +327,13 @@ def load_data(
     """
     # pylint: disable=too-many-locals, too-many-arguments, too-many-branches, too-many-statements
     # Okay since we want to make it a flexible method.
+    print("Loading data...")
+
+    # Replace the optional arguments
+    if rosbags_select is None:
+        rosbags_select = []
+    if rosbags_skip is None:
+        rosbags_skip = []
 
     # Set up the post-processors
     bridge = CvBridge()
@@ -384,7 +405,7 @@ def load_data(
                     ):
                         i += 1
                     arm_moving = annotations[i][2]
-                    if not include_motion and arm_moving:
+                    if exclude_motion and arm_moving:
                         # Skip images when the robot arm is moving
                         continue
                     if annotations[i][1] == FoodOnForkLabel.FOOD.value:
@@ -414,9 +435,9 @@ def load_data(
                 elif connection.topic == camera_info_topic and camera_info is None:
                     camera_info = deserialize_cdr(rawdata, connection.msgtype)
                 # RGB Image
-                elif connection.topic == color_topic and viz:
+                elif viz and connection.topic == color_topic:
                     msg = deserialize_cdr(rawdata, connection.msgtype)
-                    print((timestamp - start_time) / 10.0**9)
+                    print(f"Elapsed Time: {(timestamp - start_time) / 10.0**9}")
                     img = ros_msg_to_cv2_image(msg, bridge)
                     # A box around the forktip
                     x0, y0 = crop_top_left
@@ -436,6 +457,7 @@ def load_data(
     X = X[:j]
     y = y[:j]
 
+    print(f"Done loading data. {X.shape[0]} depth images loaded.")
     return X, y, camera_info
 
 
@@ -467,6 +489,8 @@ def load_models(
     models: dict
         A dictionary where keys are the model ID and values are the model instances.
     """
+    print("Loading models...")
+
     # Parse the JSON strings
     model_classes = json.loads(model_classes)
     model_kwargs = json.loads(model_kwargs)
@@ -485,6 +509,7 @@ def load_models(
         models[model_id].crop_top_left = crop_top_left
         models[model_id].crop_bottom_right = crop_bottom_right
 
+    print(f"Done loading models with IDs {list(model_classes.keys())}.")
     return models
 
 
@@ -509,7 +534,7 @@ def train_models(
     absolute_model_dir = os.path.join(os.path.dirname(__file__), model_dir)
 
     for model_id, model in models.items():
-        print(f"Training model {model_id}...", end="")
+        print(f"Training model {model_id}...")
         model.fit(X, y)
         save_path = model.save(os.path.join(absolute_model_dir, model_id))
         print(f"Done. Saved to '{save_path}'.")
@@ -574,6 +599,7 @@ def evaluate_models(
     ]
     results_txt = ""
     for model_id, model in models.items():
+        print(f"Evaluating models {model_id}...")
         # First, load the model
         load_path = os.path.join(absolute_model_dir, model_id)
         print(f"Loading model {model_id} from {load_path}...", end="")
@@ -599,21 +625,10 @@ def evaluate_models(
 
             if viz:
                 # Visualize all images where the model was wrong
-                last_0_0 = None
                 for i in range(y_pred_proba.shape[0]):
                     if y[i] != y_pred[i]:
-                        print(f"y_true: {y[i]}, y_pred: {y_pred[i]}")
-                        show_normalized_depth_img(
-                            X[i], wait=False, window_name="misclassified_img"
-                        )
-                        if last_0_0 is not None:
-                            show_normalized_depth_img(
-                                X[last_0_0],
-                                wait=False,
-                                window_name="last_correct_no_fof_img",
-                            )
-                    if y[i] == 0 and y_pred[i] == 0:
-                        last_0_0 = i
+                        print(f"Mispredicted: y_true: {y[i]}, y_pred: {y_pred[i]}")
+                        model.visualize_img(X[i])
 
             # Compute the summary statistics
             txt = textwrap.indent(f"Results on {label} dataset:\n", " " * 4)
@@ -632,6 +647,7 @@ def evaluate_models(
                 print(txt, end="")
 
         results_txt += "\n"
+        print(f"Done evaluating model {model_id}.")
 
     # Save the results
     results_df = pd.DataFrame(results_df, columns=results_df_columns)
@@ -658,6 +674,8 @@ def main() -> None:
     args = read_args()
 
     # Load the dataset
+    print("*" * 80)
+    print(f"Timestamp: {time.strftime('%Y_%m_%d_%H_%M_%S')}")
     X, y, camera_info = load_data(
         args.data_dir,
         args.depth_topic,
@@ -667,16 +685,18 @@ def main() -> None:
         args.crop_bottom_right,
         args.depth_min_mm,
         args.depth_max_mm,
-        args.include_motion,
+        args.exclude_motion,
         args.rosbags_select,
         args.rosbags_skip,
         args.temporal_window_size,
         args.spatial_num_pixels,
-        # viz=args.viz,
+        viz=args.viz_rosbags,
     )
-    print("X.shape", X.shape, "y.shape", y.shape)
 
     # Do a train-test split of the dataset
+    print("*" * 80)
+    print(f"Timestamp: {time.strftime('%Y_%m_%d_%H_%M_%S')}")
+    print("Splitting the dataset...")
     if args.seed is None:
         seed = int(time.time())
     else:
@@ -684,8 +704,11 @@ def main() -> None:
     train_X, test_X, train_y, test_y = train_test_split(
         X, y, train_size=args.train_set_size, random_state=seed
     )
+    print(f"Done. Train size: {train_X.shape[0]}, Test size: {test_X.shape[0]}")
 
     # Load the models
+    print("*" * 80)
+    print(f"Timestamp: {time.strftime('%Y_%m_%d_%H_%M_%S')}")
     models = load_models(
         args.model_classes,
         args.model_kwargs,
@@ -698,9 +721,13 @@ def main() -> None:
 
     # Train the model
     if not args.no_train:
+        print("*" * 80)
+        print(f"Timestamp: {time.strftime('%Y_%m_%d_%H_%M_%S')}")
         train_models(models, train_X, train_y, args.model_dir)
 
     # Evaluate the model
+    print("*" * 80)
+    print(f"Timestamp: {time.strftime('%Y_%m_%d_%H_%M_%S')}")
     evaluate_models(
         models,
         train_X,
@@ -712,7 +739,7 @@ def main() -> None:
         args.lower_thresh,
         args.upper_thresh,
         args.max_eval_n,
-        viz=args.viz,
+        viz=args.viz_evaluation,
     )
 
 
