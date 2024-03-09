@@ -563,9 +563,10 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
         statuses = []
 
         # Get the prediction per image.
-        print_every_n = 50
-        for i, img in enumerate(X):
-            if self.verbose and i % print_every_n == 0:
+        if self.verbose:
+            inference_times = []
+        for _, img in enumerate(X):
+            if self.verbose:
                 start_time = time.time()
 
             # Convert the image to a pointcloud
@@ -589,16 +590,47 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
                 proba = self.clf.predict_proba(np.array([[distance]]))[0, 1]
                 probas.append(proba)
                 statuses.append(FoodOnForkDetection.SUCCESS)
-                if self.verbose and i % print_every_n == 0:
-                    print(
-                        f"Predicted on pointcloud {i}/{X.shape[0]} in "
-                        f"{time.time() - start_time} seconds"
-                    )
+                if self.verbose:
+                    inference_times.append(time.time() - start_time)
             else:
                 probas.append(np.nan)
                 statuses.append(FoodOnForkDetection.ERROR_TOO_FEW_POINTS)
+        if self.verbose:
+            print(
+                f"Inference Time: min {np.min(inference_times)}, max {np.max(inference_times)}, "
+                f"mean {np.mean(inference_times)}, 25th percentile {np.percentile(inference_times, 25)}, "
+                f"50th percentile {np.percentile(inference_times, 50)}, "
+                f"75th percentile {np.percentile(inference_times, 75)}."
+            )
 
-        return np.array(probas), np.array(statuses)
+        return np.array(probas), np.array(statuses, dtype=int)
+
+    @override
+    def predict(
+        self,
+        X: npt.NDArray,
+        lower_thresh: float,
+        upper_thresh: float,
+        proba: Optional[npt.NDArray] = None,
+        statuses: Optional[npt.NDArray[int]] = None,
+    ) -> Tuple[npt.NDArray[int], npt.NDArray[int]]:
+        # pylint: disable=too-many-arguments
+        # These many are fine.
+        if proba is None or statuses is None:
+            proba, statuses = self.predict_proba(X)
+        return (
+            np.where(
+                (proba < lower_thresh)
+                | (statuses == FoodOnForkDetection.ERROR_TOO_FEW_POINTS),
+                FoodOnForkLabel.NO_FOOD.value,
+                np.where(
+                    proba > upper_thresh,
+                    FoodOnForkLabel.FOOD.value,
+                    FoodOnForkLabel.UNSURE.value,
+                ),
+            ),
+            statuses,
+        )
 
     @override
     def visualize_img(self, img: npt.NDArray) -> None:
@@ -619,6 +651,7 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
         labels = ["Test"]
 
         if self.no_fof_points is not None:
+            print(f"Visualizing the {self.no_fof_points.shape[0]} stored no FoF points")
             pointclouds.append(self.no_fof_points)
             colors.append([1, 0, 0])
             sizes.append(5)
@@ -626,10 +659,10 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
             labels.append("Train")
 
         show_3d_scatterplot(
-            pointclouds,
-            colors,
-            sizes,
-            markerstyles,
-            labels,
-            title="Img vs. Stored No FoF Points",
+            pointclouds[1:],
+            colors[1:],
+            sizes[1:],
+            markerstyles[1:],
+            labels[1:],
+            title="Stored No FoF Points",
         )

@@ -444,7 +444,7 @@ def load_data(
                     x1, y1 = crop_bottom_right
                     fof_color = (0, 255, 0)
                     no_fof_color = (255, 0, 0)
-                    color = fof_color if len(y) == 0 or y[-1] == 1 else no_fof_color
+                    color = fof_color if j == 0 or y[j - 1] == 1 else no_fof_color
                     img = cv2.rectangle(img, (x0, y0), (x1, y1), color, 2)
                     img = cv2.circle(
                         img, ((x0 + x1) // 2, (y0 + y1) // 2), 5, color, -1
@@ -588,11 +588,17 @@ def evaluate_models(
     absolute_model_dir = os.path.join(os.path.dirname(__file__), model_dir)
     absolute_output_dir = os.path.join(os.path.dirname(__file__), output_dir)
 
+    # Create the output dir if it does not exist
+    if not os.path.exists(absolute_output_dir):
+        os.makedirs(absolute_output_dir)
+        print(f"Created output directory {absolute_output_dir}.")
+
     results_df = []
     results_df_columns = [
         "model_id",
         "y_true",
         "y_pred_proba",
+        "y_pred_statuses",
         "y_pred",
         "seed",
         "dataset",
@@ -614,14 +620,24 @@ def evaluate_models(
             if max_eval_n is not None:
                 X = X[:max_eval_n]
                 y = y[:max_eval_n]
-            print(f"Evaluating model {model_id} on {label} dataset...", end="")
-            y_pred_proba = model.predict_proba(X)
-            y_pred = model.predict(X, lower_thresh, upper_thresh, y_pred_proba)
+            print(f"Evaluating model {model_id} on {label} dataset...")
+            y_pred_proba, y_pred_statuses = model.predict_proba(X)
+            y_pred, _ = model.predict(
+                X, lower_thresh, upper_thresh, y_pred_proba, y_pred_statuses
+            )
             for i in range(y_pred_proba.shape[0]):
                 results_df.append(
-                    [model_id, y[i], y_pred_proba[i], y_pred[i], model.seed, label]
+                    [
+                        model_id,
+                        y[i],
+                        y_pred_proba[i],
+                        y_pred_statuses[i],
+                        y_pred[i],
+                        model.seed,
+                        label,
+                    ]
                 )
-            print("Done.")
+            print("Done evaluating model.")
 
             if viz:
                 # Visualize all images where the model was wrong
@@ -675,7 +691,7 @@ def main() -> None:
 
     # Load the dataset
     print("*" * 80)
-    print(f"Timestamp: {time.strftime('%Y_%m_%d_%H_%M_%S')}")
+    print(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     X, y, camera_info = load_data(
         args.data_dir,
         args.depth_topic,
@@ -695,7 +711,7 @@ def main() -> None:
 
     # Do a train-test split of the dataset
     print("*" * 80)
-    print(f"Timestamp: {time.strftime('%Y_%m_%d_%H_%M_%S')}")
+    print(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     print("Splitting the dataset...")
     if args.seed is None:
         seed = int(time.time())
@@ -708,7 +724,7 @@ def main() -> None:
 
     # Load the models
     print("*" * 80)
-    print(f"Timestamp: {time.strftime('%Y_%m_%d_%H_%M_%S')}")
+    print(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     models = load_models(
         args.model_classes,
         args.model_kwargs,
@@ -722,12 +738,12 @@ def main() -> None:
     # Train the model
     if not args.no_train:
         print("*" * 80)
-        print(f"Timestamp: {time.strftime('%Y_%m_%d_%H_%M_%S')}")
+        print(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
         train_models(models, train_X, train_y, args.model_dir)
 
     # Evaluate the model
     print("*" * 80)
-    print(f"Timestamp: {time.strftime('%Y_%m_%d_%H_%M_%S')}")
+    print(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     evaluate_models(
         models,
         train_X,

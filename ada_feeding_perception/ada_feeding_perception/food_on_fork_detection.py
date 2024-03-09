@@ -631,7 +631,7 @@ class FoodOnForkDetectionNode(Node):
             try:
                 proba, status = self.model.predict_proba(X)
                 proba = proba[0]
-                status = status[0]
+                status = int(status[0])
                 food_on_fork_detection_msg.probability = proba
                 food_on_fork_detection_msg.status = status
                 if status == FoodOnForkDetection.SUCCESS:
