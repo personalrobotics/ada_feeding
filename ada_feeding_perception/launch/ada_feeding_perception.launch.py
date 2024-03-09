@@ -155,6 +155,7 @@ def generate_launch_description():
     )
     food_on_fork_detection_remappings = [
         ("~/food_on_fork_detection", "/food_on_fork_detection"),
+        ("~/food_on_fork_detection_img", "/food_on_fork_detection_img"),
         ("~/toggle_food_on_fork_detection", "/toggle_food_on_fork_detection"),
         (
             "~/aligned_depth",
