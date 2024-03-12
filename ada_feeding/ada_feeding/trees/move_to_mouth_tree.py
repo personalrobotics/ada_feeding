@@ -372,7 +372,6 @@ class MoveToMouthTree(MoveToTree):
                 ),
                 # Note that `ada_planning_scene.py` should have already updated
                 # the head and wheelchair collision locations in the planning scene.
-
                 # Clear the Octomap. This is far enough before motion to mouth
                 # that the Octomap should still get populated before motion
                 # begins.

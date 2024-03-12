@@ -318,7 +318,9 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         )
         if args.sim == "real":
             print("#     2. Push the e-stop button to enable the robot.")
-            print(f"#     3. Note that this script starts the app on port {3000 if args.dev else 80}.")
+            print(
+                f"#     3. Note that this script starts the app on port {3000 if args.dev else 80}."
+            )
         else:
             print("#     2. Note that this script starts the app on port 3000.")
 
