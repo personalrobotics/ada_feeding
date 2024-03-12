@@ -47,6 +47,7 @@ from ada_feeding.idioms import (
     wait_for_secs,
 )
 from ada_feeding.idioms.bite_transfer import (
+    get_toggle_collision_object_behavior,
     get_toggle_face_detection_behavior,
 )
 from ada_feeding.trees import (
@@ -429,6 +430,11 @@ class MoveToMouthTree(MoveToTree):
                         name=name,
                         memory=True,
                         children=[
+                            get_toggle_collision_object_behavior(
+                                name + "AllowWheelchairCollisionScopePre",
+                                [self.wheelchair_collision_object_id],
+                                True,
+                            ),
                             StartServoTree(self._node)
                             .create_tree(name=name + "StartServoScopePre")
                             .root,
@@ -443,6 +449,11 @@ class MoveToMouthTree(MoveToTree):
                             StopServoTree(self._node)
                             .create_tree(name=name + "StopServoScopePost")
                             .root,
+                            get_toggle_collision_object_behavior(
+                                name + "DisallowWheelchairCollisionScopePost",
+                                [self.wheelchair_collision_object_id],
+                                False,
+                            ),
                             pre_moveto_config(
                                 name=name + "PreMoveToConfigScopePost",
                                 re_tare=False,
