@@ -88,7 +88,7 @@ const DetectingFace = (props) => {
       // If the app got to this screen after moving away from the user's mouth,
       // don't auto-continue. Only do so if it gets to this page from
       // R_MovingToStagingConfiguration
-      if (faceDetectionAutoContinue && prevMealState !== MEAL_STATE.R_MovingFromMouth) {
+      if (faceDetectionAutoContinue && prevMealState === MEAL_STATE.R_MovingToStagingConfiguration) {
         moveToMouthCallback()
       }
     },
