@@ -63,7 +63,7 @@ ada_feeding_action_select:
         - library
         - index
       kwargs:
-        library: config/acquisition_library.yaml # path to library of actions (package share)
+        library: config/spoon_acquisition_library.yaml # path to library of actions (package share)
         index: 0 # Which action to execute, override in launch file with action:=<action>
 
     color:
