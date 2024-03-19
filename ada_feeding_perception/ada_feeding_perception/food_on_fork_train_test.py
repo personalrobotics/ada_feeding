@@ -15,8 +15,15 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 # Third-party imports
+from builtin_interfaces.msg import Time
 import cv2
 from cv_bridge import CvBridge
+from geometry_msgs.msg import (
+    Quaternion,
+    Transform,
+    TransformStamped,
+    Vector3,
+)
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -28,6 +35,8 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 from sklearn.model_selection import train_test_split
+from std_msgs.msg import Header
+from tf2_ros.buffer import Buffer
 
 # Local imports
 from ada_feeding.helpers import import_from_string
@@ -259,11 +268,19 @@ def read_args() -> argparse.Namespace:
             "until the visualization window is closed."
         ),
     )
+    parser.add_argument(
+        "--viz-fit-save-dir",
+        default=None,
+        help=(
+            "If set, visualize the fit of the model and save the images to this directory."
+        ),
+    )
 
     return parser.parse_args()
 
 
 def load_data(
+    models: Dict[str, FoodOnForkDetector],
     data_dir: str,
     depth_topic: str,
     color_topic: str,
@@ -284,6 +301,9 @@ def load_data(
 
     Parameters
     ----------
+    models: dict
+        A dictionary where keys are the model ID and values are the model instances.
+        This is necessary to get the transforms that each model is looking for.
     data_dir: str
         The directory containing the training and testing data. The path should be
         relative to **this file's** location. This directory should have two
@@ -321,6 +341,8 @@ def load_data(
         The depth images to predict on.
     y: npt.NDArray[int]
         The labels for whether there is food on the fork.
+    t: dict
+        For each model, the requested transforms.
     camera_info: CameraInfo
         The camera info for the depth images. We assume it is static across all
         depth images.
@@ -349,10 +371,23 @@ def load_data(
 
     absolute_data_dir = os.path.join(os.path.dirname(__file__), data_dir)
 
+    # Initialize the data
     w = crop_bottom_right[0] - crop_top_left[0]
     h = crop_bottom_right[1] - crop_top_left[1]
     X = np.zeros((0, h, w), dtype=np.uint16)
     y = np.zeros(0, dtype=int)
+    tf_buffer = Buffer()
+    model_to_frames = {
+        model_id: model.transform_frames for model_id, model in models.items()
+    }
+    t = {
+        model_id: np.zeros((0, len(frames), 4, 4), dtype=float)
+        for model_id, frames in model_to_frames.items()
+    }
+    all_frames = []
+    for model in models.values():
+        all_frames.extend(model.transform_frames)
+    all_frames = list(set(all_frames))
 
     # Load the metadata
     metadata = pd.read_csv(os.path.join(absolute_data_dir, "bags_metadata.csv"))
@@ -368,10 +403,26 @@ def load_data(
             (time_from_start, food_on_fork, arm_moving)
         )
 
+    # Sort the rosbag names in chronological order based on the first message.
+    # This is necessary so the latest transform is accurate.
+    rosbag_name_to_first_timestamp = {}
+    for rosbag_name in bagname_to_annotations:
+        with Reader(os.path.join(absolute_data_dir, rosbag_name)) as reader:
+            for connection, timestamp, _ in reader.messages():
+                rosbag_name_to_first_timestamp[rosbag_name] = timestamp
+                break
+    sorted_rosbag_names = [
+        k
+        for k, _ in sorted(
+            rosbag_name_to_first_timestamp.items(), key=lambda item: item[1]
+        )
+    ]
+
     # Load the data
     camera_info = None
     num_images_no_points = 0
-    for rosbag_name, annotations in bagname_to_annotations.items():
+    for rosbag_name in sorted_rosbag_names:
+        annotations = bagname_to_annotations[rosbag_name]
         if (len(rosbags_select) > 0 and rosbag_name not in rosbags_select) or (
             len(rosbags_skip) > 0 and rosbag_name in rosbags_skip
         ):
@@ -390,6 +441,13 @@ def load_data(
             j = y.shape[0]
             X = np.concatenate((X, np.zeros((depth_msg_count, h, w), dtype=np.uint16)))
             y = np.concatenate((y, np.zeros(depth_msg_count, dtype=int)))
+            for model_id in t:
+                t[model_id] = np.concatenate(
+                    (
+                        t[model_id],
+                        np.zeros((depth_msg_count, len(all_frames), 4, 4), dtype=float),
+                    )
+                )
 
             start_time = None
             for connection, timestamp, rawdata in reader.messages():
@@ -430,6 +488,17 @@ def load_data(
                         num_images_no_points += 1
                     X[j, :, :] = img
                     y[j] = label
+                    # Get the latest transform
+                    transforms = FoodOnForkDetector.get_transforms(
+                        all_frames,
+                        tf_buffer,
+                    )
+                    for model, frames in model_to_frames.items():
+                        frames_i = [all_frames.index(frame) for frame in frames]
+                        t[model][j, :, :, :] = np.array(
+                            [transforms[frame_i] for frame_i in frames_i],
+                            dtype=float,
+                        ).reshape((len(frames), 4, 4))
                     j += 1
                 # Camera Info
                 elif connection.topic == camera_info_topic and camera_info is None:
@@ -451,14 +520,49 @@ def load_data(
                     )
                     cv2.imshow("RGB Image", img)
                     cv2.waitKey(1)
+                # TF Topics
+                elif connection.topic in {"/tf", "/tf_static"}:
+                    msg = deserialize_cdr(rawdata, connection.msgtype)
+                    for transform in msg.transforms:
+                        transform = TransformStamped(
+                            header=Header(
+                                stamp=Time(
+                                    sec=transform.header.stamp.sec,
+                                    nanosec=transform.header.stamp.nanosec,
+                                ),
+                                frame_id=transform.header.frame_id,
+                            ),
+                            child_frame_id=transform.child_frame_id,
+                            transform=Transform(
+                                translation=Vector3(
+                                    x=transform.transform.translation.x,
+                                    y=transform.transform.translation.y,
+                                    z=transform.transform.translation.z,
+                                ),
+                                rotation=Quaternion(
+                                    x=transform.transform.rotation.x,
+                                    y=transform.transform.rotation.y,
+                                    z=transform.transform.rotation.z,
+                                    w=transform.transform.rotation.w,
+                                ),
+                            ),
+                        )
+                        if connection.topic == "/tf":
+                            tf_buffer.set_transform(transform, "default_authority")
+                        else:
+                            tf_buffer.set_transform_static(
+                                transform, "default_authority"
+                            )
 
     # Truncate extra all-zero rows on the end of Z and y
     print(f"Proportion of img with no pixels: {num_images_no_points/j}")
     X = X[:j]
     y = y[:j]
+    for model_id in t:
+        t[model_id] = t[model_id][:j]
 
     print(f"Done loading data. {X.shape[0]} depth images loaded.")
-    return X, y, camera_info
+    return X, y, t, camera_info
 
 
 def load_models(
@@ -514,7 +618,12 @@ def load_models(
 
 
 def train_models(
-    models: Dict[str, Any], X: npt.NDArray, y: npt.NDArray, model_dir: str
+    models: Dict[str, Any],
+    X: npt.NDArray,
+    y: npt.NDArray,
+    t: Dict[str, npt.NDArray],
+    model_dir: str,
+    viz_fit_save_dir: Optional[str] = None,
 ) -> None:
     """
     Train the models on the training data.
@@ -527,15 +636,21 @@ def train_models(
         The depth images to train on.
     y: npt.NDArray
         The labels for the depth images.
+    t: dict
+        For each model, the requested transforms.
     model_dir: str
         The directory to save the trained model to. The path should be
         relative to **this file's** location.
+    viz_fit_save_dir: str, optional
+        If set, visualize the fit of the model and save the images to this directory.
     """
+    # pylint: disable=too-many-arguments
+    # This is okay.
     absolute_model_dir = os.path.join(os.path.dirname(__file__), model_dir)
 
     for model_id, model in models.items():
         print(f"Training model {model_id}...")
-        model.fit(X, y)
+        model.fit(X, y, t[model_id], viz_fit_save_dir)
         save_path = model.save(os.path.join(absolute_model_dir, model_id))
         print(f"Done. Saved to '{save_path}'.")
 
@@ -546,6 +661,8 @@ def evaluate_models(
     test_X: npt.NDArray,
     train_y: npt.NDArray,
     test_y: npt.NDArray,
+    train_t: Dict[str, npt.NDArray],
+    test_t: Dict[str, npt.NDArray],
     model_dir: str,
     output_dir: str,
     lower_thresh: float,
@@ -564,6 +681,8 @@ def evaluate_models(
         The depth images to test on.
     train_y, test_Y: npt.NDArray
         The labels for the depth images.
+    train_t, test_t: dict
+        For each model, the requested transforms.
     model_dir: str
         The directory to load the trained model from. The path should be
         relative to **this file's** location.
@@ -613,17 +732,18 @@ def evaluate_models(
         print("Done.")
         results_txt += f"Model {model_id} from {load_path}:\n"
 
-        for label, (X, y) in [
-            ("train", (train_X, train_y)),
-            ("test", (test_X, test_y)),
+        for label, (X, y, t) in [
+            ("train", (train_X, train_y, train_t[model_id])),
+            ("test", (test_X, test_y, test_t[model_id])),
         ]:
             if max_eval_n is not None:
                 X = X[:max_eval_n]
                 y = y[:max_eval_n]
+                t = t[:max_eval_n]
             print(f"Evaluating model {model_id} on {label} dataset...")
-            y_pred_proba, y_pred_statuses = model.predict_proba(X)
+            y_pred_proba, y_pred_statuses = model.predict_proba(X, t)
             y_pred, _ = model.predict(
-                X, lower_thresh, upper_thresh, y_pred_proba, y_pred_statuses
+                X, t, lower_thresh, upper_thresh, y_pred_proba, y_pred_statuses
             )
             for i in range(y_pred_proba.shape[0]):
                 results_df.append(
@@ -644,7 +764,7 @@ def evaluate_models(
                 for i in range(y_pred_proba.shape[0]):
                     if y[i] != y_pred[i]:
                         print(f"Mispredicted: y_true: {y[i]}, y_pred: {y_pred[i]}")
-                        model.visualize_img(X[i])
+                        model.visualize_img(X[i], t[i])
 
             # Compute the summary statistics
             txt = textwrap.indent(f"Results on {label} dataset:\n", " " * 4)
@@ -686,13 +806,32 @@ def main() -> None:
     """
     Train and test a FoodOnForkDetector as configured by the command line arguments.
     """
+    # pylint: disable=too-many-locals
+    # This is fine since it is the main function.
+
     # Load the arguments
     args = read_args()
+
+    # Load the models
+    print("*" * 80)
+    print(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    if args.seed is None:
+        seed = int(time.time())
+    else:
+        seed = args.seed
+    models = load_models(
+        args.model_classes,
+        args.model_kwargs,
+        seed,
+        args.crop_top_left,
+        args.crop_bottom_right,
+    )
 
     # Load the dataset
     print("*" * 80)
     print(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    X, y, camera_info = load_data(
+    X, y, t, camera_info = load_data(
+        models,
         args.data_dir,
         args.depth_topic,
         args.color_topic,
@@ -708,38 +847,36 @@ def main() -> None:
         args.spatial_num_pixels,
         viz=args.viz_rosbags,
     )
+    for _, model in models.items():
+        model.camera_info = camera_info
 
     # Do a train-test split of the dataset
     print("*" * 80)
     print(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     print("Splitting the dataset...")
-    if args.seed is None:
-        seed = int(time.time())
-    else:
-        seed = args.seed
-    train_X, test_X, train_y, test_y = train_test_split(
-        X, y, train_size=args.train_set_size, random_state=seed
+    model_ids = list(models.keys())
+    split_data = train_test_split(
+        X,
+        y,
+        *[t[model_id] for model_id in model_ids],
+        train_size=args.train_set_size,
+        random_state=seed,
     )
+    train_X = split_data[0]
+    test_X = split_data[1]
+    train_y = split_data[2]
+    test_y = split_data[3]
+    train_t = {model_id: split_data[i * 2 + 4] for i, model_id in enumerate(model_ids)}
+    test_t = {model_id: split_data[i * 2 + 5] for i, model_id in enumerate(model_ids)}
     print(f"Done. Train size: {train_X.shape[0]}, Test size: {test_X.shape[0]}")
-
-    # Load the models
-    print("*" * 80)
-    print(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    models = load_models(
-        args.model_classes,
-        args.model_kwargs,
-        seed,
-        args.crop_top_left,
-        args.crop_bottom_right,
-    )
-    for _, model in models.items():
-        model.camera_info = camera_info
 
     # Train the model
     if not args.no_train:
         print("*" * 80)
         print(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-        train_models(models, train_X, train_y, args.model_dir)
+        train_models(
+            models, train_X, train_y, train_t, args.model_dir, args.viz_fit_save_dir
+        )
 
     # Evaluate the model
     print("*" * 80)
@@ -750,6 +887,8 @@ def main() -> None:
         test_X,
         train_y,
         test_y,
+        train_t,
+        test_t,
         args.model_dir,
         args.output_dir,
         args.lower_thresh,

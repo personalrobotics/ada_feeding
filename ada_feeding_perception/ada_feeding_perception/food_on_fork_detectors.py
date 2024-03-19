@@ -7,17 +7,22 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import os
 import time
-from typing import Callable, Optional, Tuple
+from typing import List, Optional, Tuple
 
 # Third-party imports
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 from overrides import override
+import rclpy
 from sensor_msgs.msg import CameraInfo
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import f1_score
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.model_selection import train_test_split
+import tf2_ros
 from tf2_ros.buffer import Buffer
+from transforms3d._gohlketransforms import quaternion_matrix
 
 # Local imports
 from ada_feeding_msgs.msg import FoodOnForkDetection
@@ -55,7 +60,6 @@ class FoodOnForkDetector(ABC):
         self.__camera_info = None
         self.__crop_top_left = (0, 0)
         self.__crop_bottom_right = (640, 480)
-        self.__tf_buffer = None
         self.__seed = int(time.time() * 1000)
         self.verbose = verbose
 
@@ -130,28 +134,6 @@ class FoodOnForkDetector(ABC):
         self.__crop_bottom_right = crop_bottom_right
 
     @property
-    def tf_buffer(self) -> Optional[Buffer]:
-        """
-        The tf buffer for the depth image.
-
-        Returns
-        -------
-        tf_buffer: The tf buffer for the depth image, or None if not set.
-        """
-        return self.__tf_buffer
-
-    @tf_buffer.setter
-    def tf_buffer(self, tf_buffer: Buffer) -> None:
-        """
-        Sets the tf buffer for the depth image.
-
-        Parameters
-        ----------
-        tf_buffer: The tf buffer for the depth image.
-        """
-        self.__tf_buffer = tf_buffer
-
-    @property
     def seed(self) -> int:
         """
         The random seed to use in the detector.
@@ -173,16 +155,93 @@ class FoodOnForkDetector(ABC):
         """
         self.__seed = seed
 
+    @property
+    def transform_frames(self) -> List[Tuple[str, str]]:
+        """
+        Gets the parent and child frame for every transform that this classifier
+        wants to use.
+
+        Returns
+        -------
+        frames: A list of (parent_frame_id, child_frame_id) tuples.
+        """
+        return []
+
+    @staticmethod
+    def get_transforms(frames: List[Tuple[str, str]], tf_buffer: Buffer) -> npt.NDArray:
+        """
+        Gets the most recent transforms that are necessary for this classifier.
+        These are then passed into fit, predict_proba, and predict.
+
+        Parameters
+        ----------
+        frames: A list of (parent_frame_id, child_frame_id) tuples to get transforms
+            for. Size: (num_transforms, 2).
+        tf_buffer: The tf buffer that stores the transforms.
+
+        Returns
+        -------
+        transforms: The transforms (homogenous coordinates) that are necessary
+            for this classifier. Size (num_transforms, 4, 4). Note that if the
+            transform is not found, it will be a zero matrix.
+        """
+        transforms = []
+        for parent_frame_id, child_frame_id in frames:
+            try:
+                transform = tf_buffer.lookup_transform(
+                    parent_frame_id,
+                    child_frame_id,
+                    rclpy.time.Time(),
+                )
+                # Convert the transform into a matrix
+                M = quaternion_matrix(
+                    [
+                        transform.transform.rotation.w,
+                        transform.transform.rotation.x,
+                        transform.transform.rotation.y,
+                        transform.transform.rotation.z,
+                    ],
+                )
+                M[:3, 3] = [
+                    transform.transform.translation.x,
+                    transform.transform.translation.y,
+                    transform.transform.translation.z,
+                ]
+                transforms.append(M)
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as err:
+                print(
+                    f"Error getting transform from {parent_frame_id} to {child_frame_id}: {err}"
+                )
+                transforms.append(np.zeros((4, 4), dtype=float))
+
+        return np.array(transforms)
+
     @abstractmethod
-    def fit(self, X: npt.NDArray, y: npt.NDArray[int]) -> None:
+    def fit(
+        self,
+        X: npt.NDArray,
+        y: npt.NDArray[int],
+        t: npt.NDArray[float],
+        viz_save_dir: Optional[str] = None,
+    ) -> None:
         """
         Trains the perception algorithm on a dataset of depth images and
         corresponding labels.
 
         Parameters
         ----------
-        X: The depth images to train on.
-        y: The labels for the depth images.
+        X: The depth images to train on. Size (num_images, height, width).
+        y: The labels for the depth images. Size (num_images,). Must be one of the
+            values enumerated in FoodOnForkLabel.
+        t: The transforms (homogenous coordinates) that are necessary for this
+            classifier. Size (num_images, num_transforms, 4, 4). Should be outputted
+            by `get_transforms`.
+        viz_save_dir: The directory to save visualizations to. If None, no
+            visualizations will be saved.
         """
 
     @abstractmethod
@@ -214,7 +273,9 @@ class FoodOnForkDetector(ABC):
 
     @abstractmethod
     def predict_proba(
-        self, X: npt.NDArray
+        self,
+        X: npt.NDArray,
+        t: npt.NDArray[float],
     ) -> Tuple[npt.NDArray[float], npt.NDArray[int]]:
         """
         Predicts the probability that there is food on the fork for a set of
@@ -223,6 +284,9 @@ class FoodOnForkDetector(ABC):
         Parameters
         ----------
         X: The depth images to predict on.
+        t: The transforms (homogenous coordinates) that are necessary for this
+            classifier. Size (num_images, num_transforms, 4, 4). Should be outputted
+            by `get_transforms`.
 
         Returns
         -------
@@ -234,6 +298,7 @@ class FoodOnForkDetector(ABC):
     def predict(
         self,
         X: npt.NDArray,
+        t: npt.NDArray[float],
         lower_thresh: float,
         upper_thresh: float,
         proba: Optional[npt.NDArray] = None,
@@ -245,6 +310,9 @@ class FoodOnForkDetector(ABC):
         Parameters
         ----------
         X: The depth images to predict on.
+        t: The transforms (homogenous coordinates) that are necessary for this
+            classifier. Size (num_images, num_transforms, 4, 4). Should be outputted
+            by `get_transforms`.
         lower_thresh: The lower threshold for food on the fork.
         upper_thresh: The upper threshold for food on the fork.
         proba: The predicted probabilities that there is food on the fork. If either
@@ -265,7 +333,7 @@ class FoodOnForkDetector(ABC):
         # pylint: disable=too-many-arguments
         # These many are fine.
         if proba is None or statuses is None:
-            proba, statuses = self.predict_proba(X)
+            proba, statuses = self.predict_proba(X, t)
         return (
             np.where(
                 proba < lower_thresh,
@@ -279,7 +347,7 @@ class FoodOnForkDetector(ABC):
             statuses,
         )
 
-    def visualize_img(self, img: npt.NDArray) -> None:
+    def visualize_img(self, img: npt.NDArray, t: npt.NDArray) -> None:
         """
         Visualizes a depth image. This function is used for debugging, so it helps
         to not only visualize the img, but also subclass-specific information that
@@ -290,7 +358,10 @@ class FoodOnForkDetector(ABC):
         Parameters
         ----------
         img: The depth image to visualize.
+        t: The closest transforms (homogenous coordinates) to this image's timestamp.
+            Size (num_transforms, 4, 4). Should be outputted by `get_transforms`.
         """
+        # pylint: disable=unused-argument
         show_normalized_depth_img(img, wait=True, window_name="img")
 
 
@@ -312,7 +383,13 @@ class FoodOnForkDummyDetector(FoodOnForkDetector):
         self.proba = proba
 
     @override
-    def fit(self, X: npt.NDArray, y: npt.NDArray[int]) -> None:
+    def fit(
+        self,
+        X: npt.NDArray,
+        y: npt.NDArray[int],
+        t: npt.NDArray[float],
+        viz_save_dir: Optional[str] = None,
+    ) -> None:
         pass
 
     @override
@@ -325,7 +402,9 @@ class FoodOnForkDummyDetector(FoodOnForkDetector):
 
     @override
     def predict_proba(
-        self, X: npt.NDArray
+        self,
+        X: npt.NDArray,
+        t: npt.NDArray[float],
     ) -> Tuple[npt.NDArray[float], npt.NDArray[int]]:
         return (
             np.full(X.shape[0], self.proba),
@@ -341,12 +420,27 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
     test point being FoF based on that distance.
     """
 
+    # pylint: disable=too-many-instance-attributes
+    # These many are fine.
+
+    AGGREGATORS = {
+        "mean": np.mean,
+        "median": np.median,
+        "max": np.max,
+        "min": np.min,
+        "25p": lambda x: np.percentile(x, 25),
+        "75p": lambda x: np.percentile(x, 75),
+        "90p": lambda x: np.percentile(x, 90),
+        "95p": lambda x: np.percentile(x, 95),
+    }
+
     def __init__(
         self,
         camera_matrix: npt.NDArray,
         prop_no_fof_points_to_store: float = 0.5,
         min_points: int = 40,
         min_distance: float = 0.001,
+        aggregator_name: Optional[str] = "90p",
         verbose: bool = False,
     ) -> None:
         """
@@ -363,6 +457,10 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
             for comparison. If a pointcloud has fewer points than this, it will
             return a probability of nan (prediction of UNSURE).
         min_distance: The minimum distance (m) between stored no FoF points.
+        aggregator_name: The name of the aggregator to use to aggregate the
+            distances between the test point and the stored no FoF points. If None,
+            all aggregators are used. This is typically only useful to compare
+            the performance of different aggregators.
         verbose: Whether to print debug messages.
         """
         # pylint: disable=too-many-arguments
@@ -373,35 +471,39 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
         self.prop_no_fof_points_to_store = prop_no_fof_points_to_store
         self.min_points = min_points
         self.min_distance = min_distance
+        self.aggregator_name = aggregator_name
 
         # The attributes that are stored/loaded by the model
         self.no_fof_points = None
         self.clf = None
+        self.best_aggregator_name = None
+
+    @property
+    @override
+    def transform_frames(self) -> List[Tuple[str, str]]:
+        return [("forkTip", "camera_color_optical_frame")]
 
     @staticmethod
-    def distance_between_pointclouds(
+    def distances_between_pointclouds(
         pointcloud1: npt.NDArray,
         pointcloud2: npt.NDArray,
-        aggregator: Callable[npt.NDArray, float] = np.mean,
     ) -> npt.NDArray:
         """
         For every point in pointcloud1, gets the minimum distance to points in
-        pointcloud2, and then aggregates those distances. Note that this is not
+        pointcloud2. Note that this is not
         symmetric; the order of the pointclouds matters.
 
         Parameters
         ----------
         pointcloud1: The test pointcloud. Size (n, k).
         pointcloud2: The training pointcloud. Size (m, k).
-        aggregator: The function to use to aggregate the distances. Should take
-            in a size (n,) np array and output a float. Default is np.mean.
 
         Returns
         -------
-        distance: The aggregate of the minimum distances from each point in the test
-            pointcloud to the nearest point in the training pointcloud.
+        distances: The minimum distance from each point in pointcloud1 to points
+            in pointcloud2. Size (n,).
         """
-        return aggregator(np.min(pairwise_distances(pointcloud1, pointcloud2), axis=1))
+        return np.min(pairwise_distances(pointcloud1, pointcloud2), axis=1)
 
     def get_representative_points(self, pointcloud: npt.NDArray) -> npt.NDArray:
         """
@@ -439,10 +541,22 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
         return representative_points
 
     @override
-    def fit(self, X: npt.NDArray, y: npt.NDArray[int]) -> None:
-        # pylint: disable=too-many-locals
+    def fit(
+        self,
+        X: npt.NDArray,
+        y: npt.NDArray[int],
+        t: npt.NDArray[float],
+        viz_save_dir: Optional[str] = None,
+    ) -> None:
+        # pylint: disable=too-many-locals, too-many-branches, too-many-statements
         # This is the main logic of the algorithm, so it's okay to have a lot of
         # local variables.
+
+        # Only keep the datapoints where the transform is not 0
+        i_to_keep = np.where(np.logical_not(np.all(t == 0, axis=(2, 3))))[0]
+        X = X[i_to_keep]
+        y = y[i_to_keep]
+        t = t[i_to_keep]
 
         # Get the most up-to-date camera matrix
         if self.camera_info is not None:
@@ -459,6 +573,7 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
                 f_y=self.camera_matrix[4],
                 c_x=self.camera_matrix[2],
                 c_y=self.camera_matrix[5],
+                transform=t[i, 0, :, :],
             )
             if len(pointcloud) >= self.min_points:
                 pointclouds.append(pointcloud)
@@ -505,35 +620,123 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
                 f"{all_no_fof_pointclouds_train.shape[0]} no FoF pointclouds"
             )
 
+        # Get the aggregators
+        if self.aggregator_name is None:
+            aggregator_names = list(self.AGGREGATORS.keys())
+        else:
+            aggregator_names = [self.aggregator_name]
+
         # Get the distances from each point in the "val set" to the stored points
-        val_distances = []
+        val_distances = {name: [] for name in aggregator_names}
         for i, pointcloud in enumerate(val_pointclouds):
             if self.verbose:
                 print(
                     "Computing distance to stored points for val point "
                     f"{i}/{val_pointclouds.shape[0]}"
                 )
-            val_distances.append(
-                FoodOnForkDistanceToNoFOFDetector.distance_between_pointclouds(
+            point_distances = (
+                FoodOnForkDistanceToNoFOFDetector.distances_between_pointclouds(
                     pointcloud, self.no_fof_points
                 )
             )
-        val_distances = np.array(val_distances)
+            for name in aggregator_names:
+                aggregator = self.AGGREGATORS[name]
+                distance = aggregator(point_distances)
+                val_distances[name].append(distance)
+        val_distances = {
+            name: np.array(val_distances[name]) for name in aggregator_names
+        }
 
-        # Train the classifier
-        if self.verbose:
-            print("Training the classifier")
-        self.clf = LogisticRegression(random_state=self.seed, penalty=None)
-        self.clf.fit(val_distances.reshape(-1, 1), val_labels)
+        # Split the validation set into train and val. This is to pick the best
+        # aggregator to use.
+        val_train_i, val_val_i = train_test_split(
+            np.arange(val_labels.shape[0]),
+            train_size=0.8,
+            random_state=self.seed,
+            stratify=val_labels,
+        )
+
+        # Train the classifier(s)
+        f1_scores = {}
+        clfs = {}
+        for name in aggregator_names:
+            # Train the classifier
+            if self.verbose:
+                print(f"Training the classifier for aggregator {name}")
+            clf = LogisticRegression(random_state=self.seed, penalty=None)
+            clf.fit(
+                val_distances[name].reshape(-1, 1)[val_train_i, :],
+                val_labels[val_train_i],
+            )
+            clfs[name] = clf
+            if self.verbose:
+                print(
+                    f"Trained the classifier for aggregator {name}, got coeff "
+                    f"{clf.coef_} and intercept {clf.intercept_}"
+                )
+
+            # Get the f1 score
+            y_pred = clf.predict(val_distances[name].reshape(-1, 1)[val_val_i])
+            y_true = val_labels[val_val_i]
+            f1_scores[name] = f1_score(y_true, y_pred)
+            if self.verbose:
+                print(f"F1 score for aggregator {name}: {f1_scores[name]}")
+
+        # Save a visualization of the classifier
+        if viz_save_dir is not None:
+            max_aggregated_distance = max(
+                np.max(val_distances[name][val_val_i]) for name in aggregator_names
+            )
+            for name in aggregator_names:
+                # Create a scatterplot where the x-axis is the distance in val_val
+                # and the y-axis is the label.  Add some y-jitter to make it easier
+                # to see the points.
+                y_true = val_labels[val_val_i] + np.random.normal(
+                    0, 0.1, val_val_i.shape[0]
+                )
+                fig, ax = plt.subplots(figsize=(5, 4))
+                ax.scatter(
+                    val_distances[name][val_val_i], y_true, label="True", alpha=0.5
+                )
+                ax.set_xlim(0, max_aggregated_distance)
+
+                # Add a line for the probability predictions of num_points over the range
+                # of distances
+                num_points = 100
+                distances = np.linspace(0.0, max_aggregated_distance, num_points)
+                probas = clfs[name].predict_proba(distances.reshape(-1, 1))[:, 1]
+                ax.plot(distances, probas, label="Classifier Probabilities")
+
+                # Add a title
+                ax.set_title(
+                    f"Classifier for Aggregator {name}. F1 Score: {f1_scores[name]}"
+                )
+
+                # Save the figure
+                fig.savefig(
+                    os.path.join(
+                        viz_save_dir,
+                        f"classifier_{clf.__class__.__name__}_aggregator_{name}.png",
+                    )
+                )
+
+        # Pick the best aggregator
+        self.best_aggregator_name, best_f1_score = max(
+            f1_scores.items(), key=lambda x: x[1]
+        )
         if self.verbose:
             print(
-                f"Trained the classifier, with coeff {self.clf.coef_} and "
-                f"intercept {self.clf.intercept_}"
+                f"Best aggregator: {self.best_aggregator_name} with f1 score {best_f1_score}"
             )
+        self.clf = clfs[self.best_aggregator_name]
 
     @override
     def save(self, path: str) -> str:
-        if self.no_fof_points is None or self.clf is None:
+        if (
+            self.no_fof_points is None
+            or self.clf is None
+            or self.best_aggregator_name is None
+        ):
             raise ValueError(
                 "The model has not been trained yet. Call fit before saving."
             )
@@ -543,6 +746,7 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
             path,
             no_fof_points=self.no_fof_points,
             clf=np.array([self.clf], dtype=object),
+            best_aggregator_name=self.best_aggregator_name,
         )
         return path + ".npz"
 
@@ -554,10 +758,19 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
         params = np.load(path, allow_pickle=True)
         self.no_fof_points = params["no_fof_points"]
         self.clf = params["clf"][0]
+        self.best_aggregator_name = str(params["best_aggregator_name"])
+        if self.verbose:
+            print(
+                f"Loaded model with intercept {self.clf.intercept_} and coef {self.clf.coef_} "
+                f"and best aggregator {self.best_aggregator_name} and num stored points "
+                f"{self.no_fof_points.shape[0]}"
+            )
 
     @override
     def predict_proba(
-        self, X: npt.NDArray
+        self,
+        X: npt.NDArray,
+        t: npt.NDArray[float],
     ) -> Tuple[npt.NDArray[float], npt.NDArray[int]]:
         probas = []
         statuses = []
@@ -565,9 +778,15 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
         # Get the prediction per image.
         if self.verbose:
             inference_times = []
-        for _, img in enumerate(X):
+        for i, img in enumerate(X):
             if self.verbose:
                 start_time = time.time()
+
+            # If all elements of the transform are 0, set the proba to nan
+            if np.all(t[i, 0, :, :] == 0):
+                probas.append(np.nan)
+                statuses.append(FoodOnForkDetection.ERROR_NO_TRANSFORM)
+                continue
 
             # Convert the image to a pointcloud
             pointcloud = depth_img_to_pointcloud(
@@ -577,24 +796,26 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
                 f_y=self.camera_matrix[4],
                 c_x=self.camera_matrix[2],
                 c_y=self.camera_matrix[5],
+                transform=t[i, 0, :, :],
             )
+
+            # If there are too few points, set the proba to nan
+            if len(pointcloud) < self.min_points:
+                probas.append(np.nan)
+                statuses.append(FoodOnForkDetection.ERROR_TOO_FEW_POINTS)
+                continue
 
             # If there are enough points, use the classifier to predict the probability
             # of food on the fork. Else, return an error status
-            if len(pointcloud) >= self.min_points:
-                distance = (
-                    FoodOnForkDistanceToNoFOFDetector.distance_between_pointclouds(
-                        pointcloud, self.no_fof_points
-                    )
-                )
-                proba = self.clf.predict_proba(np.array([[distance]]))[0, 1]
-                probas.append(proba)
-                statuses.append(FoodOnForkDetection.SUCCESS)
-                if self.verbose:
-                    inference_times.append(time.time() - start_time)
-            else:
-                probas.append(np.nan)
-                statuses.append(FoodOnForkDetection.ERROR_TOO_FEW_POINTS)
+            distances = FoodOnForkDistanceToNoFOFDetector.distances_between_pointclouds(
+                pointcloud, self.no_fof_points
+            )
+            distance = self.AGGREGATORS[self.best_aggregator_name](distances)
+            proba = self.clf.predict_proba(np.array([[distance]]))[0, 1]
+            probas.append(proba)
+            statuses.append(FoodOnForkDetection.SUCCESS)
+            if self.verbose:
+                inference_times.append(time.time() - start_time)
         if self.verbose:
             print(
                 f"Inference Time: min {np.min(inference_times)}, max {np.max(inference_times)}, "
@@ -609,6 +830,7 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
     def predict(
         self,
         X: npt.NDArray,
+        t: npt.NDArray[float],
         lower_thresh: float,
         upper_thresh: float,
         proba: Optional[npt.NDArray] = None,
@@ -617,7 +839,7 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
         # pylint: disable=too-many-arguments
         # These many are fine.
         if proba is None or statuses is None:
-            proba, statuses = self.predict_proba(X)
+            proba, statuses = self.predict_proba(X, t)
         return (
             np.where(
                 (proba < lower_thresh)
@@ -633,7 +855,7 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
         )
 
     @override
-    def visualize_img(self, img: npt.NDArray) -> None:
+    def visualize_img(self, img: npt.NDArray, t: npt.NDArray) -> None:
         # Convert the image to a pointcloud
         pointclouds = [
             depth_img_to_pointcloud(
@@ -643,6 +865,7 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
                 f_y=self.camera_matrix[4],
                 c_x=self.camera_matrix[2],
                 c_y=self.camera_matrix[5],
+                transform=t[0, :, :],
             )
         ]
         colors = [[0, 0, 1]]

@@ -155,6 +155,7 @@ def depth_img_to_pointcloud(
     c_x: float,
     c_y: float,
     unit_conversion: float = 1000.0,
+    transform: Optional[npt.NDArray] = None,
 ) -> npt.NDArray:
     """
     Converts a depth image to a point cloud.
@@ -176,6 +177,8 @@ def depth_img_to_pointcloud(
         camera model.
     unit_conversion: The depth values are divided by this constant. Defaults to 1000,
         as RealSense returns depth in mm, but we want the pointcloud in m.
+    transform: An optional transform to apply to the point cloud. If set, this should
+        be a 4x4 matrix.
 
     Returns
     -------
@@ -203,6 +206,11 @@ def depth_img_to_pointcloud(
     pointcloud[:, 0] = np.multiply(pixel_coords[1] - c_x, np.divide(depth_values, f_x))
     pointcloud[:, 1] = np.multiply(pixel_coords[0] - c_y, np.divide(depth_values, f_y))
     pointcloud[:, 2] = depth_values
+
+    # Apply the transform if it exists
+    if transform is not None:
+        pointcloud = np.hstack((pointcloud, np.ones((pointcloud.shape[0], 1))))
+        pointcloud = np.dot(transform, pointcloud.T).T[:, :3]
 
     return pointcloud
 

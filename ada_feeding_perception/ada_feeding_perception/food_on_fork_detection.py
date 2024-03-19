@@ -627,9 +627,16 @@ class FoodOnForkDetectionNode(Node):
             )
             X = np.expand_dims(depth_img_cv2, axis=0)
 
+            # Get the desired transform(s)
+            transforms = FoodOnForkDetector.get_transforms(
+                self.model.transform_frames,
+                self.tf_buffer,
+            )
+            t = np.expand_dims(transforms, 0)
+
             # Get the probability that there is food on the fork
             try:
-                proba, status = self.model.predict_proba(X)
+                proba, status = self.model.predict_proba(X, t)
                 proba = proba[0]
                 status = int(status[0])
                 food_on_fork_detection_msg.probability = proba

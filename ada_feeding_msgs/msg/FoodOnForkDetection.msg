@@ -7,6 +7,7 @@ std_msgs/Header header
 int32 status
 int32 SUCCESS=1
 int32 ERROR_TOO_FEW_POINTS=-1
+int32 ERROR_NO_TRANSFORM=-2
 int32 UNKNOWN_ERROR=-99
 
 # A probability in [0,1] that indicates the likelihood that there is food on the
