@@ -642,13 +642,15 @@ class FoodOnForkDetectionNode(Node):
                 food_on_fork_detection_msg.probability = proba
                 food_on_fork_detection_msg.status = status
                 if status == FoodOnForkDetection.SUCCESS:
-                    food_on_fork_detection_msg.message = (
-                        "Successfully assessed food on fork"
-                    )
+                    food_on_fork_detection_msg.message = "No errors."
                 elif status == FoodOnForkDetection.ERROR_TOO_FEW_POINTS:
                     food_on_fork_detection_msg.message = (
-                        "Too few detected points. This typically means there is "
+                        "Error: Too few detected points. This typically means there is "
                         "no food on the fork."
+                    )
+                elif status == FoodOnForkDetection.ERROR_NO_TRANSFORM:
+                    food_on_fork_detection_msg.message = (
+                        "Error: Could not get requested transform(s)."
                     )
             # pylint: disable=broad-except
             # This is necessary because we don't know what exceptions the model

@@ -783,7 +783,7 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
                 start_time = time.time()
 
             # If all elements of the transform are 0, set the proba to nan
-            if np.all(t[i, 0, :, :] == 0):
+            if np.all(np.isclose(t[i, 0, :, :], 0.0)):
                 probas.append(np.nan)
                 statuses.append(FoodOnForkDetection.ERROR_NO_TRANSFORM)
                 continue
@@ -882,10 +882,10 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
             labels.append("Train")
 
         show_3d_scatterplot(
-            pointclouds[1:],
-            colors[1:],
-            sizes[1:],
-            markerstyles[1:],
-            labels[1:],
-            title="Stored No FoF Points",
+            pointclouds,
+            colors,
+            sizes,
+            markerstyles,
+            labels,
+            title="Img vs. Stored No FoF Points",
         )
