@@ -68,18 +68,14 @@ class TableDetectionNode(Node):
         )
         self._hough_min = 75
         self._hough_max = 200
-        self._table_buffer = 50  # Extra radius around plate to use for table
+        self._table_buffer = 50  # Extra radius around plate to use for table detection
 
-        # Depth Image Deprojection Constants
-        self.crop_x_min = 297
-        self.crop_y_min = 248
-        self.crop_x_max = 425
-        self.crop_y_max = 332
-
-        self.pub_result = pub_result
-
+        # Orientation Calculation Params
+        self.deproject_center_coord = 640 * 239 + 320 - 1 
         self.dir_constant = 0.1
-
+        
+        # Publisher Toggle 
+        self.pub_result = pub_result
         if self.pub_result:
             self.publisher = self.create_publisher(
                 PoseStamped, "table_detection", 1
@@ -226,7 +222,8 @@ class TableDetectionNode(Node):
         coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1)))).astype(
             float
         )
-        # coefficients b and a are reversed because of matrix row/col structure and its correspondence to x/y
+        # Coefficients b and a are reversed because of matrix row/col structure and its 
+        # correspondence to x/y
         b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[
             0
         ]  
@@ -250,12 +247,12 @@ class TableDetectionNode(Node):
         # in the camera frame
         u = np.tile(
             np.arange(depth_img.shape[1]), (depth_img.shape[0], 1)
-        )  # + self.crop_x_min
+        )  
         self.get_logger().info(f"u, {u}, {u.shape}, {u.min()}, {u.max()}")
 
         v = np.tile(
             np.arange(depth_img.shape[0]), (depth_img.shape[1], 1)
-        ).T  # + self.crop_y_min
+        ).T  
         self.get_logger().info(f"v, {v}, {v.shape}, {v.min()}, {v.max()}")
         
         # Mask out any points where depth is 0
@@ -283,7 +280,8 @@ class TableDetectionNode(Node):
         xy = np.concatenate((x[..., np.newaxis], y[..., np.newaxis]), axis=1)
 
         # Calculate center
-        center = [x[640 * 239 + 320 - 1], y[640 * 239 + 320 - 1], z[640 * 239 + 320 - 1]]
+        center = [x[self.deproject_center_coord], y[self.deproject_center_coord], 
+                  z[self.deproject_center_coord]]
         
         return np.array(xy), np.array(z), center
 
@@ -294,18 +292,6 @@ class TableDetectionNode(Node):
         target_u: int,
         target_v: int,
     ):
-        # Deproject all pixels from table depth image to 3D coordinates
-        # table_deprojected = np.zeros((table_depth.shape[1], table_depth.shape[0], 3))
-        # xy_d = []
-        # depth_d = []
-        # self.get_logger().info(f"table_depth shape, {table_depth.shape}")
-        # for v in range(0, len(table_depth)):
-        #     for u in range(0, len(table_depth[v])):
-        #         table_deprojected[u][v] = pyrealsense2.rs2_deproject_pixel_to_point(
-        #             intrinsics, [u, v], table_depth[v][u] / 1000
-        #         )
-        #         xy_d.append([table_deprojected[u][v][0], table_deprojected[u][v][1]])
-        #         depth_d.append(table_deprojected[u][v][2])
         xy_d, depth_d, center = self.deproject_depth_image(table_depth, camera_info)
         self.get_logger().info(f"xy_d, {np.vstack(xy_d)}")
         self.get_logger().info(f"xy_d shape, {xy_d.shape[0]} x {xy_d.shape[1]}")
@@ -317,9 +303,13 @@ class TableDetectionNode(Node):
         coeffs = np.hstack((np.vstack(xy_d), np.ones((len(xy_d), 1)))).astype(float)
         self.get_logger().info(f"get orientation coeffs, {coeffs}")
         a, b, c = np.linalg.lstsq(coeffs, depth_d, rcond=None)[0]
+        
+        # Modify the z coordinate of the center given the fitted plane (i.e. make the center 
+        # the origin of the table plane)
         center[2] = (
             a * center[0] + b * center[1] + c
-        )  # Modify the z coordinate of the center given the fitted plane (i.e. make the center the origin of the table plane)
+        )  
+
         self.get_logger().info(f"coefficients: a = {a}, b = {b}, c = {c}")
         self.get_logger().info(
             f"{center}, {(center[0], center[1], a*center[0]+ b*center[1] + c)}"
@@ -354,15 +344,11 @@ class TableDetectionNode(Node):
             (x_ref[0] * z_ref[2] - x_ref[2] * z_ref[0]) / denom,
             (x_ref[1] * z_ref[0] - x_ref[0] * z_ref[1]) / denom,
         ]
+
+        # Print dot products and magnitudes of calculated vectors 
         self.get_logger().info(
             f"magnitude of normalized +y vector = {np.linalg.norm(y_ref)}"
         )
-
-        # Original direction vector of y calculation: 
-        # y_p = [center[0], center[1] - 0.1, a*center[0] + b*(center[1] - 0.1) + c]
-        # y_ref = [center[0] - y_p[0], center[1] - y_p[1], center[2] - y_p[2]]
-        # y_ref /= np.linalg.norm(y_ref)
-
         self.get_logger().info(
             f"dot product of +x and +y vector = {np.dot(y_ref, x_ref)}"
         )
@@ -377,6 +363,8 @@ class TableDetectionNode(Node):
         )
 
         # Construct rotation matrix from direction vectors
+        # TODO: Use np array instead 
+        # TODO: Test tf_transformations quaternion_from_matrix function
         rot_matrix = [
             [x_ref[0], y_ref[0], z_ref[0]],
             [x_ref[1], y_ref[1], z_ref[1]],
@@ -427,11 +415,7 @@ class TableDetectionNode(Node):
         center, orientation = self.get_orientation(cam_info, table_depth, 320, 240)
 
         self.get_logger().info(f"orientation, {orientation}, {type(orientation)}")
-
-        # To be replaced with PoseStamped message
-        # response.success = True
-        # response.message = f"To be replaced with PoseStamped message"
-
+        
         response.pose_stamped = PoseStamped(
             header=depth_img_msg.header,
             pose=Pose(
