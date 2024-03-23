@@ -76,27 +76,6 @@ export const SETTINGS_STATE = {
 }
 
 /**
- * The parameters that users can set (keys) and a list of human-readable values
- * they can take on.
- *   - stagingPosition: Discrete options for where the robot should wait until
- *     the user is ready.
- *   - biteInitiation: Options for the modality the user wants to use to tell
- *     the robot they are ready for a bite.
- *       - TODO: Make these checkboxes instead -- users should be able to
- *         enable multiple buttons if they so desire.
- *   - biteSelection: Options for how the user wants to tell the robot what food
- *     item they want next.
- *
- * TODO (amaln): When we connect this to ROS, each of these settings types and
- * value options will have to have corresponding rosparam names and value options.
- */
-// export const SETTINGS = {
-//   stagingPosition: ['In Front of Me', 'On My Right Side'],
-//   biteInitiation: ['Open Mouth', 'Say "I am Ready"', 'Press Button'],
-//   biteSelection: ['Name of Food', 'Click on Food']
-// }
-
-/**
  * useGlobalState is a hook to store and manipulate web app state that we want
  * to persist across re-renders and refreshes. It won't persist if cookies are
  * cleared.
@@ -129,6 +108,16 @@ export const useGlobalState = create(
       teleopIsMoving: false,
       // Flag to indicate whether to auto-continue after face detection
       faceDetectionAutoContinue: true,
+      // Flag to indicate whether to auto-continue in bite done after food-on-fork detection
+      biteDoneAutoContinue: false,
+      biteDoneAutoContinueSecs: 3.0,
+      biteDoneAutoContinueProbThresh: 0.25,
+      // Flags to indicate whether to auto-continue in bite acquisition check based on food-on-fork
+      // detection
+      biteAcquisitionCheckAutoContinue: false,
+      biteAcquisitionCheckAutoContinueSecs: 3.0,
+      biteAcquisitionCheckAutoContinueProbThreshLower: 0.25,
+      biteAcquisitionCheckAutoContinueProbThreshUpper: 0.75,
       // Whether the settings bite transfer page is currently at the user's face
       // or not. This is in the off-chance that the mealState is not at the user's
       // face, the settings page is, and the user refreshes -- the page should
@@ -140,11 +129,6 @@ export const useGlobalState = create(
       mostRecentBiteDoneResponse: MEAL_STATE.R_DetectingFace,
       // How much the video on the Bite Selection page should be zoomed in.
       biteSelectionZoom: 1.0,
-
-      // Settings values
-      // stagingPosition: SETTINGS.stagingPosition[0],
-      // biteInitiation: SETTINGS.biteInitiation[0],
-      // biteSelection: SETTINGS.biteSelection[0],
 
       // Setters for global state
       setAppPage: (appPage) =>
@@ -196,6 +180,34 @@ export const useGlobalState = create(
         set(() => ({
           faceDetectionAutoContinue: faceDetectionAutoContinue
         })),
+      setBiteDoneAutoContinue: (biteDoneAutoContinue) =>
+        set(() => ({
+          biteDoneAutoContinue: biteDoneAutoContinue
+        })),
+      setBiteDoneAutoContinueSecs: (biteDoneAutoContinueSecs) =>
+        set(() => ({
+          biteDoneAutoContinueSecs: biteDoneAutoContinueSecs
+        })),
+      setBiteDoneAutoContinueProbThresh: (biteDoneAutoContinueProbThresh) =>
+        set(() => ({
+          biteDoneAutoContinueProbThresh: biteDoneAutoContinueProbThresh
+        })),
+      setBiteAcquisitionCheckAutoContinue: (biteAcquisitionCheckAutoContinue) =>
+        set(() => ({
+          biteAcquisitionCheckAutoContinue: biteAcquisitionCheckAutoContinue
+        })),
+      setBiteAcquisitionCheckAutoContinueSecs: (biteAcquisitionCheckAutoContinueSecs) =>
+        set(() => ({
+          biteAcquisitionCheckAutoContinueSecs: biteAcquisitionCheckAutoContinueSecs
+        })),
+      setBiteAcquisitionCheckAutoContinueProbThreshLower: (biteAcquisitionCheckAutoContinueProbThreshLower) =>
+        set(() => ({
+          biteAcquisitionCheckAutoContinueProbThreshLower: biteAcquisitionCheckAutoContinueProbThreshLower
+        })),
+      setBiteAcquisitionCheckAutoContinueProbThreshUpper: (biteAcquisitionCheckAutoContinueProbThreshUpper) =>
+        set(() => ({
+          biteAcquisitionCheckAutoContinueProbThreshUpper: biteAcquisitionCheckAutoContinueProbThreshUpper
+        })),
       setBiteTransferPageAtFace: (biteTransferPageAtFace) =>
         set(() => ({
           biteTransferPageAtFace: biteTransferPageAtFace
@@ -204,18 +216,6 @@ export const useGlobalState = create(
         set(() => ({
           biteSelectionZoom: biteSelectionZoom
         }))
-      // setStagingPosition: (stagingPosition) =>
-      //   set(() => ({
-      //     stagingPosition: stagingPosition
-      //   })),
-      // setBiteInitiation: (biteInitiation) =>
-      //   set(() => ({
-      //     biteInitiation: biteInitiation
-      //   })),
-      // setBiteSelection: (biteSelection) =>
-      //   set(() => ({
-      //     biteSelection: biteSelection
-      //   }))
     }),
     { name: 'ada_web_app_global_state' }
   )

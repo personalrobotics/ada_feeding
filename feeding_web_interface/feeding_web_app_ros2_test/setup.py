@@ -36,6 +36,7 @@ setup(
             "AcquireFoodClient = feeding_web_app_ros2_test.AcquireFoodClient:main",
             "DummyRealSense = feeding_web_app_ros2_test.DummyRealSense:main",
             "FaceDetection = feeding_web_app_ros2_test.FaceDetection:main",
+            "FoodOnForkDetection = feeding_web_app_ros2_test.FoodOnForkDetection:main",
             "MoveAbovePlate = feeding_web_app_ros2_test.MoveAbovePlate:main",
             "MoveToRestingPosition = feeding_web_app_ros2_test.MoveToRestingPosition:main",
             "MoveToStagingConfiguration = feeding_web_app_ros2_test.MoveToStagingConfiguration:main",

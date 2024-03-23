@@ -50,6 +50,8 @@ export const CAMERA_FEED_TOPIC = '/local/camera/color/image_raw/compressed'
 export const FACE_DETECTION_TOPIC = '/face_detection'
 export const FACE_DETECTION_TOPIC_MSG = 'ada_feeding_msgs/FaceDetection'
 export const FACE_DETECTION_IMG_TOPIC = '/face_detection_img/compressed'
+export const FOOD_ON_FORK_DETECTION_TOPIC = '/food_on_fork_detection'
+export const FOOD_ON_FORK_DETECTION_TOPIC_MSG = 'ada_feeding_msgs/FoodOnForkDetection'
 export const ROBOT_COMPRESSED_IMG_TOPICS = [CAMERA_FEED_TOPIC, FACE_DETECTION_IMG_TOPIC]
 
 // States from which, if they fail, it is NOT okay for the user to retry the
@@ -104,6 +106,14 @@ export { ROS_ACTIONS_NAMES }
 let ROS_SERVICE_NAMES = {}
 ROS_SERVICE_NAMES[MEAL_STATE.R_DetectingFace] = {
   serviceName: 'toggle_face_detection',
+  messageType: 'std_srvs/srv/SetBool'
+}
+ROS_SERVICE_NAMES[MEAL_STATE.U_BiteDone] = {
+  serviceName: 'toggle_food_on_fork_detection',
+  messageType: 'std_srvs/srv/SetBool'
+}
+ROS_SERVICE_NAMES[MEAL_STATE.U_BiteAcquisitionCheck] = {
+  serviceName: 'toggle_food_on_fork_detection',
   messageType: 'std_srvs/srv/SetBool'
 }
 export { ROS_SERVICE_NAMES }

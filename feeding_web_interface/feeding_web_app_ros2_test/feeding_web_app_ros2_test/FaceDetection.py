@@ -70,7 +70,6 @@ class FaceDetectionNode(Node):
             self.camera_callback,
             1,
         )
-        self.subscription  # prevent unused variable warning
 
         # Create the publishers
         self.publisher_results = self.create_publisher(

@@ -1,5 +1,5 @@
 // React Imports
-import React, { useCallback, useRef } from 'react'
+import React, { useCallback, useEffect, useState, useRef } from 'react'
 import Button from 'react-bootstrap/Button'
 import { useMediaQuery } from 'react-responsive'
 import { toast } from 'react-toastify'
@@ -9,16 +9,30 @@ import { View } from 'react-native'
 import '../Home.css'
 import { useGlobalState, MEAL_STATE } from '../../GlobalState'
 import { MOVING_STATE_ICON_DICT } from '../../Constants'
-import { useROS, createROSService, createROSServiceRequest } from '../../../ros/ros_helpers'
-import { ACQUISITION_REPORT_SERVICE_NAME, ACQUISITION_REPORT_SERVICE_TYPE } from '../../Constants'
+import { useROS, createROSService, createROSServiceRequest, subscribeToROSTopic, unsubscribeFromROSTopic } from '../../../ros/ros_helpers'
+import {
+  ACQUISITION_REPORT_SERVICE_NAME,
+  ACQUISITION_REPORT_SERVICE_TYPE,
+  FOOD_ON_FORK_DETECTION_TOPIC,
+  FOOD_ON_FORK_DETECTION_TOPIC_MSG,
+  ROS_SERVICE_NAMES
+} from '../../Constants'
 
 /**
  * The BiteAcquisitionCheck component appears after the robot has attempted to
  * acquire a bite, and asks the user whether it succeeded at acquiring the bite.
  */
 const BiteAcquisitionCheck = () => {
+  // Store the remining time before auto-continuing
+  const [remainingSeconds, setRemainingSeconds] = useState(null)
   // Get the relevant global variables
+  const prevMealState = useGlobalState((state) => state.prevMealState)
   const setMealState = useGlobalState((state) => state.setMealState)
+  const biteAcquisitionCheckAutoContinue = useGlobalState((state) => state.biteAcquisitionCheckAutoContinue)
+  const setBiteAcquisitionCheckAutoContinue = useGlobalState((state) => state.setBiteAcquisitionCheckAutoContinue)
+  const biteAcquisitionCheckAutoContinueSecs = useGlobalState((state) => state.biteAcquisitionCheckAutoContinueSecs)
+  const biteAcquisitionCheckAutoContinueProbThreshLower = useGlobalState((state) => state.biteAcquisitionCheckAutoContinueProbThreshLower)
+  const biteAcquisitionCheckAutoContinueProbThreshUpper = useGlobalState((state) => state.biteAcquisitionCheckAutoContinueProbThreshUpper)
   // Get icon image for move above plate
   let moveAbovePlateImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
   // Get icon image for move to mouth
@@ -45,6 +59,12 @@ const BiteAcquisitionCheck = () => {
    * Create the ROS Service Client for reporting success/failure
    */
   let acquisitionReportService = useRef(createROSService(ros.current, ACQUISITION_REPORT_SERVICE_NAME, ACQUISITION_REPORT_SERVICE_TYPE))
+  /**
+   * Create the ROS Service. This is created in local state to avoid re-creating
+   * it upon every re-render.
+   */
+  let { serviceName, messageType } = ROS_SERVICE_NAMES[MEAL_STATE.U_BiteAcquisitionCheck]
+  let toggleFoodOnForkDetectionService = useRef(createROSService(ros.current, serviceName, messageType))
 
   /**
    * Callback function for when the user indicates that the bite acquisition
@@ -85,6 +105,136 @@ const BiteAcquisitionCheck = () => {
     service.callService(request, (response) => console.log('Got acquisition report response', response))
     setMealState(MEAL_STATE.R_MovingAbovePlate)
   }, [lastMotionActionResponse, setMealState])
+
+  /*
+   * Create refs to store the interval for the food-on-fork detection timers.
+   * Note we need two timers, because the first timer set's remainingTime, whereas
+   * we can't set remainingTime in the second timer otherwise it will attempt to
+   * set state on an unmounted component.
+   **/
+  const timerWasForFof = useRef(null)
+  const timerRef = useRef(null)
+  const finalTimerRef = useRef(null)
+  const clearTimer = useCallback(() => {
+    console.log('Clearing timer')
+    if (finalTimerRef.current) {
+      clearInterval(finalTimerRef.current)
+      finalTimerRef.current = null
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+      setRemainingSeconds(null)
+      timerWasForFof.current = null
+    }
+  }, [setRemainingSeconds, timerRef, timerWasForFof, finalTimerRef])
+
+  /**
+   * Subscribe to the ROS Topic with the food-on-fork detection result. This is
+   * created in local state to avoid re-creating it upon every re-render.
+   */
+  const foodOnForkDetectionCallback = useCallback(
+    (message) => {
+      console.log('Got food-on-fork detection message', message)
+      // Only auto-continue if the previous state was Bite Acquisition
+      if (biteAcquisitionCheckAutoContinue && prevMealState === MEAL_STATE.R_BiteAcquisition && message.status === 1) {
+        let callbackFn = null
+        if (message.probability < biteAcquisitionCheckAutoContinueProbThreshLower) {
+          console.log('No FoF. Auto-continuing in ', remainingSeconds, ' seconds')
+          if (timerWasForFof.current === true) {
+            clearTimer()
+          }
+          timerWasForFof.current = false
+          callbackFn = acquisitionFailure
+        } else if (message.probability > biteAcquisitionCheckAutoContinueProbThreshUpper) {
+          console.log('FoF. Auto-continuing in ', remainingSeconds, ' seconds')
+          if (timerWasForFof.current === false) {
+            clearTimer()
+          }
+          timerWasForFof.current = true
+          callbackFn = acquisitionSuccess
+        } else {
+          console.log('Not auto-continuing due to probability between thresholds')
+          clearTimer()
+        }
+        // Don't override an existing timer
+        if (!timerRef.current && callbackFn !== null) {
+          setRemainingSeconds(biteAcquisitionCheckAutoContinueSecs)
+          timerRef.current = setInterval(() => {
+            setRemainingSeconds((prev) => {
+              if (prev <= 1) {
+                clearTimer()
+                // In the remaining time, move above plate
+                finalTimerRef.current = setInterval(() => {
+                  clearInterval(finalTimerRef.current)
+                  callbackFn()
+                }, (prev - 1) * 1000)
+                return null
+              } else {
+                return prev - 1
+              }
+            })
+          }, 1000)
+        }
+      }
+    },
+    [
+      acquisitionSuccess,
+      acquisitionFailure,
+      biteAcquisitionCheckAutoContinue,
+      biteAcquisitionCheckAutoContinueProbThreshLower,
+      biteAcquisitionCheckAutoContinueProbThreshUpper,
+      biteAcquisitionCheckAutoContinueSecs,
+      finalTimerRef,
+      remainingSeconds,
+      clearTimer,
+      prevMealState,
+      setRemainingSeconds,
+      timerRef,
+      timerWasForFof
+    ]
+  )
+  useEffect(() => {
+    let topic = subscribeToROSTopic(
+      ros.current,
+      FOOD_ON_FORK_DETECTION_TOPIC,
+      FOOD_ON_FORK_DETECTION_TOPIC_MSG,
+      foodOnForkDetectionCallback
+    )
+    /**
+     * In practice, because the values passed in in the second argument of
+     * useEffect will not change on re-renders, this return statement will
+     * only be called when the component unmounts.
+     */
+    return () => {
+      unsubscribeFromROSTopic(topic, foodOnForkDetectionCallback)
+    }
+  }, [foodOnForkDetectionCallback])
+
+  /**
+   * Toggles food-on-fork detection on the first time this component is rendered,
+   * but not upon additional re-renders. See here for more details on how `useEffect`
+   * achieves this goal: https://stackoverflow.com/a/69264685
+   */
+  useEffect(() => {
+    // Create a service request
+    let request = createROSServiceRequest({ data: true })
+    // Call the service
+    let service = toggleFoodOnForkDetectionService.current
+    service.callService(request, (response) => console.log('Got toggle food on fork detection service response', response))
+
+    /**
+     * In practice, because the values passed in in the second argument of
+     * useEffect will not change on re-renders, this return statement will
+     * only be called when the component unmounts.
+     */
+    return () => {
+      // Create a service request
+      let request = createROSServiceRequest({ data: false })
+      // Call the service
+      service.callService(request, (response) => console.log('Got toggle food on fork detection service response', response))
+    }
+  }, [toggleFoodOnForkDetectionService])
 
   /**
    * Get the ready for bite text to render.
@@ -173,18 +323,74 @@ const BiteAcquisitionCheck = () => {
    */
   const fullPageView = useCallback(() => {
     return (
-      <View style={{ flex: 'auto', flexDirection: dimension, alignItems: 'center', justifyContent: 'center' }}>
-        <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center' }}>
-          {readyForBiteText()}
-          {readyForBiteButton()}
+      <>
+        <View
+          style={{
+            flex: 1,
+            flexDirection: 'row',
+            justifyContent: 'center',
+            alignItems: 'center',
+            width: '100%'
+          }}
+        >
+          <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: textFontSize }}>
+            <input
+              name='biteAcquisitionCheckAutoContinue'
+              type='checkbox'
+              checked={biteAcquisitionCheckAutoContinue}
+              onChange={(e) => {
+                clearTimer()
+                setBiteAcquisitionCheckAutoContinue(e.target.checked)
+              }}
+              style={{ transform: 'scale(2.0)', verticalAlign: 'middle', marginRight: '15px' }}
+            />
+            Auto-continue
+          </p>
         </View>
-        <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center' }}>
-          {reacquireBiteText()}
-          {reacquireBiteButton()}
+        <View
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%'
+          }}
+        >
+          <p className='transitionMessage' style={{ marginBottom: '0px', fontSize: textFontSize }}>
+            {biteAcquisitionCheckAutoContinue && prevMealState === MEAL_STATE.R_BiteAcquisition
+              ? remainingSeconds === null
+                ? 'Checking for food on fork...'
+                : timerWasForFof.current
+                ? 'Moving to your face in ' + remainingSeconds + ' secs'
+                : 'Moving above plate in ' + remainingSeconds + ' secs'
+              : ''}
+          </p>
         </View>
-      </View>
+        <View style={{ flex: 'auto', flexDirection: dimension, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center' }}>
+            {readyForBiteText()}
+            {readyForBiteButton()}
+          </View>
+          <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center' }}>
+            {reacquireBiteText()}
+            {reacquireBiteButton()}
+          </View>
+        </View>
+      </>
     )
-  }, [dimension, reacquireBiteButton, reacquireBiteText, readyForBiteButton, readyForBiteText])
+  }, [
+    biteAcquisitionCheckAutoContinue,
+    clearTimer,
+    dimension,
+    prevMealState,
+    readyForBiteButton,
+    readyForBiteText,
+    reacquireBiteButton,
+    reacquireBiteText,
+    remainingSeconds,
+    setBiteAcquisitionCheckAutoContinue,
+    textFontSize
+  ])
 
   // Render the component
   return <>{fullPageView()}</>
