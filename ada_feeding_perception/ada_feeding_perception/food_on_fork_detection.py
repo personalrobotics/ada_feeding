@@ -15,6 +15,7 @@ from typing import Any, Dict, Tuple
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
+import numpy.typing as npt
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -498,13 +499,18 @@ class FoodOnForkDetectionNode(Node):
         with self.img_buffer_lock:
             self.img_buffer.append(msg)
 
-    def visualize_result(self, result: FoodOnForkDetection) -> None:
+    def visualize_result(
+        self, result: FoodOnForkDetection, t: npt.NDArray, debug: bool = True
+    ) -> None:
         """
         Annotates the nearest RGB image message with the result and publishes it.
 
         Parameters
         ----------
         result: The result of the food on fork detection.
+        t: The transform(s) used in the detection. Size (N, 4, 4) where N is the
+            number of transforms.
+        debug: Whether to overlay additional debug information on the image.
         """
         # Get the RGB image with timestamp closest to the depth image
         with self.img_buffer_lock:
@@ -530,6 +536,10 @@ class FoodOnForkDetectionNode(Node):
 
         # Convert the RGB image to a cv2 image
         img_cv2 = ros_msg_to_cv2_image(img_msg, self.cv_bridge)
+
+        # Allow the model to overlay additional debug information on the image
+        if debug:
+            img_cv2 = self.model.overlay_debug_info(img_cv2, t)
 
         # Get the message to write on the image
         proba = result.probability
@@ -664,7 +674,7 @@ class FoodOnForkDetectionNode(Node):
 
             # Visualize the results
             if self.viz:
-                self.visualize_result(food_on_fork_detection_msg)
+                self.visualize_result(food_on_fork_detection_msg, t[0])
 
             # Publish the FoodOnForkDetection message
             self.pub.publish(food_on_fork_detection_msg)

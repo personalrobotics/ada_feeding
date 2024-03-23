@@ -10,6 +10,7 @@ import time
 from typing import List, Optional, Tuple
 
 # Third-party imports
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -346,6 +347,23 @@ class FoodOnForkDetector(ABC):
             ),
             statuses,
         )
+
+    def overlay_debug_info(self, img: npt.NDArray, t: npt.NDArray) -> npt.NDArray:
+        """
+        Overlays debug information onto a depth image.
+
+        Parameters
+        ----------
+        img: The depth image to overlay debug information onto.
+        t: The closest transforms (homogenous coordinates) to this image's timestamp.
+            Size (num_transforms, 4, 4). Should be outputted by `get_transforms`.
+
+        Returns
+        -------
+        img_with_debug_info: The depth image with debug information overlayed.
+        """
+        # pylint: disable=unused-argument
+        return img
 
     def visualize_img(self, img: npt.NDArray, t: npt.NDArray) -> None:
         """
@@ -853,6 +871,39 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
             ),
             statuses,
         )
+
+    @override
+    def overlay_debug_info(self, img: npt.NDArray, t: npt.NDArray) -> npt.NDArray:
+        # pylint: disable=too-many-locals
+        # This is done to make it clear what the camera matrix values are.
+
+        # First, convert all no_fof_points back to the camera frame by applying
+        # the inverse of the homogenous transform t[0, :, :]
+        no_fof_points_homogenous = np.hstack(
+            [self.no_fof_points, np.ones((self.no_fof_points.shape[0], 1))]
+        )
+        no_fof_points_camera = np.dot(
+            np.linalg.inv(t[0, :, :]), no_fof_points_homogenous.T
+        ).T[:, :3]
+
+        # For every point in the no_fof_points, convert them back into (u,v) pixel
+        # coordinates.
+        no_fof_points_mm = (no_fof_points_camera * 1000).astype(int)
+        f_x = self.camera_matrix[0]
+        f_y = self.camera_matrix[4]
+        c_x = self.camera_matrix[2]
+        c_y = self.camera_matrix[5]
+        us = (f_x * no_fof_points_mm[:, 0] / no_fof_points_mm[:, 2] + c_x).astype(int)
+        vs = (f_y * no_fof_points_mm[:, 1] / no_fof_points_mm[:, 2] + c_y).astype(int)
+
+        # For every point, draw a circle around that point in the image
+        color = (0, 0, 0)
+        alpha = 0.75
+        radius = 5
+        img_with_debug_info = img.copy()
+        for u, v in zip(us, vs):
+            cv2.circle(img_with_debug_info, (u, v), radius, color, -1)
+        return cv2.addWeighted(img_with_debug_info, alpha, img.copy(), 1 - alpha, 0)
 
     @override
     def visualize_img(self, img: npt.NDArray, t: npt.NDArray) -> None:
