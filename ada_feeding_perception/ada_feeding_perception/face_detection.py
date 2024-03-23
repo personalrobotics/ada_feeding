@@ -56,6 +56,8 @@ class FaceDetectionNode(Node):
     let the client decide which face to use.
     """
 
+    # pylint: disable=duplicate-code
+    # Much of the logic of this node mirrors FoodOnForkDetection. This is fine.
     # pylint: disable=too-many-instance-attributes
     # Needed for multiple model loads, publisher, subscribers, and shared variables
     def __init__(
@@ -304,10 +306,6 @@ class FaceDetectionNode(Node):
         Callback function for the toggle_face_detection service. Safely toggles
         the face detection on or off depending on the request.
         """
-
-        # pylint: disable=duplicate-code
-        # We follow similar logic in any service to toggle a node
-        # (e.g., face detection)
 
         self.get_logger().info(f"Incoming service request. data: {request.data}")
         response.success = False
@@ -563,6 +561,7 @@ class FaceDetectionNode(Node):
                 f"Corresponding RGB image message received at {rgb_msg.header.stamp}. "
                 f"Time difference: {min_time_diff} seconds."
             )
+        # TODO: This should use the ros_msg_to_cv2_image helper function
         image_depth = self.bridge.imgmsg_to_cv2(
             closest_depth_msg,
             desired_encoding="passthrough",
@@ -651,6 +650,7 @@ class FaceDetectionNode(Node):
                 continue
 
             # Detect the largest face in the RGB image
+            # TODO: This should use the ros_msg_to_cv2_image helper function
             image_bgr = cv2.imdecode(
                 np.frombuffer(rgb_msg.data, np.uint8), cv2.IMREAD_COLOR
             )
