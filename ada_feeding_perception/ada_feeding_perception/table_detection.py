@@ -47,8 +47,8 @@ from ada_feeding_perception.helpers import (
 
 class TableDetectionNode(Node):
     """
-    This node fits a table to the received depth image and publishes a 3d PoseStamped location
-    of a specific point on the table with respect to the camera frame.
+    This node publishes a 3D PoseStamped location of the center of the table
+    with respect to the camera's frame of perspective. 
     """
 
     def __init__(self, pub_result=False):
@@ -143,9 +143,10 @@ class TableDetectionNode(Node):
         image_depth_msg: Image,
     ):
         """
+        Fits a plane to the table based on the given RGB image and depth image messages.
+
         Parameters
         ----------
-        Find table plane.
         image(image matrix): RGB image of plate
         image_depth(image matrix): depth image of plate
         target_u: u coordinate to obtain table depth
@@ -196,6 +197,8 @@ class TableDetectionNode(Node):
                 radius = r
                 cv2.circle(gray, center, radius, (255, 0, 255), 3)
                 cv2.circle(gray, center, radius + self._table_buffer, (255, 0, 255), 3)
+            # The following lines of code are commented to prevent interruption of the program
+            # while running. Uncomment to view images of the detected circles.
             # cv2.imshow("detected circles", gray)
             # cv2.waitKey(0)
 
@@ -289,9 +292,22 @@ class TableDetectionNode(Node):
         self,
         camera_info: CameraInfo,
         table_depth: Image,
-        target_u: int,
-        target_v: int,
     ):
+        """
+        Calculate the orientation of the table plane with respect to the 
+        camera's frame of perspective.
+
+        Parameters
+        ----------
+        camera_info: The camera information.
+        table_depth: The depth image of the table.
+
+        Returns
+        ----------
+        center: The center coordinates of the table in the camera frame.
+        q: The quaternion representing the orientation of the table plane.
+        """
+
         xy_d, depth_d, center = self.deproject_depth_image(table_depth, camera_info)
         self.get_logger().info(f"xy_d, {np.vstack(xy_d)}")
         self.get_logger().info(f"xy_d shape, {xy_d.shape[0]} x {xy_d.shape[1]}")
@@ -383,6 +399,21 @@ class TableDetectionNode(Node):
     def fit_to_table_callback(
         self, request: GetPoseStamped.Request, response: GetPoseStamped.Response
     ):
+        """
+        Callback function for fit_table service. When the service is invoked, the
+        service returns a response containing the PoseStamped information (the center and
+        orientation with respect to the camera's frame of perspective) of the table. 
+
+        Parameters
+        ----------
+        request: The request object containing the PoseStamped information.
+        response: The response object to store the calculated PoseStamped information.
+
+        Returns
+        ----------
+        response: The response object containing the calculated PoseStamped information.
+        """
+
         self.get_logger().info("Entering fit_table callback!")
         # Get the latest RGB image message
         rgb_msg = None
