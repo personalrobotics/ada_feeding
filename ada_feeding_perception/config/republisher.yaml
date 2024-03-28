@@ -1,5 +1,5 @@
 # NOTE: You have to change this node name if you change the node name in the launchfile.
-republisher:
+republisher_perception:
   ros__parameters:
     # The name of the topics to republish from
     from_topics:
@@ -45,6 +45,7 @@ republisher:
     #  - mask (Image): Applies the mask stored in `mask_relative_path` to the image.
     #  - threshold (Image): Masks out pixels whose values are outside of the specified
     #    range. This is intended to be used only with single-channel (e.g., depth) images.
+    #  - update_header_stamp (Any): Updates the header stamp to the current time.
     # Any of these post-processing functions can be combined in a comma-separated list.
     post_processors:
       - ""

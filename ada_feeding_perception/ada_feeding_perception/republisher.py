@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-This module defines the Republisher node, which takes in parameters for `from_topics`
-and `republished_namespace` and republishes the messages from the `from_topics` within
-the specified namespace.
+This module defines the Republisher node, which republishes the messages from one
+topic to another, with user-configureable post-processors.
 
-This node is intended to address the issue where, when subscribing to images on a
-different machine to the one you are publishing them on, the rate slows down a lot if
-you have >3 subscriptions.
+This node can be used to address several issues:
+    1. Network latency with too many subscribers to a topic that is being published
+       on a different machine.
+    2. Republishing a topic with some modifications (e.g., filtering, throttling,
+       updating the header stamp, etc.).
 """
 
 # Standard imports
@@ -35,10 +36,36 @@ from .depth_post_processors import (
 )
 
 
+def update_header_stamp_post_processor(node):
+    """
+    Post-processor to update the header stamp of a message to the current time.
+
+    Parameters
+    ----------
+    node : Node
+        The node to use for getting the current time.
+
+    Returns
+    -------
+    update_header_stamp : Callable[[Any], Any]
+    """
+
+    def update_header_stamp(msg: Any) -> Any:
+        try:
+            msg.header.stamp = node.get_clock().now().to_msg()
+        except AttributeError:
+            node.get_logger().error(
+                "Could not update the header stamp of the message. "
+                "The message must have a `header` attribute."
+            )
+        return msg
+
+    return update_header_stamp
+
+
 class Republisher(Node):
     """
-    A node that takes in parameters for `from_topics` and `republished_namespace` and
-    republishes the messages from the `from_topics` within the specified namespace.
+    A node that republishes the messages, with optional post-processing.
     """
 
     def __init__(self) -> None:
@@ -71,6 +98,7 @@ class Republisher(Node):
         temporal_post_processor_str = "temporal"
         spatial_post_processor_str = "spatial"
         threshold_post_processor_str = "threshold"
+        update_header_stamp_post_processor_str = "update_header_stamp"
         # If at least one post-processor is "mask", load the mask
         bridge = CvBridge()
         mask_img = None
@@ -109,6 +137,9 @@ class Republisher(Node):
             ),
             threshold_post_processor_str: lambda: create_threshold_post_processor(
                 threshold_min, threshold_max, bridge
+            ),
+            update_header_stamp_post_processor_str: lambda: update_header_stamp_post_processor(
+                self
             ),
         }
 

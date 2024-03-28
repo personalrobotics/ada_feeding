@@ -41,6 +41,14 @@
     <remap from="~/action_report" to="/ada_feeding_action_select/action_report" />
   </node>
 
+  <!-- Launch a republisher to pass web app servo commands to the servo node -->
+  <node pkg="ada_moveit" exec="servo_republisher.py" name="servo_republisher">
+    <remap from="~/cartesian_commands_input" to="/web_app/servo_node/delta_twist_cmds" />
+    <remap from="~/joint_commands_input" to="/web_app/servo_node/delta_joint_cmds" />
+    <remap from="~/cartesian_commands_output" to="/servo_node/delta_twist_cmds" />
+    <remap from="~/joint_commands_output" to="/servo_node/delta_joint_cmds" />
+  </node>
+
   <!-- Include Action Selection Server -->
   <include file="$(find-pkg-share ada_feeding_action_select)/launch/ada_feeding_action_select_launch.xml">
     <arg name="policy" value="$(var policy)" />
