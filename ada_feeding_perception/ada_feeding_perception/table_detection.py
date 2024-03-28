@@ -18,7 +18,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 import torch
-from std_srvs.srv import Trigger
+from std_srvs.srv import SetBool
 import math
 
 from tf_transformations import quaternion_from_matrix
@@ -46,7 +46,7 @@ class TableDetectionNode(Node):
     with respect to the camera's frame of perspective. 
     """
 
-    def __init__(self, pub_result=False):
+    def __init__(self):
         """
         Initialize the TableDetectionNode.
         """
@@ -68,27 +68,28 @@ class TableDetectionNode(Node):
         # Orientation Calculation Params
         self.deproject_center_coord = 640 * 239 + 320 - 1 
         self.dir_constant = 0.1
-        
-        # Publisher Toggle 
-        self.pub_result = pub_result
-        # if self.pub_result:
-        #    self.publisher = self.create_publisher(
-        #        PoseStamped, "table_detection", 1
-        #    )
 
         # Keeps track of whether table detection is on or not
         self.is_on = False
         self.is_on_lock = threading.Lock()
+        
+        # Create the service
+        #self.srv = self.create_service(
+        #    GetPoseStamped,
+        #    "fit_to_table",
+        #    self.fit_to_table_callback,
+        #)
+
+        # Create the toggle service
+        self.srv = self.create_service(
+            SetBool,
+            "~/toggle_table_detection",
+            self.toggle_table_detection_callback,
+            callback_group=MutuallyExclusiveCallbackGroup(),
+        )
 
         # Create the publisher
         self.publisher = self.create_publisher(PoseStamped, "table_detection", 1)
-
-        # Create the service
-        self.srv = self.create_service(
-            GetPoseStamped,
-            "fit_to_table",
-            self.fit_to_table_callback,
-        )
 
         self.camera_info = None
         # Subscribe to the camera info topic, to get the camera intrinsics
@@ -460,7 +461,7 @@ class TableDetectionNode(Node):
                 )
         
         # Get the center and orientation of the table in the camera frame 
-        center, orientation = self.get_orientation(cam_info, table_depth, 320, 240)
+        center, orientation = self.get_orientation(cam_info, table_depth)
 
         self.get_logger().info(f"orientation, {orientation}, {type(orientation)}")
         
@@ -486,6 +487,18 @@ class TableDetectionNode(Node):
         if self.pub_result:
             self.publisher.publish(response.pose_stamped)
 
+        return response
+
+    def toggle_table_detection_callback(
+        self, request: SetBool.Request, response: SetBool.Response
+    ) -> SetBool.Response:
+        self.get_logger().info(f"Incoming service request. data: {request.data}")
+        response.success = False
+        response.message = f"Failed to set is_on to {request.data}"
+        with self.is_on_lock:
+            self.is_on = request.data
+            response.success = True
+            response.message = f"Successfully set is_on to {request.data}"
         return response
 
     def camera_info_callback(self, msg: CameraInfo) -> None:
@@ -575,7 +588,7 @@ class TableDetectionNode(Node):
                     )
 
             # Get the center and orientation of the table in the camera frame 
-            center, orientation = self.get_orientation(cam_info, table_depth, 320, 240)
+            center, orientation = self.get_orientation(cam_info, table_depth)
 
             self.get_logger().info(f"orientation, {orientation}, {type(orientation)}")
             
@@ -607,7 +620,18 @@ def main(args=None):
 
     rclpy.init()
 
-    table_detection = TableDetectionNode(pub_result=True)
+    table_detection = TableDetectionNode()
+    executor = MultiThreadedExecutor(num_threads=2)
+
+    # Spin in the background since detecting the table will block
+    # the main thread
+    spin_thread = threading.Thread(
+        target=rclpy.spin,
+        args=(table_detection,),
+        kwargs={"executor": executor},
+        daemon=True,
+    )
+    spin_thread.start()
 
     # Run table detection - new code
     # TODO: test run function 
@@ -622,6 +646,9 @@ def main(args=None):
     # Terminate this node and safely shut down - new code
     table_detection.destroy_node()
     rclpy.shutdown()
+
+    # Join the spin thread (so it is spinning in the main thread)
+    spin_thread.join()
 
 if __name__ == "__main__":
     main()
