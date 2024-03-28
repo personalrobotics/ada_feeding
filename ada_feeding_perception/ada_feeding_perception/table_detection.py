@@ -35,11 +35,6 @@ from std_msgs.msg import Header
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_msgs.srv import GetPoseStamped
 from ada_feeding_perception.helpers import (
-    bbox_from_mask,
-    crop_image_mask_and_point,
-    cv2_image_to_ros_msg,
-    download_checkpoint,
-    get_connected_component,
     get_img_msg_type,
     ros_msg_to_cv2_image,
 )
@@ -76,10 +71,17 @@ class TableDetectionNode(Node):
         
         # Publisher Toggle 
         self.pub_result = pub_result
-        if self.pub_result:
-            self.publisher = self.create_publisher(
-                PoseStamped, "table_detection", 1
-            )
+        # if self.pub_result:
+        #    self.publisher = self.create_publisher(
+        #        PoseStamped, "table_detection", 1
+        #    )
+
+        # Keeps track of whether table detection is on or not
+        self.is_on = False
+        self.is_on_lock = threading.Lock()
+
+        # Create the publisher
+        self.publisher = self.create_publisher(PoseStamped, "table_detection", 1)
 
         # Create the service
         self.srv = self.create_service(
@@ -147,10 +149,8 @@ class TableDetectionNode(Node):
 
         Parameters
         ----------
-        image(image matrix): RGB image of plate
-        image_depth(image matrix): depth image of plate
-        target_u: u coordinate to obtain table depth
-        target_v: v coordinate to obtain table depth
+        image_msg: the RGB image to detect plates from 
+        image_depth_msg: the depth image corresponding to the RGB image 
 
         Returns
         ----------
@@ -246,8 +246,23 @@ class TableDetectionNode(Node):
         return table
 
     def deproject_depth_image(self, depth_img: Image, camera_info: CameraInfo):
-        # For every non-zero depth point, calculate the corresponding 3D point
-        # in the camera frame
+        """
+        For every depth point from the depth image, calculate the corresponding 3D point
+        in the camera frame.
+
+        Parameters
+        ----------
+        depth_img: the depth image corresponding to the RGB image the table was detected from
+        camera_info: The camera information.
+
+        Returns
+        ----------
+        xy: The x and y coordinates of the 3D points.
+        z: The z coordinate of the 3D points.
+        center: The center coordinates of the table in the camera frame.
+        """
+        
+        # Create np arrays with the u and v coordinates of the depth image respectively 
         u = np.tile(
             np.arange(depth_img.shape[1]), (depth_img.shape[0], 1)
         )  
@@ -308,6 +323,7 @@ class TableDetectionNode(Node):
         q: The quaternion representing the orientation of the table plane.
         """
 
+        # Deproject the depth image to get the 3D points in the camera frame.
         xy_d, depth_d, center = self.deproject_depth_image(table_depth, camera_info)
         self.get_logger().info(f"xy_d, {np.vstack(xy_d)}")
         self.get_logger().info(f"xy_d shape, {xy_d.shape[0]} x {xy_d.shape[1]}")
@@ -442,11 +458,13 @@ class TableDetectionNode(Node):
                 self.get_logger().warn(
                     "Camera info not received, not including in result message"
                 )
-
+        
+        # Get the center and orientation of the table in the camera frame 
         center, orientation = self.get_orientation(cam_info, table_depth, 320, 240)
 
         self.get_logger().info(f"orientation, {orientation}, {type(orientation)}")
         
+        # Create PoseStamped message
         response.pose_stamped = PoseStamped(
             header=depth_img_msg.header,
             pose=Pose(
@@ -464,6 +482,7 @@ class TableDetectionNode(Node):
             ),
         )
 
+        # Publish the PoseStamped message if the publisher is toggled on
         if self.pub_result:
             self.publisher.publish(response.pose_stamped)
 
@@ -502,6 +521,84 @@ class TableDetectionNode(Node):
         with self.latest_img_msg_lock:
             self.latest_img_msg = msg
 
+    def run(self) -> None:
+        """
+            Run table detection at a specified fixed rate. This function gets the latest RGB 
+            image and depth image messages, fits a plane to the table, and calculates the 
+            center and orientation of the table in the camera frame. Then, with the calculated
+            center and orientation, it publishes a PoseStamped message. The PoseStamped 
+            messages will continue to get published at a specified fixed rate as table detection
+            continues to run.
+        """
+        # Create a fixed rate to run the loop on
+        # TODO: Replace the rate with correct fixed value or create paremeter for rate
+        rate = self.create_rate(3)
+
+        # Run while the context is not shut down
+        while rclpy.ok():
+            # Loop at the specified rate
+            rate.sleep()
+
+            # Check if table detection is on
+            # if not, reiterate
+            with self.is_on_lock:
+                is_on = self.is_on
+            if not is_on:
+                continue
+
+            # Get the latest RGB image message
+            rgb_msg = None
+            with self.latest_img_msg_lock:
+                rgb_msg = self.latest_img_msg
+
+            # Get the latest depth image
+            depth_img_msg = None
+            with self.latest_depth_img_msg_lock:
+                depth_img_msg = self.latest_depth_img_msg
+
+            # Convert between ROS and CV images
+            self.bridge = CvBridge()
+
+            # Get table depth from camera at the (u, v) coordinate (320, 240)
+            table_depth = self.fit_table(rgb_msg, depth_img_msg)
+
+            self.get_logger().info(f"table depth, {table_depth}, {type(table_depth)}")
+
+            # Get the camera matrix
+            cam_info = None
+            with self.camera_info_lock:
+                if self.camera_info is not None:
+                    cam_info = self.camera_info
+                else:
+                    self.get_logger().warn(
+                        "Camera info not received, not including in result message"
+                    )
+
+            # Get the center and orientation of the table in the camera frame 
+            center, orientation = self.get_orientation(cam_info, table_depth, 320, 240)
+
+            self.get_logger().info(f"orientation, {orientation}, {type(orientation)}")
+            
+            # Create PoseStamped message
+            fit_table_msg = PoseStamped(
+                header=depth_img_msg.header,
+                pose=Pose(
+                    position=Point(
+                        x=center[0],
+                        y=center[1],
+                        z=center[2],
+                    ),
+                    orientation=Quaternion(
+                        x=orientation[0],
+                        y=orientation[1],
+                        z=orientation[2],
+                        w=orientation[3],
+                    ),
+                ),
+            )
+            
+            # Publish the PoseStamped message
+            self.publisher.publish(fit_table_msg)
 
 def main(args=None):
     """
@@ -512,8 +609,19 @@ def main(args=None):
 
     table_detection = TableDetectionNode(pub_result=True)
 
-    rclpy.spin(table_detection)
+    # Run table detection - new code
+    # TODO: test run function 
+    try:
+        table_detection.run()
+    except KeyboardInterrupt:
+        pass
 
+    # Spin thread - old code
+    # rclpy.spin(table_detection)
+
+    # Terminate this node and safely shut down - new code
+    table_detection.destroy_node()
+    rclpy.shutdown()
 
 if __name__ == "__main__":
     main()
