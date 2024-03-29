@@ -12,7 +12,7 @@ segment_from_point:
     efficient_sam_model_base_url: "https://raw.githubusercontent.com/yformer/EfficientSAM/main/weights/"
 
     # Whether to use SAM or EfficientSAM
-    use_efficient_sam: false
+    use_efficient_sam: true
 
     # The number of contender masks to return
     n_contender_masks: 3

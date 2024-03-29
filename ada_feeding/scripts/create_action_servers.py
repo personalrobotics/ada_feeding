@@ -543,7 +543,14 @@ class CreateActionServers(Node):
                                 tree
                             )  # blocks until the preempt succeeds
                             goal_handle.canceled()
-                            result = tree_action_server.get_result(tree, action_type)
+
+                            try:
+                                result = tree_action_server.get_result(
+                                    tree, action_type
+                                )
+                            except KeyError:
+                                # The tree didn't get far enough to set a result
+                                result = action_type.Result()
                             break
 
                         # Check if the watchdog has failed
@@ -553,7 +560,13 @@ class CreateActionServers(Node):
                                 tree
                             )  # blocks until the preempt succeeds
                             goal_handle.abort()
-                            result = tree_action_server.get_result(tree, action_type)
+                            try:
+                                result = tree_action_server.get_result(
+                                    tree, action_type
+                                )
+                            except KeyError:
+                                # The tree didn't get far enough to set a result
+                                result = action_type.Result()
                             break
 
                         # Tick the tree once and publish feedback
@@ -578,7 +591,13 @@ class CreateActionServers(Node):
                         ):
                             self.get_logger().info("Tree failed")
                             goal_handle.abort()
-                            result = tree_action_server.get_result(tree, action_type)
+                            try:
+                                result = tree_action_server.get_result(
+                                    tree, action_type
+                                )
+                            except KeyError:
+                                # The tree didn't get far enough to set a result
+                                result = action_type.Result()
                             break
 
                         # Sleep

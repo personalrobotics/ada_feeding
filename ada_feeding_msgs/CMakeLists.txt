@@ -19,6 +19,7 @@ find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/AcquisitionSchema.msg"
   "msg/FaceDetection.msg"
+  "msg/FoodOnForkDetection.msg"
   "msg/Mask.msg"
 
   "action/AcquireFood.action"

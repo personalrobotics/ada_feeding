@@ -10,11 +10,9 @@ wrap that behaviour tree in a ROS2 action server.
 
 # Standard imports
 from collections.abc import Sequence
-import os
 from typing import Annotated, Tuple
 
 # Third-party imports
-from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import (
     Point,
     Pose,
@@ -34,17 +32,12 @@ from std_srvs.srv import Empty
 # Local imports
 from ada_feeding_msgs.action import MoveToMouth
 from ada_feeding_msgs.msg import FaceDetection
-from ada_feeding.behaviors.moveit2 import (
-    ModifyCollisionObject,
-    ModifyCollisionObjectOperation,
-)
 from ada_feeding.behaviors.ros import (
     GetTransform,
     SetStaticTransform,
     ApplyTransform,
     CreatePoseStamped,
 )
-from ada_feeding.behaviors.transfer import ComputeWheelchairCollisionTransform
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
     pre_moveto_config,
@@ -54,6 +47,7 @@ from ada_feeding.idioms import (
     wait_for_secs,
 )
 from ada_feeding.idioms.bite_transfer import (
+    get_toggle_collision_object_behavior,
     get_toggle_face_detection_behavior,
 )
 from ada_feeding.trees import (
@@ -377,61 +371,8 @@ class MoveToMouthTree(MoveToTree):
                         ),
                     ],
                 ),
-                # At this stage of the tree, we are guarenteed to have a
-                # `mouth_pose` on the blackboard -- else the tree would have failed.
-                # Move the head to the detected mouth pose.
-                ModifyCollisionObject(
-                    name=name + " MoveHead",
-                    ns=name,
-                    inputs={
-                        "operation": ModifyCollisionObjectOperation.MOVE,
-                        "collision_object_id": self.head_object_id,
-                        "collision_object_position": BlackboardKey(
-                            "mouth_pose.pose.position"
-                        ),
-                        "collision_object_orientation": BlackboardKey(
-                            "mouth_pose.pose.orientation"
-                        ),
-                    },
-                ),
-                # Compute the transform of the wheelchair collision object
-                # based on the detected head pose
-                ComputeWheelchairCollisionTransform(
-                    name=name + " ComputeWheelchairCollisionTransform",
-                    ns=name,
-                    inputs={
-                        "detected_head_pose": BlackboardKey("mouth_pose"),
-                    },
-                    outputs={
-                        "wheelchair_position": BlackboardKey(
-                            "wheelchair_collision_position"
-                        ),
-                        "wheelchair_orientation": BlackboardKey(
-                            "wheelchair_collision_orientation"
-                        ),
-                        "wheelchair_scale": BlackboardKey("wheelchair_collision_scale"),
-                    },
-                ),
-                # Move the wheelchair collision object to the desired pose.
-                ModifyCollisionObject(
-                    name=name + " MoveWheelchairCollision",
-                    ns=name,
-                    inputs={
-                        "operation": ModifyCollisionObjectOperation.ADD,
-                        "collision_object_id": self.wheelchair_collision_object_id,
-                        "collision_object_position": BlackboardKey(
-                            "wheelchair_collision_position"
-                        ),
-                        "collision_object_orientation": BlackboardKey(
-                            "wheelchair_collision_orientation"
-                        ),
-                        "mesh_filepath": os.path.join(
-                            get_package_share_directory("ada_feeding"),
-                            "assets/wheelchair_collision.stl",
-                        ),
-                        "mesh_scale": BlackboardKey("wheelchair_collision_scale"),
-                    },
-                ),
+                # Note that `ada_planning_scene.py` should have already updated
+                # the head and wheelchair collision locations in the planning scene.
                 # Clear the Octomap. This is far enough before motion to mouth
                 # that the Octomap should still get populated before motion
                 # begins.
@@ -489,6 +430,11 @@ class MoveToMouthTree(MoveToTree):
                         name=name,
                         memory=True,
                         children=[
+                            get_toggle_collision_object_behavior(
+                                name + "AllowWheelchairCollisionScopePre",
+                                [self.wheelchair_collision_object_id],
+                                True,
+                            ),
                             StartServoTree(self._node)
                             .create_tree(name=name + "StartServoScopePre")
                             .root,
@@ -503,6 +449,11 @@ class MoveToMouthTree(MoveToTree):
                             StopServoTree(self._node)
                             .create_tree(name=name + "StopServoScopePost")
                             .root,
+                            get_toggle_collision_object_behavior(
+                                name + "DisallowWheelchairCollisionScopePost",
+                                [self.wheelchair_collision_object_id],
+                                False,
+                            ),
                             pre_moveto_config(
                                 name=name + "PreMoveToConfigScopePost",
                                 re_tare=False,

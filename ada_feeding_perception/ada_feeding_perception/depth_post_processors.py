@@ -7,11 +7,13 @@ This module contains a series of post-processors for depth images.
 from typing import Callable
 
 # Third-party imports
+from builtin_interfaces.msg import Time
 import cv2 as cv
 from cv_bridge import CvBridge
 import numpy as np
 import numpy.typing as npt
 from sensor_msgs.msg import Image
+from std_msgs.msg import Header
 
 
 def create_mask_post_processor(
@@ -58,7 +60,10 @@ def create_mask_post_processor(
 
         # Get the new img message
         masked_msg = bridge.cv2_to_imgmsg(masked_img)
-        masked_msg.header = msg.header
+        masked_msg.header = Header(
+            stamp=Time(sec=msg.header.stamp.sec, nanosec=msg.header.stamp.nanosec),
+            frame_id=msg.header.frame_id,
+        )
 
         return masked_msg
 
@@ -124,7 +129,10 @@ def create_temporal_post_processor(
 
         # Get the new img message
         masked_msg = bridge.cv2_to_imgmsg(masked_img)
-        masked_msg.header = msg.header
+        masked_msg.header = Header(
+            stamp=Time(sec=msg.header.stamp.sec, nanosec=msg.header.stamp.nanosec),
+            frame_id=msg.header.frame_id,
+        )
 
         return masked_msg
 
@@ -176,7 +184,10 @@ def create_spatial_post_processor(
 
         # Get the new img message
         masked_msg = bridge.cv2_to_imgmsg(masked_img)
-        masked_msg.header = msg.header
+        masked_msg.header = Header(
+            stamp=Time(sec=msg.header.stamp.sec, nanosec=msg.header.stamp.nanosec),
+            frame_id=msg.header.frame_id,
+        )
 
         return masked_msg
 
@@ -234,7 +245,10 @@ def create_threshold_post_processor(
 
         # Get the new img message
         masked_msg = bridge.cv2_to_imgmsg(masked_img)
-        masked_msg.header = msg.header
+        masked_msg.header = Header(
+            stamp=Time(sec=msg.header.stamp.sec, nanosec=msg.header.stamp.nanosec),
+            frame_id=msg.header.frame_id,
+        )
 
         return masked_msg
 
