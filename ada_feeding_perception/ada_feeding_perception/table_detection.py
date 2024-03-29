@@ -89,7 +89,7 @@ class TableDetectionNode(Node):
         )
 
         # Create the publisher
-        self.publisher = self.create_publisher(PoseStamped, "table_detection", 1)
+        self.publisher = self.create_publisher(PoseStamped, "~/table_detection", 1)
 
         self.camera_info = None
         # Subscribe to the camera info topic, to get the camera intrinsics

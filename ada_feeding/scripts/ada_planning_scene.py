@@ -104,7 +104,22 @@ class ADAPlanningScene(Node):
 
         # Create a timer to update planning scene for face detection
         self.face_detection_timer = self.create_timer(
-            1.0 / self.update_face_hz, self.update_face_detection
+            1.0 / self.update_table_hz, self.update_face_detection
+        )
+
+        # Subscribe to the table detection topic
+        self.table_detection_sub = self.create_subscription(
+            PoseStamped,
+            "~/table_detection",
+            self.table_detection_callback,
+            1,
+        )
+        self.latest_table_detection = None
+        self.latest_table_detection_lock = threading.Lock()
+
+        # Create a timer to update planning scene for table detection
+        self.table_detection_timer = self.create_timer(
+            1.0 / self.update_table_hz, self.update_table_detection
         )
 
     def load_parameters(self) -> None:
@@ -326,6 +341,21 @@ class ADAPlanningScene(Node):
         )
         self.update_face_hz = update_face_hz.value
 
+        update_table_hz = self.declare_parameter(
+            "update_table_hz",
+            3.0,  # default value
+            descriptor=ParameterDescriptor(
+                name="update_table_hz",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The rate (Hz) at which to update the planning scene based on the results "
+                    "of table detection."
+                ),
+                read_only=True,
+            ),
+        )
+        self.update_table_hz = update_table_hz.value
+
         head_object_id = self.declare_parameter(
             "head_object_id",
             "head",
@@ -355,6 +385,21 @@ class ADAPlanningScene(Node):
             ),
         )
         self.body_object_id = body_object_id.value
+
+        table_object_id = self.declare_parameter(
+            "table_object_id",
+            "table",
+            descriptor=ParameterDescriptor(
+                name="table_object_id",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The object ID of the table in the planning scene. "
+                    "This is used to move the table based on table detection."
+                ),
+                read_only=True,
+            ),
+        ) 
+        self.table_object_id = table_object_id.value
 
     def wait_for_moveit(self) -> None:
         """
@@ -573,6 +618,54 @@ class ADAPlanningScene(Node):
             scale=wheelchair_scale,
         )
 
+    def table_detection_callback(self, msg: PoseStamped) -> None:
+        """
+        Callback for the table detection topic.
+        """
+        with self.latest_table_detection_lock:
+            self.latest_table_detection = msg
+
+    def update_table_detection(self) -> None:
+        """
+            Transform the table center detected from the camera frame into the base 
+            frame. Then, move the table in the planning scene to the position and 
+            orientation received in the latest table detection message.
+        """
+        # Get the latest table detection message
+        with self.latest_table_detection_lock:
+            if (self.latest_table_detection is None):
+                return
+            msg = self.latest_table_detection
+            self.latest_table_detection = None
+
+        base_frame = "root"
+
+        # Transform the detected table center from the camera frame into the base frame
+        try:
+            detected_table_center = self.tf_buffer.transform(
+                msg.pose.position,
+                base_frame,
+                rclpy.duration.Duration(seconds=0.5 / self.update_table_hz),
+            )
+        except TransformException as e:
+            self.get_logger().error(
+                f"Failed to transform the detected table center: {e}"
+            )
+            return
+
+        # Convert to a pose
+        detected_table_pose = PoseStamped()
+        detected_table_pose.header = detected_table_center.header
+        detected_table_pose.pose.position = detected_table_center.position
+        detected_table_pose.pose.orientation = msg.pose.orientation
+
+        # Move the table object in the planning scene to the detected pose
+        self.moveit2.move_collision(
+            id=self.table_object_id,
+            position=detected_table_pose.pose.position,
+            quat_xyzw=detected_table_pose.pose.orientation,
+            frame_id=base_frame,
+        )
 
 def main(args: List = None) -> None:
     """

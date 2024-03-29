@@ -29,7 +29,7 @@ ada_planning_scene:
       frame_id: root # the frame_id that the pose is relative to
     # an expanded mesh around the wheelchair to account for a user sitting in it
     # NOTE: If you change this you must also change the hardcoded initial pose in
-    # btie transfer.
+    # bite transfer.
     wheelchair_collision: 
       filename: wheelchair_collision.stl
       position: [0.02, -0.02, -0.05] # should match the wheelchair position
@@ -41,7 +41,7 @@ ada_planning_scene:
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
       frame_id: root # the frame_id that the pose is relative to
     # NOTE: If you change this you must also change the hardcoded initial pose in
-    # btie transfer.
+    # bite transfer.
     head: # the head mesh
       filename: tom.stl
       # This is an initial guess of head position; it will be updated as the
