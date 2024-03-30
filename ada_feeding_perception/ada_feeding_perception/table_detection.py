@@ -69,6 +69,9 @@ class TableDetectionNode(Node):
         self.deproject_center_coord = 640 * 239 + 320 - 1 
         self.dir_constant = 0.1
 
+        # Rate at which table info gets published
+        self.update_hz = 3
+
         # Keeps track of whether table detection is on or not
         self.is_on = False
         self.is_on_lock = threading.Lock()
@@ -545,7 +548,7 @@ class TableDetectionNode(Node):
         """
         # Create a fixed rate to run the loop on
         # TODO: Replace the rate with correct fixed value or create paremeter for rate
-        rate = self.create_rate(3)
+        rate = self.create_rate(self.update_hz)
 
         # Run while the context is not shut down
         while rclpy.ok():
