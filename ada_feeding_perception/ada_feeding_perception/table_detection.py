@@ -53,7 +53,6 @@ class TableDetectionNode(Node):
         """
 
         super().__init__("table_detection")
-        self.get_logger().info("Entering table detection node!")
 
         # Table plane parameters
         self._hough_accum = 1.5
@@ -228,9 +227,6 @@ class TableDetectionNode(Node):
         b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[
             0
         ]  
-        self.get_logger().info(f"d_idx, {d_idx}")
-        self.get_logger().info(f"d, {d}")
-        self.get_logger().info(f"coeffs, {coeffs}, {coeffs.shape}")
 
         # Create Table Depth Image
         u = np.linspace(0, depth_mask.shape[1], depth_mask.shape[1], False)
@@ -240,64 +236,6 @@ class TableDetectionNode(Node):
         table = table.astype("uint16")
 
         return table
-
-    def deproject_depth_image(self, depth_img: Image, camera_info: CameraInfo):
-        """
-        For every depth point from the depth image, calculate the corresponding 3D point
-        in the camera frame.
-
-        Parameters
-        ----------
-        depth_img: the depth image corresponding to the RGB image the table was detected from
-        camera_info: The camera information.
-
-        Returns
-        ----------
-        xy: The x and y coordinates of the 3D points.
-        z: The z coordinate of the 3D points.
-        center: The center coordinates of the table in the camera frame.
-        """
-        
-        # Create np arrays with the u and v coordinates of the depth image respectively 
-        u = np.tile(
-            np.arange(depth_img.shape[1]), (depth_img.shape[0], 1)
-        )  
-        self.get_logger().info(f"u, {u}, {u.shape}, {u.min()}, {u.max()}")
-
-        v = np.tile(
-            np.arange(depth_img.shape[0]), (depth_img.shape[1], 1)
-        ).T  
-        self.get_logger().info(f"v, {v}, {v.shape}, {v.min()}, {v.max()}")
-        
-        # Mask out any points where depth is 0
-        mask = depth_img > 0
-        depth_img_masked = depth_img[mask]
-        u_masked = u[mask]
-        v_masked = v[mask]
-        self.get_logger().info(f"u_masked, {u_masked}, {u_masked.shape}")
-        self.get_logger().info(f"v_masked, {v_masked}, {v_masked.shape}")
-
-        # Deproject x, y, and z coordinates from u, v coordinates and depth image
-        x = np.multiply(
-            u_masked - camera_info.k[2],
-            np.divide(depth_img_masked, 1000.0 * camera_info.k[0]),
-        )
-        self.get_logger().info(f"x, {x}, {x.shape}")
-        y = np.multiply(
-            v_masked - camera_info.k[5],
-            np.divide(depth_img_masked, 1000.0 * camera_info.k[4]),
-        )
-        self.get_logger().info(f"y, {y}, {y.shape}")
-        z = np.divide(depth_img_masked, 1000.0)
-
-        # Concatenate the x and y coordinates together
-        xy = np.concatenate((x[..., np.newaxis], y[..., np.newaxis]), axis=1)
-
-        # Calculate center
-        center = [x[self.deproject_center_coord], y[self.deproject_center_coord], 
-                  z[self.deproject_center_coord]]
-        
-        return np.array(xy), np.array(z), center
 
     def get_orientation(
         self,
@@ -329,10 +267,6 @@ class TableDetectionNode(Node):
             c_x=self.camera_info.k[2],
             c_y=self.camera_info.k[5],
         )
-        self.get_logger().info(f"pointcloud, {pointcloud}, {pointcloud.shape}")
-        self.get_logger().info(f"pointcloud[:, 0], {pointcloud[:, 0]}")
-        self.get_logger().info(f"pointcloud[:, 1], {pointcloud[:, 1]}")
-        self.get_logger().info(f"pointcloud[:, 2], {pointcloud[:, 2]}")
         xy_d = np.concatenate((pointcloud[:, 0, np.newaxis], pointcloud[:, 1, np.newaxis]), axis=1)
         depth_d = pointcloud[:, 2]
         center = [
@@ -340,16 +274,9 @@ class TableDetectionNode(Node):
             pointcloud[self.deproject_center_coord][1], 
             pointcloud[self.deproject_center_coord][2]
         ]
-        # xy_d, depth_d, center = self.deproject_depth_image(table_depth, camera_info)
-        self.get_logger().info(f"xy_d, {np.vstack(xy_d)}")
-        self.get_logger().info(f"xy_d shape, {xy_d.shape[0]} x {xy_d.shape[1]}")
-        self.get_logger().info(f"depth_d, {np.vstack(depth_d)}")
-        self.get_logger().info(f"depth_d shape, {depth_d.shape}")
-        self.get_logger().info(f"table center, {center}")
-
+        
         # Fit Plane: z = a*x + b*y + c
         coeffs = np.hstack((np.vstack(xy_d), np.ones((len(xy_d), 1)))).astype(float)
-        self.get_logger().info(f"get orientation coeffs, {coeffs}")
         a, b, c = np.linalg.lstsq(coeffs, depth_d, rcond=None)[0]
         
         # Modify the z coordinate of the center given the fitted plane (i.e. make the center 
@@ -357,11 +284,6 @@ class TableDetectionNode(Node):
         center[2] = (
             a * center[0] + b * center[1] + c
         )  
-
-        self.get_logger().info(f"coefficients: a = {a}, b = {b}, c = {c}")
-        self.get_logger().info(
-            f"{center}, {(center[0], center[1], a*center[0]+ b*center[1] + c)}"
-        )
 
         # Get the direction vectors of the table plane from the camera's frame of perspective
         x_p = [
@@ -371,14 +293,8 @@ class TableDetectionNode(Node):
         ]
         x_ref = [center[0] - x_p[0], center[1] - x_p[1], center[2] - x_p[2]]
         x_ref /= np.linalg.norm(x_ref)
-        self.get_logger().info(
-            f"magnitude of normalized +x vector = {np.linalg.norm(x_ref)}"
-        )
         
         z_ref = [a, b, -1] / np.linalg.norm([a, b, -1])
-        self.get_logger().info(
-            f"magnitude of normalized +z vector = {np.linalg.norm(z_ref)}"
-        )
 
         # Direction vector of y calculated through a system of linear equations consisting of: 
         # the dot product of x and y, dot product of z and y, & norm of y = 1
@@ -393,38 +309,18 @@ class TableDetectionNode(Node):
             (x_ref[1] * z_ref[0] - x_ref[0] * z_ref[1]) / denom,
         ]
 
-        # Print dot products and magnitudes of calculated vectors 
-        self.get_logger().info(
-            f"magnitude of normalized +y vector = {np.linalg.norm(y_ref)}"
-        )
-        self.get_logger().info(
-            f"dot product of +x and +y vector = {np.dot(y_ref, x_ref)}"
-        )
-        self.get_logger().info(
-            f"dot product of +x and +z vector = {np.dot(x_ref, z_ref)}"
-        )
-        self.get_logger().info(
-            f"dot product of +y and +z vector = {np.dot(y_ref, z_ref)}"
-        )
-        self.get_logger().info(
-            f"x_ref, y_ref, z_ref coordinates: x_ref = {x_ref}, y_ref = {y_ref}, z_ref = {z_ref}"
-        )
-
         # Construct rotation matrix from direction vectors
-        # TODO: Use np array instead 
         # TODO: Test tf_transformations quaternion_from_matrix function
         rot_matrix = [
             [x_ref[0], y_ref[0], z_ref[0]],
             [x_ref[1], y_ref[1], z_ref[1]],
             [x_ref[2], y_ref[2], z_ref[2]],
         ]
-        self.get_logger().info(f"rotation matrix = {R}")
 
         # Derive quaternion from rotation matrix
         q = R.from_matrix(rot_matrix)
         q = q.as_quat()
         # q = quaternion_from_matrix(R)
-        self.get_logger().info(f"quaternion = {q}")
 
         return center, q
 
@@ -516,9 +412,7 @@ class TableDetectionNode(Node):
             # Get table depth from camera at the (u, v) coordinate (320, 240)
             table_depth = self.fit_table(rgb_msg, depth_img_msg)
 
-            self.get_logger().info(f"table depth, {table_depth}, {type(table_depth)}")
-
-            # Get the camera matrix
+            # Get the camera information
             cam_info = None
             with self.camera_info_lock:
                 if self.camera_info is not None:
@@ -530,8 +424,6 @@ class TableDetectionNode(Node):
 
             # Get the center and orientation of the table in the camera frame 
             center, orientation = self.get_orientation(cam_info, table_depth)
-
-            self.get_logger().info(f"orientation, {orientation}, {type(orientation)}")
             
             # Create PoseStamped message
             fit_table_msg = PoseStamped(
