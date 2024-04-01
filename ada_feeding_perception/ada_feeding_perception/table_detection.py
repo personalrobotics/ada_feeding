@@ -35,6 +35,7 @@ from std_msgs.msg import Header
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_msgs.srv import GetPoseStamped
 from ada_feeding_perception.helpers import (
+    depth_img_to_pointcloud,
     get_img_msg_type,
     ros_msg_to_cv2_image,
 )
@@ -54,7 +55,7 @@ class TableDetectionNode(Node):
         super().__init__("table_detection")
         self.get_logger().info("Entering table detection node!")
 
-        # Table Plane Params
+        # Table plane parameters
         self._hough_accum = 1.5
         self._hough_min_dist = 100
         self._hough_param1 = 100  # Larger is more selective
@@ -65,7 +66,7 @@ class TableDetectionNode(Node):
         self._hough_max = 200
         self._table_buffer = 50  # Extra radius around plate to use for table detection
 
-        # Orientation Calculation Params
+        # Orientation calculation parameters
         self.deproject_center_coord = 640 * 239 + 320 - 1 
         self.dir_constant = 0.1
 
@@ -75,13 +76,6 @@ class TableDetectionNode(Node):
         # Keeps track of whether table detection is on or not
         self.is_on = False
         self.is_on_lock = threading.Lock()
-        
-        # Create the service
-        #self.srv = self.create_service(
-        #    GetPoseStamped,
-        #    "fit_to_table",
-        #    self.fit_to_table_callback,
-        #)
 
         # Create the toggle service
         self.srv = self.create_service(
@@ -238,8 +232,6 @@ class TableDetectionNode(Node):
         self.get_logger().info(f"d, {d}")
         self.get_logger().info(f"coeffs, {coeffs}, {coeffs.shape}")
 
-        # TODO: add a comment describing flipped coefficients a & b
-
         # Create Table Depth Image
         u = np.linspace(0, depth_mask.shape[1], depth_mask.shape[1], False)
         v = np.linspace(0, depth_mask.shape[0], depth_mask.shape[0], False)
@@ -328,7 +320,27 @@ class TableDetectionNode(Node):
         """
 
         # Deproject the depth image to get the 3D points in the camera frame.
-        xy_d, depth_d, center = self.deproject_depth_image(table_depth, camera_info)
+        pointcloud = depth_img_to_pointcloud(
+            table_depth,
+            0,
+            0,
+            f_x=self.camera_info.k[0],
+            f_y=self.camera_info.k[4],
+            c_x=self.camera_info.k[2],
+            c_y=self.camera_info.k[5],
+        )
+        self.get_logger().info(f"pointcloud, {pointcloud}, {pointcloud.shape}")
+        self.get_logger().info(f"pointcloud[:, 0], {pointcloud[:, 0]}")
+        self.get_logger().info(f"pointcloud[:, 1], {pointcloud[:, 1]}")
+        self.get_logger().info(f"pointcloud[:, 2], {pointcloud[:, 2]}")
+        xy_d = np.concatenate((pointcloud[:, 0, np.newaxis], pointcloud[:, 1, np.newaxis]), axis=1)
+        depth_d = pointcloud[:, 2]
+        center = [
+            pointcloud[self.deproject_center_coord][0], 
+            pointcloud[self.deproject_center_coord][1], 
+            pointcloud[self.deproject_center_coord][2]
+        ]
+        # xy_d, depth_d, center = self.deproject_depth_image(table_depth, camera_info)
         self.get_logger().info(f"xy_d, {np.vstack(xy_d)}")
         self.get_logger().info(f"xy_d shape, {xy_d.shape[0]} x {xy_d.shape[1]}")
         self.get_logger().info(f"depth_d, {np.vstack(depth_d)}")
@@ -416,86 +428,12 @@ class TableDetectionNode(Node):
 
         return center, q
 
-    def fit_to_table_callback(
-        self, request: GetPoseStamped.Request, response: GetPoseStamped.Response
-    ):
-        """
-        Callback function for fit_table service. When the service is invoked, the
-        service returns a response containing the PoseStamped information (the center and
-        orientation with respect to the camera's frame of perspective) of the table. 
-
-        Parameters
-        ----------
-        request: The request object containing the PoseStamped information.
-        response: The response object to store the calculated PoseStamped information.
-
-        Returns
-        ----------
-        response: The response object containing the calculated PoseStamped information.
-        """
-
-        self.get_logger().info("Entering fit_table callback!")
-        # Get the latest RGB image message
-        rgb_msg = None
-        with self.latest_img_msg_lock:
-            rgb_msg = self.latest_img_msg
-
-        # Get the latest depth image
-        depth_img_msg = None
-        with self.latest_depth_img_msg_lock:
-            depth_img_msg = self.latest_depth_img_msg
-
-        # Convert between ROS and CV images
-        self.bridge = CvBridge()
-
-        # Get table depth from camera at the (u, v) coordinate (320, 240)
-        table_depth = self.fit_table(rgb_msg, depth_img_msg)
-
-        self.get_logger().info(f"table depth, {table_depth}, {type(table_depth)}")
-
-        # Get the camera matrix
-        cam_info = None
-        with self.camera_info_lock:
-            if self.camera_info is not None:
-                cam_info = self.camera_info
-            else:
-                self.get_logger().warn(
-                    "Camera info not received, not including in result message"
-                )
-        
-        # Get the center and orientation of the table in the camera frame 
-        center, orientation = self.get_orientation(cam_info, table_depth)
-
-        self.get_logger().info(f"orientation, {orientation}, {type(orientation)}")
-        
-        # Create PoseStamped message
-        response.pose_stamped = PoseStamped(
-            header=depth_img_msg.header,
-            pose=Pose(
-                position=Point(
-                    x=center[0],
-                    y=center[1],
-                    z=center[2],
-                ),
-                orientation=Quaternion(
-                    x=orientation[0],
-                    y=orientation[1],
-                    z=orientation[2],
-                    w=orientation[3],
-                ),
-            ),
-        )
-
-        # Publish the PoseStamped message if the publisher is toggled on
-        if self.pub_result:
-            self.publisher.publish(response.pose_stamped)
-
-        return response
-
     def toggle_table_detection_callback(
         self, request: SetBool.Request, response: SetBool.Response
     ) -> SetBool.Response:
+
         self.get_logger().info(f"Incoming service request. data: {request.data}")
+
         response.success = False
         response.message = f"Failed to set is_on to {request.data}"
         with self.is_on_lock:
@@ -636,15 +574,11 @@ def main(args=None):
     )
     spin_thread.start()
 
-    # Run table detection - new code
-    # TODO: test run function 
+    # Run table detection
     try:
         table_detection.run()
     except KeyboardInterrupt:
         pass
-
-    # Spin thread - old code
-    # rclpy.spin(table_detection)
 
     # Terminate this node and safely shut down - new code
     table_detection.destroy_node()

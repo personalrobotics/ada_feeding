@@ -655,8 +655,8 @@ class ADAPlanningScene(Node):
 
         # Convert to a pose
         detected_table_pose = PoseStamped()
-        detected_table_pose.header = detected_table_center.header
-        detected_table_pose.pose.position = detected_table_center.position
+        detected_table_pose.header = msg.header
+        detected_table_pose.pose.position = detected_table_center
         detected_table_pose.pose.orientation = msg.pose.orientation
 
         # Move the table object in the planning scene to the detected pose
