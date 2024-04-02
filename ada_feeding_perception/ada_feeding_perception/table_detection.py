@@ -222,6 +222,7 @@ class TableDetectionNode(Node):
         coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1)))).astype(
             float
         )
+
         # Coefficients b and a are reversed because of matrix row/col structure and its 
         # correspondence to x/y
         b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[
@@ -320,7 +321,6 @@ class TableDetectionNode(Node):
         # Derive quaternion from rotation matrix
         q = R.from_matrix(rot_matrix)
         q = q.as_quat()
-        # q = quaternion_from_matrix(R)
 
         return center, q
 

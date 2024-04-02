@@ -104,7 +104,7 @@ class ADAPlanningScene(Node):
 
         # Create a timer to update planning scene for face detection
         self.face_detection_timer = self.create_timer(
-            1.0 / self.update_table_hz, self.update_face_detection
+            1.0 / self.update_face_hz, self.update_face_detection
         )
 
         # Subscribe to the table detection topic
@@ -640,10 +640,10 @@ class ADAPlanningScene(Node):
 
         base_frame = "root"
 
-        # Transform the detected table center from the camera frame into the base frame
+        # Transform the detected table pose from the camera frame into the base frame
         try:
-            detected_table_center = self.tf_buffer.transform(
-                msg.pose.position,
+            detected_table_pose = self.tf_buffer.transform(
+                msg,
                 base_frame,
                 rclpy.duration.Duration(seconds=0.5 / self.update_table_hz),
             )
@@ -653,11 +653,9 @@ class ADAPlanningScene(Node):
             )
             return
 
-        # Convert to a pose
-        detected_table_pose = PoseStamped()
-        detected_table_pose.header = msg.header
-        detected_table_pose.pose.position = detected_table_center
-        detected_table_pose.pose.orientation = msg.pose.orientation
+        # Modify z position of table for planning scene object
+        # TODO: Need to figure out this value
+        detected_table_pose.pose.position.z -= 0.78 
 
         # Move the table object in the planning scene to the detected pose
         self.moveit2.move_collision(
