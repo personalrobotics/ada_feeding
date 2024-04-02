@@ -43,8 +43,10 @@ from ada_feeding_perception.helpers import (
 
 class TableDetectionNode(Node):
     """
-    This node publishes a 3D PoseStamped location of the center of the table
-    with respect to the camera's frame of perspective. 
+    This node subscribes to the camera info, depth image, and RGB image topics and exposes a 
+    service to toggle table detection on and off. When on, the node publishes
+    a 3D PoseStamped location of the center of the table with respect to the camera's frame of 
+    perspective at a specified rate. 
     """
 
     def __init__(self):
@@ -87,8 +89,8 @@ class TableDetectionNode(Node):
         # Create the publisher
         self.publisher = self.create_publisher(PoseStamped, "~/table_detection", 1)
 
-        self.camera_info = None
         # Subscribe to the camera info topic, to get the camera intrinsics
+        self.camera_info = None
         self.camera_info_lock = threading.Lock()
         self.camera_info_subscriber = self.create_subscription(
             CameraInfo,
@@ -146,12 +148,12 @@ class TableDetectionNode(Node):
 
         Parameters
         ----------
-        image_msg: the RGB image to detect plates from 
-        image_depth_msg: the depth image corresponding to the RGB image 
+        image_msg: The RGB image to detect plates from.
+        image_depth_msg: The depth image corresponding to the RGB image.
 
         Returns
         ----------
-        table: depth array of the table
+        table: The depth array of the table.
         """
 
         # Convert ROS images to CV images
@@ -327,7 +329,19 @@ class TableDetectionNode(Node):
     def toggle_table_detection_callback(
         self, request: SetBool.Request, response: SetBool.Response
     ) -> SetBool.Response:
+        """
+        Callback function for the toggle_table_detection service. This function toggles the 
+        table detection publisher on or off based on the request data.
 
+        Parameters
+        ----------
+        request: The given request message.
+        response: The created response message.
+
+        Returns
+        ----------
+        response: The updated response message based on the request.
+        """
         self.get_logger().info(f"Incoming service request. data: {request.data}")
 
         response.success = False
