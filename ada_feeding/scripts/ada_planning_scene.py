@@ -398,7 +398,7 @@ class ADAPlanningScene(Node):
                 ),
                 read_only=True,
             ),
-        ) 
+        )
         self.table_object_id = table_object_id.value
 
     def wait_for_moveit(self) -> None:
@@ -627,13 +627,13 @@ class ADAPlanningScene(Node):
 
     def update_table_detection(self) -> None:
         """
-            Transform the table center detected from the camera frame into the base 
-            frame. Then, move the table in the planning scene to the position and 
-            orientation received in the latest table detection message.
+        Transform the table center detected from the camera frame into the base
+        frame. Then, move the table in the planning scene to the position and
+        orientation received in the latest table detection message.
         """
         # Get the latest table detection message
         with self.latest_table_detection_lock:
-            if (self.latest_table_detection is None):
+            if self.latest_table_detection is None:
                 return
             msg = self.latest_table_detection
             self.latest_table_detection = None
@@ -655,7 +655,7 @@ class ADAPlanningScene(Node):
 
         # Modify z position of table for planning scene object
         # TODO: Need to figure out this value
-        detected_table_pose.pose.position.z -= 0.78 
+        detected_table_pose.pose.position.z -= 0.78
 
         # Move the table object in the planning scene to the detected pose
         self.moveit2.move_collision(
@@ -664,6 +664,7 @@ class ADAPlanningScene(Node):
             quat_xyzw=detected_table_pose.pose.orientation,
             frame_id=base_frame,
         )
+
 
 def main(args: List = None) -> None:
     """

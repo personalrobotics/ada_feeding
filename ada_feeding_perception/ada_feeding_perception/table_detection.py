@@ -1,27 +1,19 @@
 # Standard imports
-import os
+import math
 import threading
-from typing import Tuple, Union
+from typing import Union
 
 # Third-party imports
 import cv2
 from cv_bridge import CvBridge
 import numpy as np
-import numpy.typing as npt
-from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
-from rclpy.action import ActionServer, CancelResponse, GoalResponse
-from rclpy.action.server import ServerGoalHandle
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from rclpy.parameter import Parameter
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
-import torch
 from std_srvs.srv import SetBool
-import math
 
-from tf_transformations import quaternion_from_matrix
 from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import (
     Pose,
@@ -29,11 +21,8 @@ from geometry_msgs.msg import (
     Point,
     Quaternion,
 )
-from std_msgs.msg import Header
 
 # Local imports
-from ada_feeding_msgs.msg import Mask
-from ada_feeding_msgs.srv import GetPoseStamped
 from ada_feeding_perception.helpers import (
     depth_img_to_pointcloud,
     get_img_msg_type,
@@ -43,10 +32,10 @@ from ada_feeding_perception.helpers import (
 
 class TableDetectionNode(Node):
     """
-    This node subscribes to the camera info, depth image, and RGB image topics and exposes a 
+    This node subscribes to the camera info, depth image, and RGB image topics and exposes a
     service to toggle table detection on and off. When on, the node publishes
-    a 3D PoseStamped location of the center of the table with respect to the camera's frame of 
-    perspective at a specified rate. 
+    a 3D PoseStamped location of the center of the table with respect to the camera's frame of
+    perspective at a specified rate.
     """
 
     def __init__(self):
@@ -68,7 +57,7 @@ class TableDetectionNode(Node):
         self._table_buffer = 50  # Extra radius around plate to use for table detection
 
         # Orientation calculation parameters
-        self.deproject_center_coord = 640 * 239 + 320 - 1 
+        self.deproject_center_coord = 640 * 239 + 320 - 1
         self.dir_constant = 0.1
 
         # Rate at which table info gets published
@@ -77,6 +66,9 @@ class TableDetectionNode(Node):
         # Keeps track of whether table detection is on or not
         self.is_on = False
         self.is_on_lock = threading.Lock()
+
+        # Convert between ROS and CV images
+        self.bridge = CvBridge()
 
         # Create the toggle service
         self.srv = self.create_service(
@@ -155,7 +147,6 @@ class TableDetectionNode(Node):
         ----------
         table: The depth array of the table.
         """
-
         # Convert ROS images to CV images
         image = ros_msg_to_cv2_image(image_msg, self.bridge)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -225,17 +216,15 @@ class TableDetectionNode(Node):
             float
         )
 
-        # Coefficients b and a are reversed because of matrix row/col structure and its 
+        # Coefficients b and a are reversed because of matrix row/col structure and its
         # correspondence to x/y
-        b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[
-            0
-        ]  
+        b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[0]
 
         # Create Table Depth Image
         u = np.linspace(0, depth_mask.shape[1], depth_mask.shape[1], False)
         v = np.linspace(0, depth_mask.shape[0], depth_mask.shape[0], False)
-        U, V = np.meshgrid(u, v)
-        table = a * U + b * V + c
+        u_grid, v_grid = np.meshgrid(u, v)
+        table = a * u_grid + b * v_grid + c
         table = table.astype("uint16")
 
         return table
@@ -246,7 +235,7 @@ class TableDetectionNode(Node):
         table_depth: Image,
     ):
         """
-        Calculate the orientation of the table plane with respect to the 
+        Calculate the orientation of the table plane with respect to the
         camera's frame of perspective.
 
         Parameters
@@ -259,34 +248,33 @@ class TableDetectionNode(Node):
         center: The center coordinates of the table in the camera frame.
         q: The quaternion representing the orientation of the table plane.
         """
-
         # Deproject the depth image to get the 3D points in the camera frame.
         pointcloud = depth_img_to_pointcloud(
             table_depth,
             0,
             0,
-            f_x=self.camera_info.k[0],
-            f_y=self.camera_info.k[4],
-            c_x=self.camera_info.k[2],
-            c_y=self.camera_info.k[5],
+            f_x=camera_info.k[0],
+            f_y=camera_info.k[4],
+            c_x=camera_info.k[2],
+            c_y=camera_info.k[5],
         )
-        xy_d = np.concatenate((pointcloud[:, 0, np.newaxis], pointcloud[:, 1, np.newaxis]), axis=1)
+        xy_d = np.concatenate(
+            (pointcloud[:, 0, np.newaxis], pointcloud[:, 1, np.newaxis]), axis=1
+        )
         depth_d = pointcloud[:, 2]
         center = [
-            pointcloud[self.deproject_center_coord][0], 
-            pointcloud[self.deproject_center_coord][1], 
-            pointcloud[self.deproject_center_coord][2]
+            pointcloud[self.deproject_center_coord][0],
+            pointcloud[self.deproject_center_coord][1],
+            pointcloud[self.deproject_center_coord][2],
         ]
-        
+
         # Fit Plane: z = a*x + b*y + c
         coeffs = np.hstack((np.vstack(xy_d), np.ones((len(xy_d), 1)))).astype(float)
         a, b, c = np.linalg.lstsq(coeffs, depth_d, rcond=None)[0]
-        
-        # Modify the z coordinate of the center given the fitted plane (i.e. make the center 
+
+        # Modify the z coordinate of the center given the fitted plane (i.e. make the center
         # the origin of the table plane)
-        center[2] = (
-            a * center[0] + b * center[1] + c
-        )  
+        center[2] = a * center[0] + b * center[1] + c
 
         # Get the direction vectors of the table plane from the camera's frame of perspective
         x_p = [
@@ -296,10 +284,10 @@ class TableDetectionNode(Node):
         ]
         x_ref = [center[0] - x_p[0], center[1] - x_p[1], center[2] - x_p[2]]
         x_ref /= np.linalg.norm(x_ref)
-        
+
         z_ref = [a, b, -1] / np.linalg.norm([a, b, -1])
 
-        # Direction vector of y calculated through a system of linear equations consisting of: 
+        # Direction vector of y calculated through a system of linear equations consisting of:
         # the dot product of x and y, dot product of z and y, & norm of y = 1
         denom = math.sqrt(
             math.pow(x_ref[2] * z_ref[1] - x_ref[1] * z_ref[2], 2)
@@ -330,7 +318,7 @@ class TableDetectionNode(Node):
         self, request: SetBool.Request, response: SetBool.Response
     ) -> SetBool.Response:
         """
-        Callback function for the toggle_table_detection service. This function toggles the 
+        Callback function for the toggle_table_detection service. This function toggles the
         table detection publisher on or off based on the request data.
 
         Parameters
@@ -387,12 +375,12 @@ class TableDetectionNode(Node):
 
     def run(self) -> None:
         """
-            Run table detection at a specified fixed rate. This function gets the latest RGB 
-            image and depth image messages, fits a plane to the table, and calculates the 
-            center and orientation of the table in the camera frame. Then, with the calculated
-            center and orientation, it publishes a PoseStamped message. The PoseStamped 
-            messages will continue to get published at a specified fixed rate as table detection
-            continues to run.
+        Run table detection at a specified fixed rate. This function gets the latest RGB
+        image and depth image messages, fits a plane to the table, and calculates the
+        center and orientation of the table in the camera frame. Then, with the calculated
+        center and orientation, it publishes a PoseStamped message. The PoseStamped
+        messages will continue to get published at a specified fixed rate as table detection
+        continues to run.
         """
         # Create a fixed rate to run the loop on
         # TODO: Replace the rate with correct fixed value or create paremeter for rate
@@ -420,9 +408,6 @@ class TableDetectionNode(Node):
             with self.latest_depth_img_msg_lock:
                 depth_img_msg = self.latest_depth_img_msg
 
-            # Convert between ROS and CV images
-            self.bridge = CvBridge()
-
             # Get table depth from camera at the (u, v) coordinate (320, 240)
             table_depth = self.fit_table(rgb_msg, depth_img_msg)
 
@@ -436,9 +421,9 @@ class TableDetectionNode(Node):
                         "Camera info not received, not including in result message"
                     )
 
-            # Get the center and orientation of the table in the camera frame 
+            # Get the center and orientation of the table in the camera frame
             center, orientation = self.get_orientation(cam_info, table_depth)
-            
+
             # Create PoseStamped message
             fit_table_msg = PoseStamped(
                 header=depth_img_msg.header,
@@ -456,16 +441,16 @@ class TableDetectionNode(Node):
                     ),
                 ),
             )
-            
+
             # Publish the PoseStamped message
             self.publisher.publish(fit_table_msg)
+
 
 def main(args=None):
     """
     Launch the ROS node and spin.
     """
-
-    rclpy.init()
+    rclpy.init(args=args)
 
     table_detection = TableDetectionNode()
     executor = MultiThreadedExecutor(num_threads=2)
@@ -492,6 +477,7 @@ def main(args=None):
 
     # Join the spin thread (so it is spinning in the main thread)
     spin_thread.join()
+
 
 if __name__ == "__main__":
     main()
