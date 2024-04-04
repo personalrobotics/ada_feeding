@@ -1,3 +1,8 @@
+"""
+This file defines the TableDetectionNode class, which publishes the 3D PoseStamped
+location of the table with respect to camera_depth_optical_frame.
+"""
+
 # Standard imports
 import math
 import threading
@@ -34,8 +39,8 @@ class TableDetectionNode(Node):
     """
     This node subscribes to the camera info, depth image, and RGB image topics and exposes a
     service to toggle table detection on and off. When on, the node publishes
-    a 3D PoseStamped location of the center of the table with respect to the camera's frame of
-    perspective at a specified rate.
+    a 3D PoseStamped location of the center of the camera image with respect to the camera's 
+    frame of perspective at a specified rate.
     """
 
     def __init__(self):
@@ -169,9 +174,7 @@ class TableDetectionNode(Node):
         circles = np.round(circles[0, :]).astype("int")
         plate_uv = (0, 0)
         plate_r = 0
-        print(len(circles))
         for x, y, r in circles:
-            print("Radius: " + str(r))
             if r > plate_r:
                 plate_uv = (x, y)
                 plate_r = r
