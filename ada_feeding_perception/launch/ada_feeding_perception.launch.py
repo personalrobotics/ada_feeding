@@ -80,7 +80,7 @@ def generate_launch_description():
             PythonExpression(expression=["'", prefix, "/camera/color/camera_info'"]),
         ),
     ]
-    food_detection_remappings = [
+    aligned_depth_remapping = [
         (
             "~/aligned_depth",
             PythonExpression(
@@ -106,7 +106,7 @@ def generate_launch_description():
         name="segment_from_point",
         executable="segment_from_point",
         parameters=[segment_from_point_config, segment_from_point_params],
-        remappings=realsense_remappings + food_detection_remappings,
+        remappings=realsense_remappings + aligned_depth_remapping,
     )
     launch_description.add_action(segment_from_point)
 
@@ -155,7 +155,7 @@ def generate_launch_description():
         name="table_detection",
         executable="table_detection",
         remappings=realsense_remappings
-        + food_detection_remappings
+        + aligned_depth_remapping,
         + table_detection_remappings,
     )
     launch_description.add_action(table_detection)
