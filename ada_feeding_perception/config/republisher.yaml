@@ -17,7 +17,8 @@ republisher_perception:
       - sensor_msgs.msg.CameraInfo
       - sensor_msgs.msg.Image
 
-    # The name of the topics to republish to
+    # The name of the topics to republish to. NOTE: the `prefix` in the launchfile
+    # must match the below pattern!
     to_topics:
       - /local/camera/color/image_raw/compressed
       - /local/camera/color/camera_info
