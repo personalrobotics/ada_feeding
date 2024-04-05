@@ -158,7 +158,7 @@ class TableDetectionNode(Node):
 
         image_depth = ros_msg_to_cv2_image(image_depth_msg, self.bridge)
 
-        # Detect Largest Circle (Plate)
+        # Detect all circles from the given image
         circles = cv2.HoughCircles(
             gray,
             cv2.HOUGH_GRADIENT,
@@ -170,7 +170,9 @@ class TableDetectionNode(Node):
             maxRadius=self._hough_max,
         )
         if circles is None:
-            return None, None, None
+            return None
+        
+        # Determine the largest circle from the detected circles
         circles = np.round(circles[0, :]).astype("int")
         plate_uv = (0, 0)
         plate_r = 0
@@ -199,33 +201,33 @@ class TableDetectionNode(Node):
         plate_mask = np.zeros(image_depth.shape)
         cv2.circle(plate_mask, plate_uv, plate_r + self._table_buffer, 1.0, -1)
         cv2.circle(plate_mask, plate_uv, plate_r, 0.0, -1)
-        depth_mask = (image_depth * (plate_mask).astype("uint16")).astype(float)
+        depth_masked = (image_depth * (plate_mask).astype("uint16")).astype(float)
 
         # Noise removal
         kernel = np.ones((6, 6), np.uint8)
-        depth_mask = cv2.morphologyEx(depth_mask, cv2.MORPH_OPEN, kernel, iterations=3)
-        depth_mask = cv2.morphologyEx(depth_mask, cv2.MORPH_CLOSE, kernel, iterations=3)
+        depth_masked = cv2.morphologyEx(depth_masked, cv2.MORPH_OPEN, kernel, iterations=3)
+        depth_masked = cv2.morphologyEx(depth_masked, cv2.MORPH_CLOSE, kernel, iterations=3)
 
         # Remove Outliers
         # TODO: Consider outlier removal using median + iqr for the future
-        depth_var = np.abs(depth_mask - np.mean(depth_mask[depth_mask > 0]))
-        depth_std = np.std(depth_mask[depth_mask > 0])
-        depth_mask[depth_var > 2.0 * depth_std] = 0
+        depth_var = np.abs(depth_masked - np.mean(depth_masked[depth_masked > 0]))
+        depth_std = np.std(depth_masked[depth_masked > 0])
+        depth_masked[depth_var > 2.0 * depth_std] = 0
 
         # Fit Plane: depth = a*u + b*v + c
-        d_idx = np.where(depth_mask > 0)
-        d = depth_mask[d_idx].astype(float)
+        d_idx = np.where(depth_masked > 0)
+        d = depth_masked[d_idx].astype(float)
         coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1)))).astype(
             float
         )
-
-        # Coefficients b and a are reversed because of matrix row/col structure and its
-        # correspondence to x/y
-        b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[0]
+        b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[0] # Coefficients b and a are reversed 
+                                                            # because of matrix row/col structure 
+                                                            # and its correspondence to x/y
+        
 
         # Create Table Depth Image
-        u = np.linspace(0, depth_mask.shape[1], depth_mask.shape[1], False)
-        v = np.linspace(0, depth_mask.shape[0], depth_mask.shape[0], False)
+        u = np.linspace(0, depth_masked.shape[1], depth_masked.shape[1], False)
+        v = np.linspace(0, depth_masked.shape[0], depth_masked.shape[0], False)
         u_grid, v_grid = np.meshgrid(u, v)
         table = a * u_grid + b * v_grid + c
         table = table.astype("uint16")
