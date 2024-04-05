@@ -197,8 +197,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             ],
             "republisher": [
                 (
-                    "ros2 run ada_feeding_perception republisher --ros-args --params-file "
-                    "src/ada_feeding/ada_feeding_perception/config/republisher.yaml"
+                    "ros2 run ada_feeding_perception republisher --ros-args -r __node:=republisher_perception "
+                    " --params-file src/ada_feeding/ada_feeding_perception/config/republisher.yaml"
                 ),
             ],
             "rosbridge": [
