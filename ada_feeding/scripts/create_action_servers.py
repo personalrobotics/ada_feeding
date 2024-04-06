@@ -83,7 +83,9 @@ class CreateActionServers(Node):
     """
 
     # pylint: disable=too-many-instance-attributes
-    # Nine is fine if we are keeping watchdog functionality within the base Node
+    # Fine because of the generic parameters and watchdog capabiltiies.
+
+    DEFAULT_PARAMETER_NAMESPACE = "default"
 
     def __init__(self) -> None:
         """
@@ -96,6 +98,7 @@ class CreateActionServers(Node):
         register_logger(self.get_logger())
 
         # Read the parameters that specify what action servers to create.
+        self.namespace_to_use = CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
         self.action_server_params = self.read_params()
         self.add_on_set_parameters_callback(self.parameter_callback)
 
@@ -111,6 +114,20 @@ class CreateActionServers(Node):
         # Create the action servers.
         self.create_action_servers(self.action_server_params)
 
+    @staticmethod
+    def get_parameter_value(param: Parameter) -> Any:
+        """
+        Get the value of a parameter, converting a sequence to a list.
+
+        Parameters
+        ----------
+        param: The parameter to get the value of.
+        """
+        param_value = param.value
+        if isinstance(param_value, collections.abc.Sequence):
+            param_value = list(param_value)
+        return param_value
+
     def read_params(self) -> Tuple[Parameter, Parameter, Dict[str, ActionServerParams]]:
         """
         Read the parameters that specify what action servers to create.
@@ -119,9 +136,14 @@ class CreateActionServers(Node):
         -------
         action_server_params: A dict mapping server names to ActionServerParams objects.
         """
+        # pylint: disable=too-many-locals
+        # Okay because we are providing a lot of generic capabilities through parameters
+
+        default_namespace = CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
+
         # Read the server names
         server_names = self.declare_parameter(
-            "default.server_names",
+            f"{default_namespace}.server_names",
             descriptor=ParameterDescriptor(
                 name="server_names",
                 type=ParameterType.PARAMETER_STRING_ARRAY,
@@ -133,22 +155,38 @@ class CreateActionServers(Node):
             ),
         )
 
-        # Read the parameters that have been changed from their default values
-        overridden_parameters = self.declare_parameter(
-            "current.overridden_parameters",
+        # Read the custom parameter namespaces
+        custom_namespaces = self.declare_parameter(
+            "custom_namespaces",
+            value=[""],
             descriptor=ParameterDescriptor(
-                name="overridden_parameters",
+                name="custom_namespaces",
                 type=ParameterType.PARAMETER_STRING_ARRAY,
                 description=(
-                    "List of parameters that have been changed from their default values. "
-                    "These parameters must be set in the `current` param namespace."
+                    "List of custom parameter namespaces. Each one can have its "
+                    "own overrides of default parameters."
                 ),
                 read_only=True,
             ),
         )
-        overridden_parameters = overridden_parameters.value
-        self.overridden_parameters = {}
-        self.default_parameters = {}
+        custom_namespaces = [namespace for namespace in custom_namespaces.value if len(namespace) > 0]
+        self.parameters = {namespace: {} for namespace in custom_namespaces}
+        self.parameters[default_namespace] = {}
+        namespace_to_use = self.declare_parameter(
+            "namespace_to_use",
+            value=default_namespace,
+            descriptor=ParameterDescriptor(
+                name="namespace_to_use",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The custom parameter namespace to use. Must be "
+                    f'"{default_namespace}" or one of the namespaces in '
+                    "`custom_namespaces`."
+                ),
+                read_only=False,
+            ),
+        )
+        self.set_namespace_to_use(namespace_to_use.value)
 
         # Read each action server's params
         action_server_params = {}
@@ -158,7 +196,7 @@ class CreateActionServers(Node):
                 "",
                 [
                     (
-                        f"default.{server_name}.action_type",
+                        f"{default_namespace}.{server_name}.action_type",
                         None,
                         ParameterDescriptor(
                             name="action_type",
@@ -171,7 +209,7 @@ class CreateActionServers(Node):
                         ),
                     ),
                     (
-                        f"default.{server_name}.tree_class",
+                        f"{default_namespace}.{server_name}.tree_class",
                         None,
                         ParameterDescriptor(
                             name="tree_class",
@@ -184,7 +222,7 @@ class CreateActionServers(Node):
                         ),
                     ),
                     (
-                        f"default.{server_name}.tick_rate",
+                        f"{default_namespace}.{server_name}.tick_rate",
                         30,
                         ParameterDescriptor(
                             name="tick_rate",
@@ -198,8 +236,14 @@ class CreateActionServers(Node):
                     ),
                 ],
             )
+            if action_type.value is None or tree_class.value is None:
+                self.get_logger().warn(
+                    f"Skipping action server {server_name} "
+                    "because it has no action type or tree class"
+                )
+                continue
             tree_kws = self.declare_parameter(
-                f"default.{server_name}.tree_kws",
+                f"{default_namespace}.{server_name}.tree_kws",
                 descriptor=ParameterDescriptor(
                     name="tree_kws",
                     type=ParameterType.PARAMETER_STRING_ARRAY,
@@ -210,50 +254,40 @@ class CreateActionServers(Node):
                     read_only=True,
                 ),
             )
+            tree_kwargs = {}
             if tree_kws.value is not None:
-                tree_kwargs = {}
                 for kw in tree_kws.value:
                     full_name = f"{server_name}.tree_kwargs.{kw}"
-                    default_value = self.declare_parameter(
-                        f"default.{full_name}",
-                        descriptor=ParameterDescriptor(
-                            name=kw,
-                            description="Custom keyword argument for the behavior tree.",
-                            dynamic_typing=True,
-                            read_only=True,
-                        ),
+                    # Get the default value
+                    default_value = self.declare_tree_kwarg(
+                        namespace=default_namespace,
+                        full_name=full_name,
                     )
-                    if isinstance(default_value, collections.abc.Sequence):
-                        default_value = list(default_value.value)
-                    else:
-                        default_value = default_value.value
-                    self.default_parameters[full_name] = default_value
-                    current_value = self.declare_parameter(
-                        f"current.{full_name}",
-                        descriptor=ParameterDescriptor(
-                            name=kw,
-                            description="Custom keyword argument for the behavior tree.",
-                            dynamic_typing=True,
-                        ),
+                    default_value = CreateActionServers.get_parameter_value(
+                        default_value
                     )
-                    if isinstance(current_value, collections.abc.Sequence):
-                        current_value = list(current_value.value)
+                    if default_value is None:
+                        self.get_logger().error(
+                            f"tree_kwarg {full_name} must have a non-None value. "
+                            "Skipping this tree_kwarg."
+                        )
+                        continue
+                    self.parameters[default_namespace][full_name] = default_value
+                    # Get the custom value(s)
+                    for namespace in custom_namespaces:
+                        custom_value = self.declare_tree_kwarg(
+                            namespace=namespace,
+                            full_name=full_name,
+                        )
+                        self.parameters[namespace][
+                            full_name
+                        ] = CreateActionServers.get_parameter_value(custom_value)
+                    if self.parameters[self.namespace_to_use][full_name] is not None:
+                        tree_kwargs[kw] = self.parameters[self.namespace_to_use][
+                            full_name
+                        ]
                     else:
-                        current_value = current_value.value
-                    if full_name in overridden_parameters:
-                        tree_kwargs[kw] = current_value
-                        self.overridden_parameters[full_name] = current_value
-                    else:
-                        tree_kwargs[kw] = default_value
-            else:
-                tree_kwargs = {}
-
-            if action_type.value is None or tree_class.value is None:
-                self.get_logger().warn(
-                    f"Skipping action server {server_name} "
-                    "because it has no action type or tree class"
-                )
-                continue
+                        tree_kwargs[kw] = self.parameters[default_namespace][full_name]
 
             action_server_params[server_name] = ActionServerParams(
                 server_name=server_name,
@@ -265,6 +299,68 @@ class CreateActionServers(Node):
 
         return action_server_params
 
+    def set_namespace_to_use(
+        self, namespace_to_use: str, create_if_not_exist: bool = False
+    ) -> None:
+        """
+        Sets the parameter namespace to use for the node.
+
+        Parameters
+        ----------
+        namespace_to_use: The namespace to use.
+        create_if_not_exist: If True, create the namespace if it doesn't exist.
+            Else, set the namespace to default if it doesn't exist. Requires
+            all default parameters to already be declared.
+        """
+        default_namespace = CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
+        if namespace_to_use in self.parameters.keys():
+            self.namespace_to_use = namespace_to_use
+        else:
+            if create_if_not_exist:
+                self.get_logger().info("DEBUG: create_if_not_exist")
+                self.parameters[namespace_to_use] = {}
+                for full_name in self.parameters[default_namespace].keys():
+                    self.get_logger().info(f"DEBUG: {full_name}")
+                    custom_value = self.declare_tree_kwarg(
+                        namespace=namespace_to_use,
+                        full_name=full_name,
+                    )
+                    self.get_logger().info(f"DEBUG: declared kwarg")
+                    self.parameters[namespace_to_use][
+                        full_name
+                    ] = CreateActionServers.get_parameter_value(custom_value)
+                    self.get_logger().info(f"DEBUG: got value")
+                self.namespace_to_use = namespace_to_use
+            else:
+                self.get_logger().warn(
+                    f"Unknown namespace {namespace_to_use}, using {default_namespace}"
+                )
+                self.namespace_to_use = default_namespace
+
+    def declare_tree_kwarg(self, namespace: str, full_name: str) -> Parameter:
+        """
+        This method declares a tree_kwarg parameter in the given namespace.
+
+        Parameters
+        ----------
+        namespace: The namespace to declare the parameter in.
+        full_name: The full name of the parameter, e.g., "{server_name}.tree_kwargs.{kw}".
+
+        Returns
+        -------
+        The declared parameter.
+        """
+        read_only = namespace == CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
+        return self.declare_parameter(
+            f"{namespace}.{full_name}",
+            descriptor=ParameterDescriptor(
+                name=full_name,
+                description="Custom parameter for the behavior tree.",
+                dynamic_typing=True,
+                read_only=read_only,
+            ),
+        )
+
     def parameter_callback(self, params: List[Parameter]) -> SetParametersResult:
         """
         Callback function for when a parameter is changed. Note that in practice,
@@ -275,62 +371,136 @@ class CreateActionServers(Node):
         to process the parameter change. This is because rclpy runs all parameter
         callbacks in sequence until one returns failure.
         """
-        num_updated_params = 0
+        # pylint: disable=too-many-branches
+        # Necessary for flexible checking of parameters
+
+        default_namespace = CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
+        updated_namespace = False
+        updated_server_names = set()
         for param in params:
+            # Change the namespace_to_use
+            if param.name == "namespace_to_use":
+                self.get_logger().info(f"DEBUG: Updating namespace_to_use {param.value} {self.parameters.keys()}")
+                if len(param.value) == 0:
+                    self.get_logger().warn(
+                        "namespace_to_use cannot be empty. Skipping this parameter."
+                    )
+                    continue
+                self.set_namespace_to_use(param.value, create_if_not_exist=True)
+                self.get_logger().info("DEBUG: set_namespace_to_use done")
+                updated_namespace = True
+                # If this namespace has custom parameters, switch to them
+                for full_name, value in self.parameters[self.namespace_to_use].items():
+                    self.get_logger().info(f"DEBUG: set custom params {full_name}")
+                    if "tree_kwargs" not in full_name:
+                        self.get_logger().warn(
+                            f"Non tree_kwarg parameter {full_name} in self.parameters. "
+                            "This should not happen."
+                        )
+                        continue
+                    server_name, _, kw = full_name.split(".")
+                    if server_name not in self.action_server_params:
+                        self.get_logger().warn(
+                            f"Unknown server name {server_name} in self.parameters. "
+                            "This should not happen."
+                        )
+                        continue
+                    # If the parameter has a value, update the tree_kwargs
+                    if value is not None:
+                        action_server_params = self.action_server_params[server_name]
+                        action_server_params.tree_kwargs[kw] = value
+                        updated_server_names.add(server_name)
+                        self.get_logger().info(f"DEBUG: set tree_kwarg")
+                continue
+
+            # Change a tree_kwarg
+            if "tree_kwargs" not in param.name:
+                self.get_logger().debug(
+                    f"Update for parameter {param.name} cannot be handled by "
+                    "CreateActionServers's parameter_callback."
+                )
+                continue
+            # Deconstruct the parameter name
             names = param.name.split(".")
-            if len(names) < 1 or names[0] != "current":
-                self.get_logger().warn(f"Parameter {param.name} cannot be changed")
-                continue
+            namespace, server_name, _, kw = names
             full_name = ".".join(names[1:])
-            if full_name not in self.default_parameters:
-                self.get_logger().warn(f"Unknown parameter {param.name}")
+            # Verify it is a valid parameter name
+            if namespace not in self.parameters.keys():
+                self.get_logger().warn(
+                    f"Unknown namespace {namespace} for parameter {param.name}. "
+                    "Skipping this parameter."
+                )
                 continue
-            if isinstance(param.value, collections.abc.Sequence):
-                param_value = list(param.value)
-            else:
-                param_value = param.value
-            if not isinstance(param_value, type(self.default_parameters[full_name])):
+            if full_name not in self.parameters[namespace]:
+                self.get_logger().warn(
+                    f"Unknown parameter {param.name}. Skipping this parameter."
+                )
+                continue
+            if server_name not in self.action_server_params:
+                self.get_logger().warn(
+                    f"Unknown server name {server_name} for parameter {param.name}. "
+                    "Skipping this parameter."
+                )
+                continue
+            param_value = CreateActionServers.get_parameter_value(param)
+            if not isinstance(
+                param_value, type(self.parameters[default_namespace][full_name])
+            ):
                 self.get_logger().warn(
                     f"Parameter {param.name} must be of type "
-                    f"{type(self.default_parameters[full_name])} "
+                    f"{type(self.parameters[default_namespace][full_name])} "
                     f"but is of type {type(param_value)}"
                 )
                 return SetParametersResult(successful=False, reason="type mismatch")
-            self.overridden_parameters[full_name] = param_value
-            num_updated_params += 1
-            # If a tree_kwarg was set, re-initialize the tree
-            if "tree_kwargs" in param.name:
-                server_name = names[1]
-                if server_name in self.action_server_params:
-                    action_server_params = self.action_server_params[server_name]
-                    kw = names[3]
-                    action_server_params.tree_kwargs[kw] = param_value
-                    # pylint: disable=too-many-function-args
-                    self.create_tree(
-                        server_name,
-                        action_server_params.tree_class,
-                        action_server_params.tree_kwargs,
-                    )
-        if num_updated_params > 0:
-            self.save_overridden_parameters()
+            # Change the parameter
+            self.parameters[namespace][full_name] = param_value
+            # If this is the namespace we're using, update the tree_kwargs
+            if namespace == self.namespace_to_use:
+                action_server_params = self.action_server_params[server_name]
+                action_server_params.tree_kwargs[kw] = param_value
+                updated_server_names.add(server_name)
+
+        # Update the action servers
+        if len(updated_server_names) > 0:
+            # Re-create the trees with updated kwargs
+            for server_name in updated_server_names:
+                action_server_params = self.action_server_params[server_name]
+                self.create_tree(
+                    server_name,
+                    action_server_params.tree_class,
+                    action_server_params.tree_kwargs,
+                )
+        # Save the updated parameters
+        if updated_namespace or len(updated_server_names) > 0:
+            self.save_custom_parameters()
         return SetParametersResult(successful=True)
 
-    def save_overridden_parameters(self) -> None:
+    def save_custom_parameters(self) -> None:
         """
-        Overrides `ada_feeding_action_servers_current.yaml` with the current
-        values of `self.overridden_parameters`.
+        Overrides `ada_feeding_action_servers_custom.yaml` with the non-None
+        custom parameters in the non-default namespaces of `self.parameters`.
         """
+        default_namespace = CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
         # Convert the parameters to a dictionary of the right form
         params = {}
-        params["overridden_parameters"] = list(self.overridden_parameters.keys())
-        for full_name, value in self.overridden_parameters.items():
-            params[full_name] = value
-        data = {"ada_feeding_action_servers": {"ros__parameters": {"current": params}}}
+        params["namespace_to_use"] = self.namespace_to_use
+        custom_namespaces = [
+            namespace for namespace in self.parameters.keys()
+            if namespace != default_namespace
+        ]
+        params["custom_namespaces"] = custom_namespaces
+        for namespace in custom_namespaces:
+            params[namespace] = {}
+            for full_name, value in self.parameters[namespace].items():
+                if value is None:
+                    continue
+                params[namespace][full_name] = value
+        data = {"ada_feeding_action_servers": {"ros__parameters": params}}
 
         # Write to yaml
         package_path = get_package_share_directory("ada_feeding")
         file_path = os.path.join(
-            package_path, "config", "ada_feeding_action_servers_current.yaml"
+            package_path, "config", "ada_feeding_action_servers_custom.yaml"
         )
         self.get_logger().debug(f"Writing to {file_path} with data {data}")
         with open(file_path, "w", encoding="utf-8") as file:
@@ -474,8 +644,6 @@ class CreateActionServers(Node):
         # TODO: consider adding a timeout here
         tree.setup(node=self)
 
-    # pylint: disable=too-many-arguments
-    # This is appropriate
     def get_execute_callback(
         self,
         server_name: str,
@@ -502,6 +670,11 @@ class CreateActionServers(Node):
         -------
         execute_callback: The callback function for the action server.
         """
+        # pylint: disable=too-many-arguments
+        # This is appropriate
+        # pylint: disable=too-many-statements
+        # This is function declares the main execution loop.
+
         self.create_tree(server_name, tree_class, tree_kwargs)
 
         async def execute_callback(goal_handle: ServerGoalHandle) -> Awaitable:
@@ -511,6 +684,8 @@ class CreateActionServers(Node):
             (if not already loaded) and executes the behavior tree, publishing
             periodic feedback.
             """
+            # pylint: disable=too-many-statements
+            # This is the main execution loop.
 
             goal_uuid = "".join(format(x, "02x") for x in goal_handle.goal_id.uuid)
             self.get_logger().info(
