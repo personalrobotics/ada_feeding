@@ -169,7 +169,9 @@ class CreateActionServers(Node):
                 read_only=True,
             ),
         )
-        custom_namespaces = [namespace for namespace in custom_namespaces.value if len(namespace) > 0]
+        custom_namespaces = [
+            namespace for namespace in custom_namespaces.value if len(namespace) > 0
+        ]
         self.parameters = {namespace: {} for namespace in custom_namespaces}
         self.parameters[default_namespace] = {}
         namespace_to_use = self.declare_parameter(
@@ -317,19 +319,15 @@ class CreateActionServers(Node):
             self.namespace_to_use = namespace_to_use
         else:
             if create_if_not_exist:
-                self.get_logger().info("DEBUG: create_if_not_exist")
                 self.parameters[namespace_to_use] = {}
                 for full_name in self.parameters[default_namespace].keys():
-                    self.get_logger().info(f"DEBUG: {full_name}")
                     custom_value = self.declare_tree_kwarg(
                         namespace=namespace_to_use,
                         full_name=full_name,
                     )
-                    self.get_logger().info(f"DEBUG: declared kwarg")
                     self.parameters[namespace_to_use][
                         full_name
                     ] = CreateActionServers.get_parameter_value(custom_value)
-                    self.get_logger().info(f"DEBUG: got value")
                 self.namespace_to_use = namespace_to_use
             else:
                 self.get_logger().warn(
@@ -371,27 +369,24 @@ class CreateActionServers(Node):
         to process the parameter change. This is because rclpy runs all parameter
         callbacks in sequence until one returns failure.
         """
-        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-branches, too-many-statements
         # Necessary for flexible checking of parameters
 
         default_namespace = CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
-        updated_namespace = False
+        updated_parameters = False
         updated_server_names = set()
         for param in params:
             # Change the namespace_to_use
             if param.name == "namespace_to_use":
-                self.get_logger().info(f"DEBUG: Updating namespace_to_use {param.value} {self.parameters.keys()}")
                 if len(param.value) == 0:
                     self.get_logger().warn(
                         "namespace_to_use cannot be empty. Skipping this parameter."
                     )
                     continue
                 self.set_namespace_to_use(param.value, create_if_not_exist=True)
-                self.get_logger().info("DEBUG: set_namespace_to_use done")
-                updated_namespace = True
+                updated_parameters = True
                 # If this namespace has custom parameters, switch to them
                 for full_name, value in self.parameters[self.namespace_to_use].items():
-                    self.get_logger().info(f"DEBUG: set custom params {full_name}")
                     if "tree_kwargs" not in full_name:
                         self.get_logger().warn(
                             f"Non tree_kwarg parameter {full_name} in self.parameters. "
@@ -410,7 +405,6 @@ class CreateActionServers(Node):
                         action_server_params = self.action_server_params[server_name]
                         action_server_params.tree_kwargs[kw] = value
                         updated_server_names.add(server_name)
-                        self.get_logger().info(f"DEBUG: set tree_kwarg")
                 continue
 
             # Change a tree_kwarg
@@ -454,6 +448,7 @@ class CreateActionServers(Node):
                 return SetParametersResult(successful=False, reason="type mismatch")
             # Change the parameter
             self.parameters[namespace][full_name] = param_value
+            updated_parameters = True
             # If this is the namespace we're using, update the tree_kwargs
             if namespace == self.namespace_to_use:
                 action_server_params = self.action_server_params[server_name]
@@ -471,7 +466,7 @@ class CreateActionServers(Node):
                     action_server_params.tree_kwargs,
                 )
         # Save the updated parameters
-        if updated_namespace or len(updated_server_names) > 0:
+        if updated_parameters or len(updated_server_names) > 0:
             self.save_custom_parameters()
         return SetParametersResult(successful=True)
 
@@ -485,7 +480,8 @@ class CreateActionServers(Node):
         params = {}
         params["namespace_to_use"] = self.namespace_to_use
         custom_namespaces = [
-            namespace for namespace in self.parameters.keys()
+            namespace
+            for namespace in self.parameters.keys()
             if namespace != default_namespace
         ]
         params["custom_namespaces"] = custom_namespaces
