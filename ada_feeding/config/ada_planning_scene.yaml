@@ -86,3 +86,5 @@ ada_planning_scene:
       attached: True
       frame_id: forkTip # the frame_id that the pose is relative to
       touch_links: [forkTine] # the links, in addition to frame_id, that should be ignored for collision checking
+
+    table_detection_offsets: [-0.20, -0.25, -0.79] 
