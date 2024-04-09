@@ -158,7 +158,6 @@ class CreateActionServers(Node):
         # Read the custom parameter namespaces
         custom_namespaces = self.declare_parameter(
             "custom_namespaces",
-            value=[""],
             descriptor=ParameterDescriptor(
                 name="custom_namespaces",
                 type=ParameterType.PARAMETER_STRING_ARRAY,
@@ -166,12 +165,16 @@ class CreateActionServers(Node):
                     "List of custom parameter namespaces. Each one can have its "
                     "own overrides of default parameters."
                 ),
-                read_only=True,
+                read_only=False,
             ),
         )
-        custom_namespaces = [
-            namespace for namespace in custom_namespaces.value if len(namespace) > 0
-        ]
+        custom_namespaces = (
+            []
+            if custom_namespaces.value is None
+            else [
+                namespace for namespace in custom_namespaces.value if len(namespace) > 0
+            ]
+        )
         self.parameters = {namespace: {} for namespace in custom_namespaces}
         self.parameters[default_namespace] = {}
         namespace_to_use = self.declare_parameter(
@@ -301,6 +304,28 @@ class CreateActionServers(Node):
 
         return action_server_params
 
+    def declare_namespace_parameters(self, namespace: str) -> None:
+        """
+        For a given namespace, declares all the parameters in `default` within
+        that namespace.
+
+        Parameters
+        ----------
+        namespace: The namespace to declare parameters for.
+        """
+        default_namespace = CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
+
+        if namespace not in self.parameters.keys():
+            self.parameters[namespace] = {}
+        for full_name in self.parameters[default_namespace].keys():
+            custom_value = self.declare_tree_kwarg(
+                namespace=namespace,
+                full_name=full_name,
+            )
+            self.parameters[namespace][
+                full_name
+            ] = CreateActionServers.get_parameter_value(custom_value)
+
     def set_namespace_to_use(
         self, namespace_to_use: str, create_if_not_exist: bool = False
     ) -> None:
@@ -319,15 +344,7 @@ class CreateActionServers(Node):
             self.namespace_to_use = namespace_to_use
         else:
             if create_if_not_exist:
-                self.parameters[namespace_to_use] = {}
-                for full_name in self.parameters[default_namespace].keys():
-                    custom_value = self.declare_tree_kwarg(
-                        namespace=namespace_to_use,
-                        full_name=full_name,
-                    )
-                    self.parameters[namespace_to_use][
-                        full_name
-                    ] = CreateActionServers.get_parameter_value(custom_value)
+                self.declare_namespace_parameters(namespace_to_use)
                 self.namespace_to_use = namespace_to_use
             else:
                 self.get_logger().warn(
@@ -407,6 +424,36 @@ class CreateActionServers(Node):
                         updated_server_names.add(server_name)
                 continue
 
+            # Change the custom namespaces
+            if param.name == "custom_namespaces":
+                custom_namespaces = param.value
+                if custom_namespaces is None:
+                    custom_namespaces = []
+                if (
+                    self.namespace_to_use != default_namespace
+                    and self.namespace_to_use not in custom_namespaces
+                ):
+                    self.get_logger().warn(
+                        f"Currently used namespace {self.namespace_to_use} is not in custom_namespaces. "
+                        "This may cause issues."
+                    )
+                for namespace in custom_namespaces:
+                    if len(namespace) == 0:
+                        self.get_logger().warn(
+                            "custom_namespaces cannot have empty strings. Skipping this namespace."
+                        )
+                        continue
+                    if namespace == default_namespace:
+                        self.get_logger().warn(
+                            f"Namespace {default_namespace} is reserved and cannot "
+                            "be used as a custom namespace. Skipping this namespace."
+                        )
+                        continue
+                    if namespace not in self.parameters.keys():
+                        self.declare_namespace_parameters(namespace)
+                updated_parameters = True
+                continue
+
             # Change a tree_kwarg
             if "tree_kwargs" not in param.name:
                 self.get_logger().debug(
@@ -466,7 +513,7 @@ class CreateActionServers(Node):
                     action_server_params.tree_kwargs,
                 )
         # Save the updated parameters
-        if updated_parameters or len(updated_server_names) > 0:
+        if updated_parameters:
             self.save_custom_parameters()
         return SetParametersResult(successful=True)
 
