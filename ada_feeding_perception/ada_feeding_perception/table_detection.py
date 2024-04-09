@@ -6,7 +6,7 @@ location of the table with respect to camera_depth_optical_frame.
 # Standard imports
 import math
 import threading
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 
 # Third-party imports
 import cv2
@@ -296,7 +296,7 @@ class TableDetectionNode(Node):
         self,
         camera_info: CameraInfo,
         table_depth: npt.NDArray,
-    ) -> Tuple[list[int], list[list[int]]]:
+    ) -> Tuple[List[int], List[List[int]]]:
         """
         Calculate the orientation of the table plane with respect to the
         camera's frame of perspective.
