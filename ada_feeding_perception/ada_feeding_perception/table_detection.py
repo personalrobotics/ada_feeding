@@ -261,7 +261,7 @@ class TableDetectionNode(Node):
         plate_mask = np.zeros(image_depth.shape)
         cv2.circle(plate_mask, plate_uv, plate_r + table_buffer, 1.0, -1)
         cv2.circle(plate_mask, plate_uv, plate_r, 0.0, -1)
-        depth_masked = (image_depth * (plate_mask).astype("uint16")).astype(float)
+        depth_masked = (image_depth * (plate_mask).astype("uint16"))
 
         # Noise removal
         kernel = np.ones((6, 6), np.uint8)
@@ -278,10 +278,8 @@ class TableDetectionNode(Node):
 
         # Fit plane: depth = a*u + b*v + c
         d_idx = np.where(depth_masked > 0)
-        d = depth_masked[d_idx].astype(float)
-        coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1)))).astype(
-            float
-        )
+        d = depth_masked[d_idx]
+        coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1))))
         b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[0] # Coefficients b and a are reversed 
                                                             # because of matrix row/col structure 
                                                             # and its correspondence to x/y
@@ -338,7 +336,7 @@ class TableDetectionNode(Node):
         ]
 
         # Fit Plane: z = a*x + b*y + c
-        coeffs = np.hstack((np.vstack(xy_d), np.ones((len(xy_d), 1)))).astype(float)
+        coeffs = np.hstack((np.vstack(xy_d), np.ones((len(xy_d), 1))))
         a, b, c = np.linalg.lstsq(coeffs, depth_d, rcond=None)[0]
 
         # Modify the z coordinate of the center given the fitted plane (i.e. make the center

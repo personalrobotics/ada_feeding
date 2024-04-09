@@ -46,6 +46,7 @@ CollisionObjectParams = namedtuple(
         "primitive_dims",
         "position",
         "quat_xyzw",
+        "offsets",
         "frame_id",
         "attached",
         "touch_links",
@@ -271,6 +272,19 @@ class ADAPlanningScene(Node):
                     read_only=True,
                 ),
             )
+            offsets = self.declare_parameter(
+                f"{object_id}.offsets",
+                None,
+                descriptor=ParameterDescriptor(
+                    name="offsets",
+                    type=ParameterType.PARAMETER_DOUBLE_ARRAY,
+                    description=(
+                        f"The offset values for center coordinates" 
+                        " of the '{object_id}' object."
+                    ),
+                    read_only=True,
+                ),
+            )
             frame_id = self.declare_parameter(
                 f"{object_id}.frame_id",
                 None,
@@ -321,6 +335,7 @@ class ADAPlanningScene(Node):
                 primitive_dims=primitive_dims.value,
                 position=position.value,
                 quat_xyzw=quat_xyzw.value,
+                offsets=offsets.value,
                 frame_id=frame_id.value,
                 attached=attached.value,
                 touch_links=touch_links,
@@ -438,6 +453,7 @@ class ADAPlanningScene(Node):
                         filepath=params.filepath,
                         position=params.position,
                         quat_xyzw=params.quat_xyzw,
+                        offsets=params.offsets,
                         link_name=params.frame_id,
                         touch_links=params.touch_links,
                     )
@@ -447,6 +463,7 @@ class ADAPlanningScene(Node):
                         filepath=params.filepath,
                         position=params.position,
                         quat_xyzw=params.quat_xyzw,
+                        offsets=params.offsets,
                         frame_id=params.frame_id,
                     )
             else:
@@ -457,6 +474,7 @@ class ADAPlanningScene(Node):
                         dims=params.primitive_dims,
                         position=params.position,
                         quat_xyzw=params.quat_xyzw,
+                        offsets=params.offsets,
                         link_name=params.frame_id,
                         touch_links=params.touch_links,
                     )
@@ -467,6 +485,7 @@ class ADAPlanningScene(Node):
                         dims=params.primitive_dims,
                         position=params.position,
                         quat_xyzw=params.quat_xyzw,
+                        offsets=params.offsets,
                         frame_id=params.frame_id,
                     )
             rate.sleep()
@@ -638,7 +657,7 @@ class ADAPlanningScene(Node):
             msg = self.latest_table_detection
             self.latest_table_detection = None
 
-        base_frame = "root"
+        base_frame = self.objects[self.table_object_id].frame_id
 
         # Transform the detected table pose from the camera frame into the base frame
         try:
@@ -653,11 +672,11 @@ class ADAPlanningScene(Node):
             )
             return
 
-        # Modify z position of table for planning scene object
+        # Translate detected position of table into table's origin
         # TODO: Need to figure out this value
-        detected_table_pose.pose.position.x -= 0.20
-        detected_table_pose.pose.position.y -= 0.25
-        detected_table_pose.pose.position.z -= 0.79
+        detected_table_pose.pose.position.x -= self.objects[self.table_object_id].offsets[0]
+        detected_table_pose.pose.position.y -= self.objects[self.table_object_id].offsets[1]
+        detected_table_pose.pose.position.z -= self.objects[self.table_object_id].offsets[2]
 
         # Move the table object in the planning scene to the detected pose
         self.moveit2.move_collision(
