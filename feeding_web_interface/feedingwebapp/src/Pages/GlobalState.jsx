@@ -75,6 +75,9 @@ export const SETTINGS_STATE = {
   BITE_TRANSFER: 'BITE_TRANSFER'
 }
 
+// The name of the default parameter namespace
+export const DEFAULT_NAMESPACE = 'default'
+
 /**
  * useGlobalState is a hook to store and manipulate web app state that we want
  * to persist across re-renders and refreshes. It won't persist if cookies are
@@ -93,6 +96,7 @@ export const useGlobalState = create(
       mealStateTransitionTime: Date.now(),
       // The currently displayed settings page
       settingsState: SETTINGS_STATE.MAIN,
+      settingsPresets: { current: DEFAULT_NAMESPACE, customNames: [] },
       // The goal for the bite acquisition action, including the most recent
       // food item that the user selected in "bite selection"
       biteAcquisitionActionGoal: null,
@@ -155,6 +159,10 @@ export const useGlobalState = create(
       setSettingsState: (settingsState) =>
         set(() => ({
           settingsState: settingsState
+        })),
+      setSettingsPresets: (settingsPresets) =>
+        set(() => ({
+          settingsPresets: settingsPresets
         })),
       setBiteAcquisitionActionGoal: (biteAcquisitionActionGoal) =>
         set(() => ({

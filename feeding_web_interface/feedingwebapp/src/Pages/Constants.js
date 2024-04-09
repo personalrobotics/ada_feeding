@@ -126,6 +126,9 @@ export const GET_PARAMETERS_SERVICE_TYPE = 'rcl_interfaces/srv/GetParameters'
 export const SET_PARAMETERS_SERVICE_NAME = 'ada_feeding_action_servers/set_parameters'
 export const SET_PARAMETERS_SERVICE_TYPE = 'rcl_interfaces/srv/SetParameters'
 
+// The names of parameters users can change in the settings menu
+export const DISTANCE_TO_MOUTH_PARAM = 'MoveToMouth.tree_kwargs.plan_distance_from_mouth'
+
 /**
  * The meaning of the status that motion actions return in their results.
  * These should match the action definition(s).

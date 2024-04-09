@@ -3,6 +3,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PropTypes from 'prop-types'
 import { useId, Label, SpinButton } from '@fluentui/react-components'
 import Button from 'react-bootstrap/Button'
+import Dropdown from 'react-bootstrap/Dropdown'
+import SplitButton from 'react-bootstrap/SplitButton'
 // The Modal is a screen that appears on top of the main app, and can be toggled
 // on and off.
 import Modal from 'react-bootstrap/Modal'
@@ -14,9 +16,10 @@ import {
   GET_PARAMETERS_SERVICE_NAME,
   GET_PARAMETERS_SERVICE_TYPE,
   SET_PARAMETERS_SERVICE_NAME,
-  SET_PARAMETERS_SERVICE_TYPE
+  SET_PARAMETERS_SERVICE_TYPE,
+  DISTANCE_TO_MOUTH_PARAM
 } from '../Constants'
-import { useGlobalState, MEAL_STATE, SETTINGS_STATE } from '../GlobalState'
+import { useGlobalState, MEAL_STATE, SETTINGS_STATE, DEFAULT_NAMESPACE } from '../GlobalState'
 import RobotMotion from '../Home/MealStates/RobotMotion'
 import DetectingFaceSubcomponent from '../Home/MealStates/DetectingFaceSubcomponent'
 
@@ -26,6 +29,7 @@ import DetectingFaceSubcomponent from '../Home/MealStates/DetectingFaceSubcompon
  */
 const BiteTransfer = (props) => {
   // Get relevant global state variables
+  const settingsPresets = useGlobalState((state) => state.settingsPresets)
   const setSettingsState = useGlobalState((state) => state.setSettingsState)
   const globalMealState = useGlobalState((state) => state.mealState)
   const setPaused = useGlobalState((state) => state.setPaused)
@@ -130,19 +134,19 @@ const BiteTransfer = (props) => {
     let service = getParametersService.current
     // First, attempt to get the current distance to mouth
     let currentRequest = createROSServiceRequest({
-      names: ['current.MoveToMouth.tree_kwargs.plan_distance_from_mouth']
+      names: [settingsPresets.current.concat('.', DISTANCE_TO_MOUTH_PARAM)]
     })
     service.callService(currentRequest, (response) => {
       console.log('Got current plan_distance_from_mouth response', response)
-      if (response.values[0].type === 0) {
+      if (response.values.length === 0 || response.values[0].type === 0) {
         // Parameter not set
         // Second, attempt to get the default distance to mouth
         let defaultRequest = createROSServiceRequest({
-          names: ['default.MoveToMouth.tree_kwargs.plan_distance_from_mouth']
+          names: [DEFAULT_NAMESPACE.concat('.', DISTANCE_TO_MOUTH_PARAM)]
         })
         service.callService(defaultRequest, (response) => {
           console.log('Got default plan_distance_from_mouth response', response)
-          if (response.values.length > 0) {
+          if (response.values.length > 0 && response.values[0].type === 8) {
             setCurrentDistanceToMouth(getParameterValue(response.values[0]))
           }
         })
@@ -150,7 +154,7 @@ const BiteTransfer = (props) => {
         setCurrentDistanceToMouth(getParameterValue(response.values[0]))
       }
     })
-  }, [getParametersService, setCurrentDistanceToMouth, setDoneButtonIsClicked, setPaused])
+  }, [getParametersService, setCurrentDistanceToMouth, setDoneButtonIsClicked, setPaused, settingsPresets])
 
   // Callback to set the distance to mouth parameter
   const setDistanceToMouth = useCallback(
@@ -159,7 +163,7 @@ const BiteTransfer = (props) => {
       let request = createROSServiceRequest({
         parameters: [
           {
-            name: 'current.MoveToMouth.tree_kwargs.plan_distance_from_mouth',
+            name: settingsPresets.current.concat('.', DISTANCE_TO_MOUTH_PARAM),
             value: {
               type: 8, // double array
               double_array_value: fullDistanceToMouth
@@ -174,23 +178,29 @@ const BiteTransfer = (props) => {
         }
       })
     },
-    [setParametersService, setCurrentDistanceToMouth]
+    [setParametersService, setCurrentDistanceToMouth, settingsPresets]
   )
 
   // Callback to restore the distance to mouth to the default
-  const restoreToDefaultButtonClicked = useCallback(() => {
-    let service = getParametersService.current
-    // Attempt to get the default distance to mouth
-    let defaultRequest = createROSServiceRequest({
-      names: ['default.MoveToMouth.tree_kwargs.plan_distance_from_mouth']
-    })
-    service.callService(defaultRequest, (response) => {
-      console.log('Got default plan_distance_from_mouth response', response)
-      if (response.values.length > 0) {
-        setDistanceToMouth(getParameterValue(response.values[0]))
-      }
-    })
-  }, [getParametersService, setDistanceToMouth])
+  const restoreToPreset = useCallback(
+    (preset) => {
+      console.log('restoreToPreset called with', preset)
+      let service = getParametersService.current
+      // Attempt to get the default distance to mouth
+      let defaultRequest = createROSServiceRequest({
+        names: [preset.concat('.', DISTANCE_TO_MOUTH_PARAM)]
+      })
+      service.callService(defaultRequest, (response) => {
+        console.log('Got plan_distance_from_mouth response', response)
+        if (response.values.length > 0 && response.values[0].type === 8) {
+          setDistanceToMouth(getParameterValue(response.values[0]))
+        } else {
+          restoreToPreset(DEFAULT_NAMESPACE)
+        }
+      })
+    },
+    [getParametersService, setDistanceToMouth]
+  )
 
   // Callback to move the robot to the mouth
   const moveToMouthButtonClicked = useCallback(() => {
@@ -275,7 +285,8 @@ const BiteTransfer = (props) => {
               flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
-              width: '100%'
+              width: '100%',
+              zIndex: 1
             }}
           >
             <Label
@@ -306,7 +317,7 @@ const BiteTransfer = (props) => {
                 size: 'large'
               }}
             />
-            <Button
+            <SplitButton
               variant='warning'
               className='mx-2 mb-2 btn-huge'
               size='lg'
@@ -315,10 +326,17 @@ const BiteTransfer = (props) => {
                 width: '60%',
                 color: 'black'
               }}
-              onClick={restoreToDefaultButtonClicked}
+              title={'Set to '.concat(DEFAULT_NAMESPACE)}
+              onClick={() => restoreToPreset(DEFAULT_NAMESPACE)}
             >
-              Set to Default
-            </Button>
+              {settingsPresets.customNames
+                .filter((x) => x !== settingsPresets.current)
+                .map((preset) => (
+                  <Dropdown.Item key={preset} onClick={() => restoreToPreset(preset)}>
+                    Set to {preset}
+                  </Dropdown.Item>
+                ))}
+            </SplitButton>
           </View>
           <View
             style={{
@@ -396,7 +414,8 @@ const BiteTransfer = (props) => {
     distanceToMouthId,
     moveToMouthButtonClicked,
     moveAwayFromMouthButtonClicked,
-    restoreToDefaultButtonClicked
+    restoreToPreset,
+    settingsPresets
   ])
 
   // When a face is detected, switch to MoveToMouth
@@ -435,18 +454,52 @@ const BiteTransfer = (props) => {
     <>
       <View
         style={{
-          flex: 2,
+          flex: 4,
           flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
           width: '100%'
         }}
       >
-        <h5 style={{ textAlign: 'center', fontSize: textFontSize }}>Customize Bite Transfer</h5>
+        <p style={{ textAlign: 'center', fontSize: textFontSize, margin: 0 }} className='txt-huge'>
+          Bite Transfer Settings
+        </p>
       </View>
       <View
         style={{
-          flex: 16,
+          flex: 3,
+          flexDirection: 'row',
+          justifyContent: 'center',
+          alignItems: 'center',
+          width: '100%'
+        }}
+      >
+        <View
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'end',
+            width: '100%'
+          }}
+        >
+          <p style={{ fontSize: textFontSize, textAlign: 'right', margin: '0rem' }}>Preset:</p>
+        </View>
+        <View
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'start',
+            width: '100%'
+          }}
+        >
+          <Button variant='secondary' disabled size='lg' style={{ marginLeft: '1rem' }}>
+            {settingsPresets.current}
+          </Button>
+        </View>
+      </View>
+      <View
+        style={{
+          flex: 32,
           flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
@@ -457,7 +510,7 @@ const BiteTransfer = (props) => {
       </View>
       <View
         style={{
-          flex: 2,
+          flex: 4,
           flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',

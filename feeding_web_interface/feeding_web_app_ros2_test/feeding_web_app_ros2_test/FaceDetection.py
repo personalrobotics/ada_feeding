@@ -14,10 +14,10 @@ from threading import Lock
 class FaceDetectionNode(Node):
     def __init__(
         self,
-        face_detection_interval=90,
-        num_images_with_face=60,
-        open_mouth_interval=90,
-        num_images_with_open_mouth=30,
+        face_detection_interval=45,
+        num_images_with_face=30,
+        open_mouth_interval=45,
+        num_images_with_open_mouth=15,
     ):
         """
         Initializes the FaceDetection node, which exposes a SetBool
