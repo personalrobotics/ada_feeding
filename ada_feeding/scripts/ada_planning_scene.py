@@ -453,7 +453,6 @@ class ADAPlanningScene(Node):
                         filepath=params.filepath,
                         position=params.position,
                         quat_xyzw=params.quat_xyzw,
-                        offsets=params.offsets,
                         link_name=params.frame_id,
                         touch_links=params.touch_links,
                     )
@@ -463,7 +462,6 @@ class ADAPlanningScene(Node):
                         filepath=params.filepath,
                         position=params.position,
                         quat_xyzw=params.quat_xyzw,
-                        offsets=params.offsets,
                         frame_id=params.frame_id,
                     )
             else:
@@ -474,7 +472,6 @@ class ADAPlanningScene(Node):
                         dims=params.primitive_dims,
                         position=params.position,
                         quat_xyzw=params.quat_xyzw,
-                        offsets=params.offsets,
                         link_name=params.frame_id,
                         touch_links=params.touch_links,
                     )
@@ -485,7 +482,6 @@ class ADAPlanningScene(Node):
                         dims=params.primitive_dims,
                         position=params.position,
                         quat_xyzw=params.quat_xyzw,
-                        offsets=params.offsets,
                         frame_id=params.frame_id,
                     )
             rate.sleep()
@@ -674,9 +670,9 @@ class ADAPlanningScene(Node):
 
         # Translate detected position of table into table's origin
         # TODO: Need to figure out this value
-        detected_table_pose.pose.position.x -= self.objects[self.table_object_id].offsets[0]
-        detected_table_pose.pose.position.y -= self.objects[self.table_object_id].offsets[1]
-        detected_table_pose.pose.position.z -= self.objects[self.table_object_id].offsets[2]
+        detected_table_pose.pose.position.x -= 0.20
+        detected_table_pose.pose.position.y -= 0.25
+        detected_table_pose.pose.position.z -= 0.79
 
         # Move the table object in the planning scene to the detected pose
         self.moveit2.move_collision(

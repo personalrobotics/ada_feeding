@@ -199,23 +199,22 @@ class TableDetectionNode(Node):
         ----------
         table: The depth array of the table.
         """
-        # Table plane parameters
+        # Hough Circle transform parameters
         # Tuning Hough circle transform parameters for plate detection: 
         # https://medium.com/@isinsuarici/hough-circle-transform-parameter-tuning-with-examples-6b63478377c9
-        hough_accum = 1.5 
-        hough_min_dist = 100 
+        hough_accum = 1.5 # Lowering causes false negatives/raising causes false positives
+        hough_min_dist = 100 # Minimum distance between centers of circles to detect
         hough_param1 = 100  # Larger is more selective
         hough_param2 = (
             125  # Larger is more selective/decreases chance of false positives
         )
-        hough_min = 75
-        hough_max = 200
+        hough_min = 75 # Minimum radius of circles to detect
+        hough_max = 200 # Maximum radius of circles to detect
         table_buffer = 50  # Extra radius around plate to use for table detection
 
         # Convert ROS images to CV images
         image = ros_msg_to_cv2_image(image_msg, self.bridge)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
         image_depth = ros_msg_to_cv2_image(image_depth_msg, self.bridge)
 
         # Detect all circles from the given image
@@ -311,11 +310,8 @@ class TableDetectionNode(Node):
         ----------
         center: The center coordinates of the table in the camera frame.
         q: The quaternion representing the orientation of the table plane.
-        """
-        # Orientation calculation parameters
-        deproject_center_coord = 640 * 239 + 320 - 1
-        
-        # Deproject the depth image to get the 3D points in the camera frame.   
+        """        
+        # Deproject the table depth array to get a pointcloud of the table
         pointcloud = depth_img_to_pointcloud(
             table_depth,
             0,
@@ -325,10 +321,17 @@ class TableDetectionNode(Node):
             c_x=camera_info.k[2],
             c_y=camera_info.k[5],
         )
-        xy_d = np.concatenate(
+        xy_dims_deproj = np.concatenate(
             (pointcloud[:, 0, np.newaxis], pointcloud[:, 1, np.newaxis]), axis=1
         )
-        depth_d = pointcloud[:, 2]
+        depth_deproj = pointcloud[:, 2]
+
+        # Calculate index of approximate center coordinate in pointcloud
+        max_u = 640 # Max u index in a 640 x 480 image
+        max_v = 480 # Max v index in a 640 x 480 image 
+        deproject_center_coord = int(max_u * (max_v / 2) + (max_u / 2)) 
+        
+        # Get the deprojected center coordinate from the pointcloud
         center = [
             pointcloud[deproject_center_coord][0],
             pointcloud[deproject_center_coord][1],
@@ -336,8 +339,8 @@ class TableDetectionNode(Node):
         ]
 
         # Fit Plane: z = a*x + b*y + c
-        coeffs = np.hstack((np.vstack(xy_d), np.ones((len(xy_d), 1))))
-        a, b, c = np.linalg.lstsq(coeffs, depth_d, rcond=None)[0]
+        coeffs = np.hstack((np.vstack(xy_dims_deproj), np.ones((len(xy_dims_deproj), 1))))
+        a, b, c = np.linalg.lstsq(coeffs, depth_deproj, rcond=None)[0]
 
         # Modify the z coordinate of the center given the fitted plane (i.e. make the center
         # the origin of the table plane)
@@ -345,7 +348,8 @@ class TableDetectionNode(Node):
 
         # Get the normalized direction vectors of the table plane 
         # from the camera's frame of perspective
-        # Direction vector of x calculated by offsetting the center in the -x direction
+        # Direction vector of x calculated by the subtraction of the center 
+        # and a coordinate offset from the center in the -x direction
         x_offset = 0.1 # Offset in -x direction 
         offset_center = [
             center[0] - x_offset,
@@ -409,7 +413,7 @@ class TableDetectionNode(Node):
             rate.sleep()
 
             # Check if table detection is on
-            # if not, reiterate
+            # If not, reiterate
             with self.is_on_lock:
                 is_on = self.is_on
             if not is_on:
@@ -426,7 +430,13 @@ class TableDetectionNode(Node):
                 depth_img_msg = self.latest_depth_img_msg
 
             # Get depth array of the table from the camera image
+            # If no plate is detected, warn and reiterate
             table_depth = self.fit_table(rgb_msg, depth_img_msg)
+            if table_depth is None:
+                self.get_logger().warn(
+                    "Plate not detected, returning to default table pose."
+                )
+                continue
 
             # Get the camera information
             cam_info = None
@@ -488,7 +498,7 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
 
-    # Terminate this node and safely shut down - new code
+    # Terminate this node and safely shut down
     table_detection.destroy_node()
     rclpy.shutdown()
 
