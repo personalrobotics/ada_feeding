@@ -294,15 +294,15 @@ class TableDetectionNode(Node):
 
         # Direction vector of y calculated through a system of linear equations consisting of:
         # the dot product of x and y, dot product of z and y, & norm of y = 1
-        denom = math.sqrt(
+        denominator = math.sqrt(
             math.pow(x_ref[2] * z_ref[1] - x_ref[1] * z_ref[2], 2)
             + math.pow(x_ref[0] * z_ref[2] - x_ref[2] * z_ref[0], 2)
             + math.pow(x_ref[1] * z_ref[0] - x_ref[0] * z_ref[1], 2)
         )
         y_ref = [
-            (x_ref[2] * z_ref[1] - x_ref[1] * z_ref[2]) / denom,
-            (x_ref[0] * z_ref[2] - x_ref[2] * z_ref[0]) / denom,
-            (x_ref[1] * z_ref[0] - x_ref[0] * z_ref[1]) / denom,
+            (x_ref[2] * z_ref[1] - x_ref[1] * z_ref[2]) / denominator,
+            (x_ref[0] * z_ref[2] - x_ref[2] * z_ref[0]) / denominator,
+            (x_ref[1] * z_ref[0] - x_ref[0] * z_ref[1]) / denominator,
         ]
 
         # Construct rotation matrix from direction vectors
