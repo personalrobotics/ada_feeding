@@ -393,6 +393,9 @@ class CreateActionServers(Node):
         updated_parameters = False
         updated_server_names = set()
         for param in params:
+            # If we are declaring but not setting a parameter, ignore it
+            if param.value is None:
+                continue
             # Change the namespace_to_use
             if param.name == "namespace_to_use":
                 if len(param.value) == 0:
@@ -538,6 +541,8 @@ class CreateActionServers(Node):
                 if value is None:
                     continue
                 params[namespace][full_name] = value
+            if len(params[namespace]) == 0:
+                del params[namespace]
         data = {"ada_feeding_action_servers": {"ros__parameters": params}}
 
         # Write to yaml
