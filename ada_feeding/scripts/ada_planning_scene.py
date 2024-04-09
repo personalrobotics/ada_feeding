@@ -655,7 +655,9 @@ class ADAPlanningScene(Node):
 
         # Modify z position of table for planning scene object
         # TODO: Need to figure out this value
-        detected_table_pose.pose.position.z -= 0.78
+        detected_table_pose.pose.position.x -= 0.20
+        detected_table_pose.pose.position.y -= 0.25
+        detected_table_pose.pose.position.z -= 0.79
 
         # Move the table object in the planning scene to the detected pose
         self.moveit2.move_collision(

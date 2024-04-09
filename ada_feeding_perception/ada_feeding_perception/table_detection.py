@@ -12,6 +12,7 @@ from typing import Union
 import cv2
 from cv_bridge import CvBridge
 import numpy as np
+import numpy.typing as npt
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -49,21 +50,6 @@ class TableDetectionNode(Node):
         """
 
         super().__init__("table_detection")
-
-        # Table plane parameters
-        self._hough_accum = 1.5
-        self._hough_min_dist = 100
-        self._hough_param1 = 100  # Larger is more selective
-        self._hough_param2 = (
-            125  # Larger is more selective/decreases chance of false positives
-        )
-        self._hough_min = 75
-        self._hough_max = 200
-        self._table_buffer = 50  # Extra radius around plate to use for table detection
-
-        # Orientation calculation parameters
-        self.deproject_center_coord = 640 * 239 + 320 - 1
-        self.dir_constant = 0.1
 
         # Rate at which table info gets published
         self.update_hz = 3
@@ -135,190 +121,6 @@ class TableDetectionNode(Node):
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
-    def fit_table(
-        self,
-        image_msg: Image,
-        image_depth_msg: Image,
-    ):
-        """
-        Fits a plane to the table based on the given RGB image and depth image messages.
-
-        Parameters
-        ----------
-        image_msg: The RGB image to detect plates from.
-        image_depth_msg: The depth image corresponding to the RGB image.
-
-        Returns
-        ----------
-        table: The depth array of the table.
-        """
-        # Convert ROS images to CV images
-        image = ros_msg_to_cv2_image(image_msg, self.bridge)
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-        image_depth = ros_msg_to_cv2_image(image_depth_msg, self.bridge)
-
-        # Detect all circles from the given image
-        circles = cv2.HoughCircles(
-            gray,
-            cv2.HOUGH_GRADIENT,
-            self._hough_accum,
-            self._hough_min_dist,
-            param1=self._hough_param1,
-            param2=self._hough_param2,
-            minRadius=self._hough_min,
-            maxRadius=self._hough_max,
-        )
-        if circles is None:
-            return None
-        
-        # Determine the largest circle from the detected circles
-        circles = np.round(circles[0, :]).astype("int")
-        plate_uv = (0, 0)
-        plate_r = 0
-        for x, y, r in circles:
-            if r > plate_r:
-                plate_uv = (x, y)
-                plate_r = r
-
-        # Testing - Draw out the circles
-        if circles is not None:
-            circles = np.uint16(np.around(circles))
-            for x, y, r in circles:
-                center = (x, y)
-                # circle center
-                cv2.circle(gray, center, 1, (0, 100, 100), 3)
-                # circle outline
-                radius = r
-                cv2.circle(gray, center, radius, (255, 0, 255), 3)
-                cv2.circle(gray, center, radius + self._table_buffer, (255, 0, 255), 3)
-            # The following lines of code are commented to prevent interruption of the program
-            # while running. Uncomment to view images of the detected circles.
-            # cv2.imshow("detected circles", gray)
-            # cv2.waitKey(0)
-
-        # Create Mask for Depth Image
-        plate_mask = np.zeros(image_depth.shape)
-        cv2.circle(plate_mask, plate_uv, plate_r + self._table_buffer, 1.0, -1)
-        cv2.circle(plate_mask, plate_uv, plate_r, 0.0, -1)
-        depth_masked = (image_depth * (plate_mask).astype("uint16")).astype(float)
-
-        # Noise removal
-        kernel = np.ones((6, 6), np.uint8)
-        depth_masked = cv2.morphologyEx(depth_masked, cv2.MORPH_OPEN, kernel, iterations=3)
-        depth_masked = cv2.morphologyEx(depth_masked, cv2.MORPH_CLOSE, kernel, iterations=3)
-
-        # Remove Outliers
-        # TODO: Consider outlier removal using median + iqr for the future
-        depth_var = np.abs(depth_masked - np.mean(depth_masked[depth_masked > 0]))
-        depth_std = np.std(depth_masked[depth_masked > 0])
-        depth_masked[depth_var > 2.0 * depth_std] = 0
-
-        # Fit Plane: depth = a*u + b*v + c
-        d_idx = np.where(depth_masked > 0)
-        d = depth_masked[d_idx].astype(float)
-        coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1)))).astype(
-            float
-        )
-        b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[0] # Coefficients b and a are reversed 
-                                                            # because of matrix row/col structure 
-                                                            # and its correspondence to x/y
-        
-
-        # Create Table Depth Image
-        u = np.linspace(0, depth_masked.shape[1], depth_masked.shape[1], False)
-        v = np.linspace(0, depth_masked.shape[0], depth_masked.shape[0], False)
-        u_grid, v_grid = np.meshgrid(u, v)
-        table = a * u_grid + b * v_grid + c
-        table = table.astype("uint16")
-
-        return table
-
-    def get_orientation(
-        self,
-        camera_info: CameraInfo,
-        table_depth: Image,
-    ):
-        """
-        Calculate the orientation of the table plane with respect to the
-        camera's frame of perspective.
-
-        Parameters
-        ----------
-        camera_info: The camera information.
-        table_depth: The depth image of the table.
-
-        Returns
-        ----------
-        center: The center coordinates of the table in the camera frame.
-        q: The quaternion representing the orientation of the table plane.
-        """
-        # Deproject the depth image to get the 3D points in the camera frame.
-        pointcloud = depth_img_to_pointcloud(
-            table_depth,
-            0,
-            0,
-            f_x=camera_info.k[0],
-            f_y=camera_info.k[4],
-            c_x=camera_info.k[2],
-            c_y=camera_info.k[5],
-        )
-        xy_d = np.concatenate(
-            (pointcloud[:, 0, np.newaxis], pointcloud[:, 1, np.newaxis]), axis=1
-        )
-        depth_d = pointcloud[:, 2]
-        center = [
-            pointcloud[self.deproject_center_coord][0],
-            pointcloud[self.deproject_center_coord][1],
-            pointcloud[self.deproject_center_coord][2],
-        ]
-
-        # Fit Plane: z = a*x + b*y + c
-        coeffs = np.hstack((np.vstack(xy_d), np.ones((len(xy_d), 1)))).astype(float)
-        a, b, c = np.linalg.lstsq(coeffs, depth_d, rcond=None)[0]
-
-        # Modify the z coordinate of the center given the fitted plane (i.e. make the center
-        # the origin of the table plane)
-        center[2] = a * center[0] + b * center[1] + c
-
-        # Get the direction vectors of the table plane from the camera's frame of perspective
-        x_p = [
-            center[0] - self.dir_constant,
-            center[1],
-            a * (center[0] - self.dir_constant) + b * center[1] + c,
-        ]
-        x_ref = [center[0] - x_p[0], center[1] - x_p[1], center[2] - x_p[2]]
-        x_ref /= np.linalg.norm(x_ref)
-
-        z_ref = [a, b, -1] / np.linalg.norm([a, b, -1])
-
-        # Direction vector of y calculated through a system of linear equations consisting of:
-        # the dot product of x and y, dot product of z and y, & norm of y = 1
-        denom = math.sqrt(
-            math.pow(x_ref[2] * z_ref[1] - x_ref[1] * z_ref[2], 2)
-            + math.pow(x_ref[0] * z_ref[2] - x_ref[2] * z_ref[0], 2)
-            + math.pow(x_ref[1] * z_ref[0] - x_ref[0] * z_ref[1], 2)
-        )
-        y_ref = [
-            (x_ref[2] * z_ref[1] - x_ref[1] * z_ref[2]) / denom,
-            (x_ref[0] * z_ref[2] - x_ref[2] * z_ref[0]) / denom,
-            (x_ref[1] * z_ref[0] - x_ref[0] * z_ref[1]) / denom,
-        ]
-
-        # Construct rotation matrix from direction vectors
-        # TODO: Test tf_transformations quaternion_from_matrix function
-        rot_matrix = [
-            [x_ref[0], y_ref[0], z_ref[0]],
-            [x_ref[1], y_ref[1], z_ref[1]],
-            [x_ref[2], y_ref[2], z_ref[2]],
-        ]
-
-        # Derive quaternion from rotation matrix
-        q = R.from_matrix(rot_matrix)
-        q = q.as_quat()
-
-        return center, q
-
     def toggle_table_detection_callback(
         self, request: SetBool.Request, response: SetBool.Response
     ) -> SetBool.Response:
@@ -378,6 +180,218 @@ class TableDetectionNode(Node):
         with self.latest_img_msg_lock:
             self.latest_img_msg = msg
 
+    def fit_table(
+        self,
+        image_msg: Image,
+        image_depth_msg: Image,
+    ):
+        """
+        Fits a plane to the table based on the given RGB image and depth image messages.
+        Returns depth array of the table based on the fitted plane. Returns None if no
+        plates are detected in the image.
+
+        Parameters
+        ----------
+        image_msg: The RGB image to detect plates from.
+        image_depth_msg: The depth image corresponding to the RGB image.
+
+        Returns
+        ----------
+        table: The depth array of the table.
+        """
+        # Table plane parameters
+        # Tuning Hough circle transform parameters for plate detection: 
+        # https://medium.com/@isinsuarici/hough-circle-transform-parameter-tuning-with-examples-6b63478377c9
+        hough_accum = 1.5 
+        hough_min_dist = 100 
+        hough_param1 = 100  # Larger is more selective
+        hough_param2 = (
+            125  # Larger is more selective/decreases chance of false positives
+        )
+        hough_min = 75
+        hough_max = 200
+        table_buffer = 50  # Extra radius around plate to use for table detection
+
+        # Convert ROS images to CV images
+        image = ros_msg_to_cv2_image(image_msg, self.bridge)
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        image_depth = ros_msg_to_cv2_image(image_depth_msg, self.bridge)
+
+        # Detect all circles from the given image
+        circles = cv2.HoughCircles(
+            gray,
+            cv2.HOUGH_GRADIENT,
+            hough_accum,
+            hough_min_dist,
+            param1=hough_param1,
+            param2=hough_param2,
+            minRadius=hough_min,
+            maxRadius=hough_max,
+        )
+        if circles is None:
+            return None
+        
+        # Determine the largest circle from the detected circles as the plate
+        circles = np.round(circles[0, :]).astype("int")
+        plate_uv = (0, 0)
+        plate_r = 0
+        for x, y, r in circles:
+            if r > plate_r:
+                plate_uv = (x, y)
+                plate_r = r
+
+        # Testing - Draw out the circles
+        if circles is not None:
+            circles = np.uint16(np.around(circles))
+            for x, y, r in circles:
+                center = (x, y)
+                # Circle center
+                cv2.circle(gray, center, 1, (0, 100, 100), 3)
+                # Circle outline
+                radius = r
+                cv2.circle(gray, center, radius, (255, 0, 255), 3)
+                cv2.circle(gray, center, radius + table_buffer, (255, 0, 255), 3)
+            # The following lines of code are commented to prevent interruption of the program
+            # while running. Uncomment to view images of the detected circles.
+            # cv2.imshow("detected circles", gray)
+            # cv2.waitKey(0)
+
+        # Create mask for depth image
+        plate_mask = np.zeros(image_depth.shape)
+        cv2.circle(plate_mask, plate_uv, plate_r + table_buffer, 1.0, -1)
+        cv2.circle(plate_mask, plate_uv, plate_r, 0.0, -1)
+        depth_masked = (image_depth * (plate_mask).astype("uint16")).astype(float)
+
+        # Noise removal
+        kernel = np.ones((6, 6), np.uint8)
+        depth_masked = cv2.morphologyEx(depth_masked, cv2.MORPH_OPEN, kernel, iterations=3)
+        depth_masked = cv2.morphologyEx(depth_masked, cv2.MORPH_CLOSE, kernel, iterations=3)
+
+        # Remove outliers - outliers are depth values that are more than z_score_thresh 
+        # standard deviations away from the mean depth value
+        # TODO: Consider outlier removal using median + iqr for the future
+        z_score_thresh = 2.0
+        depth_dist_from_mean = np.abs(depth_masked - np.mean(depth_masked[depth_masked > 0]))
+        depth_std = np.std(depth_masked[depth_masked > 0])
+        depth_masked[depth_dist_from_mean > z_score_thresh * depth_std] = 0
+
+        # Fit plane: depth = a*u + b*v + c
+        d_idx = np.where(depth_masked > 0)
+        d = depth_masked[d_idx].astype(float)
+        coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1)))).astype(
+            float
+        )
+        b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[0] # Coefficients b and a are reversed 
+                                                            # because of matrix row/col structure 
+                                                            # and its correspondence to x/y
+        
+        # Create table depth array
+        u = np.linspace(0, depth_masked.shape[1], depth_masked.shape[1], False)
+        v = np.linspace(0, depth_masked.shape[0], depth_masked.shape[0], False)
+        u_grid, v_grid = np.meshgrid(u, v)
+        table = a * u_grid + b * v_grid + c
+        table = table.astype("uint16")
+
+        return table
+
+    def get_pose(
+        self,
+        camera_info: CameraInfo,
+        table_depth: npt.NDArray,
+    ):
+        """
+        Calculate the orientation of the table plane with respect to the
+        camera's frame of perspective.
+
+        Parameters
+        ----------
+        camera_info: The camera information.
+        table_depth: The depth image of the table.
+
+        Returns
+        ----------
+        center: The center coordinates of the table in the camera frame.
+        q: The quaternion representing the orientation of the table plane.
+        """
+        # Orientation calculation parameters
+        deproject_center_coord = 640 * 239 + 320 - 1
+        
+        # Deproject the depth image to get the 3D points in the camera frame.   
+        pointcloud = depth_img_to_pointcloud(
+            table_depth,
+            0,
+            0,
+            f_x=camera_info.k[0],
+            f_y=camera_info.k[4],
+            c_x=camera_info.k[2],
+            c_y=camera_info.k[5],
+        )
+        xy_d = np.concatenate(
+            (pointcloud[:, 0, np.newaxis], pointcloud[:, 1, np.newaxis]), axis=1
+        )
+        depth_d = pointcloud[:, 2]
+        center = [
+            pointcloud[deproject_center_coord][0],
+            pointcloud[deproject_center_coord][1],
+            pointcloud[deproject_center_coord][2],
+        ]
+
+        # Fit Plane: z = a*x + b*y + c
+        coeffs = np.hstack((np.vstack(xy_d), np.ones((len(xy_d), 1)))).astype(float)
+        a, b, c = np.linalg.lstsq(coeffs, depth_d, rcond=None)[0]
+
+        # Modify the z coordinate of the center given the fitted plane (i.e. make the center
+        # the origin of the table plane)
+        center[2] = a * center[0] + b * center[1] + c
+
+        # Get the normalized direction vectors of the table plane 
+        # from the camera's frame of perspective
+        # Direction vector of x calculated by offsetting the center in the -x direction
+        x_offset = 0.1 # Offset in -x direction 
+        offset_center = [
+            center[0] - x_offset,
+            center[1],
+            a * (center[0] - x_offset) + b * center[1] + c,
+        ]
+        x_dir_vect = [
+            center[0] - offset_center[0], 
+            center[1] - offset_center[1], 
+            center[2] - offset_center[2],
+        ]
+        x_dir_vect /= np.linalg.norm(x_dir_vect)
+
+        # Direction vector of z calculated using table plane equation coefficients
+        z_dir_vect = [a, b, -1] / np.linalg.norm([a, b, -1])
+
+        # Direction vector of y calculated by finding vector orthogonal to both x and z 
+        # direction vectors
+        # Accomplished through a system of linear equations consisting of:
+        # the dot product of x and y, dot product of z and y, & normalization of y
+        denominator = math.sqrt(
+            math.pow(x_dir_vect[2] * z_dir_vect[1] - x_dir_vect[1] * z_dir_vect[2], 2)
+            + math.pow(x_dir_vect[0] * z_dir_vect[2] - x_dir_vect[2] * z_dir_vect[0], 2)
+            + math.pow(x_dir_vect[1] * z_dir_vect[0] - x_dir_vect[0] * z_dir_vect[1], 2)
+        )
+        y_dir_vect = [
+            (x_dir_vect[2] * z_dir_vect[1] - x_dir_vect[1] * z_dir_vect[2]) / denominator,
+            (x_dir_vect[0] * z_dir_vect[2] - x_dir_vect[2] * z_dir_vect[0]) / denominator,
+            (x_dir_vect[1] * z_dir_vect[0] - x_dir_vect[0] * z_dir_vect[1]) / denominator,
+        ]
+
+        # Construct rotation matrix from direction vectors
+        rot_matrix = [
+            [x_dir_vect[0], y_dir_vect[0], z_dir_vect[0]],
+            [x_dir_vect[1], y_dir_vect[1], z_dir_vect[1]],
+            [x_dir_vect[2], y_dir_vect[2], z_dir_vect[2]],
+        ]
+
+        # Derive quaternion from rotation matrix
+        q = R.from_matrix(rot_matrix)
+        q = q.as_quat()
+
+        return center, q
+
     def run(self) -> None:
         """
         Run table detection at a specified fixed rate. This function gets the latest RGB
@@ -413,7 +427,7 @@ class TableDetectionNode(Node):
             with self.latest_depth_img_msg_lock:
                 depth_img_msg = self.latest_depth_img_msg
 
-            # Get table depth from camera at the (u, v) coordinate (320, 240)
+            # Get depth array of the table from the camera image
             table_depth = self.fit_table(rgb_msg, depth_img_msg)
 
             # Get the camera information
@@ -427,7 +441,7 @@ class TableDetectionNode(Node):
                     )
 
             # Get the center and orientation of the table in the camera frame
-            center, orientation = self.get_orientation(cam_info, table_depth)
+            center, orientation = self.get_pose(cam_info, table_depth)
 
             # Create PoseStamped message
             fit_table_msg = PoseStamped(
