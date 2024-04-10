@@ -670,9 +670,9 @@ class ADAPlanningScene(Node):
 
         # Translate detected position of table into table's origin
         # TODO: Need to figure out this value
-        detected_table_pose.pose.position.x -= 0.20
-        detected_table_pose.pose.position.y -= 0.25
-        detected_table_pose.pose.position.z -= 0.79
+        detected_table_pose.pose.position.x += self.objects[self.table_object_id].offsets[0]
+        detected_table_pose.pose.position.y += self.objects[self.table_object_id].offsets[1]
+        detected_table_pose.pose.position.z += self.objects[self.table_object_id].offsets[2]
 
         # Move the table object in the planning scene to the detected pose
         self.moveit2.move_collision(
