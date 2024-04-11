@@ -341,6 +341,20 @@ class ADAPlanningScene(Node):
                 touch_links=touch_links,
             )
 
+        table_detection_offsets = self.declare_parameter(
+            "table_detection_offsets",
+            None,
+            descriptor=ParameterDescriptor(
+                name="table_detection_offsets",
+                type=ParameterType.PARAMETER_DOUBLE_ARRAY,
+                description=(
+                    f"The offset values for the center coordinates" 
+                    " of the table object."
+                ),
+                read_only=True,
+            ),
+        )
+
         update_face_hz = self.declare_parameter(
             "update_face_hz",
             3.0,  # default value
@@ -669,10 +683,9 @@ class ADAPlanningScene(Node):
             return
 
         # Translate detected position of table into table's origin
-        # TODO: Need to figure out this value
-        detected_table_pose.pose.position.x += self.objects[self.table_object_id].offsets[0]
-        detected_table_pose.pose.position.y += self.objects[self.table_object_id].offsets[1]
-        detected_table_pose.pose.position.z += self.objects[self.table_object_id].offsets[2]
+        detected_table_pose.pose.position.x += self.table_detection_offsets[0]
+        detected_table_pose.pose.position.y += self.table_detection_offsets[1]
+        detected_table_pose.pose.position.z += self.table_detection_offsets[2]
 
         # Move the table object in the planning scene to the detected pose
         self.moveit2.move_collision(

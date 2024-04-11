@@ -1,0 +1,7 @@
+# NOTE: You have to change this node name if you change the node name in the launchfile.
+table_detection:
+  ros_parameters:
+    # The rate at which to publish the pose of the detected table
+    rate_hz: 3
+    # A boolean to determine whether to visualize plate detection 
+    viz: False
