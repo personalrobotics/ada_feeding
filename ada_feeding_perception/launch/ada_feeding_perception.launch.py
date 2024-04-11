@@ -146,14 +146,19 @@ def generate_launch_description():
     launch_description.add_action(face_detection)
 
     # Load the table detection node
+    table_detection_config = os.path.join(
+        ada_feeding_perception_share_dir, "config", "table_detection.yaml"
+    )
     table_detection_remappings = [
         ("~/table_detection", "/table_detection"),
+        ("~/plate_detection_img", "/plate_detection_img"),
         ("~/toggle_table_detection", "/toggle_table_detection"),
     ]
     table_detection = Node(
         package="ada_feeding_perception",
         name="table_detection",
         executable="table_detection",
+        parameters=[table_detection_config],
         remappings=realsense_remappings + aligned_depth_remapping + table_detection_remappings,
     )
     launch_description.add_action(table_detection)

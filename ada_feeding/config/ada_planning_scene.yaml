@@ -41,9 +41,6 @@ ada_planning_scene:
       # updated as the robot perceives the table.
       position: [0.08, -0.5, -0.48]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
-      # The offset values for center coordinates ([x, y, z]) of the table. These 
-      # values are used to translate the detected position into the table's origin.
-      offsets: [-0.20, -0.25, -0.79] 
       frame_id: root # the frame_id that the pose is relative to
     # NOTE: If you change this you must also change the hardcoded initial pose in
     # bite transfer.
@@ -86,5 +83,6 @@ ada_planning_scene:
       attached: True
       frame_id: forkTip # the frame_id that the pose is relative to
       touch_links: [forkTine] # the links, in addition to frame_id, that should be ignored for collision checking
-
+    # The offset values for center coordinates ([x, y, z]) of the table. These 
+    # values are used to translate the detected position into the table's origin.
     table_detection_offsets: [-0.20, -0.25, -0.79] 

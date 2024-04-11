@@ -46,7 +46,6 @@ CollisionObjectParams = namedtuple(
         "primitive_dims",
         "position",
         "quat_xyzw",
-        "offsets",
         "frame_id",
         "attached",
         "touch_links",
@@ -272,19 +271,6 @@ class ADAPlanningScene(Node):
                     read_only=True,
                 ),
             )
-            offsets = self.declare_parameter(
-                f"{object_id}.offsets",
-                None,
-                descriptor=ParameterDescriptor(
-                    name="offsets",
-                    type=ParameterType.PARAMETER_DOUBLE_ARRAY,
-                    description=(
-                        f"The offset values for center coordinates" 
-                        " of the '{object_id}' object."
-                    ),
-                    read_only=True,
-                ),
-            )
             frame_id = self.declare_parameter(
                 f"{object_id}.frame_id",
                 None,
@@ -335,7 +321,6 @@ class ADAPlanningScene(Node):
                 primitive_dims=primitive_dims.value,
                 position=position.value,
                 quat_xyzw=quat_xyzw.value,
-                offsets=offsets.value,
                 frame_id=frame_id.value,
                 attached=attached.value,
                 touch_links=touch_links,
@@ -343,7 +328,7 @@ class ADAPlanningScene(Node):
 
         table_detection_offsets = self.declare_parameter(
             "table_detection_offsets",
-            None,
+            [0.0, 0.0, 0.0],  # default value
             descriptor=ParameterDescriptor(
                 name="table_detection_offsets",
                 type=ParameterType.PARAMETER_DOUBLE_ARRAY,
@@ -354,6 +339,7 @@ class ADAPlanningScene(Node):
                 read_only=True,
             ),
         )
+        self.table_detection_offsets = table_detection_offsets.value
 
         update_face_hz = self.declare_parameter(
             "update_face_hz",

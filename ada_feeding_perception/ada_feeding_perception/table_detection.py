@@ -16,6 +16,7 @@ import numpy.typing as npt
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from std_srvs.srv import SetBool
@@ -30,6 +31,7 @@ from geometry_msgs.msg import (
 
 # Local imports
 from ada_feeding_perception.helpers import (
+    cv2_image_to_ros_msg,
     depth_img_to_pointcloud,
     get_img_msg_type,
     ros_msg_to_cv2_image,
@@ -51,8 +53,8 @@ class TableDetectionNode(Node):
 
         super().__init__("table_detection")
 
-        # Rate at which table info gets published
-        self.update_hz = 3
+        # Load the parameters
+        self.read_params()
 
         # Keeps track of whether table detection is on or not
         self.is_on = False
@@ -121,6 +123,55 @@ class TableDetectionNode(Node):
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
+        # If the visualization flag is set, create a publisher for the visualized 
+        # results of plate detection - a process required to fit a plane on the table
+        if self.viz:
+            self.viz_plate_pub = self.create_publisher(
+                Image, "~/plate_detection_img", 1
+            )
+
+    def read_params(self) -> None:
+        """
+        Reads the parameters for the table detection node.
+
+        Returns
+        -------
+        rate_hz: The rate (Hz) at which to publish the table pose information.
+        viz: Whether to publish a visualization of the plate detection results as an RGB image.
+        """
+        # The rate (Hz) at which to publish the pose information of the detected table
+        rate_hz = self.declare_parameter(
+            "rate_hz",
+            3.0,  # default value
+            ParameterDescriptor(
+                name="rate_hz",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The rate (Hz) at which to publish the pose " 
+                    "information of the detected table."
+                ),
+                read_only=True,
+            ),
+        )
+        self.rate_hz = rate_hz.value
+
+        # A boolean to determine whether to publish the visualization of the 
+        # plate detection results as an RGB image.
+        viz = self.declare_parameter(
+            "viz",
+            False,  # default value
+            ParameterDescriptor(
+                name="viz",
+                type=ParameterType.PARAMETER_BOOL,
+                description=(
+                    "Whether to publish a visualization of the plate "
+                    "detection results as an RGB image."
+                ),
+                read_only=True,
+            ),
+        )
+        self.viz = viz.value
+
     def toggle_table_detection_callback(
         self, request: SetBool.Request, response: SetBool.Response
     ) -> SetBool.Response:
@@ -179,6 +230,25 @@ class TableDetectionNode(Node):
         """
         with self.latest_img_msg_lock:
             self.latest_img_msg = msg
+
+    def visualize_plate_detection(
+        self, img_cv2: Image, center: List[float], radius: float, table_buffer: int
+    ) -> None:
+        # Round radius and center coordinates
+        plate_center = np.uint16(np.around(center))
+        plate_r = np.uint16(np.round(radius))
+
+        # Set circle center in visualization
+        cv2.circle(img_cv2, plate_center, 1, (0, 100, 100), 3)
+
+        # Draw circle outline in visualization
+        cv2.circle(img_cv2, plate_center, plate_r, (255, 0, 255), 3)
+        cv2.circle(img_cv2, plate_center, plate_r + table_buffer, (255, 0, 255), 3)
+
+        # Publish the image
+        self.viz_plate_pub.publish(
+            cv2_image_to_ros_msg(img_cv2, compress=False, bridge=self.bridge)
+        )
 
     def fit_table(
         self,
@@ -240,22 +310,11 @@ class TableDetectionNode(Node):
                 plate_uv = (x, y)
                 plate_r = r
 
-        # Testing - Draw out the circles
-        if circles is not None:
-            circles = np.uint16(np.around(circles))
-            for x, y, r in circles:
-                center = (x, y)
-                # Circle center
-                cv2.circle(gray, center, 1, (0, 100, 100), 3)
-                # Circle outline
-                radius = r
-                cv2.circle(gray, center, radius, (255, 0, 255), 3)
-                cv2.circle(gray, center, radius + table_buffer, (255, 0, 255), 3)
-            # The following lines of code are commented to prevent interruption of the program
-            # while running. Uncomment to view images of the detected circles.
-            # cv2.imshow("detected circles", gray)
-            # cv2.waitKey(0)
-
+        # If the visualization flag is set to True, publish a visualization of the
+        # plate detection results 
+        if self.viz:
+            self.visualize_plate_detection(gray, plate_uv, plate_r, table_buffer)
+        
         # Create mask for depth image
         plate_mask = np.zeros(image_depth.shape)
         cv2.circle(plate_mask, plate_uv, plate_r + table_buffer, 1.0, -1)
@@ -405,7 +464,7 @@ class TableDetectionNode(Node):
         """
         # Create a fixed rate to run the loop on
         # TODO: Replace the rate with correct fixed value or create paremeter for rate
-        rate = self.create_rate(self.update_hz)
+        rate = self.create_rate(self.rate_hz)
 
         # Run while the context is not shut down
         while rclpy.ok():
