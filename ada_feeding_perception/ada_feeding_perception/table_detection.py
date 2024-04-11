@@ -234,6 +234,19 @@ class TableDetectionNode(Node):
     def visualize_plate_detection(
         self, img_cv2: Image, center: List[float], radius: float, table_buffer: int
     ) -> None:
+        """
+        Visualizes the plate detection results from the Hough circle transform  
+        by drawing a circle around the detected plate and a concentric circle  
+        of larger radius, given the buffer value, in the given image.
+        This visualization is then published as a ROS message.
+
+        Parameters
+        ----------
+        img_cv2: The image to visualize the plate detection results on.
+        center: The center coordinates of the detected plate.
+        radius: The radius of the detected plate.
+        table_buffer: The buffer value to add to the radius of the detected plate.
+        """
         # Round radius and center coordinates
         plate_center = np.uint16(np.around(center))
         plate_r = np.uint16(np.round(radius))
@@ -241,7 +254,7 @@ class TableDetectionNode(Node):
         # Set circle center in visualization
         cv2.circle(img_cv2, plate_center, 1, (0, 100, 100), 3)
 
-        # Draw circle outline in visualization
+        # Draw circle outline (white) in visualization
         cv2.circle(img_cv2, plate_center, plate_r, (255, 0, 255), 3)
         cv2.circle(img_cv2, plate_center, plate_r + table_buffer, (255, 0, 255), 3)
 
@@ -357,8 +370,8 @@ class TableDetectionNode(Node):
         table_depth: npt.NDArray,
     ) -> Tuple[List[int], List[List[int]]]:
         """
-        Calculate the orientation of the table plane with respect to the
-        camera's frame of perspective.
+        Calculates the pose (position and orientation) of the table plane with 
+        respect to the camera's frame of perspective.
 
         Parameters
         ----------
@@ -388,13 +401,13 @@ class TableDetectionNode(Node):
         # Calculate index of approximate center coordinate in pointcloud
         max_u = 640 # Max u index in a 640 x 480 image
         max_v = 480 # Max v index in a 640 x 480 image 
-        deproject_center_coord = int(max_u * (max_v / 2) + (max_u / 2)) 
+        center_idx = int(max_u * (max_v / 2) + (max_u / 2)) 
         
         # Get the deprojected center coordinate from the pointcloud
         center = [
-            pointcloud[deproject_center_coord][0],
-            pointcloud[deproject_center_coord][1],
-            pointcloud[deproject_center_coord][2],
+            pointcloud[center_idx][0],
+            pointcloud[center_idx][1],
+            pointcloud[center_idx][2],
         ]
 
         # Fit Plane: z = a*x + b*y + c
@@ -463,7 +476,6 @@ class TableDetectionNode(Node):
         continues to run.
         """
         # Create a fixed rate to run the loop on
-        # TODO: Replace the rate with correct fixed value or create paremeter for rate
         rate = self.create_rate(self.rate_hz)
 
         # Run while the context is not shut down
