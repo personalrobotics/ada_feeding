@@ -6,7 +6,7 @@ location of the table with respect to camera_depth_optical_frame.
 # Standard imports
 import math
 import threading
-from typing import Union
+from typing import List, Tuple, Union
 
 # Third-party imports
 import cv2
@@ -184,7 +184,7 @@ class TableDetectionNode(Node):
         self,
         image_msg: Image,
         image_depth_msg: Image,
-    ):
+    ) -> npt.NDArray:
         """
         Fits a plane to the table based on the given RGB image and depth image messages.
         Returns depth array of the table based on the fitted plane. Returns None if no
@@ -296,7 +296,7 @@ class TableDetectionNode(Node):
         self,
         camera_info: CameraInfo,
         table_depth: npt.NDArray,
-    ):
+    ) -> Tuple[List[int], List[List[int]]]:
         """
         Calculate the orientation of the table plane with respect to the
         camera's frame of perspective.

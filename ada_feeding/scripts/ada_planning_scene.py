@@ -674,10 +674,6 @@ class ADAPlanningScene(Node):
         detected_table_pose.pose.position.y += self.objects[self.table_object_id].offsets[1]
         detected_table_pose.pose.position.z += self.objects[self.table_object_id].offsets[2]
 
-        self.get_logger().warn(
-            f"offsets: {self.objects[self.table_object_id].offsets[0]}, {self.objects[self.table_object_id].offsets[1]}, {self.objects[self.table_object_id].offsets[2]}"
-        )
-
         # Move the table object in the planning scene to the detected pose
         self.moveit2.move_collision(
             id=self.table_object_id,
