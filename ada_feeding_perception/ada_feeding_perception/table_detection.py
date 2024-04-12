@@ -266,6 +266,7 @@ class TableDetectionNode(Node):
     def fit_table(
         self,
         image_msg: Image,
+        camera_info: CameraInfo,
         image_depth_msg: Image,
     ) -> npt.NDArray:
         """
@@ -276,6 +277,7 @@ class TableDetectionNode(Node):
         Parameters
         ----------
         image_msg: The RGB image to detect plates from.
+        camera_info: The camera information.
         image_depth_msg: The depth image corresponding to the RGB image.
 
         Returns
@@ -347,45 +349,9 @@ class TableDetectionNode(Node):
         depth_std = np.std(depth_masked[depth_masked > 0])
         depth_masked[depth_dist_from_mean > z_score_thresh * depth_std] = 0
 
-        # Fit plane: depth = a*u + b*v + c
-        d_idx = np.where(depth_masked > 0)
-        d = depth_masked[d_idx]
-        coeffs = np.hstack((np.vstack(d_idx).T, np.ones((len(d_idx[0]), 1))))
-        b, a, c = np.linalg.lstsq(coeffs, d, rcond=None)[0] # Coefficients b and a are reversed 
-                                                            # because of matrix row/col structure 
-                                                            # and its correspondence to x/y
-        
-        # Create table depth array
-        u = np.linspace(0, depth_masked.shape[1], depth_masked.shape[1], False)
-        v = np.linspace(0, depth_masked.shape[0], depth_masked.shape[0], False)
-        u_grid, v_grid = np.meshgrid(u, v)
-        table = a * u_grid + b * v_grid + c
-        table = table.astype("uint16")
-
-        return table
-
-    def get_pose(
-        self,
-        camera_info: CameraInfo,
-        table_depth: npt.NDArray,
-    ) -> Tuple[List[int], List[List[int]]]:
-        """
-        Calculates the pose (position and orientation) of the table plane with 
-        respect to the camera's frame of perspective.
-
-        Parameters
-        ----------
-        camera_info: The camera information.
-        table_depth: The depth image of the table.
-
-        Returns
-        ----------
-        center: The center coordinates of the table in the camera frame.
-        q: The quaternion representing the orientation of the table plane.
-        """        
-        # Deproject the table depth array to get a pointcloud of the table
+        # Deproject the depth array to get a pointcloud of 3D points from the table
         pointcloud = depth_img_to_pointcloud(
-            table_depth,
+            depth_masked,
             0,
             0,
             f_x=camera_info.k[0],
@@ -398,21 +364,55 @@ class TableDetectionNode(Node):
         )
         depth_deproj = pointcloud[:, 2]
 
-        # Calculate index of approximate center coordinate in pointcloud
-        max_u = 640 # Max u index in a 640 x 480 image
-        max_v = 480 # Max v index in a 640 x 480 image 
-        center_idx = int(max_u * (max_v / 2) + (max_u / 2)) 
-        
-        # Get the deprojected center coordinate from the pointcloud
-        center = [
-            pointcloud[center_idx][0],
-            pointcloud[center_idx][1],
-            pointcloud[center_idx][2],
-        ]
-
         # Fit Plane: z = a*x + b*y + c
         coeffs = np.hstack((np.vstack(xy_dims_deproj), np.ones((len(xy_dims_deproj), 1))))
         a, b, c = np.linalg.lstsq(coeffs, depth_deproj, rcond=None)[0]
+
+        return a, b, c
+
+    def get_pose(
+        self,
+        a: float,
+        b: float,
+        c: float,
+        camera_info: CameraInfo,
+    ) -> Tuple[List[int], List[List[int]]]:
+        """
+        Calculates the pose (position and orientation) of the table plane with 
+        respect to the camera's frame of perspective.
+
+        Parameters
+        ----------
+        a: 
+        b: 
+        c: 
+        camera_info: The camera information.
+        table_depth: The depth image of the table.
+
+        Returns
+        ----------
+        center: The center coordinates of the table in the camera frame.
+        q: The quaternion representing the orientation of the table plane.
+        """   
+        # Camera intrinsics
+        f_x = camera_info.k[0]
+        f_y = camera_info.k[4]
+        c_x = camera_info.k[2]
+        c_y = camera_info.k[5]
+
+        # Calculate the center of the table in the camera frame
+        max_u = 640 # Max u index in a 640 x 480 image
+        max_v = 480 # Max v index in a 640 x 480 image 
+        center_x = ((max_u / 2) - c_x) / f_x
+        center_y = ((max_v / 2) - c_y) / f_y
+        center_z = c / (1 - a * center_x - b * center_y)
+        center_x *= center_z
+        center_y *= center_z
+        center = [
+            center_x,
+            center_y,
+            center_z,
+        ]
 
         # Modify the z coordinate of the center given the fitted plane (i.e. make the center
         # the origin of the table plane)
@@ -500,15 +500,6 @@ class TableDetectionNode(Node):
             with self.latest_depth_img_msg_lock:
                 depth_img_msg = self.latest_depth_img_msg
 
-            # Get depth array of the table from the camera image
-            # If no plate is detected, warn and reiterate
-            table_depth = self.fit_table(rgb_msg, depth_img_msg)
-            if table_depth is None:
-                self.get_logger().warn(
-                    "Plate not detected, returning to default table pose."
-                )
-                continue
-
             # Get the camera information
             cam_info = None
             with self.camera_info_lock:
@@ -519,8 +510,17 @@ class TableDetectionNode(Node):
                         "Camera info not received, not including in result message"
                     )
 
+            # Get depth array of the table from the camera image
+            # If no plate is detected, warn and reiterate
+            a, b, c = self.fit_table(rgb_msg, cam_info, depth_img_msg)
+            if a is None:
+                self.get_logger().warn(
+                    "Plate not detected, returning to default table pose."
+                )
+                continue
+
             # Get the center and orientation of the table in the camera frame
-            center, orientation = self.get_pose(cam_info, table_depth)
+            center, orientation = self.get_pose(a, b, c, cam_info)
 
             # Create PoseStamped message
             fit_table_msg = PoseStamped(
