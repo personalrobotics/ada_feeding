@@ -232,7 +232,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "ssh nano './run_camera.sh'",
             ],
             "ft": [
-                "ros2 run forque_sensor_hardware forque_sensor_hardware",
+                "ros2 run forque_sensor_hardware forque_sensor_hardware --ros-args -p host:=ft-sensor-2",
             ],
             "rosbridge": [
                 "ros2 launch rosbridge_server rosbridge_websocket_launch.xml",
