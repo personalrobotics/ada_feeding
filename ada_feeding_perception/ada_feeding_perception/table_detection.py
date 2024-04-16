@@ -359,7 +359,6 @@ class TableDetectionNode(Node):
             c_x=camera_info.k[2],
             c_y=camera_info.k[5],
         )
-        self.get_logger().info(f"pointcloud: {pointcloud}")
         xy_dims_deproj = np.concatenate(
             (pointcloud[:, 0, np.newaxis], pointcloud[:, 1, np.newaxis]), axis=1
         )
