@@ -333,7 +333,7 @@ class ADAPlanningScene(Node):
                 name="table_detection_offsets",
                 type=ParameterType.PARAMETER_DOUBLE_ARRAY,
                 description=(
-                    f"The offset values for the center coordinates" 
+                    f"The offset values for the center coordinates"
                     " of the table object."
                 ),
                 read_only=True,

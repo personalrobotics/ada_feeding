@@ -159,7 +159,9 @@ def generate_launch_description():
         name="table_detection",
         executable="table_detection",
         parameters=[table_detection_config],
-        remappings=realsense_remappings + aligned_depth_remapping + table_detection_remappings,
+        remappings=realsense_remappings
+        + aligned_depth_remapping
+        + table_detection_remappings,
     )
     launch_description.add_action(table_detection)
 

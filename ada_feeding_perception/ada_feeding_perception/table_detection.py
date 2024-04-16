@@ -16,8 +16,8 @@ import numpy.typing as npt
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
-from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from rclpy.node import Node
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from std_srvs.srv import SetBool
 
@@ -42,13 +42,15 @@ class TableDetectionNode(Node):
     """
     This node subscribes to the camera info, depth image, and RGB image topics and exposes a
     service to toggle table detection on and off. When on, the node publishes
-    a 3D PoseStamped location of the center of the camera image with respect to the camera's 
-    frame of perspective at a specified rate. 
-    This node relies on a few assumptions: (1) a plate is in the camera view, (2) the plate 
-    is circular and is the largest circle in the camera view, and (3) the area within the 
+    a 3D PoseStamped location of the center of the camera image with respect to the camera's
+    frame of perspective at a specified rate.
+    This node relies on a few assumptions: (1) a plate is in the camera view, (2) the plate
+    is circular and is the largest circle in the camera view, and (3) the area within the
     buffer radius of 50 pixels around the plate is mostly obstacle-free.
     """
 
+    # pylint: disable=too-many-instance-attributes
+    # Needed for multiple publishers/subscribers, services, and parameters
     def __init__(self):
         """
         Initialize the TableDetectionNode.
@@ -126,7 +128,7 @@ class TableDetectionNode(Node):
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
-        # If the visualization flag is set, create a publisher for the visualized 
+        # If the visualization flag is set, create a publisher for the visualized
         # results of plate detection - a process required to fit a plane on the table
         if self.viz:
             self.viz_plate_pub = self.create_publisher(
@@ -150,7 +152,7 @@ class TableDetectionNode(Node):
                 name="rate_hz",
                 type=ParameterType.PARAMETER_DOUBLE,
                 description=(
-                    "The rate (Hz) at which to publish the pose " 
+                    "The rate (Hz) at which to publish the pose "
                     "information of the detected table."
                 ),
                 read_only=True,
@@ -158,7 +160,7 @@ class TableDetectionNode(Node):
         )
         self.rate_hz = rate_hz.value
 
-        # A boolean to determine whether to publish the visualization of the 
+        # A boolean to determine whether to publish the visualization of the
         # plate detection results as an RGB image.
         viz = self.declare_parameter(
             "viz",
@@ -238,8 +240,8 @@ class TableDetectionNode(Node):
         self, img_cv2: Image, center: List[float], radius: float, table_buffer: int
     ) -> None:
         """
-        Visualizes the plate detection results from the Hough circle transform  
-        by drawing a circle around the detected plate and a concentric circle  
+        Visualizes the plate detection results from the Hough circle transform
+        by drawing a circle around the detected plate and a concentric circle
         of larger radius, given the buffer value, in the given image.
         This visualization is then published as a ROS message.
 
@@ -273,9 +275,9 @@ class TableDetectionNode(Node):
         image_depth_msg: Image,
     ) -> npt.NDArray:
         """
-        Fits a plane to the table based on the given RGB image and depth 
-        image messages. Returns the coefficients and constant terms of the 
-        table plane equation (z = a*x + b*y +c). Returns None if no plates 
+        Fits a plane to the table based on the given RGB image and depth
+        image messages. Returns the coefficients and constant terms of the
+        table plane equation (z = a*x + b*y +c). Returns None if no plates
         are detected in the image.
 
         Parameters
@@ -290,17 +292,24 @@ class TableDetectionNode(Node):
         b: The coefficient of the y term in the table plane equation.
         c: The constant term in the table plane equation.
         """
+        # pylint: disable=too-many-locals
+        # All local variables used here are necessary
+
         # Hough Circle transform parameters
-        # Tuning Hough circle transform parameters for plate detection: 
+        # Tuning Hough circle transform parameters for plate detection:
         # https://medium.com/@isinsuarici/hough-circle-transform-parameter-tuning-with-examples-6b63478377c9
-        hough_accum = 1.5 # Lowering causes false negatives/raising causes false positives
-        hough_min_dist = 100 # Minimum distance between the centers of circles to detect
+        hough_accum = (
+            1.5  # Lowering causes false negatives/raising causes false positives
+        )
+        hough_min_dist = (
+            100  # Minimum distance between the centers of circles to detect
+        )
         hough_param1 = 100  # Larger is more selective
         hough_param2 = (
             125  # Larger is more selective and decreases chance of false positives
         )
-        hough_min = 75 # Minimum radius of circles to detect
-        hough_max = 200 # Maximum radius of circles to detect
+        hough_min = 75  # Minimum radius of circles to detect
+        hough_max = 200  # Maximum radius of circles to detect
         table_buffer = 50  # Extra radius around the plate to use for table detection
 
         # Convert ROS images to CV images
@@ -323,7 +332,7 @@ class TableDetectionNode(Node):
         # If no circles are detected, return None
         if circles is None:
             return None, None, None
-        
+
         # Determine the largest circle from the detected circles as the plate
         circles = np.round(circles[0, :]).astype("int")
         plate_uv = (0, 0)
@@ -334,28 +343,30 @@ class TableDetectionNode(Node):
                 plate_r = r
 
         # If the visualization flag is set to True, publish a visualization of the
-        # plate detection results 
+        # plate detection results
         if self.viz:
             self.visualize_plate_detection(gray, plate_uv, plate_r, table_buffer)
-        
+
         # Create mask for depth image
         plate_mask = np.zeros(image_depth.shape)
         cv2.circle(plate_mask, plate_uv, plate_r + table_buffer, 1.0, -1)
         cv2.circle(plate_mask, plate_uv, plate_r, 0.0, -1)
-        depth_masked = (image_depth * (plate_mask).astype("uint16"))
+        depth_masked = image_depth * (plate_mask).astype("uint16")
 
         # Noise removal
         kernel = np.ones((6, 6), np.uint8)
-        depth_masked = cv2.morphologyEx(depth_masked, cv2.MORPH_OPEN, kernel, iterations=3)
-        depth_masked = cv2.morphologyEx(depth_masked, cv2.MORPH_CLOSE, kernel, iterations=3)
-
-        # Remove outliers - outliers are depth values that are more than z_score_thresh 
-        # standard deviations away from the mean depth value
-        # TODO: Consider outlier removal using median + iqr for the future
-        z_score_thresh = 2.0
-        depth_dist_from_mean = np.abs(depth_masked - np.mean(depth_masked[depth_masked > 0]))
-        depth_std = np.std(depth_masked[depth_masked > 0])
-        depth_masked[depth_dist_from_mean > z_score_thresh * depth_std] = 0
+        depth_masked = cv2.morphologyEx(
+            depth_masked, cv2.MORPH_OPEN, kernel, iterations=3
+        )
+        depth_masked = cv2.morphologyEx(
+            depth_masked, cv2.MORPH_CLOSE, kernel, iterations=3
+        )
+        
+        # Remove outliers using the interquartile range proximity rule  
+        q75, q25 = np.percentile(depth_masked[depth_masked > 0], [75, 25])
+        depth_masked[depth_masked > q75 + 1.5 * (q75 - q25)] = 0
+        depth_masked[depth_masked < q25 - 1.5 * (q75 - q25)] = 0
+        self.get_logger().info(f"{np.max(depth_masked)}")
 
         # Deproject the depth array to get a pointcloud of 3D points from the table
         pointcloud = depth_img_to_pointcloud(
@@ -386,9 +397,9 @@ class TableDetectionNode(Node):
         camera_info: CameraInfo,
     ) -> Tuple[List[int], List[List[int]]]:
         """
-        Calculates the pose (position and orientation) of the table plane with 
+        Calculates the pose (position and orientation) of the table plane with
         respect to the camera's frame of perspective. The position is determined
-        by deprojecting the center of the camera image to 3D points on the table. 
+        by deprojecting the center of the camera image to 3D points on the table.
 
         Parameters
         ----------
@@ -400,44 +411,47 @@ class TableDetectionNode(Node):
 
         Returns
         ----------
-        center: The 3D coordinates of a point on the table 
+        center: The 3D coordinates of a point on the table
                 deprojected from the center of the camera image.
         q: The quaternion representing the orientation of the table plane.
-        """   
+        """
+        # pylint: disable=too-many-locals
+        # More local variables are used for improved readability
+
         # Store the camera intrinsics
-        f_x = camera_info.k[0] # Focal length of camera in x direction
-        f_y = camera_info.k[4] # Focal length of camera in y direction
-        c_x = camera_info.k[2] # x-coordinate of principal point
-        c_y = camera_info.k[5] # y-coordinate of principal point
+        f_x = camera_info.k[0]  # Focal length of camera in x direction
+        f_y = camera_info.k[4]  # Focal length of camera in y direction
+        c_x = camera_info.k[2]  # x-coordinate of principal point
+        c_y = camera_info.k[5]  # y-coordinate of principal point
 
         # Deproject the pixel coordinates of the center of the camera image
         # to a 3D point on the table
-        max_u = 640 # Max u index in a 640 x 480 image
-        max_v = 480 # Max v index in a 640 x 480 image 
-        coeff_x = ((max_u / 2) - c_x) / f_x
-        coeff_y = ((max_v / 2) - c_y) / f_y
-        center_z = c / (1 - a * coeff_x - b * coeff_y)
-        center_x = coeff_x * center_z
-        center_y = coeff_y * center_z
+        max_u = 640  # Max u index in a 640 x 480 image
+        max_v = 480  # Max v index in a 640 x 480 image
+        center_x = ((max_u / 2) - c_x) / f_x
+        center_y = ((max_v / 2) - c_y) / f_y
+        center_z = c / (1 - a * center_x - b * center_y)
+        center_x *= center_z
+        center_y *= center_y * center_z
         center = [
             center_x,
             center_y,
             center_z,
         ]
 
-        # Get the normalized direction vectors of the table plane 
+        # Get the normalized direction vectors of the table plane
         # from the camera's frame of perspective
-        # Direction vector of x calculated by the subtraction of the center 
+        # Direction vector of x calculated by the subtraction of the center
         # and a coordinate offset from the center in the -x direction
-        x_offset = 0.1 # Offset in -x direction 
+        x_offset = 0.1  # Offset in -x direction
         offset_center = [
             center[0] - x_offset,
             center[1],
             a * (center[0] - x_offset) + b * center[1] + c,
         ]
         x_dir_vect = [
-            center[0] - offset_center[0], 
-            center[1] - offset_center[1], 
+            center[0] - offset_center[0],
+            center[1] - offset_center[1],
             center[2] - offset_center[2],
         ]
         x_dir_vect /= np.linalg.norm(x_dir_vect)
@@ -445,7 +459,7 @@ class TableDetectionNode(Node):
         # Direction vector of z calculated using table plane equation coefficients
         z_dir_vect = [a, b, -1] / np.linalg.norm([a, b, -1])
 
-        # Direction vector of y calculated by finding the vector orthogonal to both  
+        # Direction vector of y calculated by finding the vector orthogonal to both
         # the x and z direction vectors
         # Accomplished through a system of linear equations consisting of:
         # the dot product of x and y, dot product of z and y, & normalization of y
@@ -455,9 +469,12 @@ class TableDetectionNode(Node):
             + math.pow(x_dir_vect[1] * z_dir_vect[0] - x_dir_vect[0] * z_dir_vect[1], 2)
         )
         y_dir_vect = [
-            (x_dir_vect[2] * z_dir_vect[1] - x_dir_vect[1] * z_dir_vect[2]) / denominator,
-            (x_dir_vect[0] * z_dir_vect[2] - x_dir_vect[2] * z_dir_vect[0]) / denominator,
-            (x_dir_vect[1] * z_dir_vect[0] - x_dir_vect[0] * z_dir_vect[1]) / denominator,
+            (x_dir_vect[2] * z_dir_vect[1] - x_dir_vect[1] * z_dir_vect[2])
+            / denominator,
+            (x_dir_vect[0] * z_dir_vect[2] - x_dir_vect[2] * z_dir_vect[0])
+            / denominator,
+            (x_dir_vect[1] * z_dir_vect[0] - x_dir_vect[0] * z_dir_vect[1])
+            / denominator,
         ]
 
         # Construct the rotation matrix from direction vectors
@@ -520,7 +537,7 @@ class TableDetectionNode(Node):
             # Fit a plane to the table given the camera image and get the coefficients
             # and constant terms of the table plane equation
             a, b, c = self.fit_table(rgb_msg, cam_info, depth_img_msg)
-            
+
             # If no plate is detected, warn and reiterate
             if a is None or b is None or c is None:
                 self.get_logger().warn(
