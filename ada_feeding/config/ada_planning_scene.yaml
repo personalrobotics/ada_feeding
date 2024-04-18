@@ -83,6 +83,8 @@ ada_planning_scene:
       attached: True
       frame_id: forkTip # the frame_id that the pose is relative to
       touch_links: [forkTine] # the links, in addition to frame_id, that should be ignored for collision checking
-    # The offset values for center coordinates ([x, y, z]) of the table. These 
+    # The offset values for the center coordinates ([x, y, z]) of the table. These 
     # values are used to translate the detected position into the table's origin.
-    table_detection_offsets: [-0.20, -0.25, -0.79] 
+    table_detection_offsets: [-0.20, -0.25, -0.79]
+    # The detected orientation of the table represented as a quaternion. 
+    table_detection_quaternion: [0.0, 0.0, 0.0, 1.0]

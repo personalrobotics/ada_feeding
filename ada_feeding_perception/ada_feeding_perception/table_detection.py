@@ -363,10 +363,11 @@ class TableDetectionNode(Node):
         )
         
         # Remove outliers using the interquartile range proximity rule  
-        q75, q25 = np.percentile(depth_masked[depth_masked > 0], [75, 25])
-        depth_masked[depth_masked > q75 + 1.5 * (q75 - q25)] = 0
-        depth_masked[depth_masked < q25 - 1.5 * (q75 - q25)] = 0
-        self.get_logger().info(f"{np.max(depth_masked)}")
+        quartile_3, quartile_1 = np.percentile(depth_masked[depth_masked > 0], [75, 25])
+        depth_masked[depth_masked > quartile_3 + 1.5 * (quartile_3 - quartile_1)] = 0
+        depth_masked[depth_masked < quartile_1 - 1.5 * (quartile_3 - quartile_1)] = 0
+        self.get_logger().info(f"{np.min(depth_masked[depth_masked > 0])}")
+        self.get_logger().info(f"quartile 1, quartile 3: {quartile_1}, {quartile_3}")
 
         # Deproject the depth array to get a pointcloud of 3D points from the table
         pointcloud = depth_img_to_pointcloud(

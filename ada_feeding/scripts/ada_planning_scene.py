@@ -328,7 +328,7 @@ class ADAPlanningScene(Node):
 
         table_detection_offsets = self.declare_parameter(
             "table_detection_offsets",
-            [0.0, 0.0, 0.0],  # default value
+            [-0.20, -0.25, -0.79],  # default value
             descriptor=ParameterDescriptor(
                 name="table_detection_offsets",
                 type=ParameterType.PARAMETER_DOUBLE_ARRAY,
@@ -340,6 +340,21 @@ class ADAPlanningScene(Node):
             ),
         )
         self.table_detection_offsets = table_detection_offsets.value
+
+        table_detection_quaternion = self.declare_parameter(
+            "table_detection_quaternion",
+            None, # default value
+            descriptor=ParameterDescriptor(
+                name="table_detection_quaternion",
+                type=ParameterType.PARAMETER_DOUBLE_ARRAY,
+                description=(
+                    f"The detected orientation of the table as a"
+                    " quaternion."
+                ),
+                read_only=True,
+            ),
+        )
+        self.table_detection_quaternion = table_detection_quaternion.value
 
         update_face_hz = self.declare_parameter(
             "update_face_hz",
@@ -673,11 +688,18 @@ class ADAPlanningScene(Node):
         detected_table_pose.pose.position.y += self.table_detection_offsets[1]
         detected_table_pose.pose.position.z += self.table_detection_offsets[2]
 
+        # If the table's orientation has not already been determined, set the
+        # table's orientation to the calculated orientation 
+        if self.table_detection_quaternion is [0.0, 0.0, 0.0, 1.0]:
+            self.table_detection_quaternion = detected_table_pose.pose.orientation
+
+        #self.get_logger().info(f"table pose: {detected_table_pose}")
+
         # Move the table object in the planning scene to the detected pose
         self.moveit2.move_collision(
             id=self.table_object_id,
             position=detected_table_pose.pose.position,
-            quat_xyzw=detected_table_pose.pose.orientation,
+            quat_xyzw=self.table_detection_quaternion,
             frame_id=base_frame,
         )
 
