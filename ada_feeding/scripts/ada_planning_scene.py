@@ -690,10 +690,10 @@ class ADAPlanningScene(Node):
 
         # If the table's orientation has not already been determined, set the
         # table's orientation to the calculated orientation 
-        if self.table_detection_quaternion is [0.0, 0.0, 0.0, 1.0]:
+        if self.table_detection_quaternion is None:
             self.table_detection_quaternion = detected_table_pose.pose.orientation
 
-        #self.get_logger().info(f"table pose: {detected_table_pose}")
+        self.get_logger().info(f"table pose: {detected_table_pose}")
 
         # Move the table object in the planning scene to the detected pose
         self.moveit2.move_collision(

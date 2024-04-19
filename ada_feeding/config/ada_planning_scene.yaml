@@ -86,5 +86,3 @@ ada_planning_scene:
     # The offset values for the center coordinates ([x, y, z]) of the table. These 
     # values are used to translate the detected position into the table's origin.
     table_detection_offsets: [-0.20, -0.25, -0.79]
-    # The detected orientation of the table represented as a quaternion. 
-    table_detection_quaternion: [0.0, 0.0, 0.0, 1.0]
