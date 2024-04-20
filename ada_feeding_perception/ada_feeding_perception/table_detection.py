@@ -361,8 +361,8 @@ class TableDetectionNode(Node):
         depth_masked = cv2.morphologyEx(
             depth_masked, cv2.MORPH_CLOSE, kernel, iterations=3
         )
-        
-        # Remove outliers using the interquartile range proximity rule  
+
+        # Remove outliers using the interquartile range proximity rule
         quartile_3, quartile_1 = np.percentile(depth_masked[depth_masked > 0], [75, 25])
         depth_masked[depth_masked > quartile_3 + 1.5 * (quartile_3 - quartile_1)] = 0
         depth_masked[depth_masked < quartile_1 - 1.5 * (quartile_3 - quartile_1)] = 0

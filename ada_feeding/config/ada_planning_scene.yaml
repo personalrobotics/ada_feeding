@@ -86,3 +86,14 @@ ada_planning_scene:
     # The offset values for the center coordinates ([x, y, z]) of the table. These 
     # values are used to translate the detected position into the table's origin.
     table_detection_offsets: [-0.20, -0.25, -0.79]
+    # A table quaternion to override the detected table quaternion.
+    # By default it is set to an empty list, set it to a quaternion to  
+    # override the detected table orientation.   
+    table_quaternion_override: []
+    # The detected orientation of the table prior to the latest detected 
+    # table orientation represented as a quaternion.
+    prev_table_quaternion: []
+    # A threshold on the distance between the previously detected table
+    # quaternion and the latest table quaternion to determine whether to
+    # reject or accept the latest table quaternion
+    quat_dist_thresh: 0.2

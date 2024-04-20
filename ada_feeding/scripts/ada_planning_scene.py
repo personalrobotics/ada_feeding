@@ -11,6 +11,7 @@ from collections import namedtuple
 from os import path
 import threading
 import time
+import math
 from typing import List
 
 # Third-party imports
@@ -34,6 +35,8 @@ from tf2_ros import TransformException
 from tf2_ros.buffer import Buffer
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros.transform_listener import TransformListener
+from scipy.spatial.transform import Rotation as R
+from pyquaternion import Quaternion as Q
 
 # Local imports
 from ada_feeding_msgs.msg import FaceDetection
@@ -341,20 +344,51 @@ class ADAPlanningScene(Node):
         )
         self.table_detection_offsets = table_detection_offsets.value
 
-        table_detection_quaternion = self.declare_parameter(
-            "table_detection_quaternion",
-            None, # default value
+        table_quaternion_override = self.declare_parameter(
+            "table_quaternion_override",
+            None,  # default value
             descriptor=ParameterDescriptor(
-                name="table_detection_quaternion",
+                name="table_quaternion_override",
                 type=ParameterType.PARAMETER_DOUBLE_ARRAY,
                 description=(
-                    f"The detected orientation of the table as a"
-                    " quaternion."
+                    f"The detected orientation of the table as a" " quaternion."
                 ),
                 read_only=True,
             ),
         )
-        self.table_detection_quaternion = table_detection_quaternion.value
+        self.table_quaternion_override = table_quaternion_override.value
+
+        prev_table_quaternion = self.declare_parameter(
+            "prev_table_quaternion",
+            None,  # default value
+            descriptor=ParameterDescriptor(
+                name="prev_table_quaternion",
+                type=ParameterType.PARAMETER_DOUBLE_ARRAY,
+                description=(
+                    f"The detected orientation of the table prior"
+                    " to the latest detected table orientation"
+                    " represented as a quaternion."
+                ),
+                read_only=True,
+            ),
+        )
+        self.prev_table_quaternion = prev_table_quaternion.value
+
+        quat_dist_thresh = self.declare_parameter(
+            "quat_dist_thresh",
+            None,  # default value
+            descriptor=ParameterDescriptor(
+                name="quat_dist_thresh",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    f"The threshold for the distance between"
+                    " the latest detected table quaternion"
+                    " and the previously detected table quaternion."
+                ),
+                read_only=True,
+            ),
+        )
+        self.quat_dist_thresh = quat_dist_thresh.value
 
         update_face_hz = self.declare_parameter(
             "update_face_hz",
@@ -688,18 +722,83 @@ class ADAPlanningScene(Node):
         detected_table_pose.pose.position.y += self.table_detection_offsets[1]
         detected_table_pose.pose.position.z += self.table_detection_offsets[2]
 
-        # If the table's orientation has not already been determined, set the
-        # table's orientation to the calculated orientation 
-        if self.table_detection_quaternion is None:
-            self.table_detection_quaternion = detected_table_pose.pose.orientation
+        # If there is a previously detected table quaternion, determine whether
+        # to accept or reject the latest table quaternion
+        # Otherwise, accept the latest table quaternion
+        table_quaternion = None
+        if self.prev_table_quaternion:
+            """
+            # Convert quaternions to lists
+            prev_quat_list = [
+                self.prev_table_quaternion.x,
+                self.prev_table_quaternion.y,
+                self.prev_table_quaternion.z,
+                self.prev_table_quaternion.w,
+            ]
+            latest_quat_list = [
+                detected_table_pose.pose.orientation.x,
+                detected_table_pose.pose.orientation.y,
+                detected_table_pose.pose.orientation.z,
+                detected_table_pose.pose.orientation.w,
+            ]
 
-        self.get_logger().info(f"table pose: {detected_table_pose}")
+            # Get inverse of previously detected table quaternion
+            prev_table_rotation = R.from_quat(prev_quat_list)
+            rotation_inv = prev_table_rotation.inv()
+
+            # Calculate the angular distance between the latest detected table
+            # quaternion and previously detected table quaternion
+            latest_table_rotation = R.from_quat(latest_quat_list)
+            quat_difference_rot = rotation_inv * latest_table_rotation
+            quat_difference = quat_difference_rot.as_quat()
+            angle_dist = math.fabs(2 * math.atan2(len(quat_difference), quat_difference[3]))
+            self.get_logger().info(f"angle dist: {angle_dist}")
+            """
+            prev_table_pyquat = Q(
+                w=self.prev_table_quaternion.w,
+                x=self.prev_table_quaternion.x,
+                y=self.prev_table_quaternion.y,
+                z=self.prev_table_quaternion.z,
+            )
+
+            latest_table_pyquat = Q(
+                w=detected_table_pose.pose.orientation.w,
+                x=detected_table_pose.pose.orientation.x,
+                y=detected_table_pose.pose.orientation.y,
+                z=detected_table_pose.pose.orientation.z,
+            )
+
+            angle_dist = Q.absolute_distance(prev_table_pyquat, latest_table_pyquat)
+            self.get_logger().info(f"angle dist: {angle_dist}")
+
+            # Accept the latest detected table quaternion if the angular distance
+            # is within the threshold
+            # Otherwise, reject it
+            ############### TO SRIRAM: MAKE THIS <
+            if angle_dist < self.quat_dist_thresh:
+                table_quaternion = detected_table_pose.pose.orientation
+                self.prev_table_quaternion = detected_table_pose.pose.orientation
+            else:
+                table_quaternion = self.prev_table_quaternion
+        else:
+            table_quaternion = detected_table_pose.pose.orientation
+            self.prev_table_quaternion = detected_table_pose.pose.orientation
+
+        # If an override quaternion has been set for the table's orientation,
+        # then override the table orientation to the fixed quaternion
+        # Otherwise, set the table orientation to the detected orientation
+        # if not self.table_quaternion_override:
+        #    table_quaternion = detected_table_pose.pose.orientation
+        # else:
+        #    table_quaternion = self.table_quaternion_override
+        if self.table_quaternion_override:
+            table_quaternion = self.table_quaternion_override
 
         # Move the table object in the planning scene to the detected pose
         self.moveit2.move_collision(
             id=self.table_object_id,
             position=detected_table_pose.pose.position,
-            quat_xyzw=self.table_detection_quaternion,
+            quat_xyzw=table_quaternion,
             frame_id=base_frame,
         )
 

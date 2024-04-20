@@ -50,6 +50,15 @@ parser.add_argument(
         "Also launch the web app on port 3000. Only applies to `real`."
     ),
 )
+parser.add_argument(
+    "--domain_id",
+    default=None,
+    type=int,
+    help=(
+        "If set, export this ROS_DOMAIN_ID before running code in every screen "
+        "session. (default: None)"
+    ),
+)
 
 
 async def get_existing_screens():
@@ -262,7 +271,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
-                "node start_robot_browser.js --port=80",
+                "node start_robot_browser.js" + "" if args.dev else " --port=80",
             ],
         }
         close_commands = {
@@ -275,6 +284,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         f"cd {pwd}",
         "source install/setup.bash",
     ]
+    if args.domain_id is not None:
+        initial_start_commands.append(f"export ROS_DOMAIN_ID={args.domain_id}")
     for screen_name, commands in screen_sessions.items():
         screen_sessions[screen_name] = initial_start_commands + commands
         if screen_name not in close_commands:
