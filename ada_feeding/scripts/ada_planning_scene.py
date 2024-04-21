@@ -727,40 +727,13 @@ class ADAPlanningScene(Node):
         # Otherwise, accept the latest table quaternion
         table_quaternion = None
         if self.prev_table_quaternion:
-            """
-            # Convert quaternions to lists
-            prev_quat_list = [
-                self.prev_table_quaternion.x,
-                self.prev_table_quaternion.y,
-                self.prev_table_quaternion.z,
-                self.prev_table_quaternion.w,
-            ]
-            latest_quat_list = [
-                detected_table_pose.pose.orientation.x,
-                detected_table_pose.pose.orientation.y,
-                detected_table_pose.pose.orientation.z,
-                detected_table_pose.pose.orientation.w,
-            ]
-
-            # Get inverse of previously detected table quaternion
-            prev_table_rotation = R.from_quat(prev_quat_list)
-            rotation_inv = prev_table_rotation.inv()
-
-            # Calculate the angular distance between the latest detected table
-            # quaternion and previously detected table quaternion
-            latest_table_rotation = R.from_quat(latest_quat_list)
-            quat_difference_rot = rotation_inv * latest_table_rotation
-            quat_difference = quat_difference_rot.as_quat()
-            angle_dist = math.fabs(2 * math.atan2(len(quat_difference), quat_difference[3]))
-            self.get_logger().info(f"angle dist: {angle_dist}")
-            """
+            # Convert latest and previous table quaternions to pyquaternion objects
             prev_table_pyquat = Q(
                 w=self.prev_table_quaternion.w,
                 x=self.prev_table_quaternion.x,
                 y=self.prev_table_quaternion.y,
                 z=self.prev_table_quaternion.z,
             )
-
             latest_table_pyquat = Q(
                 w=detected_table_pose.pose.orientation.w,
                 x=detected_table_pose.pose.orientation.x,
@@ -768,14 +741,14 @@ class ADAPlanningScene(Node):
                 z=detected_table_pose.pose.orientation.z,
             )
 
-            angle_dist = Q.absolute_distance(prev_table_pyquat, latest_table_pyquat)
-            self.get_logger().info(f"angle dist: {angle_dist}")
+            # Compute the absolute distance between the latest and previous table quaternions
+            quat_dist = Q.absolute_distance(prev_table_pyquat, latest_table_pyquat)
+            self.get_logger().info(f"quaternion dist: {quat_dist}")
 
-            # Accept the latest detected table quaternion if the angular distance
+            # Accept the latest detected table quaternion if the absolute distance
             # is within the threshold
             # Otherwise, reject it
-            ############### TO SRIRAM: MAKE THIS <
-            if angle_dist < self.quat_dist_thresh:
+            if quat_dist < self.quat_dist_thresh:
                 table_quaternion = detected_table_pose.pose.orientation
                 self.prev_table_quaternion = detected_table_pose.pose.orientation
             else:
@@ -787,10 +760,6 @@ class ADAPlanningScene(Node):
         # If an override quaternion has been set for the table's orientation,
         # then override the table orientation to the fixed quaternion
         # Otherwise, set the table orientation to the detected orientation
-        # if not self.table_quaternion_override:
-        #    table_quaternion = detected_table_pose.pose.orientation
-        # else:
-        #    table_quaternion = self.table_quaternion_override
         if self.table_quaternion_override:
             table_quaternion = self.table_quaternion_override
 

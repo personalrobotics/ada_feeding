@@ -273,7 +273,7 @@ class TableDetectionNode(Node):
         image_msg: Image,
         camera_info: CameraInfo,
         image_depth_msg: Image,
-    ) -> npt.NDArray:
+    ) -> Tuple[int, int, int]:
         """
         Fits a plane to the table based on the given RGB image and depth
         image messages. Returns the coefficients and constant terms of the
@@ -329,7 +329,7 @@ class TableDetectionNode(Node):
             maxRadius=hough_max,
         )
 
-        # If no circles are detected, return None
+        # If no circles are detected, return None, None, None
         if circles is None:
             return None, None, None
 
@@ -366,8 +366,6 @@ class TableDetectionNode(Node):
         quartile_3, quartile_1 = np.percentile(depth_masked[depth_masked > 0], [75, 25])
         depth_masked[depth_masked > quartile_3 + 1.5 * (quartile_3 - quartile_1)] = 0
         depth_masked[depth_masked < quartile_1 - 1.5 * (quartile_3 - quartile_1)] = 0
-        self.get_logger().info(f"{np.min(depth_masked[depth_masked > 0])}")
-        self.get_logger().info(f"quartile 1, quartile 3: {quartile_1}, {quartile_3}")
 
         # Deproject the depth array to get a pointcloud of 3D points from the table
         pointcloud = depth_img_to_pointcloud(
@@ -396,7 +394,7 @@ class TableDetectionNode(Node):
         b: float,
         c: float,
         camera_info: CameraInfo,
-    ) -> Tuple[List[int], List[List[int]]]:
+    ) -> Tuple[List[int], List[int]]:
         """
         Calculates the pose (position and orientation) of the table plane with
         respect to the camera's frame of perspective. The position is determined
@@ -408,13 +406,12 @@ class TableDetectionNode(Node):
         b: The coefficient of the y term in the table plane equation.
         c: The constant term in the table plane equation.
         camera_info: The camera information.
-        table_depth: The depth image of the table.
 
         Returns
         ----------
         center: The 3D coordinates of a point on the table
                 deprojected from the center of the camera image.
-        q: The quaternion representing the orientation of the table plane.
+        quat: A quaternion representing the orientation of the table.
         """
         # pylint: disable=too-many-locals
         # More local variables are used for improved readability
@@ -433,7 +430,7 @@ class TableDetectionNode(Node):
         center_y = ((max_v / 2) - c_y) / f_y
         center_z = c / (1 - a * center_x - b * center_y)
         center_x *= center_z
-        center_y *= center_y * center_z
+        center_y *= center_z
         center = [
             center_x,
             center_y,
@@ -444,7 +441,7 @@ class TableDetectionNode(Node):
         # from the camera's frame of perspective
         # Direction vector of x calculated by the subtraction of the center
         # and a coordinate offset from the center in the -x direction
-        x_offset = 0.1  # Offset in -x direction
+        x_offset = 0.1  # Offset in the -x direction
         offset_center = [
             center[0] - x_offset,
             center[1],
@@ -486,10 +483,10 @@ class TableDetectionNode(Node):
         ]
 
         # Derive a quaternion from the rotation matrix
-        q = R.from_matrix(rot_matrix)
-        q = q.as_quat()
+        quat = R.from_matrix(rot_matrix)
+        quat = quat.as_quat()
 
-        return center, q
+        return center, quat
 
     def run(self) -> None:
         """
@@ -546,8 +543,8 @@ class TableDetectionNode(Node):
                 )
                 continue
 
-            # Get the center and orientation of the table in the camera frame
-            center, orientation = self.get_pose(a, b, c, cam_info)
+            # Get the center and quaternion of the table in the camera frame
+            center, quat = self.get_pose(a, b, c, cam_info)
 
             # Create PoseStamped message
             fit_table_msg = PoseStamped(
@@ -559,10 +556,10 @@ class TableDetectionNode(Node):
                         z=center[2],
                     ),
                     orientation=Quaternion(
-                        x=orientation[0],
-                        y=orientation[1],
-                        z=orientation[2],
-                        w=orientation[3],
+                        x=quat[0],
+                        y=quat[1],
+                        z=quat[2],
+                        w=quat[3],
                     ),
                 ),
             )

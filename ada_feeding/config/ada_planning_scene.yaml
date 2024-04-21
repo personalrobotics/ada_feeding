@@ -41,6 +41,7 @@ ada_planning_scene:
       # updated as the robot perceives the table.
       position: [0.08, -0.5, -0.48]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+      offsets: [-0.20, -0.25, -0.79] 
       frame_id: root # the frame_id that the pose is relative to
     # NOTE: If you change this you must also change the hardcoded initial pose in
     # bite transfer.
