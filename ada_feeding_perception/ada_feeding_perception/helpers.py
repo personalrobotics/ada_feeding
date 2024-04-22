@@ -3,6 +3,7 @@ This file contains helper functions for the ada_feeding_perception package.
 """
 # Standard imports
 import os
+import parse
 import pprint
 from typing import List, Optional, Tuple, Union
 from urllib.parse import urljoin
@@ -249,6 +250,14 @@ def ros_msg_to_cv2_image(
     if isinstance(msg, tuple(image_types)):
         return bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
     if isinstance(msg, tuple(compressed_image_types)):
+        if ";" in msg.format: # compressed depth image
+            encoding, _, fmt = parse.parse("{:s}; {:s} ({:s})", msg.format)
+            if encoding.lower() != "16uc1" or fmt.lower() != "png":
+                raise NotImplementedError(
+                    f"Encoding ({encoding}) and format ({fmt}) not yet supported"
+                )
+            DEPTH_HEADER_SIZE = 12
+            return cv2.imdecode(np.frombuffer(msg.data[DEPTH_HEADER_SIZE:], np.uint8), cv2.IMREAD_UNCHANGED)
         return bridge.compressed_imgmsg_to_cv2(msg, desired_encoding="passthrough")
     raise ValueError("msg must be a ROS Image or CompressedImage")
 
