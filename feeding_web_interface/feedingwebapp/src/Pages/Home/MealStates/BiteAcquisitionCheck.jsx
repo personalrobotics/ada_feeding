@@ -137,16 +137,16 @@ const BiteAcquisitionCheck = () => {
     (message) => {
       console.log('Got food-on-fork detection message', message)
       // Only auto-continue if the previous state was Bite Acquisition
-      if (biteAcquisitionCheckAutoContinue && prevMealState === MEAL_STATE.R_BiteAcquisition && message.status === 1) {
+      if (biteAcquisitionCheckAutoContinue && prevMealState === MEAL_STATE.R_BiteAcquisition) {
         let callbackFn = null
-        if (message.probability < biteAcquisitionCheckAutoContinueProbThreshLower) {
+        if (message.status === -1 || (message.status === 1 && message.probability < biteAcquisitionCheckAutoContinueProbThreshLower)) {
           console.log('No FoF. Auto-continuing in ', remainingSeconds, ' seconds')
           if (timerWasForFof.current === true) {
             clearTimer()
           }
           timerWasForFof.current = false
           callbackFn = acquisitionFailure
-        } else if (message.probability > biteAcquisitionCheckAutoContinueProbThreshUpper) {
+        } else if (message.status === 1 && message.probability > biteAcquisitionCheckAutoContinueProbThreshUpper) {
           console.log('FoF. Auto-continuing in ', remainingSeconds, ' seconds')
           if (timerWasForFof.current === false) {
             clearTimer()
@@ -154,7 +154,7 @@ const BiteAcquisitionCheck = () => {
           timerWasForFof.current = true
           callbackFn = acquisitionSuccess
         } else {
-          console.log('Not auto-continuing due to probability between thresholds')
+          console.log('Not auto-continuing due to probability between thresholds or errors')
           clearTimer()
         }
         // Don't override an existing timer

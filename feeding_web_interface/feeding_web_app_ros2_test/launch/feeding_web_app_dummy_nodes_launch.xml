@@ -22,7 +22,7 @@
     <node pkg="feeding_web_app_ros2_test" exec="DummyRealSense" name="DummyRealSense">
       <remap from="~/image" to="/camera/color/image_raw"/>
       <remap from="~/compressed_image" to="/camera/color/image_raw/compressed"/>
-      <remap from="~/aligned_depth" to="/camera/aligned_depth_to_color/image_raw"/>
+      <remap from="~/aligned_depth" to="/camera/aligned_depth_to_color/image_raw/compressedDepth"/>
       <remap from="~/camera_info" to="/camera/color/camera_info"/>
       <remap from="~/aligned_depth/camera_info" to="/camera/aligned_depth_to_color/camera_info"/>
       <param name="fps" value="15"/>

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 # Standard imports
+import array
 import threading
 
 # Third-party imports
@@ -11,6 +12,16 @@ from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage, Image, CameraInfo
+
+
+# The fixed header that ROS2 Humble's compressed depth image transport plugin prepends to
+# the data. The exact value was empirically determined, but the below link shows the code
+# that prepends additional data:
+#
+# https://github.com/ros-perception/image_transport_plugins/blob/5ef79d74c4347e6a2d151df63230d5fea1357137/compressed_depth_image_transport/src/codec.cpp#L337
+COMPRESSED_DEPTH_16UC1_HEADER = array.array(
+    "B", [0, 0, 0, 0, 46, 32, 133, 4, 192, 24, 60, 78]
+)
 
 
 class DummyRealSense(Node):
@@ -80,7 +91,7 @@ class DummyRealSense(Node):
             CompressedImage, "~/compressed_image", 1
         )
         self.aligned_depth_publisher = self.create_publisher(
-            Image, "~/aligned_depth", 1
+            CompressedImage, "~/aligned_depth", 1
         )
         self.camera_info_publisher = self.create_publisher(
             CameraInfo, "~/camera_info", 1
@@ -163,11 +174,24 @@ class DummyRealSense(Node):
             )
 
             # Configure the depth Image message
-            depth_frame_msg = self.bridge.cv2_to_imgmsg(self.depth_frame, "passthrough")
+            depth_frame_msg = CompressedImage()
             depth_frame_msg.header.frame_id = "camera_color_optical_frame"
             depth_frame_msg.header.stamp = (
                 self.get_clock().now() - rclpy.duration.Duration(seconds=0.15)
             ).to_msg()
+            depth_frame_msg.format = "16UC1; compressedDepth"
+            success, data = cv2.imencode(
+                ".png",
+                self.depth_frame,
+                # PNG compression 1 is the best speed setting, and is the setting
+                # we use for our RealSense.
+                [cv2.IMWRITE_PNG_COMPRESSION, 1],
+            )
+            if not success:
+                raise RuntimeError("Failed to compress image")
+            depth_frame_msg.data = (
+                COMPRESSED_DEPTH_16UC1_HEADER.tobytes() + data.tobytes()
+            )
 
             # Configure the Camera Info
             self.camera_info_msg.header.stamp = depth_frame_msg.header.stamp
