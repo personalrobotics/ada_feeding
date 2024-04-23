@@ -721,7 +721,35 @@ class ADAPlanningScene(Node):
         detected_table_pose.pose.position.x += self.table_detection_offsets[0]
         detected_table_pose.pose.position.y += self.table_detection_offsets[1]
         detected_table_pose.pose.position.z += self.table_detection_offsets[2]
+        
+        # Convert the default and latest table quaternions to pyquaternion objects
+        default_table_pyquat = Q(
+            w=self.objects[self.table_object_id].quat_xyzw[3]
+            x=self.objects[self.table_object_id].quat_xyzw[0]
+            y=self.objects[self.table_object_id].quat_xyzw[1]
+            z=self.objects[self.table_object_id].quat_xyzw[2]
+        )
+        latest_table_pyquat = Q(
+            w=detected_table_pose.pose.orientation.w,
+            x=detected_table_pose.pose.orientation.x,
+            y=detected_table_pose.pose.orientation.y,
+            z=detected_table_pose.pose.orientation.z,
+        )
 
+        # Compute the absolute distance between the latest and default table quaternions
+        quat_dist = Q.absolute_distance(default_table_pyquat, latest_table_pyquat)
+        self.get_logger().info(f"quaternion dist: {quat_dist}")
+
+        # Accept the latest detected table quaternion if the absolute distance
+        # is within the threshold
+        # Otherwise, reject it
+        table_quaternion = None
+        if quat_dist < self.quat_dist_thresh:
+            table_quaternion = detected_table_pose.pose.orientation
+        else:
+            table_quaternion = self.objects[self.table_object_id].quat_xyzw
+
+        """
         # If there is a previously detected table quaternion, determine whether
         # to accept or reject the latest table quaternion
         # Otherwise, accept the latest table quaternion
@@ -762,7 +790,8 @@ class ADAPlanningScene(Node):
         # Otherwise, set the table orientation to the detected orientation
         if self.table_quaternion_override:
             table_quaternion = self.table_quaternion_override
-
+        """
+        
         # Move the table object in the planning scene to the detected pose
         self.moveit2.move_collision(
             id=self.table_object_id,
