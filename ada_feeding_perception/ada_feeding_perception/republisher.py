@@ -19,6 +19,7 @@ from typing import Any, Callable, List, Tuple
 from ament_index_python.packages import get_package_share_directory
 import cv2 as cv
 from cv_bridge import CvBridge
+from sensor_msgs.msg import CompressedImage
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -28,10 +29,12 @@ from rclpy.node import Node
 # Local imports
 from ada_feeding.helpers import import_from_string
 from .depth_post_processors import (
+    create_identity_post_processor,
     create_mask_post_processor,
     create_spatial_post_processor,
     create_temporal_post_processor,
     create_threshold_post_processor,
+    post_processor_chain,
 )
 
 
@@ -41,11 +44,14 @@ class Republisher(Node):
     republishes the messages from the `from_topics` within the specified namespace.
     """
 
+    # pylint: disable=too-many-instance-attributes
+    # One over is fine.
+
     def __init__(self) -> None:
         """
         Initialize the node.
         """
-        # pylint: disable=too-many-locals, too-many-branches, too-many-nested-blocks
+        # pylint: disable=too-many-locals, too-many-branches, too-many-nested-blocks, too-many-statements
         # Necessary because we are handling several post-processors and topics.
         super().__init__("republisher")
 
@@ -54,7 +60,8 @@ class Republisher(Node):
         # Load the parameters
         (
             self.from_topics,
-            topic_type_strs,
+            in_topic_type_strs,
+            out_topic_type_strs,
             to_topics,
             target_rates,
             post_processors_strs,
@@ -75,6 +82,7 @@ class Republisher(Node):
         bridge = CvBridge()
         mask_img = None
         for i, post_processors_str in enumerate(post_processors_strs):
+            break_loop = False
             for j, post_processor_str in enumerate(post_processors_str):
                 if post_processor_str == mask_post_processor_str and mask_img is None:
                     if mask_relative_path is None:
@@ -94,33 +102,65 @@ class Republisher(Node):
 
                     # Load the image as a binary mask
                     mask_img = cv.imread(mask_path, cv.IMREAD_GRAYSCALE)
+                    break_loop = True
+                    break
+            if break_loop:
+                break
 
-        # Configure the post-processing functions
+        # Configure the post-processing functions. The values are a tuple of the function and its kwargs
         self.create_post_processors = {
-            identity_post_processor_str: lambda: lambda msg: msg,
-            mask_post_processor_str: lambda: create_mask_post_processor(
-                mask_img, bridge
+            identity_post_processor_str: (
+                create_identity_post_processor,
+                {"bridge": bridge},
             ),
-            temporal_post_processor_str: lambda: create_temporal_post_processor(
-                temporal_window_size, bridge
+            mask_post_processor_str: (
+                create_mask_post_processor,
+                {"mask_img": mask_img, "bridge": bridge},
             ),
-            spatial_post_processor_str: lambda: create_spatial_post_processor(
-                spatial_num_pixels, bridge
+            temporal_post_processor_str: (
+                create_temporal_post_processor,
+                {"temporal_window_size": temporal_window_size, "bridge": bridge},
             ),
-            threshold_post_processor_str: lambda: create_threshold_post_processor(
-                threshold_min, threshold_max, bridge
+            spatial_post_processor_str: (
+                create_spatial_post_processor,
+                {"spatial_num_pixels": spatial_num_pixels, "bridge": bridge},
+            ),
+            threshold_post_processor_str: (
+                create_threshold_post_processor,
+                {
+                    "threshold_min": threshold_min,
+                    "threshold_max": threshold_max,
+                    "bridge": bridge,
+                },
             ),
         }
 
         # Import the topic types
-        self.topic_types = []
-        for topic_type_str in topic_type_strs:
-            self.topic_types.append(import_from_string(topic_type_str))
+        self.in_topic_types = []
+        for in_topic_type_str in in_topic_type_strs:
+            self.in_topic_types.append(import_from_string(in_topic_type_str))
+        self.out_topic_types = []
+        for out_topic_type_str in out_topic_type_strs:
+            if len(out_topic_type_str) > 0:
+                if out_topic_type_str.strip() not in [
+                    "sensor_msgs.msg.CompressedImage",
+                    "sensor_msgs.msg.Image",
+                ]:
+                    self.get_logger().warn(
+                        "out_topic_types must be either sensor_msgs.msg.Image or "
+                        "sensor_msgs.msg.CompressedImage. Returning same type as input."
+                    )
+                    self.out_topic_types.append(None)
+                else:
+                    self.out_topic_types.append(import_from_string(out_topic_type_str))
+            else:
+                self.out_topic_types.append(None)
 
         # For each topic, create a callback, publisher, and subscriber
         num_topics = min(
             len(self.from_topics),
-            len(self.topic_types),
+            len(self.in_topic_types),
+            len(self.out_topic_types),
             len(to_topics),
             len(target_rates),
         )
@@ -129,39 +169,36 @@ class Republisher(Node):
         self.subs = []
         for i in range(num_topics):
             # Get the post-processors
-            post_processor_fns = []
+            fns, kwargs = [], []
             if i < len(post_processors_strs):
                 for post_processor_str in post_processors_strs[i]:
                     if post_processor_str in self.create_post_processors:
-                        post_processor_fn = self.create_post_processors[
-                            post_processor_str
-                        ]()
-                        # Check the type of the post-processor
-                        if "msg" in post_processor_fn.__annotations__:
-                            if (
-                                post_processor_fn.__annotations__["msg"] == Any
-                                or post_processor_fn.__annotations__["msg"]
-                                == self.topic_types[i]
-                            ):
-                                post_processor_fns.append(post_processor_fn)
-                            else:
-                                self.get_logger().warn(
-                                    f"Type mismatch for post-processor {post_processor_str} for "
-                                    f"topic at index {i}. Will not post-process."
-                                )
+                        (
+                            create_post_processor_fn,
+                            create_post_processor_kwargs,
+                        ) = self.create_post_processors[post_processor_str]
+                        fns.append(create_post_processor_fn)
+                        kwargs.append(create_post_processor_kwargs)
             else:
                 self.get_logger().warn(
                     f"No valid post-processor for topic at index {i}. Will not post-process."
                 )
 
             # Create the callback
-            callback = self.create_callback(i, post_processor_fns, target_rates[i])
+            if self.out_topic_types[i] is None:
+                compress = None
+            else:
+                compress = self.out_topic_types[i] == CompressedImage
+            post_processor = post_processor_chain(fns, kwargs, compress)
+            callback = self.create_callback(i, post_processor, target_rates[i])
             self.callbacks.append(callback)
 
             # Create the publisher
             to_topic = to_topics[i]
             publisher = self.create_publisher(
-                msg_type=self.topic_types[i],
+                msg_type=self.in_topic_types[i]
+                if self.out_topic_types[i] is None
+                else self.out_topic_types[i],
                 topic=to_topic,
                 qos_profile=1,  # TODO: we should get and mirror the QOS profile of the from_topic
             )
@@ -169,7 +206,7 @@ class Republisher(Node):
 
             # Create the subscriber
             subscriber = self.create_subscription(
-                msg_type=self.topic_types[i],
+                msg_type=self.in_topic_types[i],
                 topic=self.from_topics[i],
                 callback=callback,
                 qos_profile=1,  # TODO: we should get and mirror the QOS profile of the from_topic
@@ -180,6 +217,7 @@ class Republisher(Node):
     def load_parameters(
         self,
     ) -> Tuple[
+        List[str],
         List[str],
         List[str],
         List[str],
@@ -198,8 +236,10 @@ class Republisher(Node):
         -------
         from_topics : List[str]
             The topics to subscribe to.
-        topic_types : List[str]
+        in_topic_types : List[str]
             The types of the topics to subscribe to in format, e.g., `std_msgs.msg.String`.
+        out_topic_types : List[str]
+            The types of the topics to publish to in format, e.g., `std_msgs.msg.String`.
         to_topics : List[str]
             The topics to republish to.
         post_processors : List[List[str]]
@@ -231,14 +271,28 @@ class Republisher(Node):
             ),
         )
 
-        # Read the topic types
-        topic_types = self.declare_parameter(
-            "topic_types",
+        # Read the input topic types
+        in_topic_types = self.declare_parameter(
+            "in_topic_types",
             descriptor=ParameterDescriptor(
-                name="topic_types",
+                name="in_topic_types",
                 type=ParameterType.PARAMETER_STRING_ARRAY,
                 description=(
-                    "List of the types of the topics to subscribe to  in format, "
+                    "List of the types of the topics to subscribe to in format, "
+                    "e.g., `std_msgs.msg.String`."
+                ),
+                read_only=True,
+            ),
+        )
+
+        # Read the output topic types
+        out_topic_types = self.declare_parameter(
+            "out_topic_types",
+            descriptor=ParameterDescriptor(
+                name="out_topic_types",
+                type=ParameterType.PARAMETER_STRING_ARRAY,
+                description=(
+                    "List of the types of the topics to publish to in format, "
                     "e.g., `std_msgs.msg.String`."
                 ),
                 read_only=True,
@@ -370,9 +424,12 @@ class Republisher(Node):
         from_topics_retval = from_topics.value
         if from_topics_retval is None:
             from_topics_retval = []
-        topic_types_retval = topic_types.value
-        if topic_types_retval is None:
-            topic_types_retval = []
+        in_topic_types_retval = in_topic_types.value
+        if in_topic_types_retval is None:
+            in_topic_types_retval = []
+        out_topic_types_retval = out_topic_types.value
+        if out_topic_types_retval is None:
+            out_topic_types_retval = []
         to_topics_retval = to_topics.value
         if to_topics_retval is None:
             to_topics_retval = []
@@ -382,7 +439,8 @@ class Republisher(Node):
 
         return (
             from_topics_retval,
-            topic_types_retval,
+            in_topic_types_retval,
+            out_topic_types_retval,
             to_topics.value,
             target_rates_retval,
             post_processors_retval,
@@ -396,7 +454,7 @@ class Republisher(Node):
     def create_callback(
         self,
         i: int,
-        post_processors: List[Callable[[Any], Any]],
+        post_processor: Callable[[Any], Any],
         target_rate: float,
     ) -> Callable:
         """
@@ -406,9 +464,8 @@ class Republisher(Node):
         ----------
         i : int
             The index of the callback.
-        post_processor : List[Callable[[Any], Any]]
-            The post-processing functions to apply to the message before republishing.
-            Each must take in a message and return a message of the same type.
+        post_processor : Callable[[Any], Any]
+            The chained post-processing function to apply to the message before republishing.
         target_rate : float
             the target rate for the publication
 
@@ -436,8 +493,7 @@ class Republisher(Node):
             # self.get_logger().info(
             #     f"Received message on topic {i} {self.from_topics[i]}"
             # )
-            for post_processor in post_processors:
-                msg = post_processor(msg)
+            msg = post_processor(msg)
             if (
                 last_published_time is None
                 or time.time() - last_published_time >= interval

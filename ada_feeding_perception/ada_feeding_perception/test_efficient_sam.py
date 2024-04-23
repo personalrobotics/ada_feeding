@@ -4,6 +4,10 @@ segment an object from an image given a point inside the object. Unlike the
 other scripts in this package, this script does not use ROS. Therefore, it can
 be useful as an initial check to ensure Segment Anything works on your computer.
 """
+# pylint: disable=duplicate-code
+# Since this script is intentionally not a ROS node, it will have overlap with
+# the corresponding ROS node.
+
 # Standard imports
 import argparse
 import json

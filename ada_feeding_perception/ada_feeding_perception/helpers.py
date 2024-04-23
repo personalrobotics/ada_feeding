@@ -2,8 +2,8 @@
 This file contains helper functions for the ada_feeding_perception package.
 """
 # Standard imports
+import array
 import os
-import parse
 import pprint
 from typing import List, Optional, Tuple, Union
 from urllib.parse import urljoin
@@ -30,6 +30,16 @@ except (TypeError, ModuleNotFoundError) as err:
     )
 from sensor_msgs.msg import CompressedImage, Image
 from skimage.morphology import flood_fill
+
+
+# The fixed header that ROS2 Humble's compressed depth image transport plugin prepends to
+# the data. The exact value was empirically determined, but the below link shows the code
+# that prepends additional data:
+#
+# https://github.com/ros-perception/image_transport_plugins/blob/5ef79d74c4347e6a2d151df63230d5fea1357137/compressed_depth_image_transport/src/codec.cpp#L337
+__COMPRESSED_DEPTH_16UC1_HEADER = array.array(
+    "B", [0, 0, 0, 0, 46, 32, 133, 4, 192, 24, 60, 78]
+)
 
 
 def show_normalized_depth_img(img, wait=True, window_name="img"):
@@ -226,10 +236,6 @@ def ros_msg_to_cv2_image(
     images) and maintain the format. Any conversions should be done outside
     of this function.
 
-    NOTE: This has been tested with color messages that are Image and CompressedImage
-    and depth messages that are Image. It has not been tested with depth messages
-    that are CompressedImage.
-
     Parameters
     ----------
     msg: the ROS Image or CompressedImage message to convert
@@ -250,14 +256,18 @@ def ros_msg_to_cv2_image(
     if isinstance(msg, tuple(image_types)):
         return bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
     if isinstance(msg, tuple(compressed_image_types)):
-        if ";" in msg.format: # compressed depth image
-            encoding, _, fmt = parse.parse("{:s}; {:s} ({:s})", msg.format)
-            if encoding.lower() != "16uc1" or fmt.lower() != "png":
+        if "compressedDepth" in msg.format:  # compressed depth image
+            encoding = msg.format[: msg.format.find(";")]
+            if encoding.lower() != "16uc1":
                 raise NotImplementedError(
-                    f"Encoding ({encoding}) and format ({fmt}) not yet supported"
+                    f"Encoding ({encoding}) not yet supported for compressed depth images"
                 )
-            DEPTH_HEADER_SIZE = 12
-            return cv2.imdecode(np.frombuffer(msg.data[DEPTH_HEADER_SIZE:], np.uint8), cv2.IMREAD_UNCHANGED)
+            return cv2.imdecode(
+                np.frombuffer(
+                    msg.data[len(__COMPRESSED_DEPTH_16UC1_HEADER) :], np.uint8
+                ),
+                cv2.IMREAD_UNCHANGED,
+            )
         return bridge.compressed_imgmsg_to_cv2(msg, desired_encoding="passthrough")
     raise ValueError("msg must be a ROS Image or CompressedImage")
 
@@ -290,6 +300,27 @@ def cv2_image_to_ros_msg(
     if bridge is None:
         bridge = CvBridge()
     if compress:
+        if "compressedDepth" in encoding:  # compressed depth image
+            encoding = encoding[: encoding.find(";")]
+            if encoding.lower() != "16uc1":
+                raise NotImplementedError(
+                    f"Encoding ({encoding}) not yet supported for compressed depth images"
+                )
+            success, data = cv2.imencode(
+                ".png",
+                image,
+                # PNG compression 1 is the best speed setting, and the setting
+                # we use for our RealSense.
+                [cv2.IMWRITE_PNG_COMPRESSION, 1],
+            )
+            if not success:
+                raise RuntimeError("Failed to compress image")
+            msg = CompressedImage(
+                format=encoding,
+                data=__COMPRESSED_DEPTH_16UC1_HEADER.tobytes() + data.tobytes(),
+            )
+            return msg
+        # Compressed RGB image
         return bridge.cv2_to_compressed_imgmsg(image, dst_format="jpeg")
     # If we get here, we're not compressing the image
     return bridge.cv2_to_imgmsg(image, encoding=encoding)
