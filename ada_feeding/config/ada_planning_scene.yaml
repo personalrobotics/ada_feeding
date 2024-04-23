@@ -86,7 +86,7 @@ ada_planning_scene:
       touch_links: [forkTine] # the links, in addition to frame_id, that should be ignored for collision checking
     # The offset values for the center coordinates ([x, y, z]) of the table. These 
     # values are used to translate the detected position into the table's origin.
-    table_detection_offsets: [-0.20, -0.25, -0.79]
+    table_detection_offsets: [-0.20, -0.25, -0.735]
     # A threshold on the distance between the default table quaternion 
     # and the latest table quaternion to determine whether to reject 
     # or accept the latest table quaternion
