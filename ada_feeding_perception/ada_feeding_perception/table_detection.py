@@ -100,7 +100,7 @@ class TableDetectionNode(Node):
             self.get_logger().warn(
                 f"Error getting type of depth image topic. Defaulting to Image. {err}"
             )
-            aligned_depth_type = Image
+            aligned_depth_type = CompressedImage
         self.depth_image_subscriber = self.create_subscription(
             aligned_depth_type,
             aligned_depth_topic,
@@ -272,7 +272,7 @@ class TableDetectionNode(Node):
         self,
         image_msg: Image,
         camera_info: CameraInfo,
-        image_depth_msg: Image,
+        image_depth_msg: CompressedImage,
     ) -> Tuple[int, int, int]:
         """
         Fits a plane to the table based on the given RGB image and depth

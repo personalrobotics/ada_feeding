@@ -724,10 +724,10 @@ class ADAPlanningScene(Node):
         
         # Convert the default and latest table quaternions to pyquaternion objects
         default_table_pyquat = Q(
-            w=self.objects[self.table_object_id].quat_xyzw[3]
-            x=self.objects[self.table_object_id].quat_xyzw[0]
-            y=self.objects[self.table_object_id].quat_xyzw[1]
-            z=self.objects[self.table_object_id].quat_xyzw[2]
+            w=self.objects[self.table_object_id].quat_xyzw[3],
+            x=self.objects[self.table_object_id].quat_xyzw[0],
+            y=self.objects[self.table_object_id].quat_xyzw[1],
+            z=self.objects[self.table_object_id].quat_xyzw[2],
         )
         latest_table_pyquat = Q(
             w=detected_table_pose.pose.orientation.w,

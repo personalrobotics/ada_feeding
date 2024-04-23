@@ -97,4 +97,4 @@ ada_planning_scene:
     # A threshold on the distance between the previously detected table
     # quaternion and the latest table quaternion to determine whether to
     # reject or accept the latest table quaternion
-    quat_dist_thresh: 1.0
+    quat_dist_thresh: 1.5
