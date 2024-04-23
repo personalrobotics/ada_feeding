@@ -309,7 +309,7 @@ def cv2_image_to_ros_msg(
             success, data = cv2.imencode(
                 ".png",
                 image,
-                # PNG compression 1 is the best speed setting, and the setting
+                # PNG compression 1 is the best speed setting, and is the setting
                 # we use for our RealSense.
                 [cv2.IMWRITE_PNG_COMPRESSION, 1],
             )
