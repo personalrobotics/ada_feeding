@@ -9,7 +9,7 @@ on the fork.
 import collections
 import os
 import threading
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Union
 
 # Third-party imports
 from cv_bridge import CvBridge
@@ -38,6 +38,7 @@ from ada_feeding_perception.helpers import (
 from .depth_post_processors import (
     create_spatial_post_processor,
     create_temporal_post_processor,
+    post_processor_chain,
 )
 
 
@@ -80,10 +81,17 @@ class FoodOnForkDetectionNode(Node):
 
         # Create the post-processors
         self.cv_bridge = CvBridge()
-        self.post_processors = [
-            create_temporal_post_processor(temporal_window_size, self.cv_bridge),
-            create_spatial_post_processor(spatial_num_pixels, self.cv_bridge),
-        ]
+        self.post_processor = post_processor_chain(
+            [create_temporal_post_processor, create_spatial_post_processor],
+            [
+                {
+                    "temporal_window_size": temporal_window_size,
+                    "bridge": self.cv_bridge,
+                },
+                {"spatial_num_pixels": spatial_num_pixels, "bridge": self.cv_bridge},
+            ],
+            compress=None,
+        )
 
         # Construct the FoodOnForkDetector model
         food_on_fork_class = import_from_string(model_class)
@@ -126,16 +134,17 @@ class FoodOnForkDetectionNode(Node):
         )
 
         # Create the depth image subscriber
-        self.depth_img = None
+        self.depth_img_cv2 = None
+        self.depth_img_header = None
         self.depth_img_lock = threading.Lock()
         aligned_depth_topic = "~/aligned_depth"
         try:
             aligned_depth_type = get_img_msg_type(aligned_depth_topic, self)
         except ValueError as err:
             self.get_logger().error(
-                f"Error getting type of depth image topic. Defaulting to Image. {err}"
+                f"Error getting type of depth image topic. Defaulting to CompressedImage. {err}"
             )
-            aligned_depth_type = Image
+            aligned_depth_type = CompressedImage
         # Subscribe to the depth image
         self.depth_subscription = self.create_subscription(
             aligned_depth_type,
@@ -475,7 +484,7 @@ class FoodOnForkDetectionNode(Node):
             self.model.camera_info = msg
         self.destroy_subscription(self.camera_info_sub)
 
-    def depth_callback(self, msg: Image) -> None:
+    def depth_callback(self, msg: Union[CompressedImage, Image]) -> None:
         """
         Callback for the depth image.
 
@@ -483,10 +492,9 @@ class FoodOnForkDetectionNode(Node):
         ----------
         msg: The depth image message.
         """
-        for post_processor in self.post_processors:
-            msg = post_processor(msg)
+        msg = self.post_processor(msg)
         with self.depth_img_lock:
-            self.depth_img = msg
+            self.depth_img_cv2, self.depth_img_header = msg
 
     def camera_callback(self, msg: Image) -> None:
         """
@@ -616,15 +624,16 @@ class FoodOnForkDetectionNode(Node):
 
             # Get the latest depth image
             with self.depth_img_lock:
-                depth_img_msg = self.depth_img
-                self.depth_img = None
-            if depth_img_msg is None:
+                depth_img_cv2 = self.depth_img_cv2
+                depth_img_header = self.depth_img_header
+                self.depth_img_cv2 = None
+                self.depth_img_header = None
+            if depth_img_cv2 is None:
                 continue
-            food_on_fork_detection_msg.header = depth_img_msg.header
+            food_on_fork_detection_msg.header = depth_img_header
 
             # Convert the depth image to a cv2 image, crop it, and remove depth
             # values outside the range of interest
-            depth_img_cv2 = ros_msg_to_cv2_image(depth_img_msg, self.cv_bridge)
             depth_img_cv2 = depth_img_cv2[
                 self.crop_top_left[1] : self.crop_bottom_right[1],
                 self.crop_top_left[0] : self.crop_bottom_right[0],
@@ -642,6 +651,15 @@ class FoodOnForkDetectionNode(Node):
                 self.model.transform_frames,
                 self.tf_buffer,
             )
+            if np.count_nonzero(transforms) == 0:
+                self.get_logger().warning(
+                    (
+                        f"Failed to get transform {self.model.transform_frames}. "
+                        "Food-on-fork detection model will not work."
+                    ),
+                    throttle_duration_sec=1.0,
+                )
+                continue
             t = np.expand_dims(transforms, 0)
 
             # Get the probability that there is food on the fork

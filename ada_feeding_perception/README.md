@@ -24,6 +24,7 @@ For running SegmentAnything test scripts (below), be sure to unzip `test/food_im
             1. `ros2config` (this takes several seconds)
             2. `ros2 launch realsense2_camera rs_launch.py rgb_camera.profile:='640,480,30' depth_module.profile:='640,480,30' align_depth.enable:='true' initial_reset:='true'`. See here for [a complete list of params](https://github.com/IntelRealSense/realsense-ros/blob/ros2-development/realsense2_camera/launch/rs_launch.py). **Note that `nano` must be connected to the same WiFi network as the computer running any ros2 nodes that subscribe to it.**
         3. (To visualize the camera stream, run `ros2 run rviz2 rviz2`)
+        4. **NOTE**: For the compressed depth stream, we found that `png_level` of 1 works best, to get compression while not slowing down FPS too much. Due to a quirk of our eye-in-hand setup, we hardcode this parameter directly in the compressed depth transport; thus, the code does not automatically set that parameter. Be sure to set the parameter yourself!
 6. Launch the web app ([instructions here](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp))
 
 ## Food Segmentation

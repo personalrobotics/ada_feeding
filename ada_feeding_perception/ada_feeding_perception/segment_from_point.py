@@ -110,9 +110,9 @@ class SegmentFromPointNode(Node):
             aligned_depth_type = get_img_msg_type(aligned_depth_topic, self)
         except ValueError as err:
             self.get_logger().error(
-                f"Error getting type of depth image topic. Defaulting to Image. {err}"
+                f"Error getting type of depth image topic. Defaulting to CompressedImage. {err}"
             )
-            aligned_depth_type = Image
+            aligned_depth_type = CompressedImage
         self.depth_image_subscriber = self.create_subscription(
             aligned_depth_type,
             aligned_depth_topic,

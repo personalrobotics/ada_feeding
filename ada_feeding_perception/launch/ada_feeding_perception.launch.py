@@ -87,7 +87,7 @@ def generate_launch_description():
                 expression=[
                     "'",
                     prefix,
-                    "/camera/aligned_depth_to_color/image_raw'",
+                    "/camera/aligned_depth_to_color/image_raw/compressedDepth'",
                 ]
             ),
         ),
@@ -183,7 +183,7 @@ def generate_launch_description():
                 expression=[
                     "'",
                     prefix,
-                    "/camera/aligned_depth_to_color/image_raw'",
+                    "/camera/aligned_depth_to_color/image_raw/compressedDepth'",
                 ]
             ),
         ),
