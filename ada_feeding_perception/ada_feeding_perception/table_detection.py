@@ -422,8 +422,8 @@ class TableDetectionNode(Node):
         c_x = camera_info.k[2]  # x-coordinate of principal point
         c_y = camera_info.k[5]  # y-coordinate of principal point
 
-        # Deproject the pixel coordinates of the center of the camera image
-        # to a 3D point on the table
+        # Deproject the pixel coordinates of the center of the camera image to a
+        # 3D point on the table using camera intrinsics and the table plane equation
         max_u = 640  # Max u index in a 640 x 480 image
         max_v = 480  # Max v index in a 640 x 480 image
         center_x = ((max_u / 2) - c_x) / f_x
@@ -441,7 +441,7 @@ class TableDetectionNode(Node):
         # from the camera's frame of perspective
         # Direction vector of x calculated by the subtraction of the center
         # and a coordinate offset from the center in the -x direction
-        x_offset = 0.1  # Offset in the -x direction
+        x_offset = 0.1  # Offset distance in the -x direction
         offset_center = [
             center[0] - x_offset,
             center[1],
@@ -475,7 +475,7 @@ class TableDetectionNode(Node):
             / denominator,
         ]
 
-        # Construct the rotation matrix from direction vectors
+        # Construct the rotation matrix from the direction vectors
         rot_matrix = [
             [x_dir_vect[0], y_dir_vect[0], z_dir_vect[0]],
             [x_dir_vect[1], y_dir_vect[1], z_dir_vect[1]],

@@ -283,6 +283,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
     initial_start_commands = [
         f"cd {pwd}",
         "source install/setup.bash",
+        "export ROS_DOMAIN_ID=42" if args.sim == "real" else "",
     ]
     if args.domain_id is not None:
         initial_start_commands.append(f"export ROS_DOMAIN_ID={args.domain_id}")
