@@ -5,16 +5,26 @@ republisher_perception:
     from_topics:
       - /camera/color/image_raw/compressed
       - /camera/color/camera_info
-      - /camera/aligned_depth_to_color/image_raw
+      - /camera/aligned_depth_to_color/image_raw/compressedDepth
       - /camera/aligned_depth_to_color/camera_info
-      - /local/camera/aligned_depth_to_color/image_raw
+      - /local/camera/aligned_depth_to_color/image_raw/compressedDepth
 
     # The types of topics to republish from
-    topic_types:
+    in_topic_types:
       - sensor_msgs.msg.CompressedImage
       - sensor_msgs.msg.CameraInfo
-      - sensor_msgs.msg.Image
+      - sensor_msgs.msg.CompressedImage
       - sensor_msgs.msg.CameraInfo
+      - sensor_msgs.msg.CompressedImage
+
+    # If the republisher should convert types, specify the output type.
+    # Currently, the republisher only supports conversions from
+    # Image->CompressedImage and vice-versa.
+    out_topic_types:
+      - ""
+      - ""
+      - ""
+      - ""
       - sensor_msgs.msg.Image
 
     # The name of the topics to republish to. NOTE: the `prefix` in the launchfile
@@ -22,7 +32,7 @@ republisher_perception:
     to_topics:
       - /local/camera/color/image_raw/compressed
       - /local/camera/color/camera_info
-      - /local/camera/aligned_depth_to_color/image_raw
+      - /local/camera/aligned_depth_to_color/image_raw/compressedDepth
       - /local/camera/aligned_depth_to_color/camera_info
       - /local/camera/aligned_depth_to_color/depth_octomap
 
@@ -37,17 +47,17 @@ republisher_perception:
 
     # The names of a post-processing functions to apply to the message before
     # republishing it. Current options are:
-    #  - none (Any): the identity
-    #  - temporal (Image): Stores the last `temporal_window_size` images and publishes
+    #  - temporal: Stores the last `temporal_window_size` images and publishes
     #    the last image, masking out pixels that are zero in *any* of the images
     #    in the window.
-    #  - spatial (Image): Applies the opening morphological operation to the mask of
+    #  - spatial: Applies the opening morphological operation to the mask of
     #    (non-)zero pixels in the image, with a square kernel of size `spatial_num_pixels`.
-    #  - mask (Image): Applies the mask stored in `mask_relative_path` to the image.
-    #  - threshold (Image): Masks out pixels whose values are outside of the specified
+    #  - mask: Applies the mask stored in `mask_relative_path` to the image.
+    #  - threshold: Masks out pixels whose values are outside of the specified
     #    range. This is intended to be used only with single-channel (e.g., depth) images.
     #  - update_header_stamp (Any): Updates the header stamp to the current time.
     # Any of these post-processing functions can be combined in a comma-separated list.
+    # If an empty string, no post-processors are applied.
     post_processors:
       - ""
       - ""

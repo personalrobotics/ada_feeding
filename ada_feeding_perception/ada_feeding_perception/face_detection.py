@@ -16,7 +16,6 @@ from typing import List, Tuple, Union
 import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Point
-import numpy as np
 import numpy.typing as npt
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -35,6 +34,7 @@ from ada_feeding_perception.helpers import (
     download_checkpoint,
     get_img_msg_type,
     cv2_image_to_ros_msg,
+    ros_msg_to_cv2_image,
 )
 
 
@@ -561,11 +561,7 @@ class FaceDetectionNode(Node):
                 f"Corresponding RGB image message received at {rgb_msg.header.stamp}. "
                 f"Time difference: {min_time_diff} seconds."
             )
-        # TODO: This should use the ros_msg_to_cv2_image helper function
-        image_depth = self.bridge.imgmsg_to_cv2(
-            closest_depth_msg,
-            desired_encoding="passthrough",
-        )
+        image_depth = ros_msg_to_cv2_image(closest_depth_msg, self.bridge)
 
         # Compute the depth of the mouth
         for method in methods:
@@ -650,10 +646,7 @@ class FaceDetectionNode(Node):
                 continue
 
             # Detect the largest face in the RGB image
-            # TODO: This should use the ros_msg_to_cv2_image helper function
-            image_bgr = cv2.imdecode(
-                np.frombuffer(rgb_msg.data, np.uint8), cv2.IMREAD_COLOR
-            )
+            image_bgr = ros_msg_to_cv2_image(rgb_msg, self.bridge)
             (
                 is_face_detected,
                 img_mouth_center,
