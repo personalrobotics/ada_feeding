@@ -24,6 +24,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
   "action/AcquireFood.action"
   "action/MoveTo.action"
+  "action/MoveToConfiguration.action"
   "action/MoveToMouth.action"
   "action/SegmentAllItems.action"
   "action/SegmentFromPoint.action"

@@ -18,6 +18,7 @@ ada_feeding_action_servers:
         - TestMoveToPose
         - StartServo
         - StopServo
+        - MoveToConfiguration
 
       # Parameters for the MoveAbovePlate action
       # TODO: Consider whether to make a version of this with a wheelchair wall
@@ -257,4 +258,18 @@ ada_feeding_action_servers:
       StopServo: # required
         action_type: ada_feeding_msgs.action.Trigger # required
         tree_class: ada_feeding.trees.StopServoTree # required
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for a generic MoveToConfiguration action
+      MoveToConfiguration: # required
+        action_type: ada_feeding_msgs.action.MoveToConfiguration # required
+        tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
+        tree_kws: # optional
+          - toggle_watchdog_listener
+          - f_mag
+          - max_velocity_scaling_factor
+        tree_kwargs: # optional
+          toggle_watchdog_listener: false # optional, default: true
+          f_mag: 4.0 # N
+          max_velocity_scaling_factor: 1.0 # optional in (0.0, 1.0], default: 0.1
         tick_rate: 10 # Hz, optional, default: 30
