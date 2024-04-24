@@ -48,7 +48,7 @@ def generate_launch_description():
     launch_description.add_action(republisher)
 
     # Remap from the perception nodes to the realsense topics
-    prefix = "/local" # NOTE: must match the topic names in the yaml file!
+    prefix = "/local"  # NOTE: must match the topic names in the yaml file!
     realsense_remappings = [
         (
             "~/image",

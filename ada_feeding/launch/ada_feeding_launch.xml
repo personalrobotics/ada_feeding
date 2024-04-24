@@ -49,6 +49,9 @@
     <remap from="~/joint_commands_output" to="/servo_node/delta_joint_cmds" />
   </node>
 
+  <!-- Launch the JointStateService, to allow the app to access single joint states on-request -->
+  <node pkg="ada_feeding" exec="joint_state_service.py" name="joint_state_service"/>
+
   <!-- Include Action Selection Server -->
   <include file="$(find-pkg-share ada_feeding_action_select)/launch/ada_feeding_action_select_launch.xml">
     <arg name="policy" value="$(var policy)" />
