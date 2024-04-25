@@ -607,43 +607,79 @@ class CreateActionServers(Node):
                     params.tree_kwargs,
                     params.tick_rate,
                 ),
-                goal_callback=self.goal_callback,
-                cancel_callback=self.cancel_callback,
+                goal_callback=self.get_goal_callback(params.server_name),
+                cancel_callback=self.get_cancel_callback(params.server_name),
             )
             self._action_servers.append(action_server)
 
-    def goal_callback(self, goal_request: object) -> GoalResponse:
+    def get_goal_callback(self, server_name: str) -> Callable[[object], GoalResponse]:
         """
-        Accept a goal if this action does not already have an active goal,
-        else reject.
+        Returns a callback function that accepts or rejects goal requests based
+        on whether the action server already has an active goal.
 
         Parameters
         ----------
-        goal_request: The goal request message.
+        server_name: The name of the action server.
+
+        Returns
+        -------
+        goal_callback: The callback function for the action server.
         """
-        self.get_logger().info("Received goal request")
 
-        # If we don't already have an active goal_request, accept this one
-        with self.active_goal_request_lock:
-            if self.watchdog_listener.ok() and self.active_goal_request is None:
-                self.get_logger().info("Accepting goal request")
-                self.active_goal_request = goal_request
-                return GoalResponse.ACCEPT
+        def goal_callback(goal_request: object) -> GoalResponse:
+            """
+            Accept a goal if this action does not already have an active goal,
+            else reject.
 
-            # Otherwise, reject this goal request
-            self.get_logger().info("Rejecting goal request")
-            return GoalResponse.REJECT
+            Parameters
+            ----------
+            goal_request: The goal request message.
+            """
+            self.get_logger().info(f"Received goal request for {server_name}")
 
-    def cancel_callback(self, _: ServerGoalHandle) -> CancelResponse:
+            # If we don't already have an active goal_request, accept this one
+            with self.active_goal_request_lock:
+                if self.watchdog_listener.ok() and self.active_goal_request is None:
+                    self.get_logger().info(f"Accepting goal request for {server_name}")
+                    self.active_goal_request = goal_request
+                    return GoalResponse.ACCEPT
+
+                # Otherwise, reject this goal request
+                self.get_logger().info(f"Rejecting goal request for {server_name}")
+                return GoalResponse.REJECT
+
+        return goal_callback
+
+    def get_cancel_callback(
+        self, server_name: str
+    ) -> Callable[[ServerGoalHandle], CancelResponse]:
         """
-        Always accept client requests to cancel the active goal.
+        Returns a callback function that accepts or rejects cancel requests based
+        on whether the action server already has an active goal.
 
         Parameters
         ----------
-        goal_handle: The goal handle.
+        server_name: The name of the action server.
+
+        Returns
+        -------
+        cancel_callback: The callback function for the action server.
         """
-        self.get_logger().info("Received cancel request, accepting")
-        return CancelResponse.ACCEPT
+
+        def cancel_callback(_: ServerGoalHandle) -> CancelResponse:
+            """
+            Always accept client requests to cancel the active goal.
+
+            Parameters
+            ----------
+            goal_handle: The goal handle.
+            """
+            self.get_logger().info(
+                f"Received cancel request for {server_name}, accepting"
+            )
+            return CancelResponse.ACCEPT
+
+        return cancel_callback
 
     def create_tree(
         self,
