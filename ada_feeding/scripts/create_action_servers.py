@@ -94,7 +94,9 @@ class CreateActionServers(Node):
         load the behavior tree file associated with each action server; that
         happens when the action server receives a goal request.
         """
-        super().__init__("create_action_servers")
+        # Although all parameters are decalred, we've noticed an issue where ROS2
+        # seems to forget that some nodes were declared. This is a workaround.
+        super().__init__("create_action_servers", allow_undeclared_parameters=True)
         register_logger(self.get_logger())
 
         # Read the parameters that specify what action servers to create.
@@ -366,10 +368,12 @@ class CreateActionServers(Node):
         The declared parameter.
         """
         read_only = namespace == CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
+        name_within_namespace = f"{namespace}.{full_name}"
+        self.get_logger().debug(f"Declaring parameter {name_within_namespace}")
         return self.declare_parameter(
-            f"{namespace}.{full_name}",
+            name_within_namespace,
             descriptor=ParameterDescriptor(
-                name=full_name,
+                name=name_within_namespace,
                 description="Custom parameter for the behavior tree.",
                 dynamic_typing=True,
                 read_only=read_only,
