@@ -342,21 +342,21 @@ class ADAPlanningScene(Node):
         )
         self.table_detection_offsets = table_detection_offsets.value
 
-        quat_dist_thresh = self.declare_parameter(
-            "quat_dist_thresh",
+        quat_dist_range = self.declare_parameter(
+            "quat_dist_range",
             None,  # default value
             descriptor=ParameterDescriptor(
-                name="quat_dist_thresh",
-                type=ParameterType.PARAMETER_DOUBLE,
+                name="quat_dist_range",
+                type=ParameterType.PARAMETER_DOUBLE_ARRAY,
                 description=(
-                    "The threshold for the absolute distance between "
-                    "the latest detected table quaternion "
+                    "The range of values to accept for the angular distance "
+                    "between the latest detected table quaternion "
                     "and the previously detected table quaternion."
                 ),
                 read_only=True,
             ),
         )
-        self.quat_dist_thresh = quat_dist_thresh.value
+        self.quat_dist_range = quat_dist_range.value
 
         update_face_hz = self.declare_parameter(
             "update_face_hz",
@@ -690,38 +690,28 @@ class ADAPlanningScene(Node):
         detected_table_pose.pose.position.y += self.table_detection_offsets[1]
         detected_table_pose.pose.position.z += self.table_detection_offsets[2]
 
-        latest_table_quat = np.array(detected_table_pose.pose.orientation)
-        default_table_quat = np.array(self.objects[self.table_object_id].quat_xyzw)
-        """
-        # Convert the default and latest table quaternions to pyquaternion objects
-        default_table_pyquat = Q(
-            w=self.objects[self.table_object_id].quat_xyzw[3],
-            x=self.objects[self.table_object_id].quat_xyzw[0],
-            y=self.objects[self.table_object_id].quat_xyzw[1],
-            z=self.objects[self.table_object_id].quat_xyzw[2],
-        )
-        latest_table_pyquat = Q(
-            w=detected_table_pose.pose.orientation.w,
-            x=detected_table_pose.pose.orientation.x,
-            y=detected_table_pose.pose.orientation.y,
-            z=detected_table_pose.pose.orientation.z,
-        )
-
-        # Calculate the absolute distance between the latest and default table quaternions
-        quat_dist = Q.absolute_distance(default_table_pyquat, latest_table_pyquat)
-        """
-
         # Calculate the angular distance between the latest and default table quaternions
+        latest_table_quat = np.array(
+            [
+                detected_table_pose.pose.orientation.x,
+                detected_table_pose.pose.orientation.y,
+                detected_table_pose.pose.orientation.z,
+                detected_table_pose.pose.orientation.w,
+            ]
+        )
+        default_table_quat = np.array(self.objects[self.table_object_id].quat_xyzw)
         quat_dist = np.arccos(
             2 * (np.dot(default_table_quat, latest_table_quat) ** 2) - 1
         )
-        self.get_logger().info(f"Quaternion distance: {quat_dist}")
-        
+
         # Accept the latest detected table quaternion if the angular distance
-        # is within the threshold
+        # is within the range
         # Otherwise, reject it and use the default quaternion
         table_quaternion = None
-        if quat_dist < self.quat_dist_thresh:
+        if (
+            quat_dist > self.quat_dist_range[0]
+            and quat_dist < self.quat_dist_range[1]
+        ):
             table_quaternion = detected_table_pose.pose.orientation
         else:
             table_quaternion = Quaternion(
