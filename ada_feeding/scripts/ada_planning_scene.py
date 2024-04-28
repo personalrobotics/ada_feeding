@@ -14,6 +14,7 @@ import time
 from typing import List
 
 # Third-party imports
+import numpy as np
 from geometry_msgs.msg import (
     Point,
     Pose,
@@ -34,7 +35,6 @@ from tf2_ros import TransformException
 from tf2_ros.buffer import Buffer
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros.transform_listener import TransformListener
-from pyquaternion import Quaternion as Q
 
 # Local imports
 from ada_feeding_msgs.msg import FaceDetection
@@ -690,6 +690,9 @@ class ADAPlanningScene(Node):
         detected_table_pose.pose.position.y += self.table_detection_offsets[1]
         detected_table_pose.pose.position.z += self.table_detection_offsets[2]
 
+        latest_table_quat = np.array(detected_table_pose.pose.orientation)
+        default_table_quat = np.array(self.objects[self.table_object_id].quat_xyzw)
+        """
         # Convert the default and latest table quaternions to pyquaternion objects
         default_table_pyquat = Q(
             w=self.objects[self.table_object_id].quat_xyzw[3],
@@ -706,8 +709,15 @@ class ADAPlanningScene(Node):
 
         # Calculate the absolute distance between the latest and default table quaternions
         quat_dist = Q.absolute_distance(default_table_pyquat, latest_table_pyquat)
+        """
 
-        # Accept the latest detected table quaternion if the absolute distance
+        # Calculate the angular distance between the latest and default table quaternions
+        quat_dist = np.arccos(
+            2 * (np.dot(default_table_quat, latest_table_quat) ** 2) - 1
+        )
+        self.get_logger().info(f"Quaternion distance: {quat_dist}")
+        
+        # Accept the latest detected table quaternion if the angular distance
         # is within the threshold
         # Otherwise, reject it and use the default quaternion
         table_quaternion = None

@@ -51,12 +51,12 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
-    "--domain_id",
-    default=None,
+    "--real_domain_id",
+    default=42,
     type=int,
     help=(
-        "If set, export this ROS_DOMAIN_ID before running code in every screen "
-        "session. (default: None)"
+        "If sim is set to real, export this ROS_DOMAIN_ID before running code in "
+        "every screen session. (default: 42)"
     ),
 )
 
@@ -283,10 +283,9 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
     initial_start_commands = [
         f"cd {pwd}",
         "source install/setup.bash",
-        "export ROS_DOMAIN_ID=42" if args.sim == "real" else "",
     ]
-    if args.domain_id is not None:
-        initial_start_commands.append(f"export ROS_DOMAIN_ID={args.domain_id}")
+    if args.sim == "real":
+        initial_start_commands.append(f"export ROS_DOMAIN_ID={args.real_domain_id}")
     for screen_name, commands in screen_sessions.items():
         screen_sessions[screen_name] = initial_start_commands + commands
         if screen_name not in close_commands:

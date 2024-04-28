@@ -87,7 +87,7 @@ ada_planning_scene:
     # The offset values for the center coordinates ([x, y, z]) of the table. These 
     # values are used to translate the detected position into the table's origin.
     table_detection_offsets: [-0.20, -0.25, -0.735]
-    # A threshold on the distance between the default table quaternion 
+    # A threshold on the angular distance between the default table quaternion 
     # and the latest table quaternion to determine whether to reject 
     # or accept the latest table quaternion
-    quat_dist_thresh: 1.396
+    quat_dist_thresh: 5
