@@ -6,8 +6,7 @@ topic to another, with user-configureable post-processors.
 This node can be used to address several issues:
     1. Network latency with too many subscribers to a topic that is being published
        on a different machine.
-    2. Republishing a topic with some modifications (e.g., filtering, throttling,
-       updating the header stamp, etc.).
+    2. Republishing a topic with some modifications (e.g., filtering, throttling, etc.).
 """
 
 # Standard imports
@@ -37,33 +36,6 @@ from .depth_post_processors import (
     create_threshold_post_processor,
     post_processor_chain,
 )
-
-
-def update_header_stamp_post_processor(node):
-    """
-    Post-processor to update the header stamp of a message to the current time.
-
-    Parameters
-    ----------
-    node : Node
-        The node to use for getting the current time.
-
-    Returns
-    -------
-    update_header_stamp : Callable[[Any], Any]
-    """
-
-    def update_header_stamp(msg: Any) -> Any:
-        try:
-            msg.header.stamp = node.get_clock().now().to_msg()
-        except AttributeError:
-            node.get_logger().error(
-                "Could not update the header stamp of the message. "
-                "The message must have a `header` attribute."
-            )
-        return msg
-
-    return update_header_stamp
 
 
 class Republisher(Node):
@@ -105,7 +77,6 @@ class Republisher(Node):
         temporal_post_processor_str = "temporal"
         spatial_post_processor_str = "spatial"
         threshold_post_processor_str = "threshold"
-        update_header_stamp_post_processor_str = "update_header_stamp"
         # If at least one post-processor is "mask", load the mask
         bridge = CvBridge()
         mask_img = None
@@ -159,12 +130,6 @@ class Republisher(Node):
                     "threshold_min": threshold_min,
                     "threshold_max": threshold_max,
                     "bridge": bridge,
-                },
-            ),
-            update_header_stamp_post_processor_str: (
-                update_header_stamp_post_processor,
-                {
-                    "node": self,
                 },
             ),
         }

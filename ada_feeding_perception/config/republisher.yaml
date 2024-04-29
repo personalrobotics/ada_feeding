@@ -55,7 +55,6 @@ republisher:
     #  - mask: Applies the mask stored in `mask_relative_path` to the image.
     #  - threshold: Masks out pixels whose values are outside of the specified
     #    range. This is intended to be used only with single-channel (e.g., depth) images.
-    #  - update_header_stamp (Any): Updates the header stamp to the current time.
     # Any of these post-processing functions can be combined in a comma-separated list.
     # If an empty string, no post-processors are applied.
     post_processors:
