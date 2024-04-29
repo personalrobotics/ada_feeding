@@ -161,8 +161,11 @@ class Republisher(Node):
                     "bridge": bridge,
                 },
             ),
-            update_header_stamp_post_processor_str: lambda: update_header_stamp_post_processor(
-                self
+            update_header_stamp_post_processor_str: (
+                update_header_stamp_post_processor,
+                {
+                    "node": self,
+                },
             ),
         }
 

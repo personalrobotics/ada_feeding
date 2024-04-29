@@ -40,7 +40,7 @@ def generate_launch_description():
     )
     republisher = Node(
         package="ada_feeding_perception",
-        name="republisher_perception",
+        name="republisher",
         executable="republisher",
         parameters=[republisher_config],
         condition=IfCondition(use_republisher),
