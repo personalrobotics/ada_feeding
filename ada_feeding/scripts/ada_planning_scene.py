@@ -342,21 +342,21 @@ class ADAPlanningScene(Node):
         )
         self.table_detection_offsets = table_detection_offsets.value
 
-        quat_dist_range = self.declare_parameter(
-            "quat_dist_range",
+        quat_dist_thresh = self.declare_parameter(
+            "quat_dist_thresh",
             None,  # default value
             descriptor=ParameterDescriptor(
-                name="quat_dist_range",
-                type=ParameterType.PARAMETER_DOUBLE_ARRAY,
+                name="quat_dist_thresh",
+                type=ParameterType.PARAMETER_DOUBLE,
                 description=(
-                    "The range of values to accept for the angular distance "
-                    "between the latest detected table quaternion "
-                    "and the previously detected table quaternion."
+                    f"The threshold for the angular distance between"
+                    " the latest detected table quaternion"
+                    " and the previously detected table quaternion."
                 ),
                 read_only=True,
             ),
         )
-        self.quat_dist_range = quat_dist_range.value
+        self.quat_dist_thresh = quat_dist_thresh.value
 
         update_face_hz = self.declare_parameter(
             "update_face_hz",
@@ -699,19 +699,18 @@ class ADAPlanningScene(Node):
                 detected_table_pose.pose.orientation.w,
             ]
         )
-        default_table_quat = np.array(self.objects[self.table_object_id].quat_xyzw)
+        default_table_quat = np.array([0.0, 0.0, 1.0, 0.0]) # default quaternion with 180 degrees
+                                                            # rotation about the z-axis for more
+                                                            # intuitive calculation of distance
         quat_dist = np.arccos(
             2 * (np.dot(default_table_quat, latest_table_quat) ** 2) - 1
         )
 
         # Accept the latest detected table quaternion if the angular distance
-        # is within the range
+        # is within the threshold
         # Otherwise, reject it and use the default quaternion
         table_quaternion = None
-        if (
-            quat_dist > self.quat_dist_range[0]
-            and quat_dist < self.quat_dist_range[1]
-        ):
+        if quat_dist < self.quat_dist_thresh:
             table_quaternion = detected_table_pose.pose.orientation
         else:
             table_quaternion = Quaternion(
