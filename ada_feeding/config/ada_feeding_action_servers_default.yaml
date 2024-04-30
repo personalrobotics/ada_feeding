@@ -254,10 +254,26 @@ ada_feeding_action_servers:
         tree_class: ada_feeding.trees.StartServoTree # required
         tick_rate: 10 # Hz, optional, default: 30
 
-      # Parameters for the StartServo action
+      # Parameters for the StopServo action
       StopServo: # required
         action_type: ada_feeding_msgs.action.Trigger # required
         tree_class: ada_feeding.trees.StopServoTree # required
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the ActivateCartesianController action
+      ActivateCartesianController: # required
+        action_type: ada_feeding_msgs.action.Trigger # required
+        tree_class: ada_feeding.trees.ActivateController # required
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the ActivateServoController action
+      ActivateServoController: # required
+        action_type: ada_feeding_msgs.action.Trigger # required
+        tree_class: ada_feeding.trees.ActivateController # required
+        tree_kws:
+          - controller_name
+        tree_kwargs:
+          controller_name: "jaco_arm_servo_controller"
         tick_rate: 10 # Hz, optional, default: 30
 
       # Parameters for a generic MoveToConfiguration action
