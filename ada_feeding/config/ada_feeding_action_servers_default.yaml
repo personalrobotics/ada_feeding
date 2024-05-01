@@ -19,7 +19,7 @@ ada_feeding_action_servers:
         - StartServo
         - StopServo
         - ActivateCartesianController
-        - ActivateServoController
+        - ActivateJointController
         - MoveToConfiguration
 
       # Parameters for the MoveAbovePlate action
@@ -268,8 +268,8 @@ ada_feeding_action_servers:
         tree_class: ada_feeding.trees.ActivateController # required
         tick_rate: 10 # Hz, optional, default: 30
 
-      # Parameters for the ActivateServoController action
-      ActivateServoController: # required
+      # Parameters for the ActivateJointController action
+      ActivateJointController: # required
         action_type: ada_feeding_msgs.action.Trigger # required
         tree_class: ada_feeding.trees.ActivateController # required
         tree_kws:
