@@ -18,6 +18,8 @@ ada_feeding_action_servers:
         - TestMoveToPose
         - StartServo
         - StopServo
+        - ActivateCartesianController
+        - ActivateServoController
         - MoveToConfiguration
 
       # Parameters for the MoveAbovePlate action
@@ -271,9 +273,9 @@ ada_feeding_action_servers:
         action_type: ada_feeding_msgs.action.Trigger # required
         tree_class: ada_feeding.trees.ActivateController # required
         tree_kws:
-          - controller_name
+          - controller_to_activate
         tree_kwargs:
-          controller_name: "jaco_arm_servo_controller"
+          controller_to_activate: jaco_arm_servo_controller
         tick_rate: 10 # Hz, optional, default: 30
 
       # Parameters for a generic MoveToConfiguration action

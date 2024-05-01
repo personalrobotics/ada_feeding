@@ -23,7 +23,7 @@ from .trigger_tree import TriggerTree
 
 class ActivateController(TriggerTree):
     """
-    Thsi behavior tree calls the `~/switch_controller` service to activate a
+    This behavior tree calls the `~/switch_controller` service to activate a
     user-specified controller and deactivate all others.
     """
 

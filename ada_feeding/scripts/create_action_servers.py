@@ -126,7 +126,9 @@ class CreateActionServers(Node):
         param: The parameter to get the value of.
         """
         param_value = param.value
-        if isinstance(param_value, collections.abc.Sequence):
+        if not isinstance(param_value, str) and isinstance(
+            param_value, collections.abc.Sequence
+        ):
             param_value = list(param_value)
         return param_value
 
