@@ -11,9 +11,9 @@ import 'react-toastify/dist/ReactToastify.css'
 // ROS imports
 import { useROS } from '../../ros/ros_helpers'
 // Local imports
-import { ROS_CHECK_INTERVAL_MS, NON_MOVING_STATES } from '../Constants'
-import { useGlobalState, APP_PAGE, MEAL_STATE } from '../GlobalState'
-import LiveVideoModal from './LiveVideoModal'
+import { REGULAR_CONTAINER_ID, ROS_CHECK_INTERVAL_MS } from '../Constants'
+import { useGlobalState, APP_PAGE, NON_MOVING_STATES } from '../GlobalState'
+import InfoModal from './InfoModal'
 
 /**
  * The Header component consists of the navigation bar (which has buttons Home,
@@ -23,10 +23,10 @@ import LiveVideoModal from './LiveVideoModal'
  */
 const Header = (props) => {
   // Create a local state variable to toggle on/off the video
-  // TODO: Since this local state variable is in the header, the LiveVideoModal
+  // TODO: Since this local state variable is in the header, the InfoModal
   // continues showing even if the state changes. Is this desirable? Perhaps
   // it should close if the state changes?
-  const [videoShow, setVideoShow] = useState(false)
+  const [infoModalShow, setInfoModalShow] = useState(false)
   // useROS gives us access to functions to configure and interact with ROS.
   let { ros } = useROS()
   const [isConnected, setIsConncected] = useState(ros.isConnected)
@@ -47,9 +47,8 @@ const Header = (props) => {
 
   // Get the relevant global state variables
   const mealState = useGlobalState((state) => state.mealState)
+  const inNonMovingState = useGlobalState((state) => state.inNonMovingState)
   const setAppPage = useGlobalState((state) => state.setAppPage)
-  const paused = useGlobalState((state) => state.paused)
-  const teleopIsMoving = useGlobalState((state) => state.teleopIsMoving)
 
   /**
    * When the Home button in the header is clicked, return to the Home page.
@@ -64,12 +63,18 @@ const Header = (props) => {
    * or terminate the meal because modifying settings.
    */
   const settingsClicked = useCallback(() => {
-    if (NON_MOVING_STATES.has(mealState)) {
+    // Both checks are necessary because some states that are nominally non-moving
+    // could be in an auto-continue state, and some states that are nominally moving
+    // could be paused.
+    if (inNonMovingState && NON_MOVING_STATES.has(mealState)) {
       setAppPage(APP_PAGE.Settings)
     } else {
-      toast('Wait for robot motion to complete before accessing Settings.')
+      toast.info('Wait for robot motion to complete before accessing Settings.', {
+        containerId: REGULAR_CONTAINER_ID,
+        toastId: 'noSettings'
+      })
     }
-  }, [mealState, setAppPage])
+  }, [inNonMovingState, mealState, setAppPage])
 
   // Render the component. The NavBar will stay fixed even as we vertically scroll.
   return (
@@ -78,7 +83,7 @@ const Header = (props) => {
        * The ToastContainer is an alert that pops up on the top of the screen
        * and has a timeout.
        */}
-      <ToastContainer style={{ fontSize: textFontSize }} />
+      <ToastContainer style={{ fontSize: textFontSize, zIndex: 9999 }} containerId={REGULAR_CONTAINER_ID} enableMultiContainer={true} />
       {/**
        * The NavBar has two elements, Home and Settings, on the left side and three
        * elements, Lock, Robot Connection Icon and VideoVideo, on the right side.
@@ -115,7 +120,7 @@ const Header = (props) => {
               Settings
             </Nav.Link>
           </Nav>
-          {NON_MOVING_STATES.has(mealState) || paused || (mealState === MEAL_STATE.U_PlateLocator && teleopIsMoving === false) ? (
+          {inNonMovingState ? (
             <Nav>
               <Nav.Link
                 className='text-dark rounded mx-1 btn-lg btn-huge p-2'
@@ -150,20 +155,20 @@ const Header = (props) => {
           )}
           <Nav>
             <Nav.Link
-              onClick={() => setVideoShow(true)}
+              onClick={() => setInfoModalShow(true)}
               className='text-dark bg-info rounded mx-1 btn-lg btn-huge p-2'
               style={{ fontSize: textFontSize }}
             >
-              Video
+              Info
             </Nav.Link>
           </Nav>
         </Navbar>
       </Navbar>
       {/**
-       * The LiveVideoModal toggles on and off with the Video button and shows the
+       * The InfoModal toggles on and off with the Video button and shows the
        * robot's live camera feed.
        */}
-      <LiveVideoModal show={videoShow} onHide={() => setVideoShow(false)} webrtcURL={props.webrtcURL} />
+      <InfoModal show={infoModalShow} onHide={() => setInfoModalShow(false)} webrtcURL={props.webrtcURL} />
     </>
   )
 }

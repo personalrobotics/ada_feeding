@@ -30,21 +30,6 @@ MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth] = '/robot_state_imgs/move_to_
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_StowingArm] = '/robot_state_imgs/stowing_arm_position.svg'
 export { MOVING_STATE_ICON_DICT }
 
-/**
- * A set containing the states where the robot does not move.
- *
- * NOTE: Although in R_DetectingFace the robot does not technically move,
- * the app might transition out of that state into a robot motion state without
- * user intervention, so it is not included in this set.
- */
-let NON_MOVING_STATES = new Set()
-NON_MOVING_STATES.add(MEAL_STATE.U_PreMeal)
-NON_MOVING_STATES.add(MEAL_STATE.U_BiteSelection)
-NON_MOVING_STATES.add(MEAL_STATE.U_BiteAcquisitionCheck)
-NON_MOVING_STATES.add(MEAL_STATE.U_BiteDone)
-NON_MOVING_STATES.add(MEAL_STATE.U_PostMeal)
-export { NON_MOVING_STATES }
-
 // The names of the ROS topic(s)
 export const CAMERA_FEED_TOPIC = '/local/camera/color/image_raw/compressed'
 export const FACE_DETECTION_TOPIC = '/face_detection'
@@ -53,6 +38,10 @@ export const FACE_DETECTION_IMG_TOPIC = '/face_detection_img/compressed'
 export const FOOD_ON_FORK_DETECTION_TOPIC = '/food_on_fork_detection'
 export const FOOD_ON_FORK_DETECTION_TOPIC_MSG = 'ada_feeding_msgs/FoodOnForkDetection'
 export const ROBOT_COMPRESSED_IMG_TOPICS = [CAMERA_FEED_TOPIC, FACE_DETECTION_IMG_TOPIC]
+export const SERVO_CARTESIAN_TOPIC = '/web_app/servo_node/delta_twist_cmds'
+export const SERVO_CARTESIAN_TOPIC_MSG = 'geometry_msgs/msg/TwistStamped'
+export const SERVO_JOINT_TOPIC = '/web_app/servo_node/delta_joint_cmds'
+export const SERVO_JOINT_TOPIC_MSG = 'control_msgs/msg/JointJog'
 
 // States from which, if they fail, it is NOT okay for the user to retry the
 // same action.
@@ -98,6 +87,10 @@ ROS_ACTIONS_NAMES[MEAL_STATE.R_StowingArm] = {
   messageType: 'ada_feeding_msgs/action/MoveTo'
 }
 export { ROS_ACTIONS_NAMES }
+export const START_CARTESIAN_CONTROLLER_ACTION_NAME = 'ActivateCartesianController'
+export const START_CARTESIAN_CONTROLLER_ACTION_TYPE = 'ada_feeding_msgs/action/Trigger'
+export const START_JOINT_CONTROLLER_ACTION_NAME = 'ActivateJointController'
+export const START_JOINT_CONTROLLER_ACTION_TYPE = 'ada_feeding_msgs/action/Trigger'
 
 /**
  * For states that call ROS services, this dictionary contains
@@ -121,6 +114,8 @@ export const CLEAR_OCTOMAP_SERVICE_NAME = 'clear_octomap'
 export const CLEAR_OCTOMAP_SERVICE_TYPE = 'std_srvs/srv/Empty'
 export const ACQUISITION_REPORT_SERVICE_NAME = 'ada_feeding_action_select/action_report'
 export const ACQUISITION_REPORT_SERVICE_TYPE = 'ada_feeding_msgs/srv/AcquisitionReport'
+export const GET_JOINT_STATE_SERVICE_NAME = 'get_joint_state'
+export const GET_JOINT_STATE_SERVICE_TYPE = 'ada_feeding_msgs/srv/GetJointState'
 export const GET_PARAMETERS_SERVICE_NAME = 'ada_feeding_action_servers/get_parameters'
 export const GET_PARAMETERS_SERVICE_TYPE = 'rcl_interfaces/srv/GetParameters'
 export const SET_PARAMETERS_SERVICE_NAME = 'ada_feeding_action_servers/set_parameters'
@@ -128,6 +123,26 @@ export const SET_PARAMETERS_SERVICE_TYPE = 'rcl_interfaces/srv/SetParameters'
 
 // The names of parameters users can change in the settings menu
 export const DISTANCE_TO_MOUTH_PARAM = 'MoveToMouth.tree_kwargs.plan_distance_from_mouth'
+export const ABOVE_PLATE_PARAM_JOINTS = 'MoveAbovePlate.tree_kwargs.joint_positions'
+export const STAGING_PARAM_JOINTS = 'MoveToStagingConfiguration.tree_kwargs.goal_configuration'
+export const STAGING_PARAM_POSITION = 'MoveFromMouth.tree_kwargs.staging_configuration_position'
+export const STAGING_PARAM_ORIENTATION = 'MoveFromMouth.tree_kwargs.staging_configuration_quat_xyzw'
+// TODO: Eventually, we should break AcquireFood into two actionss to avoid these
+// two different resting parameters.
+export const RESTING_PARAM_JOINTS_1 = 'AcquireFood.tree_kwargs.resting_joint_positions'
+// TODO: We may need to remove the orientation constraint from the below action.
+export const RESTING_PARAM_JOINTS_2 = 'MoveToRestingPosition.tree_kwargs.goal_configuration'
+
+// Robot link names
+export const ROBOT_BASE_LINK = 'j2n6s200_link_base'
+export const ROBOT_JOINTS = [
+  'j2n6s200_joint_1',
+  'j2n6s200_joint_2',
+  'j2n6s200_joint_3',
+  'j2n6s200_joint_4',
+  'j2n6s200_joint_5',
+  'j2n6s200_joint_6'
+]
 
 /**
  * The meaning of the status that motion actions return in their results.
@@ -157,3 +172,31 @@ export const ROS_ACTION_STATUS_CANCEL_GOAL = '2'
 export const ROS_ACTION_STATUS_SUCCEED = '3'
 export const ROS_ACTION_STATUS_ABORT = '4'
 export const ROS_ACTION_STATUS_CANCELED = '5'
+
+/**
+ * A function that provides the text associated with robot motion for each meal state.
+ */
+export function getRobotMotionText(mealState) {
+  switch (mealState) {
+    case MEAL_STATE.R_MovingAbovePlate:
+      return 'Waiting to move above the plate...'
+    case MEAL_STATE.R_BiteAcquisition:
+      return 'Waiting to acquire the food...'
+    case MEAL_STATE.R_MovingToRestingPosition:
+      return 'Waiting to move to the resting position...'
+    case MEAL_STATE.R_MovingToStagingConfiguration:
+      return 'Waiting to move in front of you...'
+    case MEAL_STATE.R_MovingToMouth:
+      return 'Waiting to move to your mouth...'
+    case MEAL_STATE.R_MovingFromMouth:
+      return 'Waiting to move from your mouth...'
+    case MEAL_STATE.R_StowingArm:
+      return 'Waiting to stow the arm...'
+    default:
+      return 'Unknown meal state' + mealState.toString()
+  }
+}
+
+// Container IDs for multiple ToastContainers
+export const REGULAR_CONTAINER_ID = 'RegularContainerID'
+export const MODAL_CONTAINER_ID = 'ModalContainerID'

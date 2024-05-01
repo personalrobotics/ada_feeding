@@ -20,6 +20,7 @@ const BiteDone = () => {
   const [remainingSeconds, setRemainingSeconds] = useState(null)
   // Get the relevant global variables
   const setMealState = useGlobalState((state) => state.setMealState)
+  const setInNonMovingState = useGlobalState((state) => state.setInNonMovingState)
   const biteDoneAutoContinue = useGlobalState((state) => state.biteDoneAutoContinue)
   const setBiteDoneAutoContinue = useGlobalState((state) => state.setBiteDoneAutoContinue)
   const biteDoneAutoContinueSecs = useGlobalState((state) => state.biteDoneAutoContinueSecs)
@@ -89,6 +90,20 @@ const BiteDone = () => {
    * re-connecting upon re-renders.
    */
   const ros = useRef(useROS().ros)
+
+  /**
+   * When the component is first mounted, and any time auto-continue changes,
+   * if auto-continue is not enabled, set it to a non-moving state. We don't need
+   * to reset it when the component is un-mounted since it will get set when
+   * the mealState is updated.
+   */
+  useEffect(() => {
+    if (biteDoneAutoContinue) {
+      setInNonMovingState(false)
+    } else {
+      setInNonMovingState(true)
+    }
+  }, [biteDoneAutoContinue, setInNonMovingState])
 
   /**
    * Subscribe to the ROS Topic with the food-on-fork detection result. This is

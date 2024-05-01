@@ -149,6 +149,9 @@ export function createROSActionClient(ros, serverName, actionType) {
  *                                  result is received.
  */
 export function callROSAction(actionClient, goal, feedbackCallback, resultCallback) {
+  // TODO: After the callback is executed, it should be removed from the action
+  // server's callback list to prevent multiple callbacks from being executed in
+  // further calls.
   actionClient.createClient(goal, resultCallback, feedbackCallback)
 }
 
@@ -176,29 +179,78 @@ export function destroyActionClient(actionClient) {
  * value. See the message definition for more details:
  * https://github.com/ros2/rcl_interfaces/blob/rolling/rcl_interfaces/msg/ParameterValue.msg
  *
- * @param {object} parameterValue an object of message type ParameterValue
+ * @param {object} parameter an object of message type ParameterValue
  */
-export function getParameterValue(parameterValue) {
-  switch (parameterValue.type) {
+export function getValueFromParameter(parameter) {
+  switch (parameter.type) {
     case 1: // bool
-      return parameterValue.bool_value
+      return parameter.bool_value
     case 2: // integer
-      return parameterValue.integer_value
+      return parameter.integer_value
     case 3: // double
-      return parameterValue.double_value
+      return parameter.double_value
     case 4: // string
-      return parameterValue.string_value
+      return parameter.string_value
     case 5: // byte array
-      return parameterValue.byte_array_value
+      return parameter.byte_array_value
     case 6: // bool array
-      return parameterValue.bool_array_value
+      return parameter.bool_array_value
     case 7: // integer array
-      return parameterValue.integer_array_value
+      return parameter.integer_array_value
     case 8: // double array
-      return parameterValue.double_array_value
+      return parameter.double_array_value
     case 9: // string array
-      return parameterValue.string_array_value
+      return parameter.string_array_value
     default: // not set
       return null
   }
+}
+
+/**
+ * Takes in a value in Javascript and returns a ParameterValue object. See the
+ * message definition for more details:
+ * https://github.com/ros2/rcl_interfaces/blob/rolling/rcl_interfaces/msg/ParameterValue.msg
+ *
+ * @param {any} value The value to convert to a ParameterValue object.
+ * @param {number} typeOverride The type to treat the value as. If null, the
+ *                              type will be inferred from the value.
+ */
+export function getParameterFromValue(value, typeOverride = null) {
+  let parameter = new ROSLIB.Message({
+    type: 0
+  })
+  if (typeOverride === 1 || typeof value === 'boolean') {
+    parameter.bool_value = value
+    parameter.type = 1
+  } else if (typeOverride === 2 || Number.isInteger(value)) {
+    parameter.integer_value = value
+    parameter.type = 2
+  } else if (typeOverride === 3 || typeof value === 'number') {
+    parameter.double_value = value
+    parameter.type = 3
+  } else if (typeOverride === 4 || typeof value === 'string') {
+    parameter.string_value = value
+    parameter.type = 4
+  } else if (typeOverride === 5 || (Array.isArray(value) && value.length > 0 && value[0] instanceof Uint8Array)) {
+    parameter.byte_array_value = value
+    parameter.type = 5
+  } else if (typeOverride === 6 || (Array.isArray(value) && value.length > 0 && typeof value[0] === 'boolean')) {
+    parameter.bool_array_value = value
+    parameter.type = 6
+  } else if (typeOverride === 7 || (Array.isArray(value) && value.length > 0 && Number.isInteger(value[0]))) {
+    parameter.integer_array_value = value
+    parameter.type = 7
+  } else if (typeOverride === 8 || (Array.isArray(value) && value.length > 0 && typeof value[0] === 'number')) {
+    parameter.double_array_value = value
+    parameter.type = 8
+  } else if (typeOverride === 9 || (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string')) {
+    parameter.string_array_value = value
+    parameter.type = 9
+  }
+
+  if (parameter.type === 0) {
+    console.log('Could not determine type of value', value)
+  }
+
+  return parameter
 }

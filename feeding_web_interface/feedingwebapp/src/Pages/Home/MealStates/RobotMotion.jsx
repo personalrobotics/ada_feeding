@@ -92,8 +92,14 @@ const RobotMotion = (props) => {
   let robotMotionAction = useMemo(() => {
     console.log('Creating action client', props.mealState)
     let { actionName, messageType } = ROS_ACTIONS_NAMES[props.mealState]
+    if (props.actionNameOverride) {
+      actionName = props.actionNameOverride
+    }
+    if (props.actionTypeOverride) {
+      messageType = props.actionTypeOverride
+    }
     return createROSActionClient(ros.current, actionName, messageType)
-  }, [props.mealState])
+  }, [props.actionNameOverride, props.actionTypeOverride, props.mealState])
 
   /**
    * Create the ROS Service Client for clearing the octomap. This is only used
@@ -430,6 +436,9 @@ RobotMotion.propTypes = {
   debug: PropTypes.bool.isRequired,
   // The meal state corresponding with the motion the robot is executing
   mealState: PropTypes.string.isRequired,
+  // TODO: Consider removing the overrides!
+  actionNameOverride: PropTypes.string,
+  actionTypeOverride: PropTypes.string,
   // The function for setting the meal state
   // **WARNING**: If setMealState changes upon re-render, RobotMotion will have
   // unexpected behaviors (e.g., calling an action, then immediately destroying

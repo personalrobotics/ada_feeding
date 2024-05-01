@@ -1,5 +1,6 @@
 // React Imports
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useMediaQuery } from 'react-responsive'
 import Button from 'react-bootstrap/Button'
 // PropTypes is used to validate that the used props are in fact passed to this Component
 import PropTypes from 'prop-types'
@@ -89,7 +90,9 @@ const VideoFeed = (props) => {
   const parentRef = useRef(null)
 
   // Rendering variables
-  let textFontSize = '2.5vh'
+  const isPortrait = useMediaQuery({ query: '(orientation: portrait)' })
+  let textFontSize = isPortrait ? 2.5 : 3.0
+  let sizeSuffix = 'vh'
 
   /**
    * Create the peer connection
@@ -204,7 +207,7 @@ const VideoFeed = (props) => {
               className='mx-2 mb-2 btn-huge'
               size='lg'
               style={{
-                fontSize: textFontSize,
+                fontSize: textFontSize.toString() + sizeSuffix,
                 color: 'black'
               }}
               onClick={() => setZoom(Math.max(zoomMin, zoom - 0.1))}
@@ -224,7 +227,7 @@ const VideoFeed = (props) => {
           >
             <p
               style={{
-                fontSize: textFontSize,
+                fontSize: textFontSize.toString() + sizeSuffix,
                 color: 'black'
               }}
             >
@@ -245,7 +248,7 @@ const VideoFeed = (props) => {
               className='mx-2 mb-2 btn-huge'
               size='lg'
               style={{
-                fontSize: textFontSize,
+                fontSize: textFontSize.toString() + sizeSuffix,
                 color: 'black'
               }}
               onClick={() => setZoom(Math.min(zoomMax, zoom + 0.1))}
@@ -257,12 +260,20 @@ const VideoFeed = (props) => {
         </>
       )
     },
-    [textFontSize]
+    [textFontSize, sizeSuffix]
   )
 
   // Render the component
   return (
-    <>
+    <View
+      style={{
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'start',
+        width: '100%',
+        height: '100%'
+      }}
+    >
       <View
         ref={parentRef}
         style={{
@@ -315,7 +326,7 @@ const VideoFeed = (props) => {
             className='mx-2 mb-2 btn-huge'
             size='lg'
             style={{
-              fontSize: textFontSize,
+              fontSize: textFontSize.toString() + sizeSuffix,
               color: 'black'
             }}
             onClick={() => setRefreshCount(refreshCount + 1)}
@@ -324,7 +335,7 @@ const VideoFeed = (props) => {
           </Button>
         </View>
       </View>
-    </>
+    </View>
   )
 }
 VideoFeed.propTypes = {

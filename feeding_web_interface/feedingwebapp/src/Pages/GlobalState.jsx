@@ -26,8 +26,6 @@ export const APP_PAGE = {
  *   - U_PreMeal: Waiting for the user to click "Start Feeding."
  *   - R_MovingAbovePlate: Waiting for the robot to move above the plate.
  *   - U_BiteSelection: Waiting for the user to select the food item they want.
- *   - U_PlateLocator: Allows the user to teleoperate the robot to center the
- *     the plate.
  *   - R_BiteAcquisition: Waiting for the robot to execute one bite acquisition
  *     attempt.
  *   - R_MovingToRestingPosition: Waiting for the robot to move to resting
@@ -51,7 +49,6 @@ export const MEAL_STATE = {
   U_PreMeal: 'U_PreMeal',
   R_MovingAbovePlate: 'R_MovingAbovePlate',
   U_BiteSelection: 'U_BiteSelection',
-  U_PlateLocator: 'U_PlateLocator',
   R_BiteAcquisition: 'R_BiteAcquisition',
   R_MovingToRestingPosition: 'R_MovingToRestingPosition',
   U_BiteAcquisitionCheck: 'U_BiteAcquisitionCheck',
@@ -65,6 +62,18 @@ export const MEAL_STATE = {
 }
 
 /**
+ * A set containing the states where the robot does not move.
+ */
+let NON_MOVING_STATES = new Set()
+NON_MOVING_STATES.add(MEAL_STATE.U_PreMeal)
+NON_MOVING_STATES.add(MEAL_STATE.U_BiteSelection)
+NON_MOVING_STATES.add(MEAL_STATE.U_BiteAcquisitionCheck)
+NON_MOVING_STATES.add(MEAL_STATE.R_DetectingFace)
+NON_MOVING_STATES.add(MEAL_STATE.U_BiteDone)
+NON_MOVING_STATES.add(MEAL_STATE.U_PostMeal)
+export { NON_MOVING_STATES }
+
+/**
  * SETTINGS_STATE controls which settings page to display.
  *  - MAIN: The main page, with options to navigate to the other pages.
  *  - BITE_TRANSFER: The bite transfer page, where the user can configure
@@ -72,7 +81,8 @@ export const MEAL_STATE = {
  */
 export const SETTINGS_STATE = {
   MAIN: 'MAIN',
-  BITE_TRANSFER: 'BITE_TRANSFER'
+  BITE_TRANSFER: 'BITE_TRANSFER',
+  ABOVE_PLATE: 'ABOVE_PLATE'
 }
 
 // The name of the default parameter namespace
@@ -92,6 +102,9 @@ export const useGlobalState = create(
       mealState: MEAL_STATE.U_PreMeal,
       // The app's previous meal state
       prevMealState: null,
+      // Whether the app is currently in a non-moving state (i.e., the robot will
+      // not move unless the user initiates it)
+      inNonMovingState: true,
       // The timestamp when the robot transitioned to its current meal state
       mealStateTransitionTime: Date.now(),
       // The currently displayed settings page
@@ -106,10 +119,14 @@ export const useGlobalState = create(
       moveToMouthActionGoal: null,
       // Last RobotMotion action response
       lastMotionActionResponse: null,
-      // Whether or not the currently-executing robot motion was paused by the user
+      // Whether or not the currently-executing robot motion was paused by the user.
+      // NOTE: `paused` may no longer need to be in global state now that we have
+      // the `inNonMovingState` flag.
       paused: false,
-      // Flag to indicate robot motion trough teleoperation interface
-      teleopIsMoving: false,
+      // Store the user;s current settings for teleop speeds
+      teleopLinearSpeed: 0.1, // m/s
+      teleopAngularSpeed: 0.15, // rad/s
+      teleopJointSpeed: 0.2, // rad/s
       // Flag to indicate whether to auto-continue after face detection
       faceDetectionAutoContinue: true,
       // Flag to indicate whether to auto-continue in bite done after food-on-fork detection
@@ -145,16 +162,36 @@ export const useGlobalState = create(
         })),
       setMealState: (mealState, mostRecentBiteDoneResponse = null) =>
         set(() => {
+          let prevMealState = get().mealState
+          console.log('Setting meal state to', mealState, 'from', prevMealState)
           let retval = {
             mealState: mealState,
-            prevMealState: get().mealState,
             mealStateTransitionTime: Date.now(),
             biteTransferPageAtFace: false // Reset this flag when the meal state changes
+          }
+          // Only update the previous state if it is not a self-transition (to
+          // account for cases where a MoveTo action result message is reveived twice)
+          if (prevMealState !== mealState) {
+            retval.prevMealState = prevMealState
           }
           if (mostRecentBiteDoneResponse) {
             retval.mostRecentBiteDoneResponse = mostRecentBiteDoneResponse
           }
+          if (NON_MOVING_STATES.has(mealState)) {
+            retval.inNonMovingState = true
+            console.log('Setting inNonMovingState to true through setMealState')
+          } else {
+            retval.inNonMovingState = false
+            console.log('Setting inNonMovingState to false through setMealState')
+          }
           return retval
+        }),
+      setInNonMovingState: (inNonMovingState) =>
+        set(() => {
+          console.log('Setting inNonMovingState to', inNonMovingState, 'through setInNonMovingState')
+          return {
+            inNonMovingState: inNonMovingState
+          }
         }),
       setSettingsState: (settingsState) =>
         set(() => ({
@@ -177,12 +214,34 @@ export const useGlobalState = create(
           moveToMouthActionGoal: moveToMouthActionGoal
         })),
       setPaused: (paused) =>
+        set(() => {
+          let retval = { paused: paused }
+          if (paused) {
+            // If the robot is paused, we should store this as a non-moving state
+            retval.inNonMovingState = true
+          } else {
+            // If the robot is unpaused, we should check if the meal state is moving
+            if (!NON_MOVING_STATES.has(get().mealState)) {
+              retval.inNonMovingState = false
+              console.log('Setting inNonMovingState to false through setPaused')
+            } else {
+              retval.inNonMovingState = true
+              console.log('Setting inNonMovingState to true through setPaused')
+            }
+          }
+          return retval
+        }),
+      setTeleopLinearSpeed: (teleopLinearSpeed) =>
         set(() => ({
-          paused: paused
+          teleopLinearSpeed: teleopLinearSpeed
         })),
-      setTeleopIsMoving: (teleopIsMoving) =>
+      setTeleopAngularSpeed: (teleopAngularSpeed) =>
         set(() => ({
-          teleopIsMoving: teleopIsMoving
+          teleopAngularSpeed: teleopAngularSpeed
+        })),
+      setTeleopJointSpeed: (teleopJointSpeed) =>
+        set(() => ({
+          teleopJointSpeed: teleopJointSpeed
         })),
       setFaceDetectionAutoContinue: (faceDetectionAutoContinue) =>
         set(() => ({

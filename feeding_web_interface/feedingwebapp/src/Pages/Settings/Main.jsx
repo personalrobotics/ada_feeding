@@ -13,11 +13,12 @@ import { toast } from 'react-toastify'
 
 // Local imports
 import { useGlobalState, DEFAULT_NAMESPACE, MEAL_STATE, SETTINGS_STATE } from '../GlobalState'
-import { useROS, createROSService, createROSServiceRequest, getParameterValue } from '../../ros/ros_helpers'
+import { useROS, createROSService, createROSServiceRequest, getValueFromParameter } from '../../ros/ros_helpers'
 import {
   GET_PARAMETERS_SERVICE_NAME,
   GET_PARAMETERS_SERVICE_TYPE,
   MOVING_STATE_ICON_DICT,
+  REGULAR_CONTAINER_ID,
   SET_PARAMETERS_SERVICE_NAME,
   SET_PARAMETERS_SERVICE_TYPE
 } from '../Constants'
@@ -59,8 +60,8 @@ const Main = () => {
       console.log('Got `custom_namespaces` response', response)
       if (response.values.length > 1 && response.values[0].type === 9 && response.values[1].type === 4) {
         setSettingsPresets({
-          current: getParameterValue(response.values[1]),
-          customNames: getParameterValue(response.values[0])
+          current: getValueFromParameter(response.values[1]),
+          customNames: getValueFromParameter(response.values[0])
         })
       } else {
         setSettingsPresets({
@@ -126,7 +127,10 @@ const Main = () => {
     let newPresetName = newPresetInput.current.value.trim()
 
     if (newPresetName.length === 0) {
-      toast('Please enter a name for the new preset.', { type: 'error' })
+      toast.error('Please enter a name for the new preset.', {
+        containerId: REGULAR_CONTAINER_ID,
+        toastId: 'newPresetName'
+      })
       return
     } else {
       setPreset(newPresetName)
@@ -138,7 +142,10 @@ const Main = () => {
   const onClickSettingsPage = useCallback(
     (settingsState) => {
       if (settingsPresets.current === DEFAULT_NAMESPACE) {
-        toast('To change settings, select a preset other than `' + DEFAULT_NAMESPACE + '`.', { type: 'error' })
+        toast.error('To change settings, select a preset other than `' + DEFAULT_NAMESPACE + '`.', {
+          containerId: REGULAR_CONTAINER_ID,
+          toastId: 'changePresets'
+        })
       } else {
         setSettingsState(settingsState)
       }
@@ -148,6 +155,21 @@ const Main = () => {
 
   // Get icon image for move to mouth
   let moveToMouthConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth]
+  let moveAbovePlateConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
+
+  // Configure the different options in the settings menu
+  let settingsConfig = [
+    {
+      title: 'Bite Transfer',
+      icon: moveToMouthConfigurationImage,
+      onClick: () => onClickSettingsPage(SETTINGS_STATE.BITE_TRANSFER)
+    },
+    {
+      title: 'Above Plate',
+      icon: moveAbovePlateConfigurationImage,
+      onClick: () => onClickSettingsPage(SETTINGS_STATE.ABOVE_PLATE)
+    }
+  ]
 
   return (
     <>
@@ -200,42 +222,44 @@ const Main = () => {
         {/**
          * The button to navigate to the bite transfer settings page.
          */}
-        <Row className='justify-content-center mx-1 my-2'>
-          <Button
-            variant='outline-dark'
-            style={{
-              fontSize: '30px',
-              display: 'flex',
-              flexDirection: 'row',
-              justifyContent: 'center',
-              alignItems: 'center',
-              height: '8vh',
-              borderWidth: '3px'
-            }}
-            onClick={() => onClickSettingsPage(SETTINGS_STATE.BITE_TRANSFER)}
-          >
-            <Image
-              fluid
-              src={moveToMouthConfigurationImage}
+        {settingsConfig.map((config, i) => (
+          <Row className='justify-content-center mx-1 my-2' key={i}>
+            <Button
+              variant='outline-dark'
               style={{
-                height: '100%',
-                '--bs-btn-padding-x': '0rem',
-                '--bs-btn-padding-y': '0rem',
-                display: 'flex'
-              }}
-              alt='move_to_mouth_image'
-              className='center'
-            />
-            <p
-              style={{
+                fontSize: '30px',
                 display: 'flex',
-                marginTop: '1rem'
+                flexDirection: 'row',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '8vh',
+                borderWidth: '3px'
               }}
+              onClick={config.onClick}
             >
-              Bite Transfer
-            </p>
-          </Button>
-        </Row>
+              <Image
+                fluid
+                src={config.icon}
+                style={{
+                  height: '100%',
+                  '--bs-btn-padding-x': '0rem',
+                  '--bs-btn-padding-y': '0rem',
+                  display: 'flex'
+                }}
+                alt={config.title}
+                className='center'
+              />
+              <p
+                style={{
+                  display: 'flex',
+                  marginTop: '1rem'
+                }}
+              >
+                {config.title}
+              </p>
+            </Button>
+          </Row>
+        ))}
       </Container>
 
       {/**

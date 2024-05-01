@@ -10,11 +10,10 @@ import BiteAcquisitionCheck from './MealStates/BiteAcquisitionCheck'
 import BiteDone from './MealStates/BiteDone'
 import BiteSelection from './MealStates/BiteSelection'
 import DetectingFace from './MealStates/DetectingFace'
-import PlateLocator from './MealStates/PlateLocator'
 import PostMeal from './MealStates/PostMeal'
 import PreMeal from './MealStates/PreMeal'
 import RobotMotion from './MealStates/RobotMotion'
-import { TIME_TO_RESET_MS } from '../Constants'
+import { getRobotMotionText, TIME_TO_RESET_MS } from '../Constants'
 
 /**
  * The Home component displays the state of the meal, solicits user input as
@@ -96,7 +95,6 @@ function Home(props) {
         let currentMealState = MEAL_STATE.R_MovingAbovePlate
         let nextMealState = MEAL_STATE.U_BiteSelection
         let backMealState = null
-        let waitingText = 'Waiting to move above the plate...'
         return (
           <RobotMotion
             debug={props.debug}
@@ -105,15 +103,12 @@ function Home(props) {
             nextMealState={nextMealState}
             backMealState={backMealState}
             actionInput={moveAbovePlateActionInput}
-            waitingText={waitingText}
+            waitingText={getRobotMotionText(currentMealState)}
           />
         )
       }
       case MEAL_STATE.U_BiteSelection: {
         return <BiteSelection debug={props.debug} webrtcURL={props.webrtcURL} />
-      }
-      case MEAL_STATE.U_PlateLocator: {
-        return <PlateLocator debug={props.debug} webrtcURL={props.webrtcURL} />
       }
       case MEAL_STATE.R_BiteAcquisition: {
         /**
@@ -123,7 +118,6 @@ function Home(props) {
         let currentMealState = MEAL_STATE.R_BiteAcquisition
         let nextMealState = MEAL_STATE.U_BiteAcquisitionCheck
         let backMealState = MEAL_STATE.R_MovingAbovePlate
-        let waitingText = 'Waiting to acquire the food...'
         return (
           <RobotMotion
             debug={props.debug}
@@ -132,7 +126,7 @@ function Home(props) {
             nextMealState={nextMealState}
             backMealState={backMealState}
             actionInput={biteAcquisitionActionInput}
-            waitingText={waitingText}
+            waitingText={getRobotMotionText(currentMealState)}
           />
         )
       }
@@ -140,7 +134,6 @@ function Home(props) {
         let currentMealState = MEAL_STATE.R_MovingToRestingPosition
         let nextMealState = MEAL_STATE.U_BiteAcquisitionCheck
         let backMealState = MEAL_STATE.R_MovingAbovePlate
-        let waitingText = 'Waiting to move to the resting position...'
         return (
           <RobotMotion
             debug={props.debug}
@@ -149,7 +142,7 @@ function Home(props) {
             nextMealState={nextMealState}
             backMealState={backMealState}
             actionInput={moveToRestingPositionActionInput}
-            waitingText={waitingText}
+            waitingText={getRobotMotionText(currentMealState)}
           />
         )
       }
@@ -164,7 +157,6 @@ function Home(props) {
         let currentMealState = MEAL_STATE.R_MovingToStagingConfiguration
         let nextMealState = MEAL_STATE.R_DetectingFace
         let backMealState = MEAL_STATE.R_MovingToRestingPosition
-        let waitingText = 'Waiting to move in front of you...'
         return (
           <RobotMotion
             debug={props.debug}
@@ -173,7 +165,7 @@ function Home(props) {
             nextMealState={nextMealState}
             backMealState={backMealState}
             actionInput={moveToStagingConfigurationActionInput}
-            waitingText={waitingText}
+            waitingText={getRobotMotionText(currentMealState)}
           />
         )
       }
@@ -188,7 +180,6 @@ function Home(props) {
         let currentMealState = MEAL_STATE.R_MovingToMouth
         let nextMealState = MEAL_STATE.U_BiteDone
         let backMealState = MEAL_STATE.R_MovingFromMouth
-        let waitingText = 'Waiting to move to your mouth...'
         return (
           <RobotMotion
             debug={props.debug}
@@ -197,7 +188,7 @@ function Home(props) {
             nextMealState={nextMealState}
             backMealState={backMealState}
             actionInput={moveToMouthActionInput}
-            waitingText={waitingText}
+            waitingText={getRobotMotionText(currentMealState)}
           />
         )
       }
@@ -212,7 +203,6 @@ function Home(props) {
         // is necessary so the user doesn't get stuck in a situation where they can't
         // move above the plate.
         let backMealState = MEAL_STATE.R_MovingAbovePlate
-        let waitingText = 'Waiting to away from your mouth...'
         return (
           <RobotMotion
             debug={props.debug}
@@ -221,7 +211,7 @@ function Home(props) {
             nextMealState={nextMealState}
             backMealState={backMealState}
             actionInput={moveToStagingConfigurationActionInput}
-            waitingText={waitingText}
+            waitingText={getRobotMotionText(currentMealState)}
           />
         )
       }
@@ -236,7 +226,6 @@ function Home(props) {
         let currentMealState = MEAL_STATE.R_StowingArm
         let nextMealState = MEAL_STATE.U_PostMeal
         let backMealState = MEAL_STATE.R_MovingAbovePlate
-        let waitingText = 'Waiting to get out of your way...'
         return (
           <RobotMotion
             debug={props.debug}
@@ -245,7 +234,7 @@ function Home(props) {
             nextMealState={nextMealState}
             backMealState={backMealState}
             actionInput={moveToStowPositionActionInput}
-            waitingText={waitingText}
+            waitingText={getRobotMotionText(currentMealState)}
           />
         )
       }

@@ -6,6 +6,7 @@ import { View } from 'react-native'
 // Local imports
 import { useGlobalState, SETTINGS_STATE } from '../GlobalState'
 import Main from './Main'
+import AbovePlate from './AbovePlate'
 import BiteTransfer from './BiteTransfer'
 
 /**
@@ -23,6 +24,8 @@ const Settings = (props) => {
         return <Main />
       case SETTINGS_STATE.BITE_TRANSFER:
         return <BiteTransfer webrtcURL={props.webrtcURL} />
+      case SETTINGS_STATE.ABOVE_PLATE:
+        return <AbovePlate webrtcURL={props.webrtcURL} />
       default:
         console.log('Invalid settings state', settingsState)
         return <Main />

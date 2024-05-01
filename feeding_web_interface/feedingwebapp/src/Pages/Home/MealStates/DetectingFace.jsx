@@ -1,5 +1,5 @@
 // React Imports
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 // PropTypes is used to validate that the used props are in fact passed to this
 // Component
 import PropTypes from 'prop-types'
@@ -22,7 +22,9 @@ const DetectingFace = (props) => {
   // Keep track of whether a mouth has been detected or not
   const [mouthDetected, setMouthDetected] = useState(false)
   // Get the relevant global variables
+  const mealState = useGlobalState((state) => state.mealState)
   const prevMealState = useGlobalState((state) => state.prevMealState)
+  const setInNonMovingState = useGlobalState((state) => state.setInNonMovingState)
   const setMealState = useGlobalState((state) => state.setMealState)
   const setMoveToMouthActionGoal = useGlobalState((state) => state.setMoveToMouthActionGoal)
   const faceDetectionAutoContinue = useGlobalState((state) => state.faceDetectionAutoContinue)
@@ -75,6 +77,32 @@ const DetectingFace = (props) => {
   }, [setMealState, setMouthDetected])
 
   /**
+   * Auto-continue is enabled if the face detection auto-continue is checked
+   * and the previous meal state was R_MovingToStagingConfiguration (i.e., this
+   * state is arrived to nominally).
+   */
+  const autoContinueIsEnabled = useCallback(() => {
+    console.log('Checking auto-continue', faceDetectionAutoContinue, prevMealState)
+    return faceDetectionAutoContinue && prevMealState === MEAL_STATE.R_MovingToStagingConfiguration
+  }, [faceDetectionAutoContinue, prevMealState])
+
+  /**
+   * When the component is first mounted, and any time auto-continue changes,
+   * if auto-continue is not enabled, set it to a non-moving state. We don't need
+   * to reset it when the component is un-mounted since it will get set when
+   * the mealState is updated.
+   */
+  useEffect(() => {
+    // mealState must be included to have this re-run when we return to the
+    // component even if it wasn't re-mounted.
+    if (autoContinueIsEnabled()) {
+      setInNonMovingState(false)
+    } else {
+      setInNonMovingState(true)
+    }
+  }, [autoContinueIsEnabled, mealState, setInNonMovingState])
+
+  /**
    * Callback for when a face is detected within the correct range.
    */
   const faceDetectedCallback = useCallback(
@@ -84,15 +112,12 @@ const DetectingFace = (props) => {
       setMoveToMouthActionGoal({
         face_detection: message
       })
-      // Automatically move on to the next stage if a face is detected
-      // If the app got to this screen after moving away from the user's mouth,
-      // don't auto-continue. Only do so if it gets to this page from
-      // R_MovingToStagingConfiguration
-      if (faceDetectionAutoContinue && prevMealState === MEAL_STATE.R_MovingToStagingConfiguration) {
+      // If auto-continue is enabled, move to the mouth position
+      if (autoContinueIsEnabled()) {
         moveToMouthCallback()
       }
     },
-    [faceDetectionAutoContinue, moveToMouthCallback, prevMealState, setMoveToMouthActionGoal]
+    [autoContinueIsEnabled, moveToMouthCallback, setMoveToMouthActionGoal]
   )
 
   /** Get the full page view
