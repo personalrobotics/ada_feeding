@@ -24,6 +24,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
   "action/AcquireFood.action"
   "action/MoveTo.action"
+  "action/MoveToConfiguration.action"
   "action/MoveToMouth.action"
   "action/SegmentAllItems.action"
   "action/SegmentFromPoint.action"
@@ -32,8 +33,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
   "srv/AcquisitionReport.srv"
   "srv/AcquisitionSelect.srv"
-  "srv/GetSettings.srv"
-  "srv/SetSettings.srv"
+  "srv/GetJointState.srv"
   "srv/ToggleFaceDetection.srv"
 
   DEPENDENCIES geometry_msgs sensor_msgs std_msgs

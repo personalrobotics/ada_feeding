@@ -1,0 +1,9 @@
+# The name of the joints whose state is desired
+string[] joint_names
+---
+# The state of the joints requested in `joint_names`. The order of the joints
+# will be the same as in `joint_names`. If the node does not currently have a
+# value for a joint in `joint_names`, that joint will not be included in the
+# output. If joint states from multiple messages need to be combined for the
+# return value, the header will be set as the earliest header of the used messages.
+sensor_msgs/JointState joint_state

@@ -18,6 +18,7 @@ from sensor_msgs.msg import CompressedImage, Image
 from std_srvs.srv import SetBool
 
 # Local imports
+from ada_feeding_perception.helpers import ros_msg_to_cv2_image
 
 
 class SaveImage(Node):
@@ -69,8 +70,8 @@ class SaveImage(Node):
         self.latest_depth_image = None
         self.latest_depth_image_lock = threading.Lock()
         self.create_subscription(
-            Image,
-            "/local/camera/aligned_depth_to_color/image_raw",
+            CompressedImage,
+            "/local/camera/aligned_depth_to_color/image_raw/compressedDepth",
             self.depth_image_callback,
             1,
         )
@@ -85,7 +86,7 @@ class SaveImage(Node):
         with self.latest_color_image_lock:
             self.latest_color_image = msg
 
-    def depth_image_callback(self, msg: Image) -> None:
+    def depth_image_callback(self, msg: CompressedImage) -> None:
         """
         Callback function for the RealSense's aligned depth image topic.
         """
@@ -112,13 +113,7 @@ class SaveImage(Node):
                 response.message += ", The latest color image is not available"
             else:
                 # Save the latest color image
-                if isinstance(self.latest_color_image, CompressedImage):
-                    color_image = self.bridge.compressed_imgmsg_to_cv2(
-                        self.latest_color_image
-                    )
-                else:
-                    color_image = self.bridge.imgmsg_to_cv2(self.latest_color_image)
-                    color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
+                color_image = ros_msg_to_cv2_image(self.latest_color_image, self.bridge)
                 color_image_filepath = self.filepath.value + "_rgb.jpg"
                 self.get_logger().info(f"Saving color image to {color_image_filepath}")
                 cv2.imwrite(color_image_filepath, color_image)
@@ -130,7 +125,7 @@ class SaveImage(Node):
                 response.message += ", The latest depth image is not available"
             else:
                 # Save the latest depth image
-                depth_image = self.bridge.imgmsg_to_cv2(self.latest_depth_image)
+                depth_image = ros_msg_to_cv2_image(self.latest_depth_image, self.bridge)
                 depth_image_filepath = self.filepath.value + "_depth.png"
                 self.get_logger().info(f"Saving depth image to {depth_image_filepath}")
                 cv2.imwrite(depth_image_filepath, depth_image)

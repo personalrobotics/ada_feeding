@@ -43,6 +43,7 @@ class StartServoTree(TriggerTree):
         node: The ROS node.
         servo_controller_name: The name of the servo controller.
         move_group_controller_name: The name of the move group controller.
+        start_moveit_servo: Whether to start MoveIt Servo.
         """
         # Initialize the TriggerTree class
         super().__init__(node=node)
@@ -82,28 +83,28 @@ class StartServoTree(TriggerTree):
                 )
             ],
         )
+        children = [switch_controllers]
 
         # Create the behavior to start servo
-        start_servo_key_response = Blackboard.separator.join(
-            [name, "start_servo", "response"]
-        )
-        start_servo = retry_call_ros_service(
-            name=name + "Start Servo",
-            service_type=Trigger,
-            service_name="~/start_servo",
-            key_request=None,
-            request=Trigger.Request(),
-            key_response=start_servo_key_response,
-            response_checks=[
-                py_trees.common.ComparisonExpression(
-                    variable=start_servo_key_response + ".success",
-                    value=True,
-                    operator=operator.eq,
-                )
-            ],
-        )
-        children = [switch_controllers]
         if self.start_moveit_servo:
+            start_servo_key_response = Blackboard.separator.join(
+                [name, "start_servo", "response"]
+            )
+            start_servo = retry_call_ros_service(
+                name=name + "Start Servo",
+                service_type=Trigger,
+                service_name="~/start_servo",
+                key_request=None,
+                request=Trigger.Request(),
+                key_response=start_servo_key_response,
+                response_checks=[
+                    py_trees.common.ComparisonExpression(
+                        variable=start_servo_key_response + ".success",
+                        value=True,
+                        operator=operator.eq,
+                    )
+                ],
+            )
             children.append(start_servo)
 
         # Put them together in a sequence

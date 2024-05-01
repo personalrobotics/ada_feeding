@@ -1,0 +1,29 @@
+# The interface for a MoveToConfiguration action that takes in the desired
+# configuration, returns whether or not it succeeded, and gives progress in
+# terms of how long it has been planning for and/or how much farther it has to
+# move.
+
+# The goal configuration
+float64[] joint_positions
+---
+# Possible return statuses
+uint8 STATUS_SUCCESS=0
+uint8 STATUS_PLANNING_FAILED=1
+uint8 STATUS_MOTION_FAILED=2
+uint8 STATUS_CANCELED=3
+uint8 STATUS_PERCEPTION_FAILED=4
+uint8 STATUS_UNKNOWN=99
+
+# Whether the planning and motion succeeded and if not, why
+uint8 status
+---
+# Whether the robot is currently planning or moving (required)
+bool is_planning
+# The amount of time the robot has spent in planning (required)
+builtin_interfaces/Duration planning_time
+# The amount of time the robot has spent in motion (required if `is_planning == false`)
+builtin_interfaces/Duration motion_time
+# How far the robot initially was from the goal (required if `is_planning == false`)
+float64 motion_initial_distance
+# How far the robot currently is from the goal (required if `is_planning == false`)
+float64 motion_curr_distance

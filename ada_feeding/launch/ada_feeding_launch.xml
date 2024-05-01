@@ -41,6 +41,19 @@
     <remap from="~/action_report" to="/ada_feeding_action_select/action_report" />
   </node>
 
+  <!-- Launch a republisher to pass web app servo commands to the servo node -->
+  <node pkg="ada_moveit" exec="servo_republisher.py" name="servo_republisher">
+    <remap from="~/cartesian_commands_input" to="/web_app/servo_node/delta_twist_cmds" />
+    <remap from="~/joint_commands_input" to="/web_app/servo_node/delta_joint_cmds" />
+    <remap from="~/cartesian_commands_output" to="/jaco_arm_cartesian_controller/twist_cmd" />
+    <remap from="~/joint_commands_output" to="/jaco_arm_servo_controller/commands" />
+    <remap from="~/joint_controller_get_parameters" to="/jaco_arm_servo_controller/get_parameters" />
+    <remap from="~/joint_states" to="/joint_states" />
+  </node>
+
+  <!-- Launch the JointStateService, to allow the app to access single joint states on-request -->
+  <node pkg="ada_feeding" exec="joint_state_service.py" name="joint_state_service"/>
+
   <!-- Include Action Selection Server -->
   <include file="$(find-pkg-share ada_feeding_action_select)/launch/ada_feeding_action_select_launch.xml">
     <arg name="policy" value="$(var policy)" />
