@@ -35,6 +35,7 @@ from tf2_ros import TransformException
 from tf2_ros.buffer import Buffer
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros.transform_listener import TransformListener
+from transforms3d._gohlketransforms import quaternion_multiply
 
 # Local imports
 from ada_feeding_msgs.msg import FaceDetection
@@ -690,21 +691,56 @@ class ADAPlanningScene(Node):
         detected_table_pose.pose.position.y += self.table_detection_offsets[1]
         detected_table_pose.pose.position.z += self.table_detection_offsets[2]
 
-        # Calculate the angular distance between the latest and default table quaternions
-        latest_table_quat = np.array(
+        # Store default and latest table orientations as transformations3d quaternions  
+        default_table_quat = np.array([
+            self.objects[self.table_object_id].quat_xyzw[3],
+            self.objects[self.table_object_id].quat_xyzw[0],
+            self.objects[self.table_object_id].quat_xyzw[1],
+            self.objects[self.table_object_id].quat_xyzw[2],
+        ])
+        latest_table_quat_m1 = np.array(
             [
+                detected_table_pose.pose.orientation.w,
                 detected_table_pose.pose.orientation.x,
                 detected_table_pose.pose.orientation.y,
                 detected_table_pose.pose.orientation.z,
-                detected_table_pose.pose.orientation.w,
             ]
         )
-        default_table_quat = np.array([0.0, 0.0, 1.0, 0.0]) # default quaternion with 180 degrees
-                                                            # rotation about the z-axis for more
-                                                            # intuitive calculation of distance
-        quat_dist = np.arccos(
-            2 * (np.dot(default_table_quat, latest_table_quat) ** 2) - 1
+
+        # Store the latest quaternion rotated by 180 degrees across the z axis
+        z_axis_rotation = np.array([0.0, 0.0, 1.0, 0.0])
+        latest_table_quat_m2 = quaternion_multiply(latest_table_quat_m1, z_axis_rotation)
+
+        # Calculate the angular distance between the default quaternion 
+        # and unrotated latest quaternion
+        quat_dist_m1 = np.arccos(
+            2 * (np.dot(default_table_quat, latest_table_quat_m1) ** 2) - 1
         )
+
+        # Calculate the angular distance between the default quaternion 
+        # and rotated latest quaternion 
+        quat_dist_m2 = np.arccos(
+            2 * (np.dot(default_table_quat, latest_table_quat_m2) ** 2) - 1
+        )
+
+        # Set the latest detected table quaternion to the quaternion with the 
+        # minimum angular distance from the default quaternion
+        latest_table_quat = None
+        quat_dist = min(quat_dist_m1, quat_dist_m2) 
+        if quat_dist_m1 <= quat_dist_m2:
+            latest_table_quat = latest_table_quat_m1
+        else:
+            latest_table_quat = latest_table_quat_m2
+
+        # Store the latest table quaternion as a quaternion message
+        latest_table_quat = Quaternion(
+            x=latest_table_quat[1],
+            y=latest_table_quat[2],
+            z=latest_table_quat[3],
+            w=latest_table_quat[0],
+        )
+        self.get_logger().info(f"latest_table_quat: {latest_table_quat}")
+        self.get_logger().info(f"quat_dist: {quat_dist}")
 
         # Accept the latest detected table quaternion if the angular distance
         # is within the threshold
