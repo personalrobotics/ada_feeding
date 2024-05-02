@@ -372,15 +372,23 @@ class CreateActionServers(Node):
         read_only = namespace == CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
         name_within_namespace = f"{namespace}.{full_name}"
         self.get_logger().debug(f"Declaring parameter {name_within_namespace}")
-        return self.declare_parameter(
-            name_within_namespace,
-            descriptor=ParameterDescriptor(
-                name=name_within_namespace,
-                description="Custom parameter for the behavior tree.",
-                dynamic_typing=True,
-                read_only=read_only,
-            ),
-        )
+        try:
+            return self.declare_parameter(
+                name_within_namespace,
+                descriptor=ParameterDescriptor(
+                    name=name_within_namespace,
+                    description="Custom parameter for the behavior tree.",
+                    dynamic_typing=True,
+                    read_only=read_only,
+                ),
+            )
+        except rclpy.exceptions.ParameterAlreadyDeclaredException:
+            # Sometimes, even if we terminate and reset the node, ROS may remember
+            # the previously-declared parameter.
+            self.get_logger().warn(
+                f"Tried to declare parameter {name_within_namespace}, which was already declared."
+            )
+            return self.get_parameter(name_within_namespace)
 
     def parameter_callback(self, params: List[Parameter]) -> SetParametersResult:
         """
