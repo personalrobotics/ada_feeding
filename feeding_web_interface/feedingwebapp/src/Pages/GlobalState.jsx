@@ -82,7 +82,8 @@ export { NON_MOVING_STATES }
 export const SETTINGS_STATE = {
   MAIN: 'MAIN',
   BITE_TRANSFER: 'BITE_TRANSFER',
-  ABOVE_PLATE: 'ABOVE_PLATE'
+  ABOVE_PLATE: 'ABOVE_PLATE',
+  RESTING_CONFIGURATION: 'RESTING_CONFIGURATION'
 }
 
 // The name of the default parameter namespace

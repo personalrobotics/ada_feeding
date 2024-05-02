@@ -8,7 +8,6 @@ import { View } from 'react-native'
 // Local imports
 import { useROS, createROSService, createROSServiceRequest } from '../../ros/ros_helpers'
 import {
-  ABOVE_PLATE_PARAM_JOINTS,
   CAMERA_FEED_TOPIC,
   getRobotMotionText,
   GET_JOINT_STATE_SERVICE_NAME,
@@ -23,10 +22,16 @@ import SettingsPageParent from './SettingsPageParent'
 import VideoFeed from '../Home/VideoFeed'
 
 /**
- * The AbovePlate component allows users to configure the "above plate" configuration
- * the robot moves to before bite selection.
+ * The CustomizeConfiguration component allows users to configure the one of the
+ * fixed configurations the robot uses. In its current form, the node can take in
+ * multiple parameters, but will set them all to the same joint state positions.
  */
-const AbovePlate = (props) => {
+const CustomizeConfiguration = (props) => {
+  // Check the props
+  if (Object.values(MEAL_STATE).indexOf(props.startingMealState) === -1) {
+    throw new Error('Invalid starting meal state ' + props.startingMealState)
+  }
+
   // Get relevant global state variables
   const setSettingsState = useGlobalState((state) => state.setSettingsState)
   const globalMealState = useGlobalState((state) => state.mealState)
@@ -35,18 +40,17 @@ const AbovePlate = (props) => {
 
   // Create relevant local state variables
   // Configure the parameters for SettingsPageParent
-  const paramNames = useMemo(() => [ABOVE_PLATE_PARAM_JOINTS], [])
-  const [currentAbovePlateParam, setCurrentAbovePlateParam] = useState([null])
+  const [currentConfigurationParams, setCurrentConfigurationParams] = useState(props.paramNames.map(() => null))
   const [localCurrAndNextMealState, setLocalCurrAndNextMealState] = useState(
     globalMealState === MEAL_STATE.U_BiteDone || biteTransferPageAtFace
-      ? [MEAL_STATE.R_MovingFromMouth, MEAL_STATE.R_MovingAbovePlate]
-      : [MEAL_STATE.R_MovingAbovePlate, null]
+      ? [MEAL_STATE.R_MovingFromMouth, props.startingMealState]
+      : [props.startingMealState, null]
   )
   const actionInput = useMemo(() => ({}), [])
   const doneButtonIsClicked = useRef(false)
   const [zoomLevel, setZoomLevel] = useState(1.0)
   const [mountTeleopSubcomponent, setMountTeleopSubcomponent] = useState(false)
-  const stopServoSuccessCallback = useRef(() => {})
+  const unmountTeleopSubcomponentCallback = useRef(() => {})
 
   // Flag to check if the current orientation is portrait
   const isPortrait = useMediaQuery({ query: '(orientation: portrait)' })
@@ -62,8 +66,8 @@ const AbovePlate = (props) => {
     (newLocalCurrMealState, newLocalNextMealState = null) => {
       console.log('setLocalCurrMealStateWrapper evaluated')
       let oldLocalCurrMealState = localCurrAndNextMealState[0]
-      // Only mount the teleop subcomponent if the robot finished moving above the plate
-      if (newLocalCurrMealState === null && oldLocalCurrMealState === MEAL_STATE.R_MovingAbovePlate) {
+      // Only mount the teleop subcomponent if the robot finished the prereq motion for this page
+      if (newLocalCurrMealState === null && oldLocalCurrMealState === props.startingMealState) {
         setMountTeleopSubcomponent(true)
       }
       // Start in a moving state, not a paused state
@@ -77,18 +81,24 @@ const AbovePlate = (props) => {
         setLocalCurrAndNextMealState([newLocalCurrMealState, newLocalNextMealState])
       }
     },
-    [localCurrAndNextMealState, setLocalCurrAndNextMealState, setMountTeleopSubcomponent, doneButtonIsClicked, setPaused, setSettingsState]
+    [
+      doneButtonIsClicked,
+      localCurrAndNextMealState,
+      props.startingMealState,
+      setLocalCurrAndNextMealState,
+      setMountTeleopSubcomponent,
+      setPaused,
+      setSettingsState
+    ]
   )
 
   // Get the function that sets the local curr meal state and next meal state variables.
   // Note this does not execute it. It is used to pass the function to other components.
   const getSetLocalCurrMealStateWrapper = useCallback(
     (newLocalCurrMealState, newLocalNextMealState = null) => {
-      console.log('getSetLocalCurrMealStateWrapper evaluated')
       let retval = () => {
-        console.log('getSetLocalCurrMealStateWrapper retval evaluated')
         setLocalCurrMealStateWrapper(newLocalCurrMealState, newLocalNextMealState)
-        stopServoSuccessCallback.current = () => {}
+        unmountTeleopSubcomponentCallback.current = () => {}
       }
       // If the teleop subcomponent was mounted, unmount it and let the stopServo
       // success callback handle the rest. However, sometimes the success message
@@ -101,7 +111,7 @@ const AbovePlate = (props) => {
       }
       return retval
     },
-    [mountTeleopSubcomponent, setLocalCurrMealStateWrapper, setMountTeleopSubcomponent, stopServoSuccessCallback]
+    [mountTeleopSubcomponent, setLocalCurrMealStateWrapper, setMountTeleopSubcomponent, unmountTeleopSubcomponentCallback]
   )
 
   // Store the props for the RobotMotion call.
@@ -149,17 +159,17 @@ const AbovePlate = (props) => {
     })
     service.callService(request, (response) => {
       console.log('Got joint state response', response)
-      setCurrentAbovePlateParam([response.joint_state.position])
+      setCurrentConfigurationParams(props.paramNames.map(() => response.joint_state.position))
     })
-  }, [getJointStateService, setCurrentAbovePlateParam])
+  }, [getJointStateService, props.paramNames, setCurrentConfigurationParams])
 
   // Callback to move the robot to another configuration
   const moveToButtonClicked = useCallback(
     (nextMealState) => {
       doneButtonIsClicked.current = false
-      stopServoSuccessCallback.current = getSetLocalCurrMealStateWrapper(nextMealState)
+      unmountTeleopSubcomponentCallback.current = getSetLocalCurrMealStateWrapper(nextMealState)
     },
-    [getSetLocalCurrMealStateWrapper, doneButtonIsClicked, stopServoSuccessCallback]
+    [getSetLocalCurrMealStateWrapper, doneButtonIsClicked, unmountTeleopSubcomponentCallback]
   )
 
   // Callback to return to the main settings page
@@ -191,11 +201,11 @@ const AbovePlate = (props) => {
         localCurrMealState = MEAL_STATE.R_MovingAbovePlate
         break
     }
-    stopServoSuccessCallback.current = getSetLocalCurrMealStateWrapper(localCurrMealState, localNextMealState)
-  }, [getSetLocalCurrMealStateWrapper, globalMealState, doneButtonIsClicked, stopServoSuccessCallback])
+    unmountTeleopSubcomponentCallback.current = getSetLocalCurrMealStateWrapper(localCurrMealState, localNextMealState)
+  }, [getSetLocalCurrMealStateWrapper, globalMealState, doneButtonIsClicked, unmountTeleopSubcomponentCallback])
 
   // Callback to render the main contents of the page
-  const renderAbovePlateSettings = useCallback(() => {
+  const renderSettings = useCallback(() => {
     return (
       <View
         style={{
@@ -216,14 +226,14 @@ const AbovePlate = (props) => {
             <>
               <View style={{ flex: 5, alignItems: 'center', justifyContent: 'center', width: '95%', height: '95%' }}>
                 <TeleopSubcomponent
-                  stopServoSuccessCallback={stopServoSuccessCallback}
+                  unmountCallback={unmountTeleopSubcomponentCallback}
                   teleopButtonOnReleaseCallback={storeJointStatesAsLocalParam}
                 />
               </View>
             </>
           ) : (
             <p style={{ textAlign: 'center', fontSize: (textFontSize * 0.75).toString() + sizeSuffix, margin: 0 }} className='txt-huge'>
-              To tune the &ldquo;Above Plate&rdquo; configuration, first &ldquo;Move Above Plate.&rdquo;
+              To tune the &ldquo;{props.configurationName}&rdquo; configuration, first &ldquo;{props.buttonName}.&rdquo;
             </p>
           )}
         </View>
@@ -238,38 +248,24 @@ const AbovePlate = (props) => {
             height: '100%'
           }}
         >
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-            <Button
-              variant='warning'
-              className='mx-2 mb-2 btn-huge'
-              size='lg'
-              style={{
-                fontSize: (textFontSize * 0.5).toString() + sizeSuffix,
-                width: '90%',
-                height: '90%',
-                color: 'black'
-              }}
-              onClick={() => moveToButtonClicked(MEAL_STATE.R_MovingToStagingConfiguration)}
-            >
-              Move To Staging
-            </Button>
-          </View>
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-            <Button
-              variant='warning'
-              className='mx-2 mb-2 btn-huge'
-              size='lg'
-              style={{
-                fontSize: (textFontSize * 0.5).toString() + sizeSuffix,
-                width: '90%',
-                height: '90%',
-                color: 'black'
-              }}
-              onClick={() => moveToButtonClicked(MEAL_STATE.R_MovingToRestingPosition)}
-            >
-              Move To Resting
-            </Button>
-          </View>
+          {props.otherButtonConfigs.map(({ name, mealState }) => (
+            <View key={name} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+              <Button
+                variant='warning'
+                className='mx-2 mb-2 btn-huge'
+                size='lg'
+                style={{
+                  fontSize: (textFontSize * 0.5).toString() + sizeSuffix,
+                  width: '90%',
+                  height: '90%',
+                  color: 'black'
+                }}
+                onClick={() => moveToButtonClicked(mealState)}
+              >
+                {name}
+              </Button>
+            </View>
+          ))}
           <View style={{ flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
             <Button
               variant='warning'
@@ -281,9 +277,9 @@ const AbovePlate = (props) => {
                 height: '90%',
                 color: 'black'
               }}
-              onClick={() => moveToButtonClicked(MEAL_STATE.R_MovingAbovePlate)}
+              onClick={() => moveToButtonClicked(props.startingMealState)}
             >
-              Move Above Plate
+              {props.buttonName}
             </Button>
           </View>
         </View>
@@ -295,10 +291,14 @@ const AbovePlate = (props) => {
     textFontSize,
     sizeSuffix,
     zoomLevel,
+    props.buttonName,
+    props.configurationName,
+    props.otherButtonConfigs,
+    props.startingMealState,
     props.webrtcURL,
     mountTeleopSubcomponent,
     moveToButtonClicked,
-    stopServoSuccessCallback,
+    unmountTeleopSubcomponentCallback,
     storeJointStatesAsLocalParam
   ])
 
@@ -311,6 +311,7 @@ const AbovePlate = (props) => {
 
   // Render the modal body, for calling robot code from within this settings page
   const renderModalBody = useCallback(() => {
+    console.log('renderModalBody', localCurrAndNextMealState, robotMotionProps)
     let localCurrMealState = localCurrAndNextMealState[0]
     switch (localCurrMealState) {
       case MEAL_STATE.R_MovingToStagingConfiguration:
@@ -338,23 +339,38 @@ const AbovePlate = (props) => {
 
   return (
     <SettingsPageParent
-      title='Above Plate &#9881;'
+      title={props.configurationName + ' \u2699'}
       doneCallback={doneButtonClicked}
       modalShow={localCurrAndNextMealState[0] !== null}
       modalOnHide={() => setLocalCurrMealStateWrapper(null)}
       modalChildren={renderModalBody()}
-      paramNames={paramNames}
-      localParamValues={currentAbovePlateParam}
-      setLocalParamValues={setCurrentAbovePlateParam}
-      resetToPresetSuccessCallback={() => moveToButtonClicked(MEAL_STATE.R_MovingAbovePlate)}
+      paramNames={props.paramNames}
+      localParamValues={currentConfigurationParams}
+      setLocalParamValues={setCurrentConfigurationParams}
+      resetToPresetSuccessCallback={() => moveToButtonClicked(props.startingMealState)}
     >
-      {renderAbovePlateSettings()}
+      {renderSettings()}
     </SettingsPageParent>
   )
 }
-AbovePlate.propTypes = {
+CustomizeConfiguration.propTypes = {
+  // The meal state that must be executed before this page is rendered
+  startingMealState: PropTypes.string.isRequired,
+  // The names of the parameter this component should tune.
+  paramNames: PropTypes.arrayOf(PropTypes.string).isRequired,
+  // The name of the configuration this component tunes.
+  configurationName: PropTypes.string.isRequired,
+  // The name of the button that should be clicked to tune the configuration.
+  buttonName: PropTypes.string.isRequired,
+  // Other button configs
+  otherButtonConfigs: PropTypes.arrayOf(
+    PropTypes.shape({
+      name: PropTypes.string.isRequired,
+      mealState: PropTypes.string.isRequired
+    })
+  ).isRequired,
   // The URL of the webrtc signalling server
   webrtcURL: PropTypes.string.isRequired
 }
 
-export default AbovePlate
+export default CustomizeConfiguration

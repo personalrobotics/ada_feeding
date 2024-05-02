@@ -152,14 +152,14 @@ const TeleopSubcomponent = (props) => {
    * When the component is unmounted, stop servo.
    */
   useEffect(() => {
-    let stopServoSuccessCallback = props.stopServoSuccessCallback
+    let unmountCallback = props.unmountCallback
     return () => {
       console.log('Unmounting teleop subcomponent.')
       destroyActionClient(startCartesianControllerAction)
       destroyActionClient(startJointControllerAction)
-      stopServoSuccessCallback.current()
+      unmountCallback.current()
     }
-  }, [startCartesianControllerAction, startJointControllerAction, props.stopServoSuccessCallback])
+  }, [startCartesianControllerAction, startJointControllerAction, props.unmountCallback])
 
   /**
    * Callback function to publish constant cartesian cartesian velocity commands.
@@ -650,12 +650,12 @@ const TeleopSubcomponent = (props) => {
 }
 TeleopSubcomponent.propTypes = {
   // A reference to a function to be called if StopServo is succesfully run.
-  stopServoSuccessCallback: PropTypes.object,
+  unmountCallback: PropTypes.object,
   // A function to be called when one of the teleop buttons are released
   teleopButtonOnReleaseCallback: PropTypes.func
 }
 TeleopSubcomponent.defaultProps = {
-  stopServoSuccessCallback: { current: () => {} },
+  unmountCallback: { current: () => {} },
   teleopButtonOnReleaseCallback: () => {}
 }
 export default TeleopSubcomponent

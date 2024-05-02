@@ -156,6 +156,7 @@ const Main = () => {
   // Get icon image for move to mouth
   let moveToMouthConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth]
   let moveAbovePlateConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
+  let moveToRestingConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToRestingPosition]
 
   // Configure the different options in the settings menu
   let settingsConfig = [
@@ -168,6 +169,11 @@ const Main = () => {
       title: 'Above Plate',
       icon: moveAbovePlateConfigurationImage,
       onClick: () => onClickSettingsPage(SETTINGS_STATE.ABOVE_PLATE)
+    },
+    {
+      title: 'Resting Position',
+      icon: moveToRestingConfigurationImage,
+      onClick: () => onClickSettingsPage(SETTINGS_STATE.RESTING_CONFIGURATION)
     }
   ]
 
