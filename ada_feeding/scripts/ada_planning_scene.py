@@ -694,13 +694,15 @@ class ADAPlanningScene(Node):
         detected_table_pose.pose.position.y += self.table_detection_offsets[1]
         detected_table_pose.pose.position.z += self.table_detection_offsets[2]
 
-        # Store default and latest table orientations as transforms3d quaternions  
-        default_table_quat = np.array([
-            self.objects[self.table_object_id].quat_xyzw[3],
-            self.objects[self.table_object_id].quat_xyzw[0],
-            self.objects[self.table_object_id].quat_xyzw[1],
-            self.objects[self.table_object_id].quat_xyzw[2],
-        ])
+        # Store default and latest table orientations as transforms3d quaternions
+        default_table_quat = np.array(
+            [
+                self.objects[self.table_object_id].quat_xyzw[3],
+                self.objects[self.table_object_id].quat_xyzw[0],
+                self.objects[self.table_object_id].quat_xyzw[1],
+                self.objects[self.table_object_id].quat_xyzw[2],
+            ]
+        )
         latest_quat_unrot = np.array(
             [
                 detected_table_pose.pose.orientation.w,
@@ -715,23 +717,23 @@ class ADAPlanningScene(Node):
         z_axis_rotation = np.array([0.0, 0.0, 0.0, 1.0])
         latest_quat_rot = quaternion_multiply(z_axis_rotation, latest_quat_unrot)
 
-        # Calculate angular distance between the default quaternion 
+        # Calculate angular distance between the default quaternion
         # and unrotated latest quaternion
         # Formula from https://math.stackexchange.com/questions/90081/quaternion-distance/90098#90098
         quat_dist_unrot = np.arccos(
             2 * (np.dot(default_table_quat, latest_quat_unrot) ** 2) - 1
         )
 
-        # Calculate angular distance between the default quaternion 
-        # and rotated latest quaternion 
+        # Calculate angular distance between the default quaternion
+        # and rotated latest quaternion
         quat_dist_rot = np.arccos(
             2 * (np.dot(default_table_quat, latest_quat_rot) ** 2) - 1
         )
 
-        # Set the quaternion distance to the minimum angular distance. 
+        # Set the quaternion distance to the minimum angular distance.
         # This is in order to determine the minimum angular distance
-        # necessary to rotate the default table orientation to the 
-        # latest perceived orientation of the table. It also deals with the 
+        # necessary to rotate the default table orientation to the
+        # latest perceived orientation of the table. It also deals with the
         # case that the camera on the robot is flipped.
         quat_dist = min(quat_dist_unrot, quat_dist_rot)
 
