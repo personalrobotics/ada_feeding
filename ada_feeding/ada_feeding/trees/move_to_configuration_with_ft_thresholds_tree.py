@@ -6,7 +6,7 @@ tree and provides functions to wrap that behavior tree in a ROS2 action server.
 """
 
 # Standard imports
-from typing import List, Set
+from typing import List, Optional, Set
 
 # Third-party imports
 from overrides import override
@@ -14,6 +14,7 @@ import py_trees
 from rclpy.node import Node
 
 # Local imports
+from ada_feeding_msgs.action import MoveToConfiguration
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2Plan,
     MoveIt2Execute,
@@ -40,7 +41,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self,
         node: Node,
         # Required parameters for moving to a configuration
-        joint_positions: List[float],
+        joint_positions: Optional[List[float]] = None,
         # Optional parameters for moving to a configuration
         tolerance_joint: float = 0.001,
         weight_joint: float = 1.0,
@@ -68,7 +69,9 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
 
         Parameters
         ----------
-        joint_positions: The joint positions for the goal constraint.
+        joint_positions: The joint positions for the goal constraint. If None,
+            the action type must be MoveToConfiguration, so the joint_positions
+            are passed in with the goal.
         tolerance_joint: The tolerance for the joint goal constraint.
         weight_joint: The weight for the joint goal constraint.
         pipeline_id: The pipeline ID to use for MoveIt2 motion planning.
@@ -110,7 +113,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
 
         # Store the parameters for the joint goal constraint
         self.joint_positions = joint_positions
-        assert len(self.joint_positions) == 6, "Must provide 6 joint positions"
         self.tolerance_joint = tolerance_joint
         self.weight_joint = weight_joint
         self.pipeline_id = pipeline_id
@@ -141,6 +143,15 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
     ) -> py_trees.trees.BehaviourTree:
         # Docstring copied from @override
 
+        # Write joint_positions to blackboard. This is done on the blackboard as
+        # opposed to with a hardcoded input so that it can be overridden by
+        # `send_goal` if the action type is MoveToConfiguration, not MoveTo.
+        blackboard = py_trees.blackboard.Client(name=name, namespace=name)
+        blackboard.register_key(
+            key="joint_positions", access=py_trees.common.Access.WRITE
+        )
+        blackboard.joint_positions = self.joint_positions
+
         turn_watchdog_listener_on_prefix = "turn_watchdog_listener_on"
 
         # First, create the MoveToConfiguration behavior tree, in the same
@@ -153,7 +164,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                     name="JointConstraint",
                     ns=name,
                     inputs={
-                        "joint_positions": self.joint_positions,
+                        "joint_positions": BlackboardKey("joint_positions"),
                         "tolerance": self.tolerance_joint,
                         "weight": self.weight_joint,
                     },
@@ -226,3 +237,29 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
 
         tree = py_trees.trees.BehaviourTree(root)
         return tree
+
+    # Override goal to read arguments into local blackboard
+    @override
+    def send_goal(self, tree: py_trees.trees.BehaviourTree, goal: object) -> bool:
+        # Docstring copied by @override
+        # Note: if here, tree is root, not a subtree
+
+        # If it is a MoveToConfiguration.Goal, override the joint_positions
+        if isinstance(goal, MoveToConfiguration.Goal):
+            # Write tree inputs to blackboard
+            name = tree.root.name
+            blackboard = py_trees.blackboard.Client(name=name, namespace=name)
+            blackboard.register_key(
+                key="joint_positions", access=py_trees.common.Access.WRITE
+            )
+            blackboard.joint_positions = goal.joint_positions
+        else:
+            assert (
+                self.joint_positions is not None
+            ), "For action MoveTo, must provide hardcoded joint_positions"
+            assert (
+                len(self.joint_positions) == 6
+            ), "For action MoveTo, must provide 6 joint positions"
+
+        # Adds MoveToVisitor for Feedback
+        return super().send_goal(tree, goal)

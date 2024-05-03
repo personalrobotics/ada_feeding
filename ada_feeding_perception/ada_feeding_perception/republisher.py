@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-This module defines the Republisher node, which takes in parameters for `from_topics`
-and `republished_namespace` and republishes the messages from the `from_topics` within
-the specified namespace.
+This module defines the Republisher node, which republishes the messages from one
+topic to another, with user-configureable post-processors.
 
-This node is intended to address the issue where, when subscribing to images on a
-different machine to the one you are publishing them on, the rate slows down a lot if
-you have >3 subscriptions.
+This node can be used to address several issues:
+    1. Network latency with too many subscribers to a topic that is being published
+       on a different machine.
+    2. Republishing a topic with some modifications (e.g., filtering, throttling, etc.).
 """
 
 # Standard imports
@@ -40,8 +40,7 @@ from .depth_post_processors import (
 
 class Republisher(Node):
     """
-    A node that takes in parameters for `from_topics` and `republished_namespace` and
-    republishes the messages from the `from_topics` within the specified namespace.
+    A node that republishes the messages, with optional post-processing.
     """
 
     # pylint: disable=too-many-instance-attributes

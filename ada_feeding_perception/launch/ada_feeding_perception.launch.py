@@ -33,41 +33,22 @@ def generate_launch_description():
     )
     use_republisher = LaunchConfiguration("use_republisher")
     launch_description.add_action(use_republisher_da)
-    republished_namespace_da = DeclareLaunchArgument(
-        "republished_namespace",
-        default_value="/local",
-        description="The namespace to republish topics under.",
-    )
-    republished_namespace = LaunchConfiguration("republished_namespace")
-    launch_description.add_action(republished_namespace_da)
 
     # If we are using the republisher, add the republisher node
     republisher_config = os.path.join(
         ada_feeding_perception_share_dir, "config", "republisher.yaml"
     )
-    republisher_params = {}
-    republisher_params["republished_namespace"] = ParameterValue(
-        republished_namespace, value_type=str
-    )
     republisher = Node(
         package="ada_feeding_perception",
         name="republisher",
         executable="republisher",
-        parameters=[republisher_config, republisher_params],
+        parameters=[republisher_config],
         condition=IfCondition(use_republisher),
     )
     launch_description.add_action(republisher)
 
     # Remap from the perception nodes to the realsense topics
-    prefix = PythonExpression(
-        expression=[
-            "'",
-            republished_namespace,
-            "' if '",
-            use_republisher,
-            "'=='true' else ''",
-        ]
-    )
+    prefix = "/local"  # NOTE: must match the topic names in the yaml file!
     realsense_remappings = [
         (
             "~/image",
