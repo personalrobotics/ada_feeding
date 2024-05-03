@@ -9,7 +9,6 @@ controller on and starts MoveIt Servo.
 import operator
 
 # Third-party imports
-from controller_manager_msgs.srv import SwitchController
 from overrides import override
 import py_trees
 from py_trees.blackboard import Blackboard
@@ -18,6 +17,7 @@ from std_srvs.srv import Trigger
 
 # Local imports
 from ada_feeding.idioms import retry_call_ros_service
+from .activate_controller import ActivateController
 from .trigger_tree import TriggerTree
 
 
@@ -32,7 +32,6 @@ class StartServoTree(TriggerTree):
         self,
         node: Node,
         servo_controller_name: str = "jaco_arm_servo_controller",
-        move_group_controller_name: str = "jaco_arm_controller",
         start_moveit_servo: bool = True,
     ) -> None:
         """
@@ -42,13 +41,11 @@ class StartServoTree(TriggerTree):
         ----------
         node: The ROS node.
         servo_controller_name: The name of the servo controller.
-        move_group_controller_name: The name of the move group controller.
         start_moveit_servo: Whether to start MoveIt Servo.
         """
         # Initialize the TriggerTree class
         super().__init__(node=node)
         self.servo_controller_name = servo_controller_name
-        self.move_group_controller_name = move_group_controller_name
         self.start_moveit_servo = start_moveit_servo
 
     @override
@@ -59,29 +56,13 @@ class StartServoTree(TriggerTree):
         # Docstring copied from @override
 
         # Create the behavior to switch controllers
-        switch_controller_req = SwitchController.Request(
-            activate_controllers=[self.servo_controller_name],
-            deactivate_controllers=[self.move_group_controller_name],
-            activate_asap=True,
-            strictness=SwitchController.Request.BEST_EFFORT,
-        )
-        switch_controllers_key_response = Blackboard.separator.join(
-            [name, "switch_controllers", "response"]
-        )
-        switch_controllers = retry_call_ros_service(
-            name=name + "Activate Servo Controller",
-            service_type=SwitchController,
-            service_name="~/switch_controller",
-            key_request=None,
-            request=switch_controller_req,
-            key_response=switch_controllers_key_response,
-            response_checks=[
-                py_trees.common.ComparisonExpression(
-                    variable=switch_controllers_key_response + ".ok",
-                    value=True,
-                    operator=operator.eq,
-                )
-            ],
+        switch_controllers = (
+            ActivateController(
+                self._node,
+                controller_to_activate=self.servo_controller_name,
+            )
+            .create_tree(name=name + "Activate Servo Controller")
+            .root
         )
         children = [switch_controllers]
 

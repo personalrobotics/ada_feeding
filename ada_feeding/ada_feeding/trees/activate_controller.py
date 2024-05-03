@@ -30,7 +30,7 @@ class ActivateController(TriggerTree):
     def __init__(
         self,
         node: Node,
-        controller_to_activate: str = "jaco_arm_cartesian_controller",
+        controller_to_activate: Optional[str] = "jaco_arm_cartesian_controller",
         all_controller_names: Optional[List[str]] = None,
     ) -> None:
         """
@@ -39,7 +39,8 @@ class ActivateController(TriggerTree):
         Parameters
         ----------
         node: The ROS node.
-        controller_to_activate: The name of the controller to activate.
+        controller_to_activate: The name of the controller to activate. If None,
+            deactive all controllers without activating any.
         all_controller_names: The names of all controllers. If None, the default
             controllers are "jaco_arm_cartesian_controller", "jaco_arm_controller",
             and "jaco_arm_servo_controller"
@@ -64,7 +65,9 @@ class ActivateController(TriggerTree):
 
         # Create the behavior to switch controllers
         switch_controller_req = SwitchController.Request(
-            activate_controllers=[self.controller_to_activate],
+            activate_controllers=[]
+            if self.controller_to_activate is None
+            else [self.controller_to_activate],
             deactivate_controllers=[
                 controller
                 for controller in self.all_controller_names
