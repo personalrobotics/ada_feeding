@@ -698,7 +698,7 @@ class ADAPlanningScene(Node):
             self.objects[self.table_object_id].quat_xyzw[1],
             self.objects[self.table_object_id].quat_xyzw[2],
         ])
-        latest_table_quat_m1 = np.array(
+        latest_quat_unrot = np.array(
             [
                 detected_table_pose.pose.orientation.w,
                 detected_table_pose.pose.orientation.x,
@@ -707,30 +707,34 @@ class ADAPlanningScene(Node):
             ]
         )
 
-        # Store the latest quaternion rotated by 180 degrees across the z axis
+        # Rotate the latest quaternion by 180 degrees across the z axis
+        # and store as a separate quaternion for comparison
         z_axis_rotation = np.array([0.0, 0.0, 1.0, 0.0])
-        latest_table_quat_m2 = quaternion_multiply(latest_table_quat_m1, z_axis_rotation)
+        latest_quat_rot = quaternion_multiply(latest_quat_unrot, z_axis_rotation)
 
         # Calculate the angular distance between the default quaternion 
         # and unrotated latest quaternion
-        quat_dist_m1 = np.arccos(
-            2 * (np.dot(default_table_quat, latest_table_quat_m1) ** 2) - 1
+        # Formula from https://math.stackexchange.com/questions/90081/quaternion-distance/90098#90098
+        quat_dist_unrot = np.arccos(
+            2 * (np.dot(default_table_quat, latest_quat_unrot) ** 2) - 1
         )
 
         # Calculate the angular distance between the default quaternion 
         # and rotated latest quaternion 
-        quat_dist_m2 = np.arccos(
-            2 * (np.dot(default_table_quat, latest_table_quat_m2) ** 2) - 1
+        quat_dist_rot = np.arccos(
+            2 * (np.dot(default_table_quat, latest_quat_rot) ** 2) - 1
         )
 
         # Set the latest detected table quaternion to the quaternion with the 
         # minimum angular distance from the default quaternion
+        # This is in order to correct the perceived orientation of the table 
+        # object in case the camera on the robot is flipped
         latest_table_quat = None
-        quat_dist = min(quat_dist_m1, quat_dist_m2) 
-        if quat_dist_m1 <= quat_dist_m2:
-            latest_table_quat = latest_table_quat_m1
+        quat_dist = min(quat_dist_unrot, quat_dist_rot) # delete this line after testing
+        if quat_dist_unrot <= quat_dist_rot:
+            latest_table_quat = latest_quat_unrot
         else:
-            latest_table_quat = latest_table_quat_m2
+            latest_table_quat = latest_quat_rot
 
         # Store the latest table quaternion as a quaternion message
         latest_table_quat = Quaternion(
@@ -747,7 +751,7 @@ class ADAPlanningScene(Node):
         # Otherwise, reject it and use the default quaternion
         table_quaternion = None
         if quat_dist < self.quat_dist_thresh:
-            table_quaternion = detected_table_pose.pose.orientation
+            table_quaternion = latest_table_quat
         else:
             table_quaternion = Quaternion(
                 x=self.objects[self.table_object_id].quat_xyzw[0],
