@@ -661,8 +661,11 @@ class ADAPlanningScene(Node):
     def update_table_detection(self) -> None:
         """
         Transform the table center detected from the camera frame into the base
-        frame. Then, move the table in the planning scene to the position and
-        orientation received in the latest table detection message.
+        frame. Then, move the table in the planning scene to the position
+        received in the latest table detection message. If the angular distance
+        between the latest and default table orientations is within a threshold,
+        rotate the table object to the latest detected orientation. Otherwise,
+        rotate the table object to the default table orientation.
         """
         # Get the latest table detection message
         with self.latest_table_detection_lock:
@@ -691,7 +694,7 @@ class ADAPlanningScene(Node):
         detected_table_pose.pose.position.y += self.table_detection_offsets[1]
         detected_table_pose.pose.position.z += self.table_detection_offsets[2]
 
-        # Store default and latest table orientations as transformations3d quaternions  
+        # Store default and latest table orientations as transforms3d quaternions  
         default_table_quat = np.array([
             self.objects[self.table_object_id].quat_xyzw[3],
             self.objects[self.table_object_id].quat_xyzw[0],
@@ -709,49 +712,35 @@ class ADAPlanningScene(Node):
 
         # Rotate the latest quaternion by 180 degrees across the z axis
         # and store as a separate quaternion for comparison
-        z_axis_rotation = np.array([0.0, 0.0, 1.0, 0.0])
-        latest_quat_rot = quaternion_multiply(latest_quat_unrot, z_axis_rotation)
+        z_axis_rotation = np.array([0.0, 0.0, 0.0, 1.0])
+        latest_quat_rot = quaternion_multiply(z_axis_rotation, latest_quat_unrot)
 
-        # Calculate the angular distance between the default quaternion 
+        # Calculate angular distance between the default quaternion 
         # and unrotated latest quaternion
         # Formula from https://math.stackexchange.com/questions/90081/quaternion-distance/90098#90098
         quat_dist_unrot = np.arccos(
             2 * (np.dot(default_table_quat, latest_quat_unrot) ** 2) - 1
         )
 
-        # Calculate the angular distance between the default quaternion 
+        # Calculate angular distance between the default quaternion 
         # and rotated latest quaternion 
         quat_dist_rot = np.arccos(
             2 * (np.dot(default_table_quat, latest_quat_rot) ** 2) - 1
         )
 
-        # Set the latest detected table quaternion to the quaternion with the 
-        # minimum angular distance from the default quaternion
-        # This is in order to correct the perceived orientation of the table 
-        # object in case the camera on the robot is flipped
-        latest_table_quat = None
-        quat_dist = min(quat_dist_unrot, quat_dist_rot) # delete this line after testing
-        if quat_dist_unrot <= quat_dist_rot:
-            latest_table_quat = latest_quat_unrot
-        else:
-            latest_table_quat = latest_quat_rot
+        # Set the quaternion distance to the minimum angular distance. 
+        # This is in order to determine the minimum angular distance
+        # necessary to rotate the default table orientation to the 
+        # latest perceived orientation of the table. It also deals with the 
+        # case that the camera on the robot is flipped.
+        quat_dist = min(quat_dist_unrot, quat_dist_rot)
 
-        # Store the latest table quaternion as a quaternion message
-        latest_table_quat = Quaternion(
-            x=latest_table_quat[1],
-            y=latest_table_quat[2],
-            z=latest_table_quat[3],
-            w=latest_table_quat[0],
-        )
-        self.get_logger().info(f"latest_table_quat: {latest_table_quat}")
-        self.get_logger().info(f"quat_dist: {quat_dist}")
-
-        # Accept the latest detected table quaternion if the angular distance
+        # Accept the latest detected table quaternion if the quaternion distance
         # is within the threshold
         # Otherwise, reject it and use the default quaternion
         table_quaternion = None
         if quat_dist < self.quat_dist_thresh:
-            table_quaternion = latest_table_quat
+            table_quaternion = detected_table_pose.pose.orientation
         else:
             table_quaternion = Quaternion(
                 x=self.objects[self.table_object_id].quat_xyzw[0],
