@@ -476,6 +476,7 @@ class MoveToMouthTree(MoveToTree):
                             round_decimals=3,
                             # TODO: Consider making the speed slower closer to the mouth.
                             speed=(self.max_linear_speed, self.max_angular_speed),
+                            ignore_orientation=True,
                         )
                     ],
                 ),
