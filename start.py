@@ -50,6 +50,15 @@ parser.add_argument(
         "Also launch the web app on port 3000. Only applies to `real`."
     ),
 )
+parser.add_argument(
+    "--real_domain_id",
+    default=42,
+    type=int,
+    help=(
+        "If sim is set to real, export this ROS_DOMAIN_ID before running code in "
+        "every screen session. (default: 42)"
+    ),
+)
 
 
 async def get_existing_screens():
@@ -151,10 +160,18 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "ft": [
                 "ros2 run ada_feeding dummy_ft_sensor.py",
             ],
+            "camera": [
+                (
+                    "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
+                    "run_motion:=false run_web_bridge:=false "
+                    "run_food_detection:=false run_face_detection:=false "
+                    "run_food_on_fork_detection:=false run_table_detection:=false "
+                ),
+            ],
             "perception": [
                 (
                     "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
-                    "run_motion:=false run_web_bridge:=false"
+                    "run_motion:=false run_web_bridge:=false run_real_sense:=false"
                 ),
             ],
             "republisher": [
@@ -208,6 +225,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 (
                     "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
                     "run_web_bridge:=false run_food_detection:=false run_face_detection:=false "
+                    "run_food_on_fork_detection:=false run_table_detection:=false "
                     "run_real_sense:=false"
                 ),
             ],
@@ -253,7 +271,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
-                "node start_robot_browser.js --port=80",
+                "node start_robot_browser.js" + "" if args.dev else " --port=80",
             ],
         }
         close_commands = {
@@ -266,6 +284,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         f"cd {pwd}",
         "source install/setup.bash",
     ]
+    if args.sim == "real":
+        initial_start_commands.append(f"export ROS_DOMAIN_ID={args.real_domain_id}")
     for screen_name, commands in screen_sessions.items():
         screen_sessions[screen_name] = initial_start_commands + commands
         if screen_name not in close_commands:

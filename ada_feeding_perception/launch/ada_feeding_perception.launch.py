@@ -61,7 +61,7 @@ def generate_launch_description():
             PythonExpression(expression=["'", prefix, "/camera/color/camera_info'"]),
         ),
     ]
-    food_detection_remappings = [
+    aligned_depth_remapping = [
         (
             "~/aligned_depth",
             PythonExpression(
@@ -87,7 +87,7 @@ def generate_launch_description():
         name="segment_from_point",
         executable="segment_from_point",
         parameters=[segment_from_point_config, segment_from_point_params],
-        remappings=realsense_remappings + food_detection_remappings,
+        remappings=realsense_remappings + aligned_depth_remapping,
     )
     launch_description.add_action(segment_from_point)
 
@@ -125,6 +125,26 @@ def generate_launch_description():
         remappings=realsense_remappings + face_detection_remappings,
     )
     launch_description.add_action(face_detection)
+
+    # Load the table detection node
+    table_detection_config = os.path.join(
+        ada_feeding_perception_share_dir, "config", "table_detection.yaml"
+    )
+    table_detection_remappings = [
+        ("~/table_detection", "/table_detection"),
+        ("~/plate_detection_img", "/plate_detection_img"),
+        ("~/toggle_table_detection", "/toggle_table_detection"),
+    ]
+    table_detection = Node(
+        package="ada_feeding_perception",
+        name="table_detection",
+        executable="table_detection",
+        parameters=[table_detection_config],
+        remappings=realsense_remappings
+        + aligned_depth_remapping
+        + table_detection_remappings,
+    )
+    launch_description.add_action(table_detection)
 
     # Load the food-on-fork detection node
     food_on_fork_detection_config = os.path.join(
