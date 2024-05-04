@@ -124,6 +124,17 @@ class ADAPlanningScene(Node):
             1.0 / self.update_table_hz, self.update_table_detection
         )
 
+        # Store the default table orientation as a Transforms3d quaternion
+        # Transforms3d quaternions are stored as [w, x, y, z]
+        self.default_table_quat = np.array(
+            [
+                self.objects[self.table_object_id].quat_xyzw[3],
+                self.objects[self.table_object_id].quat_xyzw[0],
+                self.objects[self.table_object_id].quat_xyzw[1],
+                self.objects[self.table_object_id].quat_xyzw[2],
+            ]
+        )
+
     def load_parameters(self) -> None:
         """
         Load the parameters for the planning scene.
@@ -694,15 +705,8 @@ class ADAPlanningScene(Node):
         detected_table_pose.pose.position.y += self.table_detection_offsets[1]
         detected_table_pose.pose.position.z += self.table_detection_offsets[2]
 
-        # Store default and latest table orientations as transforms3d quaternions
-        default_table_quat = np.array(
-            [
-                self.objects[self.table_object_id].quat_xyzw[3],
-                self.objects[self.table_object_id].quat_xyzw[0],
-                self.objects[self.table_object_id].quat_xyzw[1],
-                self.objects[self.table_object_id].quat_xyzw[2],
-            ]
-        )
+        # Store the latest table orientation as a Transforms3d quaternion
+        # Transforms3d quaternions are stored as [w, x, y, z]
         latest_quat_unrot = np.array(
             [
                 detected_table_pose.pose.orientation.w,
@@ -713,7 +717,10 @@ class ADAPlanningScene(Node):
         )
 
         # Rotate the latest quaternion by 180 degrees across the z axis
-        # and store as a separate quaternion for comparison
+        # and store as a separate quaternion for comparison. This is 
+        # to account for the table being symmetric around 180 degree 
+        # rotations across the z-axis.
+        # Z-axis rotation quaternion stored as [w, x, y, z]
         z_axis_rotation = np.array([0.0, 0.0, 0.0, 1.0])
         latest_quat_rot = quaternion_multiply(z_axis_rotation, latest_quat_unrot)
 
@@ -721,13 +728,13 @@ class ADAPlanningScene(Node):
         # and unrotated latest quaternion
         # Formula from https://math.stackexchange.com/questions/90081/quaternion-distance/90098#90098
         quat_dist_unrot = np.arccos(
-            2 * (np.dot(default_table_quat, latest_quat_unrot) ** 2) - 1
+            2 * (np.dot(self.default_table_quat, latest_quat_unrot) ** 2) - 1
         )
 
         # Calculate angular distance between the default quaternion
         # and rotated latest quaternion
         quat_dist_rot = np.arccos(
-            2 * (np.dot(default_table_quat, latest_quat_rot) ** 2) - 1
+            2 * (np.dot(self.default_table_quat, latest_quat_rot) ** 2) - 1
         )
 
         # Set the quaternion distance to the minimum angular distance.
