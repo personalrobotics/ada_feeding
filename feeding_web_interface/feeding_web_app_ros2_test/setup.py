@@ -47,6 +47,7 @@ setup(
             "MoveFromMouthToRestingPosition = feeding_web_app_ros2_test.MoveFromMouthToRestingPosition:main",
             "MoveToStowLocation = feeding_web_app_ros2_test.MoveToStowLocation:main",
             "SegmentFromPoint = feeding_web_app_ros2_test.SegmentFromPoint:main",
+            "TableDetection = feeding_web_app_ros2_test.TableDetection:main",
             # Scripts for the "TestROS" component
             "listener = feeding_web_app_ros2_test.subscriber:main",
             "reverse_string = feeding_web_app_ros2_test.reverse_string_service:main",

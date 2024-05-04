@@ -5,6 +5,7 @@
   <arg name="run_food_detection" default="true" description="Whether to run the dummy food detectoion node" />
   <arg name="run_face_detection" default="true" description="Whether to run the dummy face detection node" />
   <arg name="run_food_on_fork_detection" default="true" description="Whether to run the dummy food-on-fork detection node" />
+  <arg name="run_table_detection" default="true" description="Whether to run the dummy table detection node" />
   <arg name="run_real_sense" default="true" description="Whether to run the dummy RealSense node" />
   <arg name="run_motion" default="true"  description="Whether to run the dummy motion nodes" />
   <arg name="rgb_path" default="above_plate_2_rgb.jpg"  description="The path to the RGB image/video to publish from the dummy node, relative to this node's share/data folder." />
@@ -44,6 +45,11 @@
   <group if="$(var run_food_on_fork_detection)">
     <!-- Perception: The FoodOnForkDetection node -->
     <node pkg="feeding_web_app_ros2_test" exec="FoodOnForkDetection" name="FoodOnForkDetection"/>
+  </group>
+
+  <group if="$(var run_table_detection)">
+    <!-- Perception: The TableDetection node -->
+    <node pkg="feeding_web_app_ros2_test" exec="TableDetection" name="TableDetection"/>
   </group>
   
   <group if="$(var run_motion)">

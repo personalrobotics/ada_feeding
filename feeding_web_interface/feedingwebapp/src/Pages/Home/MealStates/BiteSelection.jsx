@@ -9,7 +9,14 @@ import PropTypes from 'prop-types'
 
 // Local Imports
 import '../Home.css'
-import { useROS, createROSActionClient, callROSAction, destroyActionClient } from '../../../ros/ros_helpers'
+import {
+  useROS,
+  createROSActionClient,
+  callROSAction,
+  createROSService,
+  createROSServiceRequest,
+  destroyActionClient
+} from '../../../ros/ros_helpers'
 import { useWindowSize, convertRemToPixels } from '../../../helpers'
 import MaskButton from '../../../buttons/MaskButton'
 import {
@@ -19,6 +26,7 @@ import {
   ROS_ACTION_STATUS_SUCCEED,
   ROS_ACTION_STATUS_ABORT,
   ROS_ACTION_STATUS_CANCELED,
+  ROS_SERVICE_NAMES,
   SEGMENTATION_STATUS_SUCCESS,
   MOVING_STATE_ICON_DICT
 } from '../../Constants'
@@ -82,8 +90,15 @@ const BiteSelection = (props) => {
    * Create the ROS Action Client. This is created in useRef to avoid
    * re-creating it upon re-renders.
    */
-  let { actionName, messageType } = ROS_ACTIONS_NAMES[MEAL_STATE.U_BiteSelection]
-  let segmentFromPointAction = useRef(createROSActionClient(ros.current, actionName, messageType))
+  let actionDetails = ROS_ACTIONS_NAMES[MEAL_STATE.U_BiteSelection]
+  let segmentFromPointAction = useRef(createROSActionClient(ros.current, actionDetails.actionName, actionDetails.messageType))
+
+  /**
+   * Create the ROS Service to toggle on/off table detection. This is created in
+   * local state to avoid re-creating it upon every re-render.
+   */
+  let serviceDetails = ROS_SERVICE_NAMES[MEAL_STATE.U_BiteSelection]
+  let toggleTableDetectionService = useRef(createROSService(ros.current, serviceDetails.serviceName, serviceDetails.messageType))
 
   /**
    * Callback function for when the user indicates that they are done with their
@@ -212,14 +227,27 @@ const BiteSelection = (props) => {
   )
 
   /**
-   * Cancel any running actions when the component unmounts
+   * Cancel any running actions when the component unmounts. Also, toggle on table
+   * detection when the component first mounts and toggle it off when the component
+   * unmounts.
    */
   useEffect(() => {
+    // Create a service request
+    let request = createROSServiceRequest({ data: true })
+    // Call the service
+    let service = toggleTableDetectionService.current
+    service.callService(request, (response) => console.log('Got toggle table detection service response', response))
+
     let action = segmentFromPointAction.current
     return () => {
+      // Create a service request
+      let request = createROSServiceRequest({ data: false })
+      // Call the service
+      service.callService(request, (response) => console.log('Got toggle face detection service response', response))
+      // Destroy the action client
       destroyActionClient(action)
     }
-  }, [segmentFromPointAction])
+  }, [segmentFromPointAction, toggleTableDetectionService])
 
   /** Get the continue button when debug mode is enabled
    *

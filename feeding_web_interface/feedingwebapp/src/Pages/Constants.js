@@ -97,6 +97,10 @@ export const START_JOINT_CONTROLLER_ACTION_TYPE = 'ada_feeding_msgs/action/Trigg
  * the service name and the message type
  */
 let ROS_SERVICE_NAMES = {}
+ROS_SERVICE_NAMES[MEAL_STATE.U_BiteSelection] = {
+  serviceName: 'toggle_table_detection',
+  messageType: 'std_srvs/srv/SetBool'
+}
 ROS_SERVICE_NAMES[MEAL_STATE.R_DetectingFace] = {
   serviceName: 'toggle_face_detection',
   messageType: 'std_srvs/srv/SetBool'
