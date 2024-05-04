@@ -14,6 +14,7 @@ import time
 from typing import List
 
 # Third-party imports
+import numpy as np
 from geometry_msgs.msg import (
     Point,
     Pose,
@@ -34,6 +35,7 @@ from tf2_ros import TransformException
 from tf2_ros.buffer import Buffer
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros.transform_listener import TransformListener
+from transforms3d._gohlketransforms import quaternion_multiply
 
 # Local imports
 from ada_feeding_msgs.msg import FaceDetection
@@ -105,6 +107,32 @@ class ADAPlanningScene(Node):
         # Create a timer to update planning scene for face detection
         self.face_detection_timer = self.create_timer(
             1.0 / self.update_face_hz, self.update_face_detection
+        )
+
+        # Subscribe to the table detection topic
+        self.table_detection_sub = self.create_subscription(
+            PoseStamped,
+            "~/table_detection",
+            self.table_detection_callback,
+            1,
+        )
+        self.latest_table_detection = None
+        self.latest_table_detection_lock = threading.Lock()
+
+        # Create a timer to update planning scene for table detection
+        self.table_detection_timer = self.create_timer(
+            1.0 / self.update_table_hz, self.update_table_detection
+        )
+
+        # Store the default table orientation as a Transforms3d quaternion
+        # Transforms3d quaternions are stored as [w, x, y, z]
+        self.default_table_quat = np.array(
+            [
+                self.objects[self.table_object_id].quat_xyzw[3],
+                self.objects[self.table_object_id].quat_xyzw[0],
+                self.objects[self.table_object_id].quat_xyzw[1],
+                self.objects[self.table_object_id].quat_xyzw[2],
+            ]
         )
 
     def load_parameters(self) -> None:
@@ -311,6 +339,37 @@ class ADAPlanningScene(Node):
                 touch_links=touch_links,
             )
 
+        table_detection_offsets = self.declare_parameter(
+            "table_detection_offsets",
+            [-0.20, -0.25, -0.79],  # default value
+            descriptor=ParameterDescriptor(
+                name="table_detection_offsets",
+                type=ParameterType.PARAMETER_DOUBLE_ARRAY,
+                description=(
+                    "The offset values for the center coordinates "
+                    "of the table object."
+                ),
+                read_only=True,
+            ),
+        )
+        self.table_detection_offsets = table_detection_offsets.value
+
+        quat_dist_thresh = self.declare_parameter(
+            "quat_dist_thresh",
+            None,  # default value
+            descriptor=ParameterDescriptor(
+                name="quat_dist_thresh",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    f"The threshold for the angular distance between"
+                    " the latest detected table quaternion"
+                    " and the previously detected table quaternion."
+                ),
+                read_only=True,
+            ),
+        )
+        self.quat_dist_thresh = quat_dist_thresh.value
+
         update_face_hz = self.declare_parameter(
             "update_face_hz",
             3.0,  # default value
@@ -325,6 +384,21 @@ class ADAPlanningScene(Node):
             ),
         )
         self.update_face_hz = update_face_hz.value
+
+        update_table_hz = self.declare_parameter(
+            "update_table_hz",
+            3.0,  # default value
+            descriptor=ParameterDescriptor(
+                name="update_table_hz",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The rate (Hz) at which to update the planning scene based on the results "
+                    "of table detection."
+                ),
+                read_only=True,
+            ),
+        )
+        self.update_table_hz = update_table_hz.value
 
         head_object_id = self.declare_parameter(
             "head_object_id",
@@ -370,6 +444,21 @@ class ADAPlanningScene(Node):
             ),
         )
         self.body_object_id = body_object_id.value
+
+        table_object_id = self.declare_parameter(
+            "table_object_id",
+            "table",
+            descriptor=ParameterDescriptor(
+                name="table_object_id",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The object ID of the table in the planning scene. "
+                    "This is used to move the table based on table detection."
+                ),
+                read_only=True,
+            ),
+        )
+        self.table_object_id = table_object_id.value
 
     def wait_for_moveit(self) -> None:
         """
@@ -602,6 +691,110 @@ class ADAPlanningScene(Node):
             quat_xyzw=wheelchair_orientation.quaternion,
             frame_id=params.frame_id,
             scale=wheelchair_scale,
+        )
+
+    def table_detection_callback(self, msg: PoseStamped) -> None:
+        """
+        Callback for the table detection topic.
+        """
+        with self.latest_table_detection_lock:
+            self.latest_table_detection = msg
+
+    def update_table_detection(self) -> None:
+        """
+        Transform the table center detected from the camera frame into the base
+        frame. Then, move the table in the planning scene to the position
+        received in the latest table detection message. If the angular distance
+        between the latest and default table orientations is within a threshold,
+        rotate the table object to the latest detected orientation. Otherwise,
+        rotate the table object to the default table orientation.
+        """
+        # Get the latest table detection message
+        with self.latest_table_detection_lock:
+            if self.latest_table_detection is None:
+                return
+            msg = self.latest_table_detection
+            self.latest_table_detection = None
+
+        base_frame = self.objects[self.table_object_id].frame_id
+
+        # Transform the detected table pose from the camera frame into the base frame
+        try:
+            detected_table_pose = self.tf_buffer.transform(
+                msg,
+                base_frame,
+                rclpy.duration.Duration(seconds=0.5 / self.update_table_hz),
+            )
+        except TransformException as e:
+            self.get_logger().error(
+                f"Failed to transform the detected table center: {e}"
+            )
+            return
+
+        # Translate detected position of table into table's origin
+        detected_table_pose.pose.position.x += self.table_detection_offsets[0]
+        detected_table_pose.pose.position.y += self.table_detection_offsets[1]
+        detected_table_pose.pose.position.z += self.table_detection_offsets[2]
+
+        # Store the latest table orientation as a Transforms3d quaternion
+        # Transforms3d quaternions are stored as [w, x, y, z]
+        latest_quat_unrot = np.array(
+            [
+                detected_table_pose.pose.orientation.w,
+                detected_table_pose.pose.orientation.x,
+                detected_table_pose.pose.orientation.y,
+                detected_table_pose.pose.orientation.z,
+            ]
+        )
+
+        # Rotate the latest quaternion by 180 degrees across the z axis
+        # and store as a separate quaternion for comparison. This is 
+        # to account for the table being symmetric around 180 degree 
+        # rotations across the z-axis.
+        # Z-axis rotation quaternion stored as [w, x, y, z]
+        z_axis_rotation = np.array([0.0, 0.0, 0.0, 1.0])
+        latest_quat_rot = quaternion_multiply(z_axis_rotation, latest_quat_unrot)
+
+        # Calculate angular distance between the default quaternion
+        # and unrotated latest quaternion
+        # Formula from https://math.stackexchange.com/questions/90081/quaternion-distance/90098#90098
+        quat_dist_unrot = np.arccos(
+            2 * (np.dot(self.default_table_quat, latest_quat_unrot) ** 2) - 1
+        )
+
+        # Calculate angular distance between the default quaternion
+        # and rotated latest quaternion
+        quat_dist_rot = np.arccos(
+            2 * (np.dot(self.default_table_quat, latest_quat_rot) ** 2) - 1
+        )
+
+        # Set the quaternion distance to the minimum angular distance.
+        # This is in order to determine the minimum angular distance
+        # necessary to rotate the default table orientation to the
+        # latest perceived orientation of the table. It also deals with the
+        # case that the camera on the robot is flipped.
+        quat_dist = min(quat_dist_unrot, quat_dist_rot)
+
+        # Accept the latest detected table quaternion if the quaternion distance
+        # is within the threshold
+        # Otherwise, reject it and use the default quaternion
+        table_quaternion = None
+        if quat_dist < self.quat_dist_thresh:
+            table_quaternion = detected_table_pose.pose.orientation
+        else:
+            table_quaternion = Quaternion(
+                x=self.objects[self.table_object_id].quat_xyzw[0],
+                y=self.objects[self.table_object_id].quat_xyzw[1],
+                z=self.objects[self.table_object_id].quat_xyzw[2],
+                w=self.objects[self.table_object_id].quat_xyzw[3],
+            )
+
+        # Move the table object in the planning scene to the determined pose
+        self.moveit2.move_collision(
+            id=self.table_object_id,
+            position=detected_table_pose.pose.position,
+            quat_xyzw=table_quaternion,
+            frame_id=base_frame,
         )
 
 

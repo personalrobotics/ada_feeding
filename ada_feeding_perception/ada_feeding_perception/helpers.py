@@ -361,7 +361,7 @@ def get_img_msg_type(
             return Image
     raise ValueError(
         f"No publisher found with img type for topic {final_topic}. "
-        "Publishers: {[str(endpoint) for endpoint in topic_endpoints]}"
+        f"Publishers: {[str(endpoint) for endpoint in topic_endpoints]}"
     )
 
 

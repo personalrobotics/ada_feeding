@@ -31,6 +31,8 @@
     <remap from="~/clear_octomap" to="/clear_octomap" />
     <remap from="~/toggle_face_detection" to="/toggle_face_detection" />
     <remap from="~/face_detection" to="/face_detection" />
+    <remap from="~/toggle_table_detection" to="/toggle_table_detection" />
+    <remap from="~/table_detection" to="/table_detection" />
     <remap from="~/switch_controller" to="/controller_manager/switch_controller" />
     <remap from="~/start_servo" to="/servo_node/start_servo" />
     <remap from="~/servo_twist_cmds" to="/servo_node/delta_twist_cmds" />
@@ -65,6 +67,7 @@
     <param from="$(find-pkg-share ada_feeding)/config/ada_planning_scene.yaml"/>
     <param name="assets_dir" value="$(find-pkg-share ada_feeding)/assets/"/>
     <remap from="~/face_detection" to="/face_detection" />
+    <remap from="~/table_detection" to="/table_detection" />
   </node>
 
 </launch>

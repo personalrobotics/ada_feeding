@@ -5,7 +5,7 @@ ada_planning_scene:
     object_ids: # list of objects to add to the planning scene
       - wheelchair
       - wheelchair_collision
-      # - table
+      - table
       - head
       - workspace_wall_front
       - workspace_wall_left
@@ -29,7 +29,7 @@ ada_planning_scene:
       frame_id: root # the frame_id that the pose is relative to
     # an expanded mesh around the wheelchair to account for a user sitting in it
     # NOTE: If you change this you must also change the hardcoded initial pose in
-    # btie transfer.
+    # bite transfer.
     wheelchair_collision: 
       filename: wheelchair_collision.stl
       position: [0.02, -0.02, -0.05] # should match the wheelchair position
@@ -37,11 +37,14 @@ ada_planning_scene:
       frame_id: root # the frame_id that the pose is relative to
     table: # the table mesh
       filename: table.stl
+      # Initial predicted position and orientation of the table; these values get
+      # updated as the robot perceives the table.
       position: [0.08, -0.5, -0.48]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+      offsets: [-0.20, -0.25, -0.79] 
       frame_id: root # the frame_id that the pose is relative to
     # NOTE: If you change this you must also change the hardcoded initial pose in
-    # btie transfer.
+    # bite transfer.
     head: # the head mesh
       filename: tom.stl
       # This is an initial guess of head position; it will be updated as the
@@ -85,3 +88,11 @@ ada_planning_scene:
     # Reject any mouth poses that are greater than the distance threshold away from the default head position
     head_object_id: head
     head_distance_threshold: 0.5 # m
+
+    # The offset values (in meters) for the center coordinates ([x, y, z]) of the table. These 
+    # values are used to translate the detected position into the table's origin.
+    table_detection_offsets: [-0.20, -0.25, -0.735]
+    # A threshold on the angular distance (in radians) between the default table  
+    # quaternion and the latest table quaternion to determine whether to reject 
+    # or accept the latest table quaternion 
+    quat_dist_thresh: 0.349
