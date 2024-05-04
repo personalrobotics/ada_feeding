@@ -341,6 +341,21 @@ class ADAPlanningScene(Node):
         )
         self.head_object_id = head_object_id.value
 
+        head_distance_threshold = self.declare_parameter(
+            "head_distance_threshold",
+            0.5,
+            descriptor=ParameterDescriptor(
+                name="head_distance_threshold",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "Reject any mouth positions that are greater than the distance "
+                    "threshold away from the default head position, in m."
+                ),
+                read_only=True,
+            ),
+        )
+        self.head_distance_threshold = head_distance_threshold.value
+
         body_object_id = self.declare_parameter(
             "body_object_id",
             "wheelchair_collision",
@@ -464,6 +479,35 @@ class ADAPlanningScene(Node):
             )
             return
 
+        # Get the original head pose
+        original_head_pose = Pose(
+            position=Point(
+                x=self.objects[self.head_object_id].position[0],
+                y=self.objects[self.head_object_id].position[1],
+                z=self.objects[self.head_object_id].position[2],
+            ),
+            orientation=Quaternion(
+                x=self.objects[self.head_object_id].quat_xyzw[0],
+                y=self.objects[self.head_object_id].quat_xyzw[1],
+                z=self.objects[self.head_object_id].quat_xyzw[2],
+                w=self.objects[self.head_object_id].quat_xyzw[3],
+            ),
+        )
+
+        # Reject any head that is too far from the original head pose
+        dist = (
+            (original_head_pose.position.x - detected_mouth_center.point.x) ** 2.0
+            + (original_head_pose.position.y - detected_mouth_center.point.y) ** 2.0
+            + (original_head_pose.position.z - detected_mouth_center.point.z) ** 2.0
+        ) ** 0.5
+        if dist > self.head_distance_threshold:
+            self.get_logger().error(
+                f"Detected face in position {detected_mouth_center.point} is {dist}m "
+                f"away from the default position {original_head_pose.position}. "
+                f"Rejecting since it is greater than the threshold {self.head_distance_threshold}m."
+            )
+            return
+
         # Convert to a pose
         detected_mouth_pose = PoseStamped()
         detected_mouth_pose.header = detected_mouth_center.header
@@ -514,19 +558,6 @@ class ADAPlanningScene(Node):
                 "The detected mouth pose frame_id does not match the expected frame_id."
             )
             return
-        original_head_pose = Pose(
-            position=Point(
-                x=self.objects[self.head_object_id].position[0],
-                y=self.objects[self.head_object_id].position[1],
-                z=self.objects[self.head_object_id].position[2],
-            ),
-            orientation=Quaternion(
-                x=self.objects[self.head_object_id].quat_xyzw[0],
-                y=self.objects[self.head_object_id].quat_xyzw[1],
-                z=self.objects[self.head_object_id].quat_xyzw[2],
-                w=self.objects[self.head_object_id].quat_xyzw[3],
-            ),
-        )
         original_wheelchair_collision_pose = Pose(
             position=Point(
                 x=self.objects[self.body_object_id].position[0],

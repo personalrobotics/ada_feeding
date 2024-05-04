@@ -81,3 +81,7 @@ ada_planning_scene:
       attached: True
       frame_id: forkTip # the frame_id that the pose is relative to
       touch_links: [forkTine] # the links, in addition to frame_id, that should be ignored for collision checking
+
+    # Reject any mouth poses that are greater than the distance threshold away from the default head position
+    head_object_id: head
+    head_distance_threshold: 0.5 # m
