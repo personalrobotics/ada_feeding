@@ -175,7 +175,7 @@ ada_feeding_action_servers:
             - 0.025 # m
             - 0.0 # m
             - -0.01 # m
-          max_linear_speed: 0.12 # m/s, default 0.1
+          max_linear_speed: 0.08 # m/s, default 0.1
         tick_rate: 10 # Hz, optional, default: 30
 
       # Parameters for the MoveFromMouth action.
@@ -187,6 +187,7 @@ ada_feeding_action_servers:
           - staging_configuration_quat_xyzw
           - max_linear_speed_to_staging_configuration
           - max_velocity_scaling_factor_to_staging_configuration
+          - max_velocity_scaling_factor_to_end_configuration
           - cartesian_jump_threshold_to_staging_configuration
           - cartesian_max_step_to_staging_configuration
         tree_kwargs: # optional
@@ -199,8 +200,9 @@ ada_feeding_action_servers:
             -  0.69757 # y
             -  0.71645 # z
             - -0.00811 # w
-          max_linear_speed_to_staging_configuration: 0.12 # m/s, default 0.1
+          max_linear_speed_to_staging_configuration: 0.08 # m/s, default 0.1
           max_velocity_scaling_factor_to_staging_configuration: 0.6 # optional in (0.0, 1.0], default: 0.1. Only used for fallback cartesian motion
+          max_velocity_scaling_factor_to_end_configuration: 1.0 # optional in (0.0, 1.0], default: 0.1.
           cartesian_jump_threshold_to_staging_configuration: 2.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
           cartesian_max_step_to_staging_configuration: 0.01 # m
         tick_rate: 10 # Hz, optional, default: 30

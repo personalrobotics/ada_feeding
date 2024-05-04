@@ -34,8 +34,7 @@ from ada_feeding.idioms.bite_transfer import (
     get_toggle_collision_object_behavior,
 )
 from ada_feeding.trees import MoveToTree
-from .start_servo_tree import StartServoTree
-from .stop_servo_tree import StopServoTree
+from .activate_controller import ActivateController
 
 
 class MoveFromMouthTree(MoveToTree):
@@ -71,7 +70,7 @@ class MoveFromMouthTree(MoveToTree):
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time_to_staging_configuration: float = 0.5,
         allowed_planning_time_to_end_configuration: float = 0.5,
-        max_linear_speed_to_staging_configuration: float = 0.1,
+        max_linear_speed_to_staging_configuration: float = 0.05,
         max_angular_speed_to_staging_configuration: float = 0.3,
         max_velocity_scaling_factor_to_staging_configuration: float = 0.1,
         max_velocity_scaling_factor_to_end_configuration: float = 0.1,
@@ -372,8 +371,8 @@ class MoveFromMouthTree(MoveToTree):
                                 [self.wheelchair_collision_object_id],
                                 True,
                             ),
-                            StartServoTree(self._node)
-                            .create_tree(name=name + "StartServoScopePre")
+                            ActivateController(self._node)
+                            .create_tree(name=name + "ActivateCartesianController")
                             .root,
                         ],
                     ),
@@ -381,8 +380,8 @@ class MoveFromMouthTree(MoveToTree):
                         name=name,
                         memory=True,
                         children=[
-                            StopServoTree(self._node)
-                            .create_tree(name=name + "StopServoScopePost")
+                            ActivateController(self._node, controller_to_activate=None)
+                            .create_tree(name=name + "DeactivateCartesianController")
                             .root,
                             get_toggle_collision_object_behavior(
                                 name + "DisallowWheelchairCollisionScopePost",
@@ -441,6 +440,8 @@ class MoveFromMouthTree(MoveToTree):
                                             duration=10.0,
                                             round_decimals=3,
                                             speed=speed,
+                                            subscribe_to_servo_status=False,
+                                            pub_topic="~/cartesian_twist_cmds",
                                         ),
                                     ],  # End MoveToStagingConfigurationViaServo.children
                                 ),  # End MoveToStagingConfigurationViaServo

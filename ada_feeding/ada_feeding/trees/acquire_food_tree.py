@@ -69,7 +69,7 @@ class AcquireFoodTree(MoveToTree):
 
     """
 
-    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-arguments, too-many-instance-attributes
     # The many parameters makes this tree extremely configurable.
 
     def __init__(
@@ -231,9 +231,7 @@ class AcquireFoodTree(MoveToTree):
                                                 angular=Vector3(),
                                             ),  # Default 1s duration
                                             "pub_topic": "~/cartesian_twist_cmds",
-                                            "fail_near_collision": False,
-                                            "fail_on_collision": False,
-                                            "fail_on_singularity": False,
+                                            "servo_status_sub_topic": None,
                                         },
                                     ),  # Auto Zero-Twist on terminate()
                                     ft_thresh_satisfied(name="FTThreshSatisfied"),
@@ -725,9 +723,7 @@ class AcquireFoodTree(MoveToTree):
                                                                             "duration"
                                                                         ),
                                                                         "pub_topic": "~/cartesian_twist_cmds",
-                                                                        "fail_near_collision": False,
-                                                                        "fail_on_collision": False,
-                                                                        "fail_on_singularity": False,
+                                                                        "servo_status_sub_topic": None,
                                                                     },
                                                                 ),  # Auto Zero-Twist on terminate()
                                                                 ### Extraction
@@ -798,9 +794,7 @@ class AcquireFoodTree(MoveToTree):
                                                                             "duration"
                                                                         ),
                                                                         "pub_topic": "~/cartesian_twist_cmds",
-                                                                        "fail_near_collision": False,
-                                                                        "fail_on_collision": False,
-                                                                        "fail_on_singularity": False,
+                                                                        "servo_status_sub_topic": None,
                                                                     },
                                                                 ),  # Auto Zero-Twist on terminate()
                                                                 ft_thresh_satisfied(

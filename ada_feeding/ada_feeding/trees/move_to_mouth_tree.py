@@ -23,6 +23,7 @@ from overrides import override
 import py_trees
 from py_trees.blackboard import Blackboard
 import py_trees_ros
+import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.time import Time
@@ -53,8 +54,7 @@ from ada_feeding.idioms.bite_transfer import (
 from ada_feeding.trees import (
     MoveToTree,
 )
-from .start_servo_tree import StartServoTree
-from .stop_servo_tree import StopServoTree
+from .activate_controller import ActivateController
 
 
 class MoveToMouthTree(MoveToTree):
@@ -82,7 +82,7 @@ class MoveToMouthTree(MoveToTree):
         mouth_position_tolerance: float = 0.005,
         relaxed_mouth_position_tolerance: float = 0.025,
         head_object_id: str = "head",
-        max_linear_speed: float = 0.1,
+        max_linear_speed: float = 0.05,
         max_angular_speed: float = 0.15,
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 1.0,
@@ -171,11 +171,17 @@ class MoveToMouthTree(MoveToTree):
         True if a face is detected within the required distance, False otherwise.
         """
         # Check if a face is detected
+        logger = rclpy.logging.get_logger("MoveToMouth check_face_msg")
         if not msg.is_face_detected:
+            logger.warn("Rejecting face message {msg} because face not detected")
             return False
         # Check if the message is stale
         timestamp = Time.from_msg(msg.detected_mouth_center.header.stamp)
-        if self._node.get_clock().now() - timestamp > self.face_detection_msg_timeout:
+        elapsed_time = self._node.get_clock().now() - timestamp
+        if elapsed_time > self.face_detection_msg_timeout:
+            logger.warn(
+                f"Rejecting face message {msg} because too much time has elapsed {elapsed_time}"
+            )
             return False
         # Check the distance between the face and the camera optical frame
         # The face detection message is in the camera optical frame
@@ -192,6 +198,9 @@ class MoveToMouthTree(MoveToTree):
             distance < self.allowed_face_distance[0]
             or distance > self.allowed_face_distance[1]
         ):
+            logger.warn(
+                f"Rejecting face message {msg} since its distance {distance} is not in the range"
+            )
             return False
         return True
 
@@ -435,8 +444,8 @@ class MoveToMouthTree(MoveToTree):
                                 [self.wheelchair_collision_object_id],
                                 True,
                             ),
-                            StartServoTree(self._node)
-                            .create_tree(name=name + "StartServoScopePre")
+                            ActivateController(self._node)
+                            .create_tree(name=name + "ActivateCartesianController")
                             .root,
                         ],
                     ),
@@ -446,8 +455,8 @@ class MoveToMouthTree(MoveToTree):
                         name=name,
                         memory=True,
                         children=[
-                            StopServoTree(self._node)
-                            .create_tree(name=name + "StopServoScopePost")
+                            ActivateController(self._node, controller_to_activate=None)
+                            .create_tree(name=name + "DeactivateCartesianController")
                             .root,
                             get_toggle_collision_object_behavior(
                                 name + "DisallowWheelchairCollisionScopePost",
@@ -477,6 +486,8 @@ class MoveToMouthTree(MoveToTree):
                             # TODO: Consider making the speed slower closer to the mouth.
                             speed=(self.max_linear_speed, self.max_angular_speed),
                             ignore_orientation=True,
+                            subscribe_to_servo_status=False,
+                            pub_topic="~/cartesian_twist_cmds",
                         )
                     ],
                 ),
