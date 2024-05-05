@@ -73,24 +73,24 @@ class MoveToMouthTree(MoveToTree):
     # pylint: disable=too-many-instance-attributes, too-many-arguments
     # Bite transfer is a big part of the robot's behavior, so it makes
     # sense that it has lots of attributes/arguments.
-    # pylint: disable=dangerous-default-value
-    # plan_distance_from_mouth must be a list because ROS params only supports lists.
 
     def __init__(
         self,
         node: Node,
-        mouth_position_tolerance: float = 0.005,
+        mouth_position_tolerance: float = 0.015,
         relaxed_mouth_position_tolerance: float = 0.025,
         head_object_id: str = "head",
         max_linear_speed: float = 0.05,
         max_angular_speed: float = 0.15,
+        linear_speed_near_mouth: float = 0.025,
+        angular_speed_near_mouth: float = 0.075,
         wheelchair_collision_object_id: str = "wheelchair_collision",
         force_threshold: float = 1.0,
         torque_threshold: float = 1.0,
         allowed_face_distance: Tuple[float, float] = (0.4, 1.25),
         face_detection_msg_timeout: float = 5.0,
         face_detection_timeout: float = 2.5,
-        plan_distance_from_mouth: Annotated[Sequence[float], 3] = [0.025, 0.0, -0.01],
+        plan_distance_from_mouth: Annotated[Sequence[float], 3] = (0.025, 0.0, -0.01),
         fork_target_orientation_from_mouth: Tuple[float, float, float, float] = (
             0.5,
             -0.5,
@@ -111,6 +111,10 @@ class MoveToMouthTree(MoveToTree):
             planning scene.
         max_linear_speed: The maximum linear speed (m/s) for the motion.
         max_angular_speed: The maximum angular speed (rad/s) for the motion.
+        linear_speed_near_mouth: The robot will slow down as it approaches the
+            user's mouth, reaching this speed when it is at their mouth.
+        angular_speed_near_mouth: The robot will slow down as it approaches the
+            user's mouth, reaching this speed when it is at their mouth.
         wheelchair_collision_object_id: The ID of the wheelchair collision object
             in the MoveIt2 planning scene.
         force_threshold: The force threshold (N) for the ForceGateController.
@@ -145,6 +149,8 @@ class MoveToMouthTree(MoveToTree):
         self.head_object_id = head_object_id
         self.max_linear_speed = max_linear_speed
         self.max_angular_speed = max_angular_speed
+        self.linear_speed_near_mouth = linear_speed_near_mouth
+        self.angular_speed_near_mouth = angular_speed_near_mouth
         self.wheelchair_collision_object_id = wheelchair_collision_object_id
         self.force_threshold = force_threshold
         self.torque_threshold = torque_threshold
@@ -173,7 +179,7 @@ class MoveToMouthTree(MoveToTree):
         # Check if a face is detected
         logger = rclpy.logging.get_logger("MoveToMouth check_face_msg")
         if not msg.is_face_detected:
-            logger.warn("Rejecting face message {msg} because face not detected")
+            logger.warn(f"Rejecting face message {msg} because face not detected")
             return False
         # Check if the message is stale
         timestamp = Time.from_msg(msg.detected_mouth_center.header.stamp)
@@ -219,6 +225,30 @@ class MoveToMouthTree(MoveToTree):
         face_detection_absolute_key = Blackboard.separator.join(
             [name, self.face_detection_relative_blackboard_key]
         )
+
+        # Use a custom speed profile to do angular motions at the end.
+        max_pose_distance = 0.3
+
+        def speed(post_stamped: PoseStamped) -> Tuple[float, float]:
+            """
+            Linearly interpolate the speed between max_{linear/angular}_speed and
+            {linear/angular}_speed_near_mouth as the robot moves closer to the mouth.
+            """
+            nonlocal max_pose_distance
+            pose_distance = (
+                post_stamped.pose.position.x**2.0
+                + post_stamped.pose.position.y**2.0
+                + post_stamped.pose.position.z**2.0
+            ) ** 0.5
+            if pose_distance > max_pose_distance:
+                max_pose_distance = pose_distance
+            prop = ((max_pose_distance - pose_distance) / max_pose_distance) ** 0.5
+            return (
+                self.max_linear_speed * (1.0 - prop)
+                + self.linear_speed_near_mouth * prop,
+                self.max_angular_speed * (1.0 - prop)
+                + self.angular_speed_near_mouth * prop,
+            )
 
         # Root Sequence
         root_seq = py_trees.composites.Sequence(
@@ -483,8 +513,7 @@ class MoveToMouthTree(MoveToTree):
                             relaxed_tolerance_orientation=0.15,
                             duration=10.0,
                             round_decimals=3,
-                            # TODO: Consider making the speed slower closer to the mouth.
-                            speed=(self.max_linear_speed, self.max_angular_speed),
+                            speed=speed,
                             ignore_orientation=True,
                             subscribe_to_servo_status=False,
                             pub_topic="~/cartesian_twist_cmds",

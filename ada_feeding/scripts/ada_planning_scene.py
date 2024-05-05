@@ -361,7 +361,7 @@ class ADAPlanningScene(Node):
                 name="quat_dist_thresh",
                 type=ParameterType.PARAMETER_DOUBLE,
                 description=(
-                    f"The threshold for the angular distance between"
+                    "The threshold for the angular distance between"
                     " the latest detected table quaternion"
                     " and the previously detected table quaternion."
                 ),
@@ -748,8 +748,8 @@ class ADAPlanningScene(Node):
         )
 
         # Rotate the latest quaternion by 180 degrees across the z axis
-        # and store as a separate quaternion for comparison. This is 
-        # to account for the table being symmetric around 180 degree 
+        # and store as a separate quaternion for comparison. This is
+        # to account for the table being symmetric around 180 degree
         # rotations across the z-axis.
         # Z-axis rotation quaternion stored as [w, x, y, z]
         z_axis_rotation = np.array([0.0, 0.0, 0.0, 1.0])
