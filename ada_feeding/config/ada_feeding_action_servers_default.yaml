@@ -35,12 +35,12 @@ ada_feeding_action_servers:
           - max_velocity_scaling_factor
         tree_kwargs: # optional
           joint_positions: # required
-            - -2.1665553163416558 # j2n6s200_joint_1
-            -  3.3693837405847398 # j2n6s200_joint_2
-            -  2.087066083073297 # j2n6s200_joint_3
-            - -2.1764132734326926 # j2n6s200_joint_4
-            - -2.4390480948657998 # j2n6s200_joint_5
-            - -2.69400741972119 # j2n6s200_joint_6
+            - -2.3149168248766614 # j2n6s200_joint_1
+            - 3.1444595465032634 # j2n6s200_joint_2
+            - 1.7332586075115999 # j2n6s200_joint_3
+            - -2.3609596843308234 # j2n6s200_joint_4
+            - 4.43936623280362 # j2n6s200_joint_5
+            - 3.06866544924739 # j2n6s200_joint_6
           toggle_watchdog_listener: false # optional, default: true
           f_mag: 4.0 # N
           max_velocity_scaling_factor: 1.0 # optional in (0.0, 1.0], default: 0.1
