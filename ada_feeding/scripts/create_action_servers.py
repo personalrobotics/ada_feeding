@@ -403,6 +403,10 @@ class CreateActionServers(Node):
         # pylint: disable=too-many-branches, too-many-statements
         # Necessary for flexible checking of parameters
 
+        self.get_logger().info(
+            f"Processing update for parameters {[param.name for param in params]}"
+        )
+
         default_namespace = CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
         updated_parameters = False
         updated_server_names = set()
@@ -521,6 +525,10 @@ class CreateActionServers(Node):
 
         # Update the action servers
         if len(updated_server_names) > 0:
+            self.get_logger().info(
+                f"Restarting action servers {updated_server_names} due to parameter "
+                "update."
+            )
             # Re-create the trees with updated kwargs
             for server_name in updated_server_names:
                 action_server_params = self.action_server_params[server_name]
