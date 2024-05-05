@@ -95,4 +95,8 @@ ada_planning_scene:
     # A threshold on the angular distance (in radians) between the default table  
     # quaternion and the latest table quaternion to determine whether to reject 
     # or accept the latest table quaternion 
-    quat_dist_thresh: 0.349
+    table_quat_dist_thresh: 0.349
+    # A threshold on the linear distance (in m) between the default table position
+    # and the latest table position to detemine whether to reject or accept the
+    # latest table position
+    table_pos_dist_thresh: 0.5
