@@ -543,9 +543,9 @@ class ADAPlanningScene(Node):
         initialization_start_time = self.get_clock().now()
         rate = self.create_rate(self.publish_hz)
 
-        # If the planning scene already has the collision object, it may not be
-        # the mointored_planning_scene may not be notified. So, we need to
-        # invoke the planning scene service to get the initial planning scene.
+        # If the planning scene already has the collision object, /monitored_planning_scene
+        # may not be notified. So, we need to invoke the planning scene service to
+        # get the initial planning scene.
         while self.moveit2.planning_scene is None:
             if self.moveit2.update_planning_scene():
                 break
@@ -556,14 +556,16 @@ class ADAPlanningScene(Node):
         # Although this overuses a subscription callback, it does exactly what
         # we want by updating the collision objects.
         self.monitored_planning_scene_callback(self.moveit2.planning_scene)
-        self.get_logger().info(
-            "Got the initial planning scene..."
-        )
+        self.get_logger().info("Got the initial planning scene...")
 
         # Check if the node is still okay and within the initialization timeout
-        check_ok = lambda: rclpy.ok() and (
-            self.get_clock().now() - initialization_start_time
-        ).nanoseconds / 1e9 <= self.initialization_timeout_secs
+        def check_ok() -> bool:
+            return (
+                rclpy.ok()
+                and (self.get_clock().now() - initialization_start_time).nanoseconds
+                / 1e9
+                <= self.initialization_timeout_secs
+            )
 
         # First, add *all* collision objects to the planning scene
         object_ids = set(self.objects.keys()) - self.collision_object_ids
@@ -606,9 +608,9 @@ class ADAPlanningScene(Node):
             )
 
         # Next, attach any objects that need to be attached
-        attached_object_ids = set([
+        attached_object_ids = {
             object_id for object_id, params in self.objects.items() if params.attached
-        ])
+        }
         while check_ok() and len(attached_object_ids) > 0:
             self.get_logger().debug(
                 f"Attaching these objects to the robot: {attached_object_ids}"
@@ -626,7 +628,9 @@ class ADAPlanningScene(Node):
                 rate.sleep()
                 # Remove attached_object_ids that have been attached to the robot
                 with self.collision_object_ids_lock:
-                    attached_object_ids = attached_object_ids - self.attached_collision_object_ids
+                    attached_object_ids = (
+                        attached_object_ids - self.attached_collision_object_ids
+                    )
 
         if len(attached_object_ids) > 0:
             self.get_logger().error(

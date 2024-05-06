@@ -80,13 +80,11 @@ async def get_existing_screens():
     return existing_screens
 
 
-async def execute_command(
-    screen_name: str, command: str, indent: int = 8
-) -> None:
+async def execute_command(screen_name: str, command: str, indent: int = 8) -> None:
     """
     Execute a command in a screen.
     """
-    global sudo_password # pylint: disable=global-statement
+    global sudo_password  # pylint: disable=global-statement
     indentation = " " * indent
     printable_command = command.replace("\003", "SIGINT")
     print(f"# {indentation}`{printable_command}`")
@@ -400,7 +398,7 @@ if __name__ == "__main__":
     pwd = check_pwd_is_colcon_workspace()
 
     # Run the main function
-    sudo_password = None # pylint: disable=invalid-name
+    sudo_password = None  # pylint: disable=invalid-name
     asyncio.run(main(args, pwd))
 
     # Return success
