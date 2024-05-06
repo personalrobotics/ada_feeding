@@ -439,10 +439,16 @@ class CreateActionServers(Node):
                         )
                         continue
                     # If the parameter has a value, update the tree_kwargs
+                    action_server_params = self.action_server_params[server_name]
                     if value is not None:
-                        action_server_params = self.action_server_params[server_name]
                         action_server_params.tree_kwargs[kw] = value
-                        updated_server_names.add(server_name)
+                    # Else, set it to default values
+                    else:
+                        action_server_params.tree_kwargs[kw] = self.parameters[
+                            default_namespace
+                        ][full_name]
+                # Update all server names when the namespace changes
+                updated_server_names.update(self.action_server_params.keys())
                 continue
 
             # Change the custom namespaces
