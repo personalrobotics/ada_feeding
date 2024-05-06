@@ -11,6 +11,7 @@ from typing import List, Optional
 
 # Third-party imports
 from geometry_msgs.msg import Twist, TwistStamped, Vector3
+import numpy as np
 from overrides import override
 import py_trees
 from py_trees.blackboard import Blackboard
@@ -69,7 +70,7 @@ class AcquireFoodTree(MoveToTree):
 
     """
 
-    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-arguments, too-many-instance-attributes
     # The many parameters makes this tree extremely configurable.
 
     def __init__(
@@ -231,9 +232,7 @@ class AcquireFoodTree(MoveToTree):
                                                 angular=Vector3(),
                                             ),  # Default 1s duration
                                             "pub_topic": "~/cartesian_twist_cmds",
-                                            "fail_near_collision": False,
-                                            "fail_on_collision": False,
-                                            "fail_on_singularity": False,
+                                            "servo_status_sub_topic": None,
                                         },
                                     ),  # Auto Zero-Twist on terminate()
                                     ft_thresh_satisfied(name="FTThreshSatisfied"),
@@ -585,6 +584,10 @@ class AcquireFoodTree(MoveToTree):
                                                     "cartesian": True,
                                                     "cartesian_max_step": 0.001,
                                                     "cartesian_fraction_threshold": 0.92,
+                                                    "max_path_len_joint": {
+                                                        "j2n6s200_joint_1": np.pi,
+                                                        "j2n6s200_joint_2": np.pi / 2.0,
+                                                    },
                                                 },
                                                 outputs={
                                                     "trajectory": BlackboardKey(
@@ -725,9 +728,7 @@ class AcquireFoodTree(MoveToTree):
                                                                             "duration"
                                                                         ),
                                                                         "pub_topic": "~/cartesian_twist_cmds",
-                                                                        "fail_near_collision": False,
-                                                                        "fail_on_collision": False,
-                                                                        "fail_on_singularity": False,
+                                                                        "servo_status_sub_topic": None,
                                                                     },
                                                                 ),  # Auto Zero-Twist on terminate()
                                                                 ### Extraction
@@ -798,9 +799,7 @@ class AcquireFoodTree(MoveToTree):
                                                                             "duration"
                                                                         ),
                                                                         "pub_topic": "~/cartesian_twist_cmds",
-                                                                        "fail_near_collision": False,
-                                                                        "fail_on_collision": False,
-                                                                        "fail_on_singularity": False,
+                                                                        "servo_status_sub_topic": None,
                                                                     },
                                                                 ),  # Auto Zero-Twist on terminate()
                                                                 ft_thresh_satisfied(

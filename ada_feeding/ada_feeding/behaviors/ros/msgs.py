@@ -260,6 +260,8 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
         ] = (0.1, 0.3),
         hz: Union[BlackboardKey, float] = 10.0,
         round_decimals: Union[BlackboardKey, Optional[int]] = None,
+        angular_override: Union[BlackboardKey, Optional[Vector3]] = None,
+        linear_override: Union[BlackboardKey, Optional[Vector3]] = None,
     ) -> None:
         """
         Blackboard Inputs
@@ -276,8 +278,12 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
         hz: the frequency at which this behavior is ticked (i.e., the twist is recomputed).
         round_decimals: If not None, round the linear and angular velocities to
             this many decimal places.
+        angular_override: If not None, use this angular velocity instead of computing
+            it from the PoseStamped.
+        linear_override: If not None, use this linear velocity instead of computing
+            it from the PoseStamped.
         """
-        # pylint: disable=unused-argument, duplicate-code
+        # pylint: disable=unused-argument, duplicate-code, too-many-arguments
         # Arguments are handled generically in base class.
         super().blackboard_inputs(
             **{key: value for key, value in locals().items() if key != "self"}
@@ -311,7 +317,14 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
 
         # Input Validation
         if not self.blackboard_exists(
-            ["pose_stamped", "speed", "hz", "round_decimals"]
+            [
+                "pose_stamped",
+                "speed",
+                "hz",
+                "round_decimals",
+                "angular_override",
+                "linear_override",
+            ]
         ):
             self.logger.error("Missing input arguments")
             return py_trees.common.Status.FAILURE
@@ -324,39 +337,56 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
         else:
             max_linear_speed, max_angular_speed = speed(pose_stamped)
 
+        # Get how much to round decimals
+        round_decimals = self.blackboard_get("round_decimals")
+
         # For the linear velocity, normalize the pose's position and multiply
         # it by the linear_speed
-        linear_displacement = ros2_numpy.numpify(pose_stamped.pose.position)
-        linear_distance = np.linalg.norm(linear_displacement)
-        linear_speed = min(linear_distance * hz, max_linear_speed)
-        linear_velocity = linear_displacement / linear_distance * linear_speed
+        linear_msg = self.blackboard_get("linear_override")
+        if linear_msg is None:
+            # Compute the linear velocity from the PoseStamped
+            linear_displacement = ros2_numpy.numpify(pose_stamped.pose.position)
+            linear_distance = np.linalg.norm(linear_displacement)
+            linear_speed = min(linear_distance * hz, max_linear_speed)
+            linear_velocity = linear_displacement / linear_distance * linear_speed
+
+            # Round it
+            if round_decimals is not None:
+                linear_velocity = np.round(
+                    linear_velocity,
+                    round_decimals,
+                )
+
+            # Convert to a msg
+            linear_msg = ros2_numpy.msgify(Vector3, linear_velocity)
 
         # For the angular velocity, convert the pose's orientation to a
         # rotation vector, normalize it, and multiply it by the angular_speed
-        angular_displacement = R.from_quat(
-            ros2_numpy.numpify(pose_stamped.pose.orientation)
-        ).as_rotvec()
-        angular_distance = np.linalg.norm(angular_displacement)
-        angular_speed = min(angular_distance * hz, max_angular_speed)
-        angular_velocity = angular_displacement / angular_distance * angular_speed
+        angular_msg = self.blackboard_get("angular_override")
+        if angular_msg is None:
+            # Compute the angular velocity from the PoseStamped
+            angular_displacement = R.from_quat(
+                ros2_numpy.numpify(pose_stamped.pose.orientation)
+            ).as_rotvec()
+            angular_distance = np.linalg.norm(angular_displacement)
+            angular_speed = min(angular_distance * hz, max_angular_speed)
+            angular_velocity = angular_displacement / angular_distance * angular_speed
 
-        # Round the velocities if requested
-        if self.blackboard_get("round_decimals") is not None:
-            round_decimals = self.blackboard_get("round_decimals")
-            linear_velocity = np.round(
-                linear_velocity,
-                round_decimals,
-            )
-            angular_velocity = np.round(
-                angular_velocity,
-                round_decimals,
-            )
+            # Round it
+            if round_decimals is not None:
+                angular_velocity = np.round(
+                    angular_velocity,
+                    round_decimals,
+                )
+
+            # Convert to a msg
+            angular_msg = ros2_numpy.msgify(Vector3, angular_velocity)
 
         # Create the twist stamped message
         twist_stamped = TwistStamped()
         twist_stamped.header = pose_stamped.header
-        twist_stamped.twist.linear = ros2_numpy.msgify(Vector3, linear_velocity)
-        twist_stamped.twist.angular = ros2_numpy.msgify(Vector3, angular_velocity)
+        twist_stamped.twist.linear = linear_msg
+        twist_stamped.twist.angular = angular_msg
 
         self.blackboard_set("twist_stamped", twist_stamped)
         return py_trees.common.Status.SUCCESS

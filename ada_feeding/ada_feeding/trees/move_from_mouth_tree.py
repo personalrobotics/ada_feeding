@@ -34,8 +34,7 @@ from ada_feeding.idioms.bite_transfer import (
     get_toggle_collision_object_behavior,
 )
 from ada_feeding.trees import MoveToTree
-from .start_servo_tree import StartServoTree
-from .stop_servo_tree import StopServoTree
+from .activate_controller import ActivateController
 
 
 class MoveFromMouthTree(MoveToTree):
@@ -71,8 +70,10 @@ class MoveFromMouthTree(MoveToTree):
         planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time_to_staging_configuration: float = 0.5,
         allowed_planning_time_to_end_configuration: float = 0.5,
-        max_linear_speed_to_staging_configuration: float = 0.1,
+        max_linear_speed_to_staging_configuration: float = 0.05,
         max_angular_speed_to_staging_configuration: float = 0.3,
+        linear_speed_near_mouth: float = 0.025,
+        angular_speed_near_mouth: float = 0.15,
         max_velocity_scaling_factor_to_staging_configuration: float = 0.1,
         max_velocity_scaling_factor_to_end_configuration: float = 0.1,
         cartesian_jump_threshold_to_staging_configuration: float = 0.0,
@@ -115,6 +116,10 @@ class MoveFromMouthTree(MoveToTree):
             (m/s) for the motion to the staging config.
         max_angular_speed_to_staging_configuration: The maximum angular speed
             (rad/s) for the motion to the staging config.
+        linear_speed_near_mouth: The robot will slow down as it approaches the
+            user's mouth, reaching this speed when it is at their mouth.
+        angular_speed_near_mouth: The robot will slow down as it approaches the
+            user's mouth, reaching this speed when it is at their mouth.
         max_velocity_scaling_factor_to_staging_configuration: The maximum
             velocity scaling factor for the MoveIt2 motion planner to move to
             the staging config.
@@ -176,6 +181,8 @@ class MoveFromMouthTree(MoveToTree):
         self.max_angular_speed_to_staging_configuration = (
             max_angular_speed_to_staging_configuration
         )
+        self.linear_speed_near_mouth = linear_speed_near_mouth
+        self.angular_speed_near_mouth = angular_speed_near_mouth
         self.max_velocity_scaling_factor_to_staging_configuration = (
             max_velocity_scaling_factor_to_staging_configuration
         )
@@ -331,15 +338,13 @@ class MoveFromMouthTree(MoveToTree):
             )  # End MoveToStagingConfigurationViaMoveIt2
 
         # Use a custom speed profile to do angular motions at the end.
-        max_pose_distance = 0.0
+        max_pose_distance = 0.3
 
         def speed(post_stamped: PoseStamped) -> Tuple[float, float]:
             """
-            Always return the max linear velocity, but gradually increase
-            the angular velocity as you get closer to the target position.
-            In other words, tilt closer to the end of the motion.
+            Linearly interpolate the speed between max_{linear/angular}_speed and
+            {linear/angular}_speed_near_mouth as the robot moves closer to the mouth.
             """
-            # TODO: Consider making the speed slower closer to the mouth.
             nonlocal max_pose_distance
             pose_distance = (
                 post_stamped.pose.position.x**2.0
@@ -348,10 +353,12 @@ class MoveFromMouthTree(MoveToTree):
             ) ** 0.5
             if pose_distance > max_pose_distance:
                 max_pose_distance = pose_distance
-            prop = ((max_pose_distance - pose_distance) / max_pose_distance) ** 1.0
+            prop = ((max_pose_distance - pose_distance) / max_pose_distance) ** 2.0
             return (
-                self.max_linear_speed_to_staging_configuration,
-                self.max_angular_speed_to_staging_configuration * prop,
+                self.max_linear_speed_to_staging_configuration * prop
+                + self.linear_speed_near_mouth * (1.0 - prop),
+                self.max_angular_speed_to_staging_configuration * prop
+                + self.angular_speed_near_mouth * (1.0 - prop),
             )
 
         # Root Sequence
@@ -372,8 +379,8 @@ class MoveFromMouthTree(MoveToTree):
                                 [self.wheelchair_collision_object_id],
                                 True,
                             ),
-                            StartServoTree(self._node)
-                            .create_tree(name=name + "StartServoScopePre")
+                            ActivateController(self._node)
+                            .create_tree(name=name + "ActivateCartesianController")
                             .root,
                         ],
                     ),
@@ -381,8 +388,8 @@ class MoveFromMouthTree(MoveToTree):
                         name=name,
                         memory=True,
                         children=[
-                            StopServoTree(self._node)
-                            .create_tree(name=name + "StopServoScopePost")
+                            ActivateController(self._node, controller_to_activate=None)
+                            .create_tree(name=name + "DeactivateCartesianController")
                             .root,
                             get_toggle_collision_object_behavior(
                                 name + "DisallowWheelchairCollisionScopePost",
@@ -441,6 +448,9 @@ class MoveFromMouthTree(MoveToTree):
                                             duration=10.0,
                                             round_decimals=3,
                                             speed=speed,
+                                            subscribe_to_servo_status=False,
+                                            pub_topic="~/cartesian_twist_cmds",
+                                            ignore_orientation=True,
                                         ),
                                     ],  # End MoveToStagingConfigurationViaServo.children
                                 ),  # End MoveToStagingConfigurationViaServo

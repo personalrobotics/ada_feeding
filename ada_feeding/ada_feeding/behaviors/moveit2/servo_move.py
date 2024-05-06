@@ -8,7 +8,7 @@ a Twist to the Moveit2 Servo node.
 # Standard imports
 from enum import Enum
 from threading import Lock
-from typing import Union
+from typing import Optional, Union
 
 # Third-party imports
 from overrides import override
@@ -73,7 +73,7 @@ class ServoMove(BlackboardBehavior):
         fail_near_collision: Union[BlackboardKey, bool] = True,
         fail_on_collision: Union[BlackboardKey, bool] = True,
         fail_on_singularity: Union[BlackboardKey, bool] = True,
-        servo_status_sub_topic: Union[BlackboardKey, str] = "~/servo_status",
+        servo_status_sub_topic: Union[BlackboardKey, Optional[str]] = "~/servo_status",
         servo_status_sub_qos: Union[BlackboardKey, QoSProfile] = QoSProfile(depth=1),
     ) -> None:
         """
@@ -90,7 +90,8 @@ class ServoMove(BlackboardBehavior):
         fail_near_collision: Whether to fail if near a collision.
         fail_on_collision: Whether to fail if in collision.
         fail_on_singularity: Whether to fail if in a singularity.
-        servo_status_sub_topic: Topic to subscribe to for servo status.
+        servo_status_sub_topic: Topic to subscribe to for servo status. If None,
+            don't subscribe to the servo status
         servo_status_sub_qos: QoS for servo status subscriber.
         """
         # pylint: disable=unused-argument, duplicate-code
@@ -118,41 +119,42 @@ class ServoMove(BlackboardBehavior):
         )
 
         # Subscribe to the servo status.
-        self.latest_servo_status_lock = Lock()
-        self.latest_servo_status = 0
-        self.fail_on_servo_status = {}
-        if self.blackboard_exists(
-            [
-                "fail_near_collision",
-                "fail_on_collision",
-                "fail_on_singularity",
-            ]
-        ) and (
-            self.blackboard_get("fail_near_collision")
-            or self.blackboard_get("fail_on_collision")
-            or self.blackboard_get("fail_on_singularity")
-        ):
-            # Create the subscriber
-            self.servo_status_sub = self.node.create_subscription(
-                Int8,
-                self.blackboard_get("servo_status_sub_topic"),
-                self.servo_status_callback,
-                self.blackboard_get("servo_status_sub_qos"),
-            )
+        if self.blackboard_get("servo_status_sub_topic") is not None:
+            self.latest_servo_status_lock = Lock()
+            self.latest_servo_status = 0
+            self.fail_on_servo_status = {}
+            if self.blackboard_exists(
+                [
+                    "fail_near_collision",
+                    "fail_on_collision",
+                    "fail_on_singularity",
+                ]
+            ) and (
+                self.blackboard_get("fail_near_collision")
+                or self.blackboard_get("fail_on_collision")
+                or self.blackboard_get("fail_on_singularity")
+            ):
+                # Create the subscriber
+                self.servo_status_sub = self.node.create_subscription(
+                    Int8,
+                    self.blackboard_get("servo_status_sub_topic"),
+                    self.servo_status_callback,
+                    self.blackboard_get("servo_status_sub_qos"),
+                )
 
-            # Set the fail_on_servo_status
-            if self.blackboard_get("fail_on_singularity"):
-                code = ServoMove.ServoStatus.HALT_FOR_SINGULARITY.value
-                name = ServoMove.ServoStatus.HALT_FOR_SINGULARITY.name
-                self.fail_on_servo_status[code] = name
-            if self.blackboard_get("fail_near_collision"):
-                code = ServoMove.ServoStatus.DECELERATE_FOR_COLLISION.value
-                name = ServoMove.ServoStatus.DECELERATE_FOR_COLLISION.name
-                self.fail_on_servo_status[code] = name
-            if self.blackboard_get("fail_on_collision"):
-                code = ServoMove.ServoStatus.HALT_FOR_COLLISION.value
-                name = ServoMove.ServoStatus.HALT_FOR_COLLISION.name
-                self.fail_on_servo_status[code] = name
+                # Set the fail_on_servo_status
+                if self.blackboard_get("fail_on_singularity"):
+                    code = ServoMove.ServoStatus.HALT_FOR_SINGULARITY.value
+                    name = ServoMove.ServoStatus.HALT_FOR_SINGULARITY.name
+                    self.fail_on_servo_status[code] = name
+                if self.blackboard_get("fail_near_collision"):
+                    code = ServoMove.ServoStatus.DECELERATE_FOR_COLLISION.value
+                    name = ServoMove.ServoStatus.DECELERATE_FOR_COLLISION.name
+                    self.fail_on_servo_status[code] = name
+                if self.blackboard_get("fail_on_collision"):
+                    code = ServoMove.ServoStatus.HALT_FOR_COLLISION.value
+                    name = ServoMove.ServoStatus.HALT_FOR_COLLISION.name
+                    self.fail_on_servo_status[code] = name
 
     @override
     def initialise(self) -> None:
@@ -191,12 +193,13 @@ class ServoMove(BlackboardBehavior):
             return py_trees.common.Status.FAILURE
 
         # Check if servo status is in a fail_on_servo_status
-        with self.latest_servo_status_lock:
-            if self.latest_servo_status in self.fail_on_servo_status:
-                self.logger.error(
-                    f"Received servo status {self.fail_on_servo_status[self.latest_servo_status]}. Failing."
-                )
-                return py_trees.common.Status.FAILURE
+        if self.blackboard_get("servo_status_sub_topic") is not None:
+            with self.latest_servo_status_lock:
+                if self.latest_servo_status in self.fail_on_servo_status:
+                    self.logger.error(
+                        f"Received servo status {self.fail_on_servo_status[self.latest_servo_status]}. Failing."
+                    )
+                    return py_trees.common.Status.FAILURE
 
         # Publish twist
         twist = self.blackboard_get("twist")

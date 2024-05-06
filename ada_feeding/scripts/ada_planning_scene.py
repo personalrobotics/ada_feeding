@@ -124,17 +124,6 @@ class ADAPlanningScene(Node):
             1.0 / self.update_table_hz, self.update_table_detection
         )
 
-        # Store the default table orientation as a Transforms3d quaternion
-        # Transforms3d quaternions are stored as [w, x, y, z]
-        self.default_table_quat = np.array(
-            [
-                self.objects[self.table_object_id].quat_xyzw[3],
-                self.objects[self.table_object_id].quat_xyzw[0],
-                self.objects[self.table_object_id].quat_xyzw[1],
-                self.objects[self.table_object_id].quat_xyzw[2],
-            ]
-        )
-
     def load_parameters(self) -> None:
         """
         Load the parameters for the planning scene.
@@ -354,21 +343,37 @@ class ADAPlanningScene(Node):
         )
         self.table_detection_offsets = table_detection_offsets.value
 
-        quat_dist_thresh = self.declare_parameter(
-            "quat_dist_thresh",
-            None,  # default value
+        table_quat_dist_thresh = self.declare_parameter(
+            "table_quat_dist_thresh",
+            np.pi / 6.0,  # default value
             descriptor=ParameterDescriptor(
-                name="quat_dist_thresh",
+                name="table_quat_dist_thresh",
                 type=ParameterType.PARAMETER_DOUBLE,
                 description=(
-                    f"The threshold for the angular distance between"
-                    " the latest detected table quaternion"
-                    " and the previously detected table quaternion."
+                    "The threshold for the angular distance between "
+                    "the latest detected table quaternion "
+                    "and the previously detected table quaternion."
                 ),
                 read_only=True,
             ),
         )
-        self.quat_dist_thresh = quat_dist_thresh.value
+        self.table_quat_dist_thresh = table_quat_dist_thresh.value
+
+        table_pos_dist_thresh = self.declare_parameter(
+            "table_pos_dist_thresh",
+            0.5,  # default value
+            descriptor=ParameterDescriptor(
+                name="table_pos_dist_thresh",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The threshold for the linear distance between "
+                    "the latest detected table position "
+                    "and the previously detected table position."
+                ),
+                read_only=True,
+            ),
+        )
+        self.table_pos_dist_thresh = table_pos_dist_thresh.value
 
         update_face_hz = self.declare_parameter(
             "update_face_hz",
@@ -414,6 +419,21 @@ class ADAPlanningScene(Node):
             ),
         )
         self.head_object_id = head_object_id.value
+
+        head_distance_threshold = self.declare_parameter(
+            "head_distance_threshold",
+            0.5,
+            descriptor=ParameterDescriptor(
+                name="head_distance_threshold",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "Reject any mouth positions that are greater than the distance "
+                    "threshold away from the default head position, in m."
+                ),
+                read_only=True,
+            ),
+        )
+        self.head_distance_threshold = head_distance_threshold.value
 
         body_object_id = self.declare_parameter(
             "body_object_id",
@@ -553,6 +573,35 @@ class ADAPlanningScene(Node):
             )
             return
 
+        # Get the original head pose
+        original_head_pose = Pose(
+            position=Point(
+                x=self.objects[self.head_object_id].position[0],
+                y=self.objects[self.head_object_id].position[1],
+                z=self.objects[self.head_object_id].position[2],
+            ),
+            orientation=Quaternion(
+                x=self.objects[self.head_object_id].quat_xyzw[0],
+                y=self.objects[self.head_object_id].quat_xyzw[1],
+                z=self.objects[self.head_object_id].quat_xyzw[2],
+                w=self.objects[self.head_object_id].quat_xyzw[3],
+            ),
+        )
+
+        # Reject any head that is too far from the original head pose
+        dist = (
+            (original_head_pose.position.x - detected_mouth_center.point.x) ** 2.0
+            + (original_head_pose.position.y - detected_mouth_center.point.y) ** 2.0
+            + (original_head_pose.position.z - detected_mouth_center.point.z) ** 2.0
+        ) ** 0.5
+        if dist > self.head_distance_threshold:
+            self.get_logger().error(
+                f"Detected face in position {detected_mouth_center.point} is {dist}m "
+                f"away from the default position {original_head_pose.position}. "
+                f"Rejecting since it is greater than the threshold {self.head_distance_threshold}m."
+            )
+            return
+
         # Convert to a pose
         detected_mouth_pose = PoseStamped()
         detected_mouth_pose.header = detected_mouth_center.header
@@ -603,19 +652,6 @@ class ADAPlanningScene(Node):
                 "The detected mouth pose frame_id does not match the expected frame_id."
             )
             return
-        original_head_pose = Pose(
-            position=Point(
-                x=self.objects[self.head_object_id].position[0],
-                y=self.objects[self.head_object_id].position[1],
-                z=self.objects[self.head_object_id].position[2],
-            ),
-            orientation=Quaternion(
-                x=self.objects[self.head_object_id].quat_xyzw[0],
-                y=self.objects[self.head_object_id].quat_xyzw[1],
-                z=self.objects[self.head_object_id].quat_xyzw[2],
-                w=self.objects[self.head_object_id].quat_xyzw[3],
-            ),
-        )
         original_wheelchair_collision_pose = Pose(
             position=Point(
                 x=self.objects[self.body_object_id].position[0],
@@ -705,9 +741,29 @@ class ADAPlanningScene(Node):
         detected_table_pose.pose.position.y += self.table_detection_offsets[1]
         detected_table_pose.pose.position.z += self.table_detection_offsets[2]
 
-        # Store the latest table orientation as a Transforms3d quaternion
-        # Transforms3d quaternions are stored as [w, x, y, z]
-        latest_quat_unrot = np.array(
+        # Reject the table if its detected position is too far from the default
+        detected_table_pos = np.array(
+            [
+                detected_table_pose.pose.position.x,
+                detected_table_pose.pose.position.y,
+                detected_table_pose.pose.position.z,
+            ]
+        )
+        default_table_pos = np.array(self.objects[self.table_object_id].position)
+        pos_dist = np.linalg.norm(detected_table_pos - default_table_pos)
+        if pos_dist > self.table_pos_dist_thresh:
+            self.get_logger().warn(
+                f"Rejecting detected table because its position {detected_table_pos} "
+                f" is too far from the default {default_table_pos} ({pos_dist} > {self.table_pos_dist_thresh})"
+            )
+            return
+
+        # Reject the table if its detected quaternion is too far from the default.
+        # Because the table is 180 degrees symmetric around the z-axis, we try
+        # two rotations and reject the table if the min one is too large.
+        # Note that the library we use for quaternion distance represents
+        # quaternions as [w, x, y, z]
+        detected_table_quat = np.array(
             [
                 detected_table_pose.pose.orientation.w,
                 detected_table_pose.pose.orientation.x,
@@ -715,54 +771,33 @@ class ADAPlanningScene(Node):
                 detected_table_pose.pose.orientation.z,
             ]
         )
-
-        # Rotate the latest quaternion by 180 degrees across the z axis
-        # and store as a separate quaternion for comparison. This is 
-        # to account for the table being symmetric around 180 degree 
-        # rotations across the z-axis.
-        # Z-axis rotation quaternion stored as [w, x, y, z]
-        z_axis_rotation = np.array([0.0, 0.0, 0.0, 1.0])
-        latest_quat_rot = quaternion_multiply(z_axis_rotation, latest_quat_unrot)
-
-        # Calculate angular distance between the default quaternion
-        # and unrotated latest quaternion
-        # Formula from https://math.stackexchange.com/questions/90081/quaternion-distance/90098#90098
-        quat_dist_unrot = np.arccos(
-            2 * (np.dot(self.default_table_quat, latest_quat_unrot) ** 2) - 1
+        default_table_quat = np.array(
+            [
+                self.objects[self.table_object_id].quat_xyzw[3],
+                self.objects[self.table_object_id].quat_xyzw[0],
+                self.objects[self.table_object_id].quat_xyzw[1],
+                self.objects[self.table_object_id].quat_xyzw[2],
+            ]
         )
-
-        # Calculate angular distance between the default quaternion
-        # and rotated latest quaternion
-        quat_dist_rot = np.arccos(
-            2 * (np.dot(self.default_table_quat, latest_quat_rot) ** 2) - 1
-        )
-
-        # Set the quaternion distance to the minimum angular distance.
-        # This is in order to determine the minimum angular distance
-        # necessary to rotate the default table orientation to the
-        # latest perceived orientation of the table. It also deals with the
-        # case that the camera on the robot is flipped.
-        quat_dist = min(quat_dist_unrot, quat_dist_rot)
-
-        # Accept the latest detected table quaternion if the quaternion distance
-        # is within the threshold
-        # Otherwise, reject it and use the default quaternion
-        table_quaternion = None
-        if quat_dist < self.quat_dist_thresh:
-            table_quaternion = detected_table_pose.pose.orientation
-        else:
-            table_quaternion = Quaternion(
-                x=self.objects[self.table_object_id].quat_xyzw[0],
-                y=self.objects[self.table_object_id].quat_xyzw[1],
-                z=self.objects[self.table_object_id].quat_xyzw[2],
-                w=self.objects[self.table_object_id].quat_xyzw[3],
+        quat_dist = None
+        for rotation in [[1, 0, 0, 0], [0, 0, 0, 1]]:
+            rotated_quat = quaternion_multiply(rotation, detected_table_quat)
+            # Formula from https://math.stackexchange.com/questions/90081/quaternion-distance/90098#90098
+            dist = np.arccos(2 * (np.dot(default_table_quat, rotated_quat) ** 2) - 1)
+            if quat_dist is None or dist < quat_dist:
+                quat_dist = dist
+        if quat_dist > self.table_quat_dist_thresh:
+            self.get_logger().warn(
+                f"Rejecting detected table because its orientation {detected_table_quat} "
+                f" is too far from the default {default_table_quat} ({quat_dist} > {self.table_quat_dist_thresh})"
             )
+            return
 
         # Move the table object in the planning scene to the determined pose
         self.moveit2.move_collision(
             id=self.table_object_id,
             position=detected_table_pose.pose.position,
-            quat_xyzw=table_quaternion,
+            quat_xyzw=detected_table_pose.pose.orientation,
             frame_id=base_frame,
         )
 

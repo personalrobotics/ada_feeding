@@ -8,7 +8,6 @@ This module defines the StopServoTree behavior tree, which stops MoveIt Servo.
 import operator
 
 # Third-party imports
-from controller_manager_msgs.srv import SwitchController
 from geometry_msgs.msg import Twist, TwistStamped
 from overrides import override
 import py_trees
@@ -23,6 +22,7 @@ from std_srvs.srv import Trigger
 from ada_feeding.behaviors.ros import UpdateTimestamp
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import retry_call_ros_service, wait_for_secs
+from .activate_controller import ActivateController
 from .trigger_tree import TriggerTree
 
 
@@ -132,29 +132,13 @@ class StopServoTree(TriggerTree):
         )
 
         # Create the behavior to turn off the controllers
-        stop_controller_req = SwitchController.Request(
-            activate_controllers=[],
-            deactivate_controllers=[self.servo_controller_name],
-            activate_asap=True,
-            strictness=SwitchController.Request.BEST_EFFORT,
-        )
-        stop_controllers_key_response = Blackboard.separator.join(
-            [name, "switch_controllers", "response"]
-        )
-        stop_controllers = retry_call_ros_service(
-            name=name + "Activate Servo Controller",
-            service_type=SwitchController,
-            service_name="~/switch_controller",
-            key_request=None,
-            request=stop_controller_req,
-            key_response=stop_controllers_key_response,
-            response_checks=[
-                py_trees.common.ComparisonExpression(
-                    variable=stop_controllers_key_response + ".ok",
-                    value=True,
-                    operator=operator.eq,
-                )
-            ],
+        stop_controllers = (
+            ActivateController(
+                self._node,
+                controller_to_activate=None,
+            )
+            .create_tree(name=name + "Deactivate Servo Controller")
+            .root
         )
 
         # Put them together in a sequence with memory

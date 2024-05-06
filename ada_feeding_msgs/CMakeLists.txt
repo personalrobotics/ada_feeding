@@ -33,7 +33,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
   "srv/AcquisitionReport.srv"
   "srv/AcquisitionSelect.srv"
-  "srv/GetJointState.srv"
+  "srv/GetRobotState.srv"
   "srv/ToggleFaceDetection.srv"
 
   DEPENDENCIES geometry_msgs sensor_msgs std_msgs

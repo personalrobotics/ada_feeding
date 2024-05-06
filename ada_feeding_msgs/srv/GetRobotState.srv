@@ -1,5 +1,14 @@
-# The name of the joints whose state is desired
+# A service to get robot joint state(s), and/or get cartesian poses for specified
+# frames.
+
+# The name of the joints whose state is desired. If empty, don't get joint states.
 string[] joint_names
+
+# The frames that you want the poses for.
+string[] child_frames
+
+# The frames that you want the poses in.
+string[] parent_frames
 ---
 # The state of the joints requested in `joint_names`. The order of the joints
 # will be the same as in `joint_names`. If the node does not currently have a
@@ -7,3 +16,6 @@ string[] joint_names
 # output. If joint states from multiple messages need to be combined for the
 # return value, the header will be set as the earliest header of the used messages.
 sensor_msgs/JointState joint_state
+
+# The poses of the child frames in the frame IDs of the parent frames.
+geometry_msgs/PoseStamped[] poses

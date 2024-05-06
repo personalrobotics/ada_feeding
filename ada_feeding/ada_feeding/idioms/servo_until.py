@@ -21,6 +21,7 @@ from geometry_msgs.msg import (
     Pose,
     PoseStamped,
     Quaternion,
+    Vector3,
 )
 import numpy as np
 import py_trees
@@ -183,6 +184,9 @@ def servo_until_pose(
     ),
     round_decimals: Optional[int] = 3,
     base_link: str = "j2n6s200_link_base",
+    ignore_orientation: bool = False,
+    subscribe_to_servo_status: bool = True,
+    pub_topic: str = "~/servo_twist_cmds",
 ) -> py_trees.behaviour.Behaviour:
     """
     Servos until the end_effector_frame reaches within the specified tolerances
@@ -219,6 +223,11 @@ def servo_until_pose(
     round_decimals: The number of decimals to round the twist to. If None, then
         the twist is not rounded.
     base_link: The name of the base link.
+    ignore_orientation: if True, only servo until the position is reached, ignoring
+        orientation.
+    subscribe_to_servo_status: if True, subscribe to the servo status topic and
+        fail on failure statuses. If False, ignore that topic.
+    pub_topic: The topic to publish twist commands to.
 
     Returns
     -------
@@ -235,6 +244,15 @@ def servo_until_pose(
     )
     num_ticks_absolute_key = Blackboard.separator.join([ns, "num_ticks"])
     start_time_absolute_key = Blackboard.separator.join([ns, "start_time"])
+
+    servo_inputs = {
+        "twist": twist_blackboard_key,
+        "duration": duration,  # timeout for Servo
+        "status_on_timeout": py_trees.common.Status.FAILURE,
+        "pub_topic": pub_topic,
+    }
+    if not subscribe_to_servo_status:
+        servo_inputs["servo_status_sub_topic"] = None
 
     return py_trees.composites.Selector(
         name=name,
@@ -314,7 +332,9 @@ def servo_until_pose(
                                 operator=partial(
                                     pose_within_tolerances,
                                     tolerance_position=tolerance_position,
-                                    tolerance_orientation=tolerance_orientation,
+                                    tolerance_orientation=np.inf
+                                    if ignore_orientation
+                                    else tolerance_orientation,
                                 ),
                             ),
                         ),
@@ -348,6 +368,9 @@ def servo_until_pose(
                                         "speed": speed,
                                         "hz": BlackboardKey("servoHz"),
                                         "round_decimals": round_decimals,
+                                        "angular_override": Vector3(x=0.0, y=0.0, z=0.0)
+                                        if ignore_orientation
+                                        else None,
                                     },
                                     outputs={
                                         "twist_stamped": BlackboardKey(
@@ -371,11 +394,7 @@ def servo_until_pose(
                                 ),
                             ],
                         ),
-                        servo_inputs={
-                            "twist": twist_blackboard_key,
-                            "duration": duration,  # timeout for Servo
-                            "status_on_timeout": py_trees.common.Status.FAILURE,
-                        },
+                        servo_inputs=servo_inputs,
                     ),
                 ],
             ),
@@ -393,7 +412,9 @@ def servo_until_pose(
                     operator=partial(
                         pose_within_tolerances,
                         tolerance_position=relaxed_tolerance_position,
-                        tolerance_orientation=relaxed_tolerance_orientation,
+                        tolerance_orientation=np.inf
+                        if ignore_orientation
+                        else relaxed_tolerance_orientation,
                     ),
                 ),
             ),

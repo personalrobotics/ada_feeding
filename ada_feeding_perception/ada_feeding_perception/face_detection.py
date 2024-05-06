@@ -16,6 +16,7 @@ from typing import List, Tuple, Union
 import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Point
+import numpy as np
 import numpy.typing as npt
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -43,7 +44,7 @@ class DepthComputationMethod(Enum):
     Enum for the different methods of computing the depth of the mouth.
     """
 
-    AVERAGE_MOUTH_POINTS = "average_mouth_points"
+    MEDIAN_MOUTH_POINTS = "median_mouth_points"
     FACIAL_PLANE = "facial_plane"
 
 
@@ -407,14 +408,14 @@ class FaceDetectionNode(Node):
 
         return is_face_detected, img_mouth_center, img_face_points, face_bbox
 
-    def depth_method_average_mouth_points(
+    def depth_method_median_mouth_points(
         self,
         mouth_points: npt.NDArray,
         image_depth: npt.NDArray,
         threshold: float = 0.5,
     ) -> Tuple[bool, float]:
         """
-        Compute the depth of the mouth stomion by averaging the depth of all
+        Compute the depth of the mouth stomion by taking the median depth of all
         viable mouth points.
 
         Parameters
@@ -433,25 +434,23 @@ class FaceDetectionNode(Node):
         # pylint: disable=too-many-locals
         # This function is not too complex, but it does have a lot of local variables.
 
-        # Retrieve the depth value averaged over all viable mouth coordinates
-        depth_sum = 0
-        num_valid_points = 0
+        # Retrieve the depth values over all viable mouth coordinates
+        depth_mms = []
         for point in mouth_points:
             u, v = int(point[0]), int(point[1])
             # Ensure that point is contained within the depth image frame
             if 0 <= u < image_depth.shape[1] and 0 <= v < image_depth.shape[0]:
                 if image_depth[v][u] != 0:
-                    num_valid_points += 1
-                    depth_sum += image_depth[v][u]
-        if num_valid_points >= threshold * len(mouth_points):
-            # If at least half of the mouth points are valid, use the average
+                    depth_mms.append(image_depth[v][u])
+        if len(depth_mms) >= threshold * len(mouth_points):
+            # If at least the threshold mouth points are valid, use the median
             # depth of the mouth points
-            depth_mm = depth_sum / float(num_valid_points)
+            depth_mm = np.percentile(depth_mms, 50)
             return True, depth_mm
 
         self.get_logger().warn(
             "The majority of mouth points were invalid (outside the frame or depth not detected). "
-            "Unable to compute mouth depth by averaging mouth points."
+            "Unable to compute mouth depth with the median of mouth points."
         )
         return False, 0
 
@@ -479,7 +478,9 @@ class FaceDetectionNode(Node):
         # pylint: disable=too-many-locals
         # This function is not too complex, but it does have a lot of local variables.
 
-        internal_face_points = face_points[18:]  # Ignore points along the face outline
+        # Ignore points along the face outline, as their depth may be the depth
+        # of the background
+        internal_face_points = face_points[17:]
         face_points_3d = []
         for point in internal_face_points:
             u, v = int(point[0]), int(point[1])
@@ -488,7 +489,32 @@ class FaceDetectionNode(Node):
                 if image_depth[v][u] != 0:
                     z = image_depth[v][u]
                     face_points_3d.append([u, v, z])
-        if len(face_points_3d) >= threshold * len(internal_face_points):
+        if len(face_points_3d) == 0:
+            self.get_logger().warn(
+                "All internal face points are out of the depth FOV. Ignoring face."
+            )
+            return False, 0
+        face_points_3d = np.array(face_points_3d)
+
+        # Remove points with an outlier depth
+        depths = face_points_3d[:, 2]
+        outlier_thresh = 1.5
+        depth_q1 = np.percentile(depths, 25)
+        depth_q3 = np.percentile(depths, 75)
+        depth_iqr = depth_q3 - depth_q1
+        non_outliers = np.logical_and(
+            depths >= (depth_q1 - outlier_thresh * depth_iqr),
+            depths <= (depth_q3 + outlier_thresh * depth_iqr),
+        )
+        if np.sum(non_outliers) < face_points_3d.shape[0]:
+            outlier_depths = face_points_3d[np.logical_not(non_outliers)][:, 2]
+            self.get_logger().debug(
+                "Facial plane face detection method: removing outliers depths "
+                f"{outlier_depths}"
+            )
+        face_points_3d = face_points_3d[non_outliers]
+
+        if face_points_3d.shape[0] >= threshold * len(internal_face_points):
             # Fit a plane to detected face points
             plane = Plane.best_fit(Points(face_points_3d))
             a, b, c, d = plane.cartesian()
@@ -510,7 +536,7 @@ class FaceDetectionNode(Node):
         rgb_msg: Union[CompressedImage, Image],
         face_points: npt.NDArray,
         methods: List[DepthComputationMethod] = [
-            DepthComputationMethod.AVERAGE_MOUTH_POINTS,
+            DepthComputationMethod.MEDIAN_MOUTH_POINTS,
             DepthComputationMethod.FACIAL_PLANE,
         ],
     ) -> Tuple[bool, float]:
@@ -533,7 +559,7 @@ class FaceDetectionNode(Node):
         # In this case, a list as the default value is okay since we don't change it.
 
         # Pull out a list of (u,v) coordinates of all facial landmarks that can be
-        # averaged to approximate the mouth center
+        # used to approximate the mouth center
         mouth_points = face_points[48:68]
 
         # Find depth image closest in time to RGB image that face was in
@@ -556,22 +582,32 @@ class FaceDetectionNode(Node):
                     "No depth image message received.", throttle_duration_sec=1
                 )
                 return False, 0
-            self.get_logger().info(
-                f"Closest depth image message received at {closest_depth_msg.header.stamp}. "
-                f"Corresponding RGB image message received at {rgb_msg.header.stamp}. "
-                f"Time difference: {min_time_diff} seconds."
-            )
+            if (
+                np.abs(closest_depth_msg.header.stamp.sec - rgb_msg.header.stamp.sec)
+                >= 1.0
+            ):
+                self.get_logger().warn(
+                    "Incosistent messages. Depth image message received at "
+                    f"{closest_depth_msg.header.stamp}. RGB image message received "
+                    f"at {rgb_msg.header.stamp}. Time difference: {min_time_diff} secs."
+                )
         image_depth = ros_msg_to_cv2_image(closest_depth_msg, self.bridge)
 
-        # Compute the depth of the mouth
+        # Compute the depth of the mouth. Use the first method that works.
         for method in methods:
-            if method == DepthComputationMethod.AVERAGE_MOUTH_POINTS:
-                detected, depth_mm = self.depth_method_average_mouth_points(
+            if method == DepthComputationMethod.MEDIAN_MOUTH_POINTS:
+                detected, depth_mm = self.depth_method_median_mouth_points(
                     mouth_points, image_depth
+                )
+                self.get_logger().debug(
+                    f"Face detection with MEDIAN_MOUTH_POINTS: {detected}. {depth_mm}."
                 )
             elif method == DepthComputationMethod.FACIAL_PLANE:
                 detected, depth_mm = self.depth_method_facial_plane(
                     face_points, image_depth
+                )
+                self.get_logger().debug(
+                    f"Face detection with FACIAL_PLANE: {detected}. {depth_mm}."
                 )
             else:
                 self.get_logger().warn(

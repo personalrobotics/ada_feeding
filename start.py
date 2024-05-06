@@ -81,12 +81,12 @@ async def get_existing_screens():
 
 
 async def execute_command(
-    screen_name: str, command: str, args: argparse.Namespace, indent: int = 8
+    screen_name: str, command: str, indent: int = 8
 ) -> None:
     """
     Execute a command in a screen.
     """
-    global sudo_password
+    global sudo_password # pylint: disable=global-statement
     indentation = " " * indent
     printable_command = command.replace("\003", "SIGINT")
     print(f"# {indentation}`{printable_command}`")
@@ -302,7 +302,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         if screen_name in existing_screens:
             print(f"#    Found session `{screen_name}`: ")
             for command in close_commands[screen_name]:
-                await execute_command(screen_name, command, args)
+                await execute_command(screen_name, command)
             terminated_screen = True
         elif not args.close:
             print(f"#    Creating session `{screen_name}`")
@@ -327,7 +327,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         for screen_name, commands in screen_sessions.items():
             print(f"#     `{screen_name}`")
             for command in commands:
-                await execute_command(screen_name, command, args)
+                await execute_command(screen_name, command)
         print(
             "################################################################################"
         )
@@ -400,7 +400,7 @@ if __name__ == "__main__":
     pwd = check_pwd_is_colcon_workspace()
 
     # Run the main function
-    sudo_password = None
+    sudo_password = None # pylint: disable=invalid-name
     asyncio.run(main(args, pwd))
 
     # Return success
