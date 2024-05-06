@@ -285,7 +285,9 @@ class MoveIt2Plan(BlackboardBehavior):
                     self.blackboard_set("end_joint_state", end_joint_state)
                     # Check Path Length
                     total_len, joint_len = MoveIt2Plan.get_path_len(traj)
-                    self.logger.warning(f"Path Length of Plan: {total_len}")
+                    self.logger.warning(
+                        f"Path Length of Plan: {total_len}, {joint_len}"
+                    )
                     if (
                         self.blackboard_exists("max_path_len")
                         and self.blackboard_get("max_path_len") is not None

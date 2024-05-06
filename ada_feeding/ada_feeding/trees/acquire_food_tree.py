@@ -11,6 +11,7 @@ from typing import List, Optional
 
 # Third-party imports
 from geometry_msgs.msg import Twist, TwistStamped, Vector3
+import numpy as np
 from overrides import override
 import py_trees
 from py_trees.blackboard import Blackboard
@@ -583,6 +584,10 @@ class AcquireFoodTree(MoveToTree):
                                                     "cartesian": True,
                                                     "cartesian_max_step": 0.001,
                                                     "cartesian_fraction_threshold": 0.92,
+                                                    "max_path_len_joint": {
+                                                        "j2n6s200_joint_1": np.pi,
+                                                        "j2n6s200_joint_2": np.pi / 2.0,
+                                                    },
                                                 },
                                                 outputs={
                                                     "trajectory": BlackboardKey(
