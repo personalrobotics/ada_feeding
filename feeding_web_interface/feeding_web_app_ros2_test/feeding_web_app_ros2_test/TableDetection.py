@@ -16,9 +16,10 @@ class TableDetectionNode(Node):
             frame_id="root",
         ),
         # NOTE: This pose should be the same as the default pose in
-        # `ada_planning_scene.yaml`
+        # `ada_planning_scene.yaml` plus the `table_detection_offsets` in the
+        # same file.
         pose=Pose(
-            position=Point(x=0.08, y=-0.5, z=-0.48),
+            position=Point(x=0.08 + 0.2, y=-0.5 + 0.25, z=-0.56 + 0.735),
             orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0),
         ),
     )

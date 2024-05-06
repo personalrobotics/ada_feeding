@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import array
 from ada_feeding_msgs.action import SegmentFromPoint
 from ada_feeding_msgs.msg import Mask
 import cv2
@@ -13,6 +14,16 @@ from sensor_msgs.msg import CompressedImage, Image, RegionOfInterest, CameraInfo
 from shapely.geometry import MultiPoint
 import threading
 import time
+
+
+# The fixed header that ROS2 Humble's compressed depth image transport plugin prepends to
+# the data. The exact value was empirically determined, but the below link shows the code
+# that prepends additional data:
+#
+# https://github.com/ros-perception/image_transport_plugins/blob/5ef79d74c4347e6a2d151df63230d5fea1357137/compressed_depth_image_transport/src/codec.cpp#L337
+_COMPRESSED_DEPTH_16UC1_HEADER = array.array(
+    "B", [0, 0, 0, 0, 46, 32, 133, 4, 192, 24, 60, 78]
+)
 
 
 class SegmentFromPointNode(Node):
@@ -44,8 +55,8 @@ class SegmentFromPointNode(Node):
 
         # Subscribe to the depth topic, to store the latest image
         self.depth_subscriber = self.create_subscription(
-            Image,
-            "/camera/aligned_depth_to_color/image_raw",
+            CompressedImage,
+            "/camera/aligned_depth_to_color/image_raw/compressedDepth",
             self.depth_callback,
             1,
         )
@@ -125,7 +136,9 @@ class SegmentFromPointNode(Node):
 
         # Reject if there is already an active goal
         if self.active_goal_request is not None:
-            self.get_logger().info("Rejecting goal request")
+            self.get_logger().info(
+                "Rejecting goal request because there is already an active goal"
+            )
             return GoalResponse.REJECT
 
         # Reject if this node has not received an RGB and depth image
@@ -137,8 +150,11 @@ class SegmentFromPointNode(Node):
                         or self.latest_depth_msg is None
                         or self.camera_info is None
                     ):
-                        self.get_logger().info("Rejecting cancel request")
-                        return CancelResponse.REJECT
+                        self.get_logger().info(
+                            "Rejecting goal request because RGB and depth images "
+                            "have not been received"
+                        )
+                        return GoalResponse.REJECT
 
         # Otherwise accept
         self.get_logger().info("Accepting goal request")
@@ -183,7 +199,12 @@ class SegmentFromPointNode(Node):
         result.camera_info = camera_info
         img = self.bridge.compressed_imgmsg_to_cv2(latest_img_msg, "bgr8")
         width, height, _ = img.shape
-        depth_img = self.bridge.imgmsg_to_cv2(latest_depth_msg, "passthrough")
+        depth_img = cv2.imdecode(
+            np.frombuffer(
+                latest_depth_msg.data[len(_COMPRESSED_DEPTH_16UC1_HEADER) :], np.uint8
+            ),
+            cv2.IMREAD_UNCHANGED,
+        )
 
         # Sleep (dummy segmentation)
         time.sleep(self.sleep_time)
