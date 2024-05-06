@@ -118,12 +118,12 @@ export const CLEAR_OCTOMAP_SERVICE_NAME = 'clear_octomap'
 export const CLEAR_OCTOMAP_SERVICE_TYPE = 'std_srvs/srv/Empty'
 export const ACQUISITION_REPORT_SERVICE_NAME = 'ada_feeding_action_select/action_report'
 export const ACQUISITION_REPORT_SERVICE_TYPE = 'ada_feeding_msgs/srv/AcquisitionReport'
-export const GET_JOINT_STATE_SERVICE_NAME = 'get_joint_state'
-export const GET_JOINT_STATE_SERVICE_TYPE = 'ada_feeding_msgs/srv/GetJointState'
+export const GET_ROBOT_STATE_SERVICE_NAME = 'get_robot_state'
+export const GET_ROBOT_STATE_SERVICE_TYPE = 'ada_feeding_msgs/srv/GetRobotState'
 export const GET_PARAMETERS_SERVICE_NAME = 'ada_feeding_action_servers/get_parameters'
 export const GET_PARAMETERS_SERVICE_TYPE = 'rcl_interfaces/srv/GetParameters'
-export const SET_PARAMETERS_SERVICE_NAME = 'ada_feeding_action_servers/set_parameters'
-export const SET_PARAMETERS_SERVICE_TYPE = 'rcl_interfaces/srv/SetParameters'
+export const SET_PARAMETERS_SERVICE_NAME = 'ada_feeding_action_servers/set_parameters_atomically'
+export const SET_PARAMETERS_SERVICE_TYPE = 'rcl_interfaces/srv/SetParametersAtomically'
 
 // The names of parameters users can change in the settings menu
 export const DISTANCE_TO_MOUTH_PARAM = 'MoveToMouth.tree_kwargs.plan_distance_from_mouth'
@@ -139,6 +139,7 @@ export const RESTING_PARAM_JOINTS_2 = 'MoveToRestingPosition.tree_kwargs.goal_co
 
 // Robot link names
 export const ROBOT_BASE_LINK = 'j2n6s200_link_base'
+export const ROBOT_END_EFFECTOR = 'forkTip'
 export const ROBOT_JOINTS = [
   'j2n6s200_joint_1',
   'j2n6s200_joint_2',

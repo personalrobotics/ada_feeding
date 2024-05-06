@@ -5,11 +5,11 @@ import { useMediaQuery } from 'react-responsive'
 import { View } from 'react-native'
 
 // Local Imports
-import { useROS, createROSService, createROSServiceRequest, subscribeToROSTopic, unsubscribeFromROSTopic } from '../../../ros/ros_helpers'
+import { useROS, subscribeToROSTopic, unsubscribeFromROSTopic } from '../../../ros/ros_helpers'
 import '../Home.css'
-import { MEAL_STATE } from '../../GlobalState'
-import { FACE_DETECTION_IMG_TOPIC, FACE_DETECTION_TOPIC, FACE_DETECTION_TOPIC_MSG, ROS_SERVICE_NAMES } from '../../Constants'
+import { FACE_DETECTION_IMG_TOPIC, FACE_DETECTION_TOPIC, FACE_DETECTION_TOPIC_MSG } from '../../Constants'
 import VideoFeed from '../VideoFeed'
+import { useGlobalState } from '../../GlobalState'
 
 /**
  * The DetectingFace component appears after the robot has moved to the staging
@@ -17,6 +17,9 @@ import VideoFeed from '../VideoFeed'
  * moves on to `R_MovingToMouth` when a face is detected.
  */
 const DetectingFaceSubcomponent = (props) => {
+  // Get the relevant global variables
+  const setMoveToMouthActionGoal = useGlobalState((state) => state.setMoveToMouthActionGoal)
+
   // Keep track of whether a mouth has been detected or not
   const [mouthDetected, setMouthDetected] = useState(false)
   // Flag to check if the current orientation is portrait
@@ -51,11 +54,14 @@ const DetectingFaceSubcomponent = (props) => {
           0.5
         if (distance > min_face_distance && distance < max_face_distance) {
           setMouthDetected(true)
+          setMoveToMouthActionGoal({
+            face_detection: message
+          })
           faceDetectedCallback()
         }
       }
     },
-    [props.faceDetectedCallback, setMouthDetected]
+    [props.faceDetectedCallback, setMouthDetected, setMoveToMouthActionGoal]
   )
   useEffect(() => {
     let topic = subscribeToROSTopic(ros.current, FACE_DETECTION_TOPIC, FACE_DETECTION_TOPIC_MSG, faceDetectionCallback)
@@ -68,38 +74,6 @@ const DetectingFaceSubcomponent = (props) => {
       unsubscribeFromROSTopic(topic, faceDetectionCallback)
     }
   }, [faceDetectionCallback])
-
-  /**
-   * Create the ROS Service. This is created in local state to avoid re-creating
-   * it upon every re-render.
-   */
-  let { serviceName, messageType } = ROS_SERVICE_NAMES[MEAL_STATE.R_DetectingFace]
-  let toggleFaceDetectionService = useRef(createROSService(ros.current, serviceName, messageType))
-
-  /**
-   * Toggles face detection on the first time this component is rendered, but
-   * not upon additional re-renders. See here for more details on how `useEffect`
-   * achieves this goal: https://stackoverflow.com/a/69264685
-   */
-  useEffect(() => {
-    // Create a service request
-    let request = createROSServiceRequest({ data: true })
-    // Call the service
-    let service = toggleFaceDetectionService.current
-    service.callService(request, (response) => console.log('Got toggle face detection service response', response))
-
-    /**
-     * In practice, because the values passed in in the second argument of
-     * useEffect will not change on re-renders, this return statement will
-     * only be called when the component unmounts.
-     */
-    return () => {
-      // Create a service request
-      let request = createROSServiceRequest({ data: false })
-      // Call the service
-      service.callService(request, (response) => console.log('Got toggle face detection service response', response))
-    }
-  }, [toggleFaceDetectionService])
 
   // Render the component
   return (
@@ -125,7 +99,7 @@ const DetectingFaceSubcomponent = (props) => {
           height: '100%'
         }}
       >
-        <VideoFeed topic={FACE_DETECTION_IMG_TOPIC} webrtcURL={props.webrtcURL} />
+        <VideoFeed topic={FACE_DETECTION_IMG_TOPIC} webrtcURL={props.webrtcURL} toggleFaceDetection={true} />
       </View>
     </>
   )

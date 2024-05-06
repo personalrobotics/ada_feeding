@@ -29,34 +29,50 @@ function HoldButton(props) {
   const intervalRef = useRef(null)
 
   // Callback to stop the interval
-  const stopInterval = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-      let cleanupCallback = props.cleanupCallback
-      cleanupCallback()
-    }
-  }, [props.cleanupCallback])
+  const stopInterval = useCallback(
+    (event = null) => {
+      // Prevent further processing of the event. This is because sometimes touches
+      // also trigger clicks: https://web.dev/articles/mobile-touchandmouse
+      if (event) {
+        event.preventDefault()
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+        let cleanupCallback = props.cleanupCallback
+        cleanupCallback()
+      }
+    },
+    [props.cleanupCallback]
+  )
 
   // Callback to start the rate_hz interval
-  const startInterval = useCallback(() => {
-    // Stop the interval if it exists
-    stopInterval()
-    // Start a new interval
-    intervalRef.current = setInterval(() => {
-      let holdCallback = props.holdCallback
-      holdCallback()
-    }, 1000.0 / props.rate_hz)
-  }, [
-    props.rate_hz,
-    props.holdCallback,
-    stopInterval
-    // setCounter
-  ])
+  const startInterval = useCallback(
+    (event = null) => {
+      // Prevent further processing of the event. This is because sometimes touches
+      // also trigger clicks: https://web.dev/articles/mobile-touchandmouse
+      if (event) {
+        event.preventDefault()
+      }
+      // Stop the interval if it exists
+      stopInterval()
+      // Start a new interval
+      intervalRef.current = setInterval(() => {
+        let holdCallback = props.holdCallback
+        holdCallback()
+      }, 1000.0 / props.rate_hz)
+    },
+    [props.rate_hz, props.holdCallback, stopInterval]
+  )
 
   // Callback for when the touch moves
   const onTouchMove = useCallback(
-    (event) => {
+    (event = null) => {
+      // Prevent further processing of the event. This is because sometimes touches
+      // also trigger clicks: https://web.dev/articles/mobile-touchandmouse
+      if (event) {
+        event.preventDefault()
+      }
       let { top, left, bottom, right } = buttonRef.current.getBoundingClientRect()
       if (
         event.touches === null ||
@@ -91,7 +107,7 @@ function HoldButton(props) {
       onTouchEnd={stopInterval}
       onTouchCancel={stopInterval}
       onTouchMove={onTouchMove}
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={(event) => event.preventDefault()}
     >
       {props.children}
     </Button>

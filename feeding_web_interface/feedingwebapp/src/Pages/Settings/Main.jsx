@@ -110,7 +110,7 @@ const Main = () => {
       console.log('Calling service', request)
       service.callService(request, (response) => {
         console.log('Got response', response)
-        if (response != null && response.results.length > 1 && response.results[0].successful && response.results[1].successful) {
+        if (response != null && response.result.successful) {
           setSettingsPresets({
             current: preset,
             customNames: presetOptions
@@ -157,6 +157,7 @@ const Main = () => {
   let moveToMouthConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth]
   let moveAbovePlateConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
   let moveToRestingConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToRestingPosition]
+  let moveToStagingConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingConfiguration]
 
   // Configure the different options in the settings menu
   let settingsConfig = [
@@ -174,6 +175,11 @@ const Main = () => {
       title: 'Resting Position',
       icon: moveToRestingConfigurationImage,
       onClick: () => onClickSettingsPage(SETTINGS_STATE.RESTING_CONFIGURATION)
+    },
+    {
+      title: 'Staging Position',
+      icon: moveToStagingConfigurationImage,
+      onClick: () => onClickSettingsPage(SETTINGS_STATE.STAGING_CONFIGURATION)
     }
   ]
 

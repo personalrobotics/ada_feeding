@@ -83,7 +83,8 @@ export const SETTINGS_STATE = {
   MAIN: 'MAIN',
   BITE_TRANSFER: 'BITE_TRANSFER',
   ABOVE_PLATE: 'ABOVE_PLATE',
-  RESTING_CONFIGURATION: 'RESTING_CONFIGURATION'
+  RESTING_CONFIGURATION: 'RESTING_CONFIGURATION',
+  STAGING_CONFIGURATION: 'STAGING_CONFIGURATION'
 }
 
 // The name of the default parameter namespace
@@ -140,11 +141,11 @@ export const useGlobalState = create(
       biteAcquisitionCheckAutoContinueSecs: 3.0,
       biteAcquisitionCheckAutoContinueProbThreshLower: 0.25,
       biteAcquisitionCheckAutoContinueProbThreshUpper: 0.75,
-      // Whether the settings bite transfer page is currently at the user's face
+      // Whether any of the settings pages is currently at the user's mouth
       // or not. This is in the off-chance that the mealState is not at the user's
-      // face, the settings page is, and the user refreshes -- the page should
-      // call MoveFromMouthToStaging instead of just MoveToStaging.
-      biteTransferPageAtFace: false,
+      // mouth, the settings page is, and the user refreshes -- the page should
+      // call MoveFromMouth instead of just MoveToStaging.
+      settingsPageAtMouth: false,
       // The button the user most recently clicked on the BiteDone page. In practice,
       // this is the state we transition to after R_MovingFromMouth. In practice,
       // it is either R_MovingAbovePlate, R_MovingToRestingPosition, or R_DetectingFace.
@@ -168,7 +169,7 @@ export const useGlobalState = create(
           let retval = {
             mealState: mealState,
             mealStateTransitionTime: Date.now(),
-            biteTransferPageAtFace: false // Reset this flag when the meal state changes
+            settingsPageAtMouth: false // Reset this flag when the meal state changes
           }
           // Only update the previous state if it is not a self-transition (to
           // account for cases where a MoveTo action result message is reveived twice)
@@ -211,9 +212,12 @@ export const useGlobalState = create(
           lastMotionActionResponse: lastMotionActionResponse
         })),
       setMoveToMouthActionGoal: (moveToMouthActionGoal) =>
-        set(() => ({
-          moveToMouthActionGoal: moveToMouthActionGoal
-        })),
+        set(() => {
+          console.log('setMoveToMouthActionGoal called with', moveToMouthActionGoal)
+          return {
+            moveToMouthActionGoal: moveToMouthActionGoal
+          }
+        }),
       setPaused: (paused) =>
         set(() => {
           let retval = { paused: paused }
@@ -276,9 +280,9 @@ export const useGlobalState = create(
         set(() => ({
           biteAcquisitionCheckAutoContinueProbThreshUpper: biteAcquisitionCheckAutoContinueProbThreshUpper
         })),
-      setBiteTransferPageAtFace: (biteTransferPageAtFace) =>
+      setSettingsPageAtMouth: (settingsPageAtMouth) =>
         set(() => ({
-          biteTransferPageAtFace: biteTransferPageAtFace
+          settingsPageAtMouth: settingsPageAtMouth
         })),
       setBiteSelectionZoom: (biteSelectionZoom) =>
         set(() => ({

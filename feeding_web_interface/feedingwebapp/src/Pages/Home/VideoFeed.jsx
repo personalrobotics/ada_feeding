@@ -7,9 +7,11 @@ import PropTypes from 'prop-types'
 import { View } from 'react-native'
 
 // Local Imports
-import { CAMERA_FEED_TOPIC, REALSENSE_WIDTH, REALSENSE_HEIGHT } from '../Constants'
+import { CAMERA_FEED_TOPIC, REALSENSE_WIDTH, REALSENSE_HEIGHT, ROS_SERVICE_NAMES } from '../Constants'
 import { useWindowSize } from '../../helpers'
 import { WebRTCConnection } from '../../webrtc/webrtc_helpers'
+import { createROSService, createROSServiceRequest, useROS } from '../../ros/ros_helpers'
+import { MEAL_STATE } from '../GlobalState'
 
 /**
  * Takes in an imageWidth and imageHeight, and returns a width and height that
@@ -95,11 +97,30 @@ const VideoFeed = (props) => {
   let sizeSuffix = 'vh'
 
   /**
+   * Connect to ROS, if not already connected. Put this in useRef to avoid
+   * re-connecting upon re-renders.
+   */
+  const ros = useRef(useROS().ros)
+
+  /**
+   * Create the ROS Service Clients to toggle face detection.
+   */
+  let { serviceName, messageType } = ROS_SERVICE_NAMES[MEAL_STATE.R_DetectingFace]
+  let toggleFaceDetectionService = useRef(createROSService(ros.current, serviceName, messageType))
+
+  /**
    * Create the peer connection
    */
   useEffect(() => {
+    // Toggle on face detection if specified
+    let service = toggleFaceDetectionService.current
+    if (props.toggleFaceDetection) {
+      let request = createROSServiceRequest({ data: true })
+      service.callService(request, (response) => console.log('VideoFeed got toggle face detection on service response', response))
+    }
+
     // Create the peer connection
-    console.log('Creating peer connection', props.webrtcURL, refreshCount)
+    console.log('Creating peer connection', props.webrtcURL, refreshCount, props.externalRefreshCount)
     const webRTCConnection = new WebRTCConnection({
       url: props.webrtcURL + '/subscribe',
       topic: props.topic,
@@ -115,56 +136,75 @@ const VideoFeed = (props) => {
     })
 
     return () => {
+      // Close the peer connection
       webRTCConnection.close()
+
+      // Toggle off face detection if specified
+      if (props.toggleFaceDetection) {
+        let request = createROSServiceRequest({ data: false })
+        service.callService(request, (response) => console.log('VideoFeed got toggle face detection off service response', response))
+      }
     }
-  }, [props.topic, props.webrtcURL, refreshCount, videoRef])
+  }, [
+    props.externalRefreshCount,
+    props.toggleFaceDetection,
+    props.topic,
+    props.webrtcURL,
+    refreshCount,
+    toggleFaceDetectionService,
+    videoRef
+  ])
 
   // Callback to resize the image based on the parent width and height
-  const resizeImage = useCallback(() => {
-    console.log('Resizing image', parentRef.current)
-    if (!parentRef.current) {
-      return
-    }
-    // Get the width and height of the parent DOM element
-    let parentWidth = parentRef.current.clientWidth
-    let parentHeight = parentRef.current.clientHeight
+  const resizeImage = useCallback(
+    (delay_ms = 10) => {
+      if (!parentRef.current) {
+        return
+      }
+      // Get the width and height of the parent DOM element
+      let parentWidth = parentRef.current.clientWidth
+      let parentHeight = parentRef.current.clientHeight
 
-    // Calculate the width and height of the video feed
-    let {
-      width: childWidth,
-      height: childHeight,
-      scaleFactor: childScaleFactor
-    } = scaleWidthHeightToWindow(
-      parentWidth,
-      parentHeight,
-      REALSENSE_WIDTH,
-      REALSENSE_HEIGHT,
-      props.marginTop,
-      props.marginBottom,
-      props.marginLeft,
-      props.marginRight
-    )
+      // Calculate the width and height of the video feed
+      let {
+        width: childWidth,
+        height: childHeight,
+        scaleFactor: childScaleFactor
+      } = scaleWidthHeightToWindow(
+        parentWidth,
+        parentHeight,
+        REALSENSE_WIDTH,
+        REALSENSE_HEIGHT,
+        props.marginTop,
+        props.marginBottom,
+        props.marginLeft,
+        props.marginRight
+      )
 
-    // Set the width and height of the video feed
-    setImgWidth(childWidth * props.zoom)
-    setImgHeight(childHeight * props.zoom)
-    setScaleFactor(childScaleFactor * props.zoom)
-  }, [parentRef, props.marginTop, props.marginBottom, props.marginLeft, props.marginRight, props.zoom])
+      // Set the width and height of the video feed
+      setImgWidth(childWidth * props.zoom)
+      setImgHeight(childHeight * props.zoom)
+      setScaleFactor(childScaleFactor * props.zoom)
 
-  /** When the resize event is triggered, the elements have not yet been laid out,
-   * and hence the parent width/height might not be accurate yet based on the
-   * specified flex layout. Hence, we wait until the next event cycle to resize
-   * the video feed.
-   */
-  const resizeImageNextEventCycle = useCallback(() => {
-    setTimeout(resizeImage, 0)
-  }, [resizeImage])
-  useWindowSize(resizeImageNextEventCycle)
+      // If the width or height is zero, schedule another resize event in the next
+      // event cycle. This is because initially the elements have not been laid out,
+      // and it might take a few event cycles to do so.
+      if (childWidth === 0.0 || childHeight === 0.0) {
+        setTimeout(resizeImage, delay_ms)
+      }
+    },
+    [parentRef, props.marginTop, props.marginBottom, props.marginLeft, props.marginRight, props.zoom]
+  )
 
-  // When the component is first mounted, resize the image
+  // Resize the element when the window is resized
+  useWindowSize(resizeImage)
+
+  // When the component is first mounted and when the reload button is clicked,
+  // resize the image
   useEffect(() => {
-    resizeImageNextEventCycle()
-  }, [resizeImageNextEventCycle])
+    console.log('Resizing image', refreshCount, props.externalRefreshCount)
+    resizeImage()
+  }, [props.externalRefreshCount, refreshCount, resizeImage])
 
   // The callback for when the image is clicked.
   const imageClicked = useCallback(
@@ -329,7 +369,7 @@ const VideoFeed = (props) => {
               fontSize: textFontSize.toString() + sizeSuffix,
               color: 'black'
             }}
-            onClick={() => setRefreshCount(refreshCount + 1)}
+            onClick={() => setRefreshCount((x) => x + 1)}
           >
             Reload Video
           </Button>
@@ -344,8 +384,13 @@ VideoFeed.propTypes = {
   marginBottom: PropTypes.number,
   marginLeft: PropTypes.number,
   marginRight: PropTypes.number,
+  // A number that changes when some external entity wants this component to refresh.
+  externalRefreshCount: PropTypes.number,
   // The topic of the video feed
   topic: PropTypes.string.isRequired,
+  // Whether this component should toggle face detection on when it is mounted and
+  // the reload button is clicked, and toggle it off when it is unmounted
+  toggleFaceDetection: PropTypes.bool,
   /**
    * An optional callback function for when the user clicks on the video feed.
    * This function should take in two parameters, `x` and `y`, which are the
@@ -368,7 +413,9 @@ VideoFeed.defaultProps = {
   marginBottom: 0,
   marginLeft: 0,
   marginRight: 0,
+  externalRefreshCount: 0,
   topic: CAMERA_FEED_TOPIC,
+  toggleFaceDetection: false,
   zoom: 1.0,
   zoomMin: 1.0,
   zoomMax: 2.0

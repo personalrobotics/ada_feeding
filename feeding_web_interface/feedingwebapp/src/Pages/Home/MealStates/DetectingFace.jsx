@@ -26,7 +26,6 @@ const DetectingFace = (props) => {
   const prevMealState = useGlobalState((state) => state.prevMealState)
   const setInNonMovingState = useGlobalState((state) => state.setInNonMovingState)
   const setMealState = useGlobalState((state) => state.setMealState)
-  const setMoveToMouthActionGoal = useGlobalState((state) => state.setMoveToMouthActionGoal)
   const faceDetectionAutoContinue = useGlobalState((state) => state.faceDetectionAutoContinue)
   const setFaceDetectionAutoContinue = useGlobalState((state) => state.setFaceDetectionAutoContinue)
   // Get icon image for move to mouth
@@ -105,20 +104,13 @@ const DetectingFace = (props) => {
   /**
    * Callback for when a face is detected within the correct range.
    */
-  const faceDetectedCallback = useCallback(
-    (message) => {
-      console.log('Face detected callback')
-      setMouthDetected(true)
-      setMoveToMouthActionGoal({
-        face_detection: message
-      })
-      // If auto-continue is enabled, move to the mouth position
-      if (autoContinueIsEnabled()) {
-        moveToMouthCallback()
-      }
-    },
-    [autoContinueIsEnabled, moveToMouthCallback, setMoveToMouthActionGoal]
-  )
+  const faceDetectedCallback = useCallback(() => {
+    setMouthDetected(true)
+    // If auto-continue is enabled, move to the mouth position
+    if (autoContinueIsEnabled()) {
+      moveToMouthCallback()
+    }
+  }, [autoContinueIsEnabled, moveToMouthCallback])
 
   /** Get the full page view
    *

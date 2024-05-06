@@ -56,13 +56,13 @@ function VideoStream(props) {
    */
   const imageCallback = useCallback(
     (message) => {
-      // console.log('Got image message', message)
+      // console.log('Got image message for topic', props.topic)
       if (img.src) {
         URL.revokeObjectURL(img.src)
       }
       img.src = URL.createObjectURL(dataURItoBlob('data:image/jpg;base64,' + message.data))
     },
-    [img]
+    [img /*, props.topic*/]
   )
 
   // Subscribe to the image topic

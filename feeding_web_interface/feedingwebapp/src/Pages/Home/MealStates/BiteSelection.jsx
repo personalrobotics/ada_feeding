@@ -243,7 +243,7 @@ const BiteSelection = (props) => {
       // Create a service request
       let request = createROSServiceRequest({ data: false })
       // Call the service
-      service.callService(request, (response) => console.log('Got toggle face detection service response', response))
+      service.callService(request, (response) => console.log('Got toggle table detection service response', response))
       // Destroy the action client
       destroyActionClient(action)
     }

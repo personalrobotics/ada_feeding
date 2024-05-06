@@ -62,7 +62,7 @@ const SettingsPageParent = (props) => {
       let currentRequest = createROSServiceRequest({
         names: props.paramNames.map((name) => preset.concat('.', name))
       })
-      console.log('Sending GetParameter request for current values', currentRequest)
+      console.log('Sending GetParameter request for values in preset', preset, currentRequest)
       service.callService(currentRequest, (response) => {
         console.log('For request', currentRequest, 'received GetParameter response', response)
         let defaultRequest = createROSServiceRequest({
@@ -113,6 +113,11 @@ const SettingsPageParent = (props) => {
    * Save the current parameter values to the current namespace.
    */
   const setGlobalParameter = useCallback(() => {
+    if (props.localParamValues.every((element) => element === null)) {
+      console.log('Skipping setGlobalParameter because all values are null.')
+      return
+    }
+
     let service = setParametersService.current
     let currentRequest = createROSServiceRequest({
       parameters: props.paramNames.map((name, i) => {
@@ -127,7 +132,7 @@ const SettingsPageParent = (props) => {
       console.log('For request', currentRequest, 'received SetParameter response', response)
       // If this is wrapping up a reset to preset, call the callback
       if (isResettingToPreset.current) {
-        let resetToPresetSuccessCallback = props.resetToPresetSuccessCallback
+        let resetToPresetSuccessCallback = props.resetToPresetSuccessCallback.current
         resetToPresetSuccessCallback()
         isResettingToPreset.current = false
       }
@@ -215,7 +220,8 @@ const SettingsPageParent = (props) => {
             flex: 32,
             justifyContent: 'center',
             alignItems: 'center',
-            width: '100%'
+            width: '100%',
+            height: '100%'
           }}
         >
           {props.children}
@@ -244,24 +250,6 @@ const SettingsPageParent = (props) => {
           >
             Done
           </Button>
-          {/* <SplitButton
-            variant='success'
-            className='mx-2 mb-2 btn-huge'
-            size='lg'
-            style={{
-              fontSize: textFontSize.toString() + sizeSuffix,
-              width: '90%',
-              height: '90%',
-              color: 'black',
-              padding: '0rem'
-            }}
-            title={'Save and Go To Menu'}
-            onClick={saveAndGoToMenu}
-          >
-            <Dropdown.Item key={DEFAULT_NAMESPACE} onClick={() => props.doneCallback()}>
-              Go To Menu Without Saving
-            </Dropdown.Item>
-          </SplitButton> */}
         </View>
       </View>
       <Modal
@@ -300,9 +288,12 @@ SettingsPageParent.propTypes = {
   paramNames: PropTypes.arrayOf(PropTypes.string).isRequired,
   localParamValues: PropTypes.arrayOf(PropTypes.any).isRequired,
   setLocalParamValues: PropTypes.func.isRequired,
-  // A function to call after the "reset to preset" button succesfully sets
-  // the local and global parameters.
-  resetToPresetSuccessCallback: PropTypes.func,
+  // A ref that contains a function to call after the "reset to preset" button
+  // succesfully sets the local and global parameters. This must be a ref to avoid
+  // unnecessary setting of global parameters.
+  resetToPresetSuccessCallback: PropTypes.shape({
+    current: PropTypes.func.isRequired
+  }),
   // A function to call when the user is done with the page
   doneCallback: PropTypes.func.isRequired
 }
@@ -310,7 +301,9 @@ SettingsPageParent.defaultProps = {
   modalShow: false,
   modalOnHide: () => {},
   modalChildren: <></>,
-  resetToPresetSuccessCallback: () => {}
+  resetToPresetSuccessCallback: {
+    current: () => {}
+  }
 }
 
 export default SettingsPageParent
