@@ -68,6 +68,7 @@
     <param name="assets_dir" value="$(find-pkg-share ada_feeding)/assets/"/>
     <remap from="~/face_detection" to="/face_detection" />
     <remap from="~/table_detection" to="/table_detection" />
+    <remap from="~/monitored_planning_scene" to="/monitored_planning_scene" />
   </node>
 
 </launch>

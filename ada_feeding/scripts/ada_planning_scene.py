@@ -23,6 +23,7 @@ from geometry_msgs.msg import (
     Transform,
     Vector3,
 )
+from moveit_msgs.msg import CollisionObject, PlanningScene
 from pymoveit2 import MoveIt2
 from pymoveit2.robots import kinova
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
@@ -80,6 +81,17 @@ class ADAPlanningScene(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.tf_broadcaster = StaticTransformBroadcaster(self)
+
+        # Subscribe to the monitored planning scene to determine when an object
+        # has been added to the planning scene.
+        self.collision_object_ids_lock = threading.Lock()
+        self.collision_object_ids = set()
+        self.monitored_planning_scene_sub = self.create_subscription(
+            PlanningScene,
+            "~/monitored_planning_scene",
+            self.monitored_planning_scene_callback,
+            1,
+        )
 
         # Initialize the MoveIt2 interface
         # Using ReentrantCallbackGroup to align with the examples from pymoveit2.
@@ -482,58 +494,77 @@ class ADAPlanningScene(Node):
         # is it processing messages.
         time.sleep(self.wait_for_moveit_sleep)
 
+    def monitored_planning_scene_callback(self, msg: PlanningScene) -> None:
+        """
+        Callback for the monitored planning scene topic.
+        """
+        with self.collision_object_ids_lock:
+            for collision_object in msg.world.collision_objects:
+                object_id = collision_object.id
+                if collision_object.operation == CollisionObject.REMOVE:
+                    self.collision_object_ids.discard(object_id)
+                else:
+                    self.collision_object_ids.add(object_id)
+
     def initialize_planning_scene(self) -> None:
         """
         Initialize the planning scene with the objects.
         """
-        # TODO: MoveIt2 doesn't always process the messages to add the objects.
-        # We should look into another way to do it (e.g., the `/planning_scene` topic,
-        # or by continuing to call the `/collision_object` topic until it is processed).
-
         rate = self.create_rate(self.publish_hz)
-        # Add each object to the planning scene
-        for object_id, params in self.objects.items():
-            if not rclpy.ok():
-                break
-            if params.primitive_type is None:
-                if params.attached:
-                    self.moveit2.add_attached_collision_mesh(
-                        id=object_id,
-                        filepath=params.filepath,
-                        position=params.position,
-                        quat_xyzw=params.quat_xyzw,
-                        link_name=params.frame_id,
-                        touch_links=params.touch_links,
-                    )
+
+        # Until all objects have been added to the planning scene, keep adding them
+        object_ids = set(self.objects.keys())
+        while rclpy.ok() and len(object_ids) > 0:
+            self.get_logger().debug(
+                f"Adding these objects to the planning scene: {object_ids}"
+            )
+            # Add each object to the planning scene
+            for object_id in object_ids:
+                if not rclpy.ok():
+                    break
+                params = self.objects[object_id]
+                if params.primitive_type is None:
+                    if params.attached:
+                        self.moveit2.add_attached_collision_mesh(
+                            id=object_id,
+                            filepath=params.filepath,
+                            position=params.position,
+                            quat_xyzw=params.quat_xyzw,
+                            link_name=params.frame_id,
+                            touch_links=params.touch_links,
+                        )
+                    else:
+                        self.moveit2.add_collision_mesh(
+                            id=object_id,
+                            filepath=params.filepath,
+                            position=params.position,
+                            quat_xyzw=params.quat_xyzw,
+                            frame_id=params.frame_id,
+                        )
                 else:
-                    self.moveit2.add_collision_mesh(
-                        id=object_id,
-                        filepath=params.filepath,
-                        position=params.position,
-                        quat_xyzw=params.quat_xyzw,
-                        frame_id=params.frame_id,
-                    )
-            else:
-                if params.attached:
-                    self.moveit2.add_attached_collision_primitive(
-                        id=object_id,
-                        prim_type=params.primitive_type,
-                        dims=params.primitive_dims,
-                        position=params.position,
-                        quat_xyzw=params.quat_xyzw,
-                        link_name=params.frame_id,
-                        touch_links=params.touch_links,
-                    )
-                else:
-                    self.moveit2.add_collision_primitive(
-                        id=object_id,
-                        prim_type=params.primitive_type,
-                        dims=params.primitive_dims,
-                        position=params.position,
-                        quat_xyzw=params.quat_xyzw,
-                        frame_id=params.frame_id,
-                    )
-            rate.sleep()
+                    if params.attached:
+                        self.moveit2.add_attached_collision_primitive(
+                            id=object_id,
+                            prim_type=params.primitive_type,
+                            dims=params.primitive_dims,
+                            position=params.position,
+                            quat_xyzw=params.quat_xyzw,
+                            link_name=params.frame_id,
+                            touch_links=params.touch_links,
+                        )
+                    else:
+                        self.moveit2.add_collision_primitive(
+                            id=object_id,
+                            prim_type=params.primitive_type,
+                            dims=params.primitive_dims,
+                            position=params.position,
+                            quat_xyzw=params.quat_xyzw,
+                            frame_id=params.frame_id,
+                        )
+                rate.sleep()
+                # Remove object_ids that have been added to the planning scene
+                with self.collision_object_ids_lock:
+                    object_ids = object_ids - self.collision_object_ids
 
     def face_detection_callback(self, msg: FaceDetection) -> None:
         """
