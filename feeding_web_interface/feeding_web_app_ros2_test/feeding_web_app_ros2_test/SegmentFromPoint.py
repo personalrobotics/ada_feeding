@@ -262,8 +262,9 @@ class SegmentFromPointNode(Node):
             mask_msg.depth_image = self.bridge.cv2_to_imgmsg(
                 depth_img[y_min:y_max, x_min:x_max], "passthrough"
             )
+            depth_points_in_mask = depth_img[y_min:y_max, x_min:x_max][mask_img > 0]
             mask_msg.average_depth = (
-                np.median(depth_img[y_min:y_max, x_min:x_max][mask_img > 0]) / 1000.0
+                np.median(depth_points_in_mask[depth_points_in_mask > 0]) / 1000.0
             )  # Convert to meters
             mask_msg.item_id = "dummy_food_id_%d" % (i)
             mask_msg.confidence = np.random.random()
