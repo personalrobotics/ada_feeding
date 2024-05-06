@@ -173,7 +173,7 @@ class ModifyCollisionObject(BlackboardBehavior):
             if self.moveit2_lock.locked():
                 return py_trees.common.Status.RUNNING
             with self.moveit2_lock:
-                self.moveit2.remove_collision(collision_object_id)
+                self.moveit2.remove_collision_object(collision_object_id)
             return py_trees.common.Status.SUCCESS
 
         # Move the collision object
@@ -234,18 +234,18 @@ class ModifyCollisionObject(BlackboardBehavior):
                     self.moveit2.add_collision_mesh(
                         mesh_filepath,
                         collision_object_id,
-                        collision_object_position,
-                        collision_object_orientation,
+                        position=collision_object_position,
+                        quat_xyzw=collision_object_orientation,
                         frame_id=frame_id,
                         scale=mesh_scale,
                     )
                 else:
                     self.moveit2.add_collision_primitive(
                         collision_object_id,
-                        dims,
-                        collision_object_position,
-                        collision_object_orientation,
                         prim_type,
+                        dims,
+                        position=collision_object_position,
+                        quat_xyzw=collision_object_orientation,
                         frame_id=frame_id,
                     )
             elif operation == ModifyCollisionObjectOperation.MOVE:

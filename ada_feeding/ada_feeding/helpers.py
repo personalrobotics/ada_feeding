@@ -359,7 +359,7 @@ def get_moveit2_object(
             joint_names=kinova.joint_names(),
             base_link_name=kinova.base_link_name(),
             end_effector_name="forkTip",
-            group_name=kinova.MOVE_GROUP_ARM,
+            group_name="jaco_arm",
             callback_group=callback_group,
         )
         lock = Lock()
