@@ -62,7 +62,7 @@ CollisionObjectParams = namedtuple(
         "within_workspace_walls",
         "attached",
         "touch_links",
-        "mesh", # This will be a list, to get around namedtuple immutability
+        "mesh",  # This will be a list, to get around namedtuple immutability
     ],
 )
 

@@ -1,0 +1,347 @@
+"""
+This module defines the CollisionObjectManager class, which tracks the IDs of the
+(attached) collision objects in the planning scene and allows users to add collision
+objects to the planning scene.
+"""
+
+# Standard imports
+from threading import Lock
+from typing import Dict, Optional
+
+# Third-party imports
+from moveit_msgs.msg import CollisionObject, PlanningScene
+from pymoveit2 import MoveIt2
+from pymoveit2.robots import kinova
+import rclpy
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.duration import Duration
+from rclpy.node import Node
+
+# Local imports
+from ada_planning_scene.helpers import CollisionObjectParams, has_timed_out
+
+
+class CollisionObjectManager:
+    """
+    The CollisionObjectManager class does the following:
+    1. Maintains a global list of the IDs of (attached) collision objects in the
+       planning scene.
+    2. Allows users to add collision objects to the planning scene. Collision objects
+       are added in "batches," where the colllision object manager keeps trying until
+       MoveIt2 has confirmed that the collision object has been added.
+    """
+
+    # TODO: extend this class with the ability to remove and move collision objects.
+
+    __GLOBAL_BATCH_ID = "global"
+    __BATCH_ID_FORMAT = "batch_{:d}"
+
+    def __init__(self, node: Node):
+        """
+        Initialize the CollisionObjectManager.
+
+        Parameters
+        ----------
+        node: The ROS 2 node.
+        """
+        self.__node = node
+
+        # Initialize the MoveIt2 interface
+        # Using ReentrantCallbackGroup to align with the examples from pymoveit2.
+        # TODO: Assess whether ReentrantCallbackGroup is necessary for MoveIt2.
+        callback_group = ReentrantCallbackGroup()
+        self.moveit2 = MoveIt2(
+            node=self.__node,
+            joint_names=kinova.joint_names(),
+            base_link_name=kinova.base_link_name(),
+            end_effector_name="forkTip",
+            group_name="jaco_arm",
+            callback_group=callback_group,
+        )
+
+        # Add the parameters to store the (attached) collision objects that have
+        # beed added since the start of each batch.
+        self.__collision_objects_lock = Lock()
+        self.__n_batches = 0
+        self.__collision_objects_per_batch = {
+            self.__GLOBAL_BATCH_ID: set(),
+        }
+        self.__attached_collision_objects_per_batch = {
+            self.__GLOBAL_BATCH_ID: set(),
+        }
+
+        # Subscribe to the monitored planning scene to get updates on which
+        # CollisionObject messages got processed.
+        # pylint: disable=unused-private-member
+        self.__monitored_planning_scene_sub = self.__node.create_subscription(
+            PlanningScene,
+            "~/monitored_planning_scene",
+            self.__monitored_planning_scene_callback,
+            1,
+        )
+
+    def __process_planning_scene(
+        self,
+        planning_scene: PlanningScene,
+        batch_id_to_update: Optional[str] = None,
+    ) -> None:
+        """
+        Takes in a planning_scene message and updates the (attached) collision objects.
+
+        Parameters
+        ----------
+        planning_scene: The planning scene message.
+        batch_id_to_update: The batch ID to update. If None, update all the batch IDs.
+        """
+        with self.__collision_objects_lock:
+            # Get the batch_ids to update
+            batch_ids = (
+                self.__collision_objects_per_batch.keys()
+                if batch_id_to_update is None
+                else [batch_id_to_update]
+            )
+
+            # If the message is not a diff, clear the collision objects
+            if not planning_scene.is_diff:
+                for batch_id in batch_ids:
+                    self.__collision_objects_per_batch[batch_id].clear()
+                    self.__attached_collision_objects_per_batch[batch_id].clear()
+
+            # Update the (attached) collision objects
+            for batch_id in batch_ids:
+                # Update collision objects
+                for collision_object in planning_scene.world.collision_objects:
+                    if collision_object.operation == CollisionObject.REMOVE:
+                        self.__collision_objects_per_batch[batch_id].discard(
+                            collision_object.id
+                        )
+                    else:
+                        self.__collision_objects_per_batch[batch_id].add(
+                            collision_object.id
+                        )
+
+                # Update attached collision objects
+                for (
+                    attached_collision_object
+                ) in planning_scene.robot_state.attached_collision_objects:
+                    if attached_collision_object.operation == CollisionObject.REMOVE:
+                        self.__attached_collision_objects_per_batch[batch_id].discard(
+                            attached_collision_object.object.id
+                        )
+                    else:
+                        self.__attached_collision_objects_per_batch[batch_id].add(
+                            attached_collision_object.object.id
+                        )
+
+    def __monitored_planning_scene_callback(self, msg: PlanningScene) -> None:
+        """
+        Callback for the monitored planning scene.
+
+        Parameters
+        ----------
+        msg: The PlanningScene message.
+        """
+        self.__process_planning_scene(planning_scene=msg)
+
+    def get_global_collision_objects(
+        self,
+        rate_hz: float = 1.0,
+        timeout: Duration = Duration(seconds=10.0),
+    ) -> bool:
+        """
+        This method gets the global list of (attached) collision objects, by
+        invoking MoveIt's `/get_planning_scene` service to get the entire planning
+        scene. This is intended to be used during initialization, and overrides
+        the list of (attached) collision objects in the global batch ID.
+
+        Parameters
+        ----------
+        rate_hz: The rate at which to check for the planning scene.
+        timeout: The maximum amount of time to wait for the planning scene.
+
+        Returns
+        -------
+        True if the global list of (attached) collision objects was successfully
+        retrieved, False otherwise.
+        """
+        # Start the time
+        start_time = self.__node.get_clock().now()
+        rate = self.__node.create_rate(rate_hz)
+
+        # Get the planning scene
+        while self.moveit2.planning_scene is None:
+            # Check if the node is still OK and if the timeout has been reached
+            if not rclpy.ok() or has_timed_out(
+                node=self.__node,
+                start_time=start_time,
+                timeout=timeout,
+            ):
+                self.__node.get_logger().error(
+                    "Timed out while getting the planning scene."
+                )
+                return False
+
+            # Attempt to get the planning scene
+            success = self.moveit2.update_planning_scene()
+            if success:
+                break
+            self.__node.get_logger().info(
+                "Waiting for the planning scene...", throttle_duration_sec=1.0
+            )
+
+            # Sleep
+            rate.sleep()
+
+        # Process the planning scene
+        self.__process_planning_scene(
+            planning_scene=self.moveit2.planning_scene,
+            batch_id_to_update=self.__GLOBAL_BATCH_ID,
+        )
+
+        return True
+
+    def add_collision_objects(
+        self,
+        objects: Dict[str, CollisionObjectParams],
+        rate_hz: float = 10.0,
+        timeout: Duration = Duration(seconds=10.0),
+        ignore_existing: bool = False,
+    ) -> bool:
+        """
+        Add collision objects to the planning scene.
+
+        Parameters
+        ----------
+        objects: A map from object ID to CollisionObjectParams for collision objects to add.
+        rate_hz: The rate at which to publish messages to add collision objects.
+        timeout: The maximum amount of time to wait for the collision objects to be added.
+        ignore_existing: If True, ignore the existing collision objects.
+
+        Returns
+        -------
+        True if the collision objects were successfully added, False otherwise.
+        """
+        # Start the time
+        start_time = self.__node.get_clock().now()
+        rate = self.__node.create_rate(rate_hz)
+
+        def check_ok() -> bool:
+            """
+            Check if the node is still okay and hasn't timed out
+            """
+            return rclpy.ok() and not has_timed_out(
+                node=self.__node,
+                start_time=start_time,
+                timeout=timeout,
+            )
+
+        # Create a new batch for this add_collision_objects operation
+        with self.__collision_objects_lock:
+            batch_id = self.__BATCH_ID_FORMAT.format(self.__n_batches)
+            if ignore_existing:
+                self.__collision_objects_per_batch[batch_id] = set()
+                self.__attached_collision_objects_per_batch[batch_id] = set()
+            else:
+                self.__collision_objects_per_batch[
+                    batch_id
+                ] = self.__collision_objects_per_batch[self.__GLOBAL_BATCH_ID].copy()
+                self.__attached_collision_objects_per_batch[
+                    batch_id
+                ] = self.__attached_collision_objects_per_batch[
+                    self.__GLOBAL_BATCH_ID
+                ].copy()
+            self.__n_batches += 1
+
+        # Store whether the collision objects were successfully added
+        success = True
+
+        # First, try to add all the collision objects
+        collision_object_ids = set(objects.keys())
+        while len(collision_object_ids) > 0:
+            # Check if the node is still OK and if the timeout has been reached
+            if not check_ok():
+                self.__node.get_logger().error(
+                    "Timed out while adding collision objects. "
+                    f"May not have added {collision_object_ids}."
+                )
+                success = False
+                break
+
+            # Remove any collision objects that have already been added
+            with self.__collision_objects_lock:
+                collision_object_ids -= self.__collision_objects_per_batch[batch_id]
+
+            # Add the collision objects
+            self.__node.get_logger().info(
+                f"Adding these objects to the planning scene: {collision_object_ids}",
+                throttle_duration_sec=1.0,
+            )
+            for object_id in collision_object_ids:
+                if not check_ok():
+                    break
+                params = objects[object_id]
+                # Collision mesh
+                if params.primitive_type is None:
+                    self.moveit2.add_collision_mesh(
+                        id=object_id,
+                        filepath=params.mesh_filepath if params.mesh is None else None,
+                        position=params.position,
+                        quat_xyzw=params.quat_xyzw,
+                        frame_id=params.frame_id,
+                        mesh=params.mesh,
+                    )
+                # Collision primitive
+                else:
+                    self.moveit2.add_collision_primitive(
+                        id=object_id,
+                        primitive_type=params.primitive_type,
+                        dimensions=params.primitive_dims,
+                        position=params.position,
+                        quat_xyzw=params.quat_xyzw,
+                        frame_id=params.frame_id,
+                    )
+                rate.sleep()
+
+        # Second, attach all collision objects that need to be attached
+        attached_collision_object_ids = {
+            object_id for object_id, params in objects.items() if params.attached
+        }
+        while len(collision_object_ids) > 0:
+            # Check if the node is still OK and if the timeout has been reached
+            if not check_ok():
+                self.__node.get_logger().error(
+                    "Timed out while attaching collision objects. "
+                    f"May not have attached {attached_collision_object_ids}."
+                )
+                success = False
+                break
+
+            # Remove any attached collision objects that have already been attached
+            with self.__collision_objects_lock:
+                attached_collision_object_ids -= (
+                    self.__attached_collision_objects_per_batch[batch_id]
+                )
+
+            # Attach the collision objects
+            self.__node.get_logger().info(
+                f"Attaching these objects to the robot: {attached_collision_object_ids}",
+                throttle_duration_sec=1.0,
+            )
+            for object_id in attached_collision_object_ids:
+                if not check_ok():
+                    break
+                params = objects[object_id]
+                self.moveit2.attach_collision_object(
+                    id=object_id,
+                    link_name=params.frame_id,
+                    touch_links=params.touch_links,
+                )
+                rate.sleep()
+
+        # Remove the batch that corresponds to this add_collision_objects
+        # operation
+        with self.__collision_objects_lock:
+            self.__collision_objects_per_batch.pop(batch_id)
+            self.__attached_collision_objects_per_batch.pop(batch_id)
+
+        return success
