@@ -8,8 +8,8 @@
   <arg name="run_table_detection" default="true" description="Whether to run the dummy table detection node" />
   <arg name="run_real_sense" default="true" description="Whether to run the dummy RealSense node" />
   <arg name="run_motion" default="true"  description="Whether to run the dummy motion nodes" />
-  <arg name="rgb_path" default="above_plate_2_rgb.jpg"  description="The path to the RGB image/video to publish from the dummy node, relative to this node's share/data folder." />
-  <arg name="depth_path" default="above_plate_2_depth.png"  description="The path to the depth image to publish from the dummy node, relative to this node's share/data folder." />
+  <arg name="rgb_path" default="above_plate_6_rgb.jpg"  description="The path to the RGB image/video to publish from the dummy node, relative to this node's share/data folder." />
+  <arg name="depth_path" default="above_plate_6_depth.png"  description="The path to the depth image to publish from the dummy node, relative to this node's share/data folder." />
 
   <group if="$(var run_web_bridge)">
     <!-- The ROSBridge Node -->
