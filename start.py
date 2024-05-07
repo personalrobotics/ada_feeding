@@ -269,7 +269,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
-                "node start_robot_browser.js" + "" if args.dev else " --port=80",
+                "node start_robot_browser.js" + ("" if args.dev else " --port=80"),
             ],
         }
         close_commands = {
