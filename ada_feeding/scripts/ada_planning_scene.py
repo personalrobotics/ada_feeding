@@ -86,6 +86,7 @@ class ADAPlanningScene(Node):
         # has been added to the planning scene.
         self.collision_object_ids_lock = threading.Lock()
         self.collision_object_ids = set()
+        self.attached_collision_object_ids = set()
         self.monitored_planning_scene_sub = self.create_subscription(
             PlanningScene,
             "~/monitored_planning_scene",
@@ -102,7 +103,7 @@ class ADAPlanningScene(Node):
             joint_names=kinova.joint_names(),
             base_link_name=kinova.base_link_name(),
             end_effector_name="forkTip",
-            group_name=kinova.MOVE_GROUP_ARM,
+            group_name="jaco_arm",
             callback_group=callback_group,
         )
 
@@ -178,6 +179,25 @@ class ADAPlanningScene(Node):
             ),
         )
         self.wait_for_moveit_sleep = wait_for_moveit_sleep.value
+
+        # If all the collision objects have not been succesfully added to the
+        # planning scene within this time, stop initialization. This is necessary
+        # because if a collision object ID was previously removed from the planning
+        # scene, MoveIt may not accept a request to add it back in.
+        initialization_timeout_secs = self.declare_parameter(
+            "initialization_timeout_secs",
+            20.0,  # default value
+            ParameterDescriptor(
+                name="initialization_timeout_secs",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "If all the collision objects have not been succesfully added to the "
+                    "planning scene within this time, stop initialization."
+                ),
+                read_only=True,
+            ),
+        )
+        self.initialization_timeout_secs = initialization_timeout_secs.value
 
         ## The rate (Hz) at which to publish each planning scene object
         publish_hz = self.declare_parameter(
@@ -496,9 +516,11 @@ class ADAPlanningScene(Node):
 
     def monitored_planning_scene_callback(self, msg: PlanningScene) -> None:
         """
-        Callback for the monitored planning scene topic.
+        Callback for the monitored planning scene topic. Track the IDs for the
+        (attached) collision objects in the planning scene.
         """
         with self.collision_object_ids_lock:
+            # Update collision objects
             for collision_object in msg.world.collision_objects:
                 object_id = collision_object.id
                 if collision_object.operation == CollisionObject.REMOVE:
@@ -506,65 +528,115 @@ class ADAPlanningScene(Node):
                 else:
                     self.collision_object_ids.add(object_id)
 
+            # Update attached collision objects
+            for attached_collision_object in msg.robot_state.attached_collision_objects:
+                object_id = attached_collision_object.object.id
+                if attached_collision_object.object.operation == CollisionObject.REMOVE:
+                    self.attached_collision_object_ids.discard(object_id)
+                else:
+                    self.attached_collision_object_ids.add(object_id)
+
     def initialize_planning_scene(self) -> None:
         """
         Initialize the planning scene with the objects.
         """
+        initialization_start_time = self.get_clock().now()
         rate = self.create_rate(self.publish_hz)
 
-        # Until all objects have been added to the planning scene, keep adding them
-        object_ids = set(self.objects.keys())
-        while rclpy.ok() and len(object_ids) > 0:
+        # If the planning scene already has the collision object, /monitored_planning_scene
+        # may not be notified. So, we need to invoke the planning scene service to
+        # get the initial planning scene.
+        while self.moveit2.planning_scene is None:
+            if self.moveit2.update_planning_scene():
+                break
+            self.get_logger().info(
+                "Waiting for the initial planning scene...", throttle_duration_sec=1.0
+            )
+            rate.sleep()
+        # Although this overuses a subscription callback, it does exactly what
+        # we want by updating the collision objects.
+        self.monitored_planning_scene_callback(self.moveit2.planning_scene)
+        self.get_logger().info("Got the initial planning scene...")
+
+        # Check if the node is still okay and within the initialization timeout
+        def check_ok() -> bool:
+            return (
+                rclpy.ok()
+                and (self.get_clock().now() - initialization_start_time).nanoseconds
+                / 1e9
+                <= self.initialization_timeout_secs
+            )
+
+        # First, add *all* collision objects to the planning scene
+        object_ids = set(self.objects.keys()) - self.collision_object_ids
+        while check_ok() and len(object_ids) > 0:
             self.get_logger().debug(
-                f"Adding these objects to the planning scene: {object_ids}"
+                f"Adding these objects to the planning scene: {object_ids}",
+                throttle_duration_sec=1.0,
             )
             # Add each object to the planning scene
             for object_id in object_ids:
-                if not rclpy.ok():
+                if not check_ok():
                     break
                 params = self.objects[object_id]
                 if params.primitive_type is None:
-                    if params.attached:
-                        self.moveit2.add_attached_collision_mesh(
-                            id=object_id,
-                            filepath=params.filepath,
-                            position=params.position,
-                            quat_xyzw=params.quat_xyzw,
-                            link_name=params.frame_id,
-                            touch_links=params.touch_links,
-                        )
-                    else:
-                        self.moveit2.add_collision_mesh(
-                            id=object_id,
-                            filepath=params.filepath,
-                            position=params.position,
-                            quat_xyzw=params.quat_xyzw,
-                            frame_id=params.frame_id,
-                        )
+                    self.moveit2.add_collision_mesh(
+                        id=object_id,
+                        filepath=params.filepath,
+                        position=params.position,
+                        quat_xyzw=params.quat_xyzw,
+                        frame_id=params.frame_id,
+                    )
                 else:
-                    if params.attached:
-                        self.moveit2.add_attached_collision_primitive(
-                            id=object_id,
-                            prim_type=params.primitive_type,
-                            dims=params.primitive_dims,
-                            position=params.position,
-                            quat_xyzw=params.quat_xyzw,
-                            link_name=params.frame_id,
-                            touch_links=params.touch_links,
-                        )
-                    else:
-                        self.moveit2.add_collision_primitive(
-                            id=object_id,
-                            prim_type=params.primitive_type,
-                            dims=params.primitive_dims,
-                            position=params.position,
-                            quat_xyzw=params.quat_xyzw,
-                            frame_id=params.frame_id,
-                        )
+                    self.moveit2.add_collision_primitive(
+                        id=object_id,
+                        primitive_type=params.primitive_type,
+                        dimensions=params.primitive_dims,
+                        position=params.position,
+                        quat_xyzw=params.quat_xyzw,
+                        frame_id=params.frame_id,
+                    )
                 rate.sleep()
                 # Remove object_ids that have been added to the planning scene
                 with self.collision_object_ids_lock:
                     object_ids = object_ids - self.collision_object_ids
+
+        if len(object_ids) > 0:
+            self.get_logger().error(
+                "Initialization timed out. May not have added these objects to "
+                f"the planning scene: {object_ids}"
+            )
+
+        # Next, attach any objects that need to be attached
+        attached_object_ids = {
+            object_id for object_id, params in self.objects.items() if params.attached
+        }
+        while check_ok() and len(attached_object_ids) > 0:
+            self.get_logger().debug(
+                f"Attaching these objects to the robot: {attached_object_ids}"
+            )
+            # Attach each object to the robot
+            for object_id in attached_object_ids:
+                if not check_ok():
+                    break
+                params = self.objects[object_id]
+                self.moveit2.attach_collision_object(
+                    id=object_id,
+                    link_name=params.frame_id,
+                    touch_links=params.touch_links,
+                )
+                rate.sleep()
+                # Remove attached_object_ids that have been attached to the robot
+                with self.collision_object_ids_lock:
+                    attached_object_ids = (
+                        attached_object_ids - self.attached_collision_object_ids
+                    )
+
+        if len(attached_object_ids) > 0:
+            self.get_logger().error(
+                "Initialization timed out. May not have attached these objects to "
+                f"the robot: {attached_object_ids}"
+            )
 
     def face_detection_callback(self, msg: FaceDetection) -> None:
         """
@@ -719,6 +791,7 @@ class ADAPlanningScene(Node):
             ),
         )
 
+        # We have to re-add the mesh because the scale changed
         params = self.objects[self.body_object_id]
         self.moveit2.add_collision_mesh(
             id=self.body_object_id,
