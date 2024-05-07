@@ -1,15 +1,22 @@
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 ada_planning_scene:
   ros__parameters:
+    # Whether or not to add workspace walls to the planning scene.
+    # If True, add axis-aligned walls to the planning scene that contain all
+    # objects specified as being `within_workspace_walls`, with an additional
+    # margin of `workspace_wall_margin` meters.
+    use_workspace_walls: True
+    workspace_wall_margin: 0.1 # m
+
     object_ids: # list of objects to add to the planning scene
       - wheelchair
       - wheelchair_collision
       - table
       - head
-      - workspace_wall_front
-      - workspace_wall_left
-      - workspace_wall_right
-      - workspace_wall_top
+      # - workspace_wall_front
+      # - workspace_wall_left
+      # - workspace_wall_right
+      # - workspace_wall_top
       # - food
     # For each object, specify:
     #   - Shape: EITHER `filepath` (for a mesh) OR `primitive_type` and
@@ -21,11 +28,14 @@ ada_planning_scene:
     #     In that case, `frame_id` must be a link on the robot to attach the object
     #     to, and `touch_links` must be a list of additional links that should be
     #     ignored for collision checking.
+    #   - [Optional] to ensure the workspace walls include the object, specify
+    #     `within_workspace_walls` to be True.
     wheelchair: # the wheelchair mesh
       filename: wheelchair.stl
       position: [0.02, -0.02, -0.05]
       quat_xyzw: [0.0, 0.0, 0.0, 1.0]
       frame_id: root # the frame_id that the pose is relative to
+      within_workspace_walls: True # whether to add workspace walls around the wheelchair
     # an expanded mesh around the wheelchair to account for a user sitting in it
     # NOTE: If you change this you must also change the hardcoded initial pose in
     # bite transfer.
@@ -34,6 +44,7 @@ ada_planning_scene:
       position: [0.02, -0.02, -0.05] # should match the wheelchair position
       quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
       frame_id: root # the frame_id that the pose is relative to
+      within_workspace_walls: True # whether to add workspace walls around the wheelchair
     table: # the table mesh
       filename: table.stl
       # Initial predicted position and orientation of the table; these values get
@@ -51,38 +62,39 @@ ada_planning_scene:
       position: [0.29, 0.35, 0.85]
       quat_xyzw: [-0.0616284, -0.0616284, -0.704416, 0.704416]
       frame_id: root # the frame_id that the pose is relative to
-    workspace_wall_front:
-      primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
-      primitive_dims: [1.59, 0.01, 0.85] # Box has 3 dims: [x, y, z]
-      position: [-0.05, -0.58, 0.675]
-      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
-      frame_id: root # the frame_id that the pose is relative to
-    workspace_wall_left:
-      primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
-      primitive_dims: [0.01, 1.5, 1.65] # Box has 3 dims: [x, y, z]
-      position: [0.75, 0.17, 0.275]
-      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
-      frame_id: root # the frame_id that the pose is relative to
-    workspace_wall_right:
-      primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
-      primitive_dims: [0.01, 1.5, 1.65] # Box has 3 dims: [x, y, z]
-      position: [-0.3, 0.17, 0.275]
-      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
-      frame_id: root # the frame_id that the pose is relative to
-    workspace_wall_top:
-      primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
-      primitive_dims: [1.59, 1.5, 0.01] # Box has 3 dims: [x, y, z]
-      position: [-0.05, 0.17, 1.1]
-      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
-      frame_id: root # the frame_id that the pose is relative to
-    food:
-      primitive_type: 2 # Sphere=2. See shape_msgs/SolidPrimitive.msg
-      primitive_dims: [0.05] # Sphere has 1 dim: [radius]
-      position: [0.0, 0.0, 0.0]
-      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
-      attached: True
-      frame_id: forkTip # the frame_id that the pose is relative to
-      touch_links: [forkTine] # the links, in addition to frame_id, that should be ignored for collision checking
+      within_workspace_walls: True # whether to add workspace walls around the wheelchair
+    # workspace_wall_front:
+    #   primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
+    #   primitive_dims: [1.59, 0.01, 0.85] # Box has 3 dims: [x, y, z]
+    #   position: [-0.05, -0.58, 0.675]
+    #   quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    #   frame_id: root # the frame_id that the pose is relative to
+    # workspace_wall_left:
+    #   primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
+    #   primitive_dims: [0.01, 1.5, 1.65] # Box has 3 dims: [x, y, z]
+    #   position: [0.75, 0.17, 0.275]
+    #   quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    #   frame_id: root # the frame_id that the pose is relative to
+    # workspace_wall_right:
+    #   primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
+    #   primitive_dims: [0.01, 1.5, 1.65] # Box has 3 dims: [x, y, z]
+    #   position: [-0.3, 0.17, 0.275]
+    #   quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    #   frame_id: root # the frame_id that the pose is relative to
+    # workspace_wall_top:
+    #   primitive_type: 1 # Box=1. See shape_msgs/SolidPrimitive.msg
+    #   primitive_dims: [1.59, 1.5, 0.01] # Box has 3 dims: [x, y, z]
+    #   position: [-0.05, 0.17, 1.1]
+    #   quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    #   frame_id: root # the frame_id that the pose is relative to
+    # food:
+    #   primitive_type: 2 # Sphere=2. See shape_msgs/SolidPrimitive.msg
+    #   primitive_dims: [0.05] # Sphere has 1 dim: [radius]
+    #   position: [0.0, 0.0, 0.0]
+    #   quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    #   attached: True
+    #   frame_id: forkTip # the frame_id that the pose is relative to
+    #   touch_links: [forkTine] # the links, in addition to frame_id, that should be ignored for collision checking
 
     # Reject any mouth poses that are greater than the distance threshold away from the default head position
     head_object_id: head

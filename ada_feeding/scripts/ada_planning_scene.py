@@ -8,13 +8,15 @@ In practice, this node is used to add the wheelchair, table, and user's face.
 
 # Standard imports
 from collections import namedtuple
+import copy
 from os import path
 import threading
 import time
-from typing import List
+from typing import Dict, List, Tuple
 
 # Third-party imports
 import numpy as np
+import numpy.typing as npt
 from geometry_msgs.msg import (
     Point,
     Pose,
@@ -31,15 +33,22 @@ import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from shape_msgs.msg import SolidPrimitive
 from tf2_geometry_msgs import PointStamped, PoseStamped, TransformStamped
-from tf2_ros import TransformException
+import tf2_py as tf2
+from tf2_ros import TypeException
 from tf2_ros.buffer import Buffer
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros.transform_listener import TransformListener
-from transforms3d._gohlketransforms import quaternion_multiply
+from transforms3d._gohlketransforms import quaternion_matrix, quaternion_multiply
+import trimesh
 
 # Local imports
 from ada_feeding_msgs.msg import FaceDetection
+
+# pylint: disable=too-many-lines
+# TODO: This module is too long and it is bad style. It should ideally be refactored,
+# perhaps into its own package.
 
 CollisionObjectParams = namedtuple(
     "CollisionObjectParams",
@@ -50,8 +59,10 @@ CollisionObjectParams = namedtuple(
         "position",
         "quat_xyzw",
         "frame_id",
+        "within_workspace_walls",
         "attached",
         "touch_links",
+        "mesh", # This will be a list, to get around namedtuple immutability
     ],
 )
 
@@ -82,11 +93,19 @@ class ADAPlanningScene(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.tf_broadcaster = StaticTransformBroadcaster(self)
 
+        # Initialize accumulators to keep track of workspace walls
+        self.object_to_bounds = {}  # object_id -> (2,3) np.ndarray
+        self.workspace_walls = {}  # object_id -> CollisionObjectParams
+
         # Subscribe to the monitored planning scene to determine when an object
-        # has been added to the planning scene.
+        # has been added to the planning scene. This node adds collision objects
+        # in batches. At the beginning of the batch, it will clear its internal
+        # set of collision object IDs. It will then keep trying to add the collision
+        # objects until the monitored planning scene topic has confirmed that all
+        # the collision objects have been added.
         self.collision_object_ids_lock = threading.Lock()
-        self.collision_object_ids = set()
-        self.attached_collision_object_ids = set()
+        self.collision_object_ids_this_batch = set()
+        self.attached_collision_object_ids_this_batch = set()
         self.monitored_planning_scene_sub = self.create_subscription(
             PlanningScene,
             "~/monitored_planning_scene",
@@ -199,7 +218,53 @@ class ADAPlanningScene(Node):
         )
         self.initialization_timeout_secs = initialization_timeout_secs.value
 
-        ## The rate (Hz) at which to publish each planning scene object
+        # Whether or not to add workspace walls to the planning scene
+        use_workspace_walls = self.declare_parameter(
+            "use_workspace_walls",
+            True,  # default value
+            ParameterDescriptor(
+                name="use_workspace_walls",
+                type=ParameterType.PARAMETER_BOOL,
+                description=(
+                    "Whether or not to add workspace walls to the planning scene."
+                ),
+                read_only=True,
+            ),
+        )
+        self.use_workspace_walls = use_workspace_walls.value
+
+        # The margin (m) to add between workspace wall and objects within the workspace
+        workspace_wall_margin = self.declare_parameter(
+            "workspace_wall_margin",
+            0.1,  # default value
+            ParameterDescriptor(
+                name="workspace_wall_margin",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The margin (m) to add between workspace wall and objects within the workspace."
+                ),
+                read_only=True,
+            ),
+        )
+        self.workspace_wall_margin = workspace_wall_margin.value
+
+        # Get the base_frame. This is the frame that workspace walls are published in.
+        base_frame = self.declare_parameter(
+            "base_frame",
+            "root",
+            ParameterDescriptor(
+                name="base_frame",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The base frame. Workspace walls and other dynamically added objects "
+                    "are published in this frame."
+                ),
+                read_only=True,
+            ),
+        )
+        self.base_frame = base_frame.value
+
+        # The rate (Hz) at which to publish each planning scene object
         publish_hz = self.declare_parameter(
             "publish_hz",
             10.0,  # default value
@@ -315,6 +380,16 @@ class ADAPlanningScene(Node):
                     read_only=True,
                 ),
             )
+            within_workspace_walls = self.declare_parameter(
+                f"{object_id}.within_workspace_walls",
+                False,
+                descriptor=ParameterDescriptor(
+                    name="within_workspace_walls",
+                    type=ParameterType.PARAMETER_BOOL,
+                    description=("Whether the object is within the workspace walls."),
+                    read_only=True,
+                ),
+            )
             attached = self.declare_parameter(
                 f"{object_id}.attached",
                 False,
@@ -356,8 +431,10 @@ class ADAPlanningScene(Node):
                 position=position.value,
                 quat_xyzw=quat_xyzw.value,
                 frame_id=frame_id.value,
+                within_workspace_walls=within_workspace_walls.value,
                 attached=attached.value,
                 touch_links=touch_links,
+                mesh=[None],
             )
 
         table_detection_offsets = self.declare_parameter(
@@ -524,51 +601,68 @@ class ADAPlanningScene(Node):
             for collision_object in msg.world.collision_objects:
                 object_id = collision_object.id
                 if collision_object.operation == CollisionObject.REMOVE:
-                    self.collision_object_ids.discard(object_id)
+                    self.collision_object_ids_this_batch.discard(object_id)
                 else:
-                    self.collision_object_ids.add(object_id)
+                    self.collision_object_ids_this_batch.add(object_id)
 
             # Update attached collision objects
             for attached_collision_object in msg.robot_state.attached_collision_objects:
                 object_id = attached_collision_object.object.id
                 if attached_collision_object.object.operation == CollisionObject.REMOVE:
-                    self.attached_collision_object_ids.discard(object_id)
+                    self.attached_collision_object_ids_this_batch.discard(object_id)
                 else:
-                    self.attached_collision_object_ids.add(object_id)
+                    self.attached_collision_object_ids_this_batch.add(object_id)
 
-    def initialize_planning_scene(self) -> None:
+    def update_planning_scene(self) -> None:
         """
-        Initialize the planning scene with the objects.
+        Updates the planning scene through a service call. This gets the entire
+        planning scene, whereas the monitored planning scene topic typically
+        only provides diffs.
         """
-        initialization_start_time = self.get_clock().now()
         rate = self.create_rate(self.publish_hz)
-
-        # If the planning scene already has the collision object, /monitored_planning_scene
-        # may not be notified. So, we need to invoke the planning scene service to
-        # get the initial planning scene.
         while self.moveit2.planning_scene is None:
             if self.moveit2.update_planning_scene():
                 break
             self.get_logger().info(
-                "Waiting for the initial planning scene...", throttle_duration_sec=1.0
+                "Waiting for the planning scene...", throttle_duration_sec=1.0
             )
             rate.sleep()
         # Although this overuses a subscription callback, it does exactly what
         # we want by updating the collision objects.
         self.monitored_planning_scene_callback(self.moveit2.planning_scene)
-        self.get_logger().info("Got the initial planning scene...")
+        self.get_logger().info("Got the planning scene...")
 
-        # Check if the node is still okay and within the initialization timeout
+    def start_add_collision_object_batch(self) -> None:
+        """
+        Start a batch to add collision objects to the planning scene.
+        """
+        with self.collision_object_ids_lock:
+            self.collision_object_ids_this_batch.clear()
+            self.attached_collision_object_ids_this_batch.clear()
+
+    def add_collision_objects(
+        self,
+        objects: Dict[str, CollisionObjectParams],
+        timeout_secs: float = 5.0,
+    ) -> bool:
+        """
+        Adds the collision objects into the planning scene. Assumes that
+        `start_add_collision_object_batch` has been called.
+        """
+        start_time = self.get_clock().now()
+        rate = self.create_rate(self.publish_hz)
+        retval = True
+
+        # Check if the node is still okay and has not timed out
         def check_ok() -> bool:
             return (
                 rclpy.ok()
-                and (self.get_clock().now() - initialization_start_time).nanoseconds
-                / 1e9
-                <= self.initialization_timeout_secs
+                and (self.get_clock().now() - start_time).nanoseconds / 1e9
+                <= timeout_secs
             )
 
-        # First, add *all* collision objects to the planning scene
-        object_ids = set(self.objects.keys()) - self.collision_object_ids
+        # First, add all collision objects to the planning scene.
+        object_ids = set(objects.keys()) - self.collision_object_ids_this_batch
         while check_ok() and len(object_ids) > 0:
             self.get_logger().debug(
                 f"Adding these objects to the planning scene: {object_ids}",
@@ -578,15 +672,18 @@ class ADAPlanningScene(Node):
             for object_id in object_ids:
                 if not check_ok():
                     break
-                params = self.objects[object_id]
+                params = objects[object_id]
+                # Collision mesh
                 if params.primitive_type is None:
                     self.moveit2.add_collision_mesh(
                         id=object_id,
-                        filepath=params.filepath,
+                        filepath=params.filepath if params.mesh[0] is None else None,
                         position=params.position,
                         quat_xyzw=params.quat_xyzw,
                         frame_id=params.frame_id,
+                        mesh=params.mesh[0],
                     )
+                # Collision primitive
                 else:
                     self.moveit2.add_collision_primitive(
                         id=object_id,
@@ -599,18 +696,19 @@ class ADAPlanningScene(Node):
                 rate.sleep()
                 # Remove object_ids that have been added to the planning scene
                 with self.collision_object_ids_lock:
-                    object_ids = object_ids - self.collision_object_ids
+                    object_ids = object_ids - self.collision_object_ids_this_batch
 
         if len(object_ids) > 0:
             self.get_logger().error(
                 "Initialization timed out. May not have added these objects to "
                 f"the planning scene: {object_ids}"
             )
+            retval = False
 
-        # Next, attach any objects that need to be attached
+        # Next, attach all objects that need to be attached
         attached_object_ids = {
             object_id for object_id, params in self.objects.items() if params.attached
-        }
+        } - self.attached_collision_object_ids_this_batch
         while check_ok() and len(attached_object_ids) > 0:
             self.get_logger().debug(
                 f"Attaching these objects to the robot: {attached_object_ids}"
@@ -629,7 +727,8 @@ class ADAPlanningScene(Node):
                 # Remove attached_object_ids that have been attached to the robot
                 with self.collision_object_ids_lock:
                     attached_object_ids = (
-                        attached_object_ids - self.attached_collision_object_ids
+                        attached_object_ids
+                        - self.attached_collision_object_ids_this_batch
                     )
 
         if len(attached_object_ids) > 0:
@@ -637,6 +736,293 @@ class ADAPlanningScene(Node):
                 "Initialization timed out. May not have attached these objects to "
                 f"the robot: {attached_object_ids}"
             )
+            retval = False
+
+        return retval
+
+    def initialize_planning_scene(self) -> None:
+        """
+        Initialize the planning scene with the objects.
+        """
+        initialization_start_time = self.get_clock().now()
+
+        def get_timeout_secs() -> float:
+            return (
+                self.initialization_timeout_secs
+                - (self.get_clock().now() - initialization_start_time).nanoseconds / 1e9
+            )
+
+        # Add all the objects from the parameters in one batch
+        self.start_add_collision_object_batch()
+
+        # Get the initial planning scene to avoid re-adding objects that are already
+        # there.
+        self.update_planning_scene()
+
+        # If we are using workspace walls, compute the bounds of the objects
+        # within the workspace walls. We also store the meshes to avoid reloading
+        # them when adding them to the planning scene.
+        if self.use_workspace_walls:
+            for object_id, params in self.objects.items():
+                if params.within_workspace_walls:
+                    if params.primitive_type is None:
+                        # Get the bounds. This also stores the meshes
+                        bounds = self.get_mesh_bounds(params)
+                    else:
+                        bounds = self.get_primitive_bounds(params)
+                    if bounds is not None:
+                        self.object_to_bounds[object_id] = bounds
+
+        # Add the objects to the planning scene
+        self.add_collision_objects(
+            self.objects,
+            timeout_secs=get_timeout_secs(),
+        )
+
+        # If we are using workspace walls, add the workspace walls to the planning scene
+        if self.use_workspace_walls:
+            self.add_workspace_walls(timeout_secs=get_timeout_secs())
+
+    def get_homogenous_transform_in_base_frame(
+        self,
+        position: Tuple[float, float, float],
+        quat_xyzw: Tuple[float, float, float, float],
+        frame_id: str,
+        timeout_secs: float = 0.5,
+    ):
+        """
+        Get the homogenous transformation matrix of the object in the base frame.
+        """
+        # Get the pose as a PoseStamped
+        pose = PoseStamped()
+        pose.header.frame_id = frame_id
+        pose.pose.position = Point(x=position[0], y=position[1], z=position[2])
+        pose.pose.orientation = Quaternion(
+            x=quat_xyzw[0],
+            y=quat_xyzw[1],
+            z=quat_xyzw[2],
+            w=quat_xyzw[3],
+        )
+
+        # Transform the PoseStamped to the base frame
+        try:
+            pose = self.tf_buffer.transform(
+                pose, self.base_frame, rclpy.duration.Duration(seconds=timeout_secs)
+            )
+        except (
+            tf2.ConnectivityException,
+            tf2.ExtrapolationException,
+            tf2.InvalidArgumentException,
+            tf2.LookupException,
+            tf2.TimeoutException,
+            tf2.TransformException,
+            TypeException,
+        ) as error:
+            self.get_logger().error(f"Failed to transform the pose: {error}")
+            return None
+
+        # Covert the pose to a homogenous transformation matrix
+        pose_matrix = quaternion_matrix(
+            [
+                pose.pose.orientation.w,
+                pose.pose.orientation.x,
+                pose.pose.orientation.y,
+                pose.pose.orientation.z,
+            ]
+        )
+        pose_matrix[0, 3] = pose.pose.position.x
+        pose_matrix[1, 3] = pose.pose.position.y
+        pose_matrix[2, 3] = pose.pose.position.z
+
+        return pose_matrix
+
+    def get_mesh_bounds(
+        self,
+        params: CollisionObjectParams,
+    ) -> npt.ArrayLike:
+        """
+        Get the bounds of a mesh file.
+
+        Args:
+            params: The parameters of the collision object.
+
+        Returns:
+            The mesh and its bounds.
+        """
+        # Get the mesh
+        if params.mesh[0] is None:
+            params.mesh[0] = trimesh.load(params.filepath)
+        mesh = params.mesh[0]
+
+        # Get the transformation matrix
+        transform = self.get_homogenous_transform_in_base_frame(
+            position=params.position,
+            quat_xyzw=params.quat_xyzw,
+            frame_id=params.frame_id,
+        )
+
+        # Transform the mesh
+        mesh_transformed = copy.deepcopy(mesh)
+        mesh_transformed.apply_transform(transform)
+
+        # Get the bounds
+        bounds = mesh_transformed.bounds
+
+        return bounds
+
+    def get_primitive_bounds(
+        self,
+        params: CollisionObjectParams,
+        n_points: int = 20,
+    ) -> npt.ArrayLike:
+        """
+        Get the bounds of a primitive object.
+
+        Args:
+            params: The parameters of the collision object.
+            n_points: The number of points to use for the circle(s) on the cone
+                and cylinder. Ignored for other primitive types.
+
+        Returns:
+            The bounds of the primitive object.
+        """
+        # Get the transformation matrix
+        transform = self.get_homogenous_transform_in_base_frame(
+            position=params.position,
+            quat_xyzw=params.quat_xyzw,
+            frame_id=params.frame_id,
+        )
+
+        # Get the points we care about, as a (n, 3) np.ndarray
+        # The origin of all primitives is at the center of the object
+        if params.primitive_type == SolidPrimitive.BOX:
+            len_x, len_y, len_z = params.primitive_dims
+            points = np.array(
+                [
+                    [-len_x / 2, -len_y / 2, -len_z / 2],
+                    [len_x / 2, -len_y / 2, -len_z / 2],
+                    [-len_x / 2, len_y / 2, -len_z / 2],
+                    [len_x / 2, len_y / 2, -len_z / 2],
+                    [-len_x / 2, -len_y / 2, len_z / 2],
+                    [len_x / 2, -len_y / 2, len_z / 2],
+                    [-len_x / 2, len_y / 2, len_z / 2],
+                    [len_x / 2, len_y / 2, len_z / 2],
+                ]
+            )
+        elif params.primitive_type == SolidPrimitive.SPHERE:
+            # For a sphere, the only point we care about is the center,
+            # because it spreads equally in all directions
+            points = np.array([[0, 0, 0]])
+        elif params.primitive_type in {SolidPrimitive.CYLINDER, SolidPrimitive.CONE}:
+            height, radius = params.primitive_dims
+            # Get n_points (x, y) points along the circle
+            circle_points = np.array(
+                [
+                    [radius * np.cos(theta), radius * np.sin(theta)]
+                    for theta in np.linspace(0, 2 * np.pi, n_points)
+                ]
+            )
+            points = [[x, y, -height / 2] for x, y in circle_points]
+            if params.primitive_type == SolidPrimitive.CYLINDER:
+                # For a cylinder, add the top circle
+                points += [[x, y, height / 2] for x, y in circle_points]
+            else:
+                # For a cone, add the top point
+                points += [[0, 0, height / 2]]
+            points = np.array(points)
+
+        # Transform the points
+        points_homogenous = np.hstack([points, np.ones((points.shape[0], 1))])
+        points_transformed = np.dot(transform, points_homogenous.T).T[:, :3]
+
+        # Get the bounds as a (2, 3) array
+        if params.primitive_type == SolidPrimitive.SPHERE:
+            center = points_transformed[0]
+            radius = params.primitive_dims[0]
+            bounds = np.array(
+                [
+                    [center[0] - radius, center[1] - radius, center[2] - radius],
+                    [center[0] + radius, center[1] + radius, center[2] + radius],
+                ]
+            )
+        else:
+            bounds = np.array(
+                [
+                    np.min(points_transformed, axis=0),
+                    np.max(points_transformed, axis=0),
+                ]
+            )
+
+        return bounds
+
+    def update_workspace_walls(self) -> None:
+        """
+        Update the workspace walls based on the objects in the planning scene.
+        """
+        wall_thickness = 0.01  # m
+
+        # Get the bounds
+        lower_bound = np.array([np.inf, np.inf, np.inf])
+        upper_bound = np.array([-np.inf, -np.inf, -np.inf])
+        for object_id, bounds in self.object_to_bounds.items():
+            lower_bound = np.minimum(lower_bound, bounds[0])
+            upper_bound = np.maximum(upper_bound, bounds[1])
+        lower_bound -= self.workspace_wall_margin
+        upper_bound += self.workspace_wall_margin
+        bounds = np.array([lower_bound, upper_bound])
+
+        # Add new objects for each workspace walls, with labels where left is +x,
+        # top is +z, and front is -y. j corresponds to the dimension and i corresponds
+        # to whether we're taking the lower or upper bound.
+        labels = {
+            (0, 0): "right",
+            (0, 1): "front",
+            (0, 2): "bottom",
+            (1, 0): "left",
+            (1, 1): "back",
+            (1, 2): "top",
+        }
+        primitive_type = SolidPrimitive.BOX
+        quat_xyzw = [0, 0, 0, 1]
+        for i in range(2):
+            for j in range(3):
+                # Compute the position and dimensions
+                position = [
+                    bounds[i, k] if k == j else (bounds[0, k] + bounds[1, k]) / 2
+                    for k in range(3)
+                ]
+                primitive_dims = [
+                    wall_thickness if k == j else bounds[1, k] - bounds[0, k]
+                    for k in range(3)
+                ]
+
+                # Add the workspace wall
+                object_id = f"workspace_wall_{labels[(i, j)]}"
+                self.workspace_walls[object_id] = CollisionObjectParams(
+                    filepath=None,
+                    primitive_type=primitive_type,
+                    primitive_dims=primitive_dims,
+                    position=position,
+                    quat_xyzw=quat_xyzw,
+                    frame_id=self.base_frame,
+                    within_workspace_walls=False,
+                    attached=False,
+                    touch_links=[],
+                    mesh=[None],
+                )
+
+    def add_workspace_walls(self, timeout_secs: float = 5.0) -> None:
+        """
+        Re-computes and then adds workspace walls. Adding workspace walls is
+        always done in its own batch. This ensures that even if workspace walls
+        already exist, they are re-added with the correct position and dimensions.
+        """
+        self.start_add_collision_object_batch()
+        self.update_workspace_walls()
+        self.add_collision_objects(
+            self.workspace_walls,
+            timeout_secs=timeout_secs,
+        )
 
     def face_detection_callback(self, msg: FaceDetection) -> None:
         """
@@ -661,16 +1047,14 @@ class ADAPlanningScene(Node):
             msg = self.latest_face_detection
             self.latest_face_detection = None
 
-        base_frame = "root"
-
         # Transform the detected mouth center from the camera frame into the base frame
         try:
             detected_mouth_center = self.tf_buffer.transform(
                 msg.detected_mouth_center,
-                base_frame,
+                self.base_frame,
                 rclpy.duration.Duration(seconds=0.5 / self.update_face_hz),
             )
-        except TransformException as e:
+        except tf2.TransformException as e:
             self.get_logger().error(
                 f"Failed to transform the detected mouth center: {e}"
             )
@@ -722,7 +1106,7 @@ class ADAPlanningScene(Node):
             id=self.head_object_id,
             position=detected_mouth_pose.pose.position,
             quat_xyzw=detected_mouth_pose.pose.orientation,
-            frame_id=base_frame,
+            frame_id=self.base_frame,
         )
 
         # Add the static mouth pose to TF. Although it is done once in MoveToTree,
@@ -825,16 +1209,14 @@ class ADAPlanningScene(Node):
             msg = self.latest_table_detection
             self.latest_table_detection = None
 
-        base_frame = self.objects[self.table_object_id].frame_id
-
         # Transform the detected table pose from the camera frame into the base frame
         try:
             detected_table_pose = self.tf_buffer.transform(
                 msg,
-                base_frame,
+                self.base_frame,
                 rclpy.duration.Duration(seconds=0.5 / self.update_table_hz),
             )
-        except TransformException as e:
+        except tf2.TransformException as e:
             self.get_logger().error(
                 f"Failed to transform the detected table center: {e}"
             )
@@ -902,7 +1284,7 @@ class ADAPlanningScene(Node):
             id=self.table_object_id,
             position=detected_table_pose.pose.position,
             quat_xyzw=detected_table_pose.pose.orientation,
-            frame_id=base_frame,
+            frame_id=self.base_frame,
         )
 
 
