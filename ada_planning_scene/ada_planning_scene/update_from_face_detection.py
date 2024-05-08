@@ -36,8 +36,7 @@ class UpdateFromFaceDetection:
     # pylint: disable=too-many-instance-attributes
     # Fine for this class.
     # pylint: disable=too-few-public-methods
-    # This class is fully internal -- subscribing to face detection and updating
-    # planning scene objects.
+    # This class updates the face internally, so doesn't need many public methods.
 
     def __init__(
         self,
@@ -58,6 +57,7 @@ class UpdateFromFaceDetection:
         objects: The collision objects in the planning scene.
         base_frame_id: The base frame ID.
         tf_buffer: The TF buffer.
+        tf_broadcaster: The TF static transform broadcaster.
         """
         # pylint: disable=too-many-arguments
         # This class needs a lot of objects passed from the main node.

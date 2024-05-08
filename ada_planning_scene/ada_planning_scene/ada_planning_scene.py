@@ -20,8 +20,7 @@ from tf2_ros.transform_listener import TransformListener
 from ada_planning_scene.collision_object_manager import CollisionObjectManager
 from ada_planning_scene.planning_scene_initializer import PlanningSceneInitializer
 from ada_planning_scene.update_from_face_detection import UpdateFromFaceDetection
-
-# from ada_planning_scene.update_from_table_detection import UpdateFromTableDetection
+from ada_planning_scene.update_from_table_detection import UpdateFromTableDetection
 from ada_planning_scene.workspace_walls import WorkspaceWalls
 
 
@@ -141,14 +140,14 @@ class ADAPlanningScene(Node):
             tf_broadcaster=self.__tf_broadcaster,
         )
 
-        # # Create an object to process planning scene updates from table detection
-        # self.__update_from_table_detection = UpdateFromTableDetection(
-        #     node=self,
-        #     collision_object_manager=self.__collision_object_manager,
-        #     objects=self.__objects,
-        #     base_frame_id=self.__base_frame,
-        #     tf_buffer=self.__tf_buffer,
-        # )
+        # Create an object to process planning scene updates from table detection
+        self.__update_from_table_detection = UpdateFromTableDetection(
+            node=self,
+            collision_object_manager=self.__collision_object_manager,
+            objects=self.__objects,
+            base_frame_id=self.__base_frame,
+            tf_buffer=self.__tf_buffer,
+        )
 
 
 def main(args: List = None) -> None:

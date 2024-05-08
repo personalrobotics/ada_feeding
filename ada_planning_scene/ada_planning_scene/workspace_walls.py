@@ -39,6 +39,8 @@ class WorkspaceWalls:
 
     # pylint: disable=too-many-instance-attributes
     # We need to keep track of a lot to compute and update workspace walls.
+    # pylint: disable=too-few-public-methods
+    # This class updates workspace walls internally, so doesn't need many public methods.
 
     def __init__(
         self,

@@ -283,6 +283,8 @@ class CollisionObjectManager:
             with self.__collision_objects_lock:
                 if ignore_existing or i > 0:
                     collision_object_ids -= self.__collision_objects_per_batch[batch_id]
+            if len(collision_object_ids) == 0:
+                break
 
             # Add the collision objects
             self.__node.get_logger().info(
@@ -338,6 +340,8 @@ class CollisionObjectManager:
                     attached_collision_object_ids -= (
                         self.__attached_collision_objects_per_batch[batch_id]
                     )
+            if len(attached_collision_object_ids) == 0:
+                break
 
             # Attach the collision objects
             self.__node.get_logger().info(
@@ -415,6 +419,8 @@ class CollisionObjectManager:
             with self.__collision_objects_lock:
                 if i > 0:
                     collision_object_ids -= self.__collision_objects_per_batch[batch_id]
+            if len(collision_object_ids) == 0:
+                break
 
             # Move the collision objects
             self.__node.get_logger().info(

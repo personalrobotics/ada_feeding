@@ -34,7 +34,6 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   scripts/create_action_servers.py
   scripts/ada_watchdog.py
-  scripts/ada_planning_scene.py
   scripts/dummy_ft_sensor.py
   scripts/joint_state_latency.py
   scripts/robot_state_service.py
