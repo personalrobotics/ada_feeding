@@ -185,7 +185,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false"
             ],
             "moveit": ["ros2 launch ada_moveit demo.launch.py sim:=mock"],
-            "planning_scene": ["ros2 launch ada_planning_scene ada_planning_scene_launch.xml"]
+            "planning_scene": ["ros2 launch ada_planning_scene ada_planning_scene_launch.xml"],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
                 "node start_robot_browser.js",

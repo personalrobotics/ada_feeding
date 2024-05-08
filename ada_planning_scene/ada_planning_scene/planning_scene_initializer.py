@@ -24,6 +24,10 @@ class PlanningSceneInitializer:
     collision objects from the parameters and adds them to the planning scene.
     """
 
+    # pylint: disable=too-few-public-methods
+    # This class only exists to intialize the planning scene, hence it only needs one
+    # public method
+
     def __init__(self, node: Node, collision_object_manager: CollisionObjectManager):
         """
         Initialize the PlanningSceneInitializer.
@@ -36,16 +40,17 @@ class PlanningSceneInitializer:
         self.__node = node
         self.__collision_object_manager = collision_object_manager
 
-        self.load_parameters()
+        self.objects = {}
+        self.__load_parameters()
 
-    def load_parameters(self) -> None:
+    def __load_parameters(self) -> None:
         """
         Load the parameters for the planning scene.
         """
-        self.load_time_parameters()
-        self.load_objects_parameters()
+        self.__load_time_parameters()
+        self.__load_objects_parameters()
 
-    def load_time_parameters(self) -> None:
+    def __load_time_parameters(self) -> None:
         """
         Load parameters related to time during initialization.
         """
@@ -54,11 +59,11 @@ class PlanningSceneInitializer:
 
         # At what frequency (Hz) to check whether the `/get_planning_scene`
         # service is ready before starting to populate the planning scene
-        wait_for_moveit_hz = self.__node.declare_parameter(
-            "wait_for_moveit_hz",
+        __wait_for_moveit_hz = self.__node.declare_parameter(
+            "__wait_for_moveit_hz",
             10.0,  # default value
             ParameterDescriptor(
-                name="wait_for_moveit_hz",
+                name="__wait_for_moveit_hz",
                 type=ParameterType.PARAMETER_DOUBLE,
                 description=(
                     "The rate (Hz) at which to check the whether the "
@@ -67,7 +72,7 @@ class PlanningSceneInitializer:
                 read_only=True,
             ),
         )
-        self.wait_for_moveit_hz = wait_for_moveit_hz.value
+        self.__wait_for_moveit_hz = __wait_for_moveit_hz.value
 
         # If all the collision objects have not been succesfully added to the
         # planning scene within this time, stop initialization.
@@ -84,7 +89,7 @@ class PlanningSceneInitializer:
                 read_only=True,
             ),
         )
-        self.initialization_timeout = Duration(
+        self.__initialization_timeout = Duration(
             seconds=initialization_timeout_secs.value
         )
 
@@ -101,14 +106,12 @@ class PlanningSceneInitializer:
                 read_only=True,
             ),
         )
-        self.publish_hz = publish_hz.value
+        self.__publish_hz = publish_hz.value
 
-    def load_objects_parameters(self) -> None:
+    def __load_objects_parameters(self) -> None:
         """
         Load parameters related to objects to add to the planning scene.
         """
-        # pylint: disable=attribute-defined-outside-init
-        # Fine for this method
 
         # Read the assets directory path
         assets_dir = self.__node.declare_parameter(
@@ -134,7 +137,6 @@ class PlanningSceneInitializer:
                 read_only=True,
             ),
         )
-        self.objects = {}
 
         # Read the object parameters
         for object_id in object_ids.value:
@@ -268,12 +270,12 @@ class PlanningSceneInitializer:
                 touch_links=touch_links,
             )
 
-    def wait_for_moveit(self) -> None:
+    def __wait_for_moveit(self) -> None:
         """
         Wait for the MoveIt2 interface to be ready. Specifically, it waits
         until the `/get_planning_scene` service is ready.
         """
-        rate = self.__node.create_rate(self.wait_for_moveit_hz)
+        rate = self.__node.create_rate(self.__wait_for_moveit_hz)
         while rclpy.ok():
             # pylint: disable=protected-access
             # This is necessary. Ideally, the service would not be protected.
@@ -291,7 +293,7 @@ class PlanningSceneInitializer:
         """
         # Wait for the MoveIt2 interface to be ready
         self.__node.get_logger().info("Waiting for MoveIt2 interface...")
-        self.wait_for_moveit()
+        self.__wait_for_moveit()
         self.__node.get_logger().info("...MoveIt2 is ready.")
 
         # Start time
@@ -302,9 +304,9 @@ class PlanningSceneInitializer:
             "Getting objects currently in the planning scene..."
         )
         self.__collision_object_manager.get_global_collision_objects(
-            rate_hz=self.publish_hz,
+            rate_hz=self.__publish_hz,
             timeout=get_remaining_time(
-                self.__node, start_time, self.initialization_timeout
+                self.__node, start_time, self.__initialization_timeout
             ),
         )
         self.__node.get_logger().info("...got planning scene objects.")
@@ -313,9 +315,9 @@ class PlanningSceneInitializer:
         self.__node.get_logger().info("Adding objects to the planning scene...")
         self.__collision_object_manager.add_collision_objects(
             objects=self.objects,
-            rate_hz=self.publish_hz,
+            rate_hz=self.__publish_hz,
             timeout=get_remaining_time(
-                self.__node, start_time, self.initialization_timeout
+                self.__node, start_time, self.__initialization_timeout
             ),
             ignore_existing=True,
         )

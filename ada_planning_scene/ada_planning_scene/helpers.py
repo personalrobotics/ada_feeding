@@ -4,7 +4,7 @@ scene.
 """
 
 # Standard imports
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 # Third-party imports
 from rclpy.duration import Duration
@@ -34,6 +34,7 @@ class CollisionObjectParams:
         # Optional parameters for specifying a mesh
         mesh_filepath: Optional[str] = None,
         mesh: Optional[trimesh.Trimesh] = None,
+        mesh_scale: Union[float, Tuple[float, float, float]] = 1.0,
         # Optional parameters for specifying a primitive
         primitive_type: Optional[int] = None,
         primitive_dims: Optional[List[float]] = None,
@@ -54,6 +55,7 @@ class CollisionObjectParams:
         frame_id: The frame ID of the collision object.
         mesh_filepath: The filepath to the mesh of the collision object.
         mesh: The mesh of the collision object. If passed, mesh_filepath is not loaded.
+        mesh_scale: The scale of the mesh.
         primitive_type: The type of the primitive.
         primitive_dims: The dimensions of the primitive.
         within_workspace_walls: Whether the collision object is within the workspace walls.
@@ -67,6 +69,7 @@ class CollisionObjectParams:
         self.frame_id = frame_id
         self.mesh_filepath = mesh_filepath
         self.mesh = mesh
+        self.mesh_scale = mesh_scale
         self.primitive_type = primitive_type
         self.primitive_dims = primitive_dims
         self.within_workspace_walls = within_workspace_walls
@@ -90,8 +93,8 @@ def duration_minus(
     -------
     The difference between the two durations.
     """
-    return Duration(nanoseconds=duration1.nanoseconds - duration2.nanoseconds
-)
+    return Duration(nanoseconds=duration1.nanoseconds - duration2.nanoseconds)
+
 
 def get_remaining_time(
     node: Node,
