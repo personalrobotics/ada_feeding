@@ -1,12 +1,15 @@
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 ada_planning_scene:
   ros__parameters:
-    # Whether or not to add workspace walls to the planning scene.
-    # If True, add axis-aligned walls to the planning scene that contain all
-    # objects specified as being `within_workspace_walls`, with an additional
-    # margin of `workspace_wall_margin` meters.
-    use_workspace_walls: True
-    workspace_wall_margin: 0.1 # m
+
+    # The base frame. Workspace walls and dynamic position updates (e.g., face and 
+    # table) are published in this frame. Note that if using workspace walls, this
+    # frame must match the base link in the robot's URDF.
+    base_frame: root
+
+    ############################################################################
+    # Parameters related to the PlanningSceneInitializer class
+    ############################################################################
 
     object_ids: # list of objects to add to the planning scene
       - wheelchair
@@ -59,9 +62,48 @@ ada_planning_scene:
       frame_id: root # the frame_id that the pose is relative to
       within_workspace_walls: True # whether to add workspace walls around the wheelchair
 
+    ############################################################################
+    # Parameters related to the WorkspaceWalls class
+    ############################################################################
+
+    # Whether or not to add workspace walls to the planning scene.
+    # If True, add axis-aligned walls to the planning scene that contain all
+    # objects specified as being `within_workspace_walls`, with an additional
+    # margin of `workspace_wall_margin` meters.
+    use_workspace_walls: True
+    workspace_wall_margin: 0.1 # m
+
+    # The service that needs to be called, and parameter that needs to be requested
+    # from it, to get the robot URDF
+    get_urdf_parameter_service_name: "/move_group/get_parameters"
+    urdf_parameter_name: "robot_description"
+
+    # The service that needs to be called, and parameters that need to be requested,
+    # to get the robot joint positions that must be in the workspace walls. Note that
+    # the parameter name is made by first getting the parameter value from the
+    # `namespace_to_use_parameter`, then prepending it to the parameter name, e.g.,
+    # '{namespace_to_use}.{parameter_name}'
+    get_robot_configurations_parameter_service_name: "/ada_feeding_action_servers/get_parameters"
+    namespace_to_use_parameter_name: "namespace_to_use"
+    robot_configurations_parameter_names:
+      - "MoveAbovePlate.tree_kwargs.joint_positions"
+      - "MoveToRestingPosition.tree_kwargs.goal_configuration"
+      - "MoveToStagingConfiguration.tree_kwargs.goal_configuration"
+      - "MoveToStowLocation.tree_kwargs.tree_kwargs"
+
+    # Which joints in the robot's URDF are fixed (along with values)
+
+    ############################################################################
+    # Parameters related to the UpdateFromFaceDetectionpace class
+    ############################################################################
+
     # Reject any mouth poses that are greater than the distance threshold away from the default head position
     head_object_id: head
     head_distance_threshold: 0.5 # m
+
+    ############################################################################
+    # Parameters related to the UpdateFromTableDetectionpace class
+    ############################################################################
 
     # The offset values (in meters) for the center coordinates ([x, y, z]) of the table. These 
     # values are used to translate the detected position into the table's origin.

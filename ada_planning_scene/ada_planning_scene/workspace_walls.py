@@ -5,16 +5,20 @@ in ADA's planning scene.
 
 # Standard imports
 import copy
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # Third-party imports
+from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import (
     Point,
     Quaternion,
 )
+from lxml import etree
 import numpy as np
 import numpy.typing as npt
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
+from rcl_interfaces.srv import GetParameters
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
 from rclpy.node import Node
 from shape_msgs.msg import SolidPrimitive
@@ -24,6 +28,7 @@ from tf2_ros import TypeException
 from tf2_ros.buffer import Buffer
 from transforms3d._gohlketransforms import quaternion_matrix
 import trimesh
+from yourdfpy import URDF
 
 # Local imports
 from ada_planning_scene.collision_object_manager import CollisionObjectManager
@@ -73,6 +78,37 @@ class WorkspaceWalls:
         # Load parameters
         self.__load_parameters()
 
+        # Check if the necessary parameters are set to use the robot model
+        self.__use_robot_model = True
+        if (
+            self.__get_urdf_parameter_service_name is None
+            or self.__get_robot_configurations_parameter_service_name is None
+            or len(self.__robot_configurations_parameter_names) == 0
+        ):
+            self.__node.get_logger().warn(
+                "Not using robot model because the necessary parameters are not set."
+            )
+            self.__use_robot_model = False
+
+        if self.__use_robot_model:
+            # The service to load the robot's URDF
+            self.__robot_model = None
+            self.__get_urdf_parameter_service = self.__node.create_client(
+                GetParameters,
+                self.__get_urdf_parameter_service_name,
+                callback_group=MutuallyExclusiveCallbackGroup(),
+            )
+
+            # The service to load the robot arm configurations that should be within
+            # the workspace walls
+            self.__get_robot_configurations_parameter_service = (
+                self.__node.create_client(
+                    GetParameters,
+                    self.__get_robot_configurations_parameter_service_name,
+                    callback_group=MutuallyExclusiveCallbackGroup(),
+                )
+            )
+
         # Get the bounds of all the objects that are within the workspace walls.
         # As of now, these are only computed once.
         self.__per_object_bounds = {}
@@ -112,6 +148,139 @@ class WorkspaceWalls:
             ),
         )
         self.__workspace_wall_thickness = workspace_wall_thickness.value
+
+        # The name of the service to get the URDF parameter
+        get_urdf_parameter_service_name = self.__node.declare_parameter(
+            "get_urdf_parameter_service_name",
+            None,  # default value
+            ParameterDescriptor(
+                name="get_urdf_parameter_service_name",
+                type=ParameterType.PARAMETER_STRING,
+                description="The name of the service to get the URDF parameter.",
+                read_only=True,
+            ),
+        )
+        self.__get_urdf_parameter_service_name = get_urdf_parameter_service_name.value
+
+        # The parameter to request from the URDF parameter service
+        urdf_parameter_name = self.__node.declare_parameter(
+            "urdf_parameter_name",
+            "robot_description",  # default value
+            ParameterDescriptor(
+                name="urdf_parameter_name",
+                type=ParameterType.PARAMETER_STRING,
+                description="The parameter to request from the URDF parameter service.",
+                read_only=True,
+            ),
+        )
+        self.__urdf_parameter_name = urdf_parameter_name.value
+
+        # The name of the service to get the robot configuration parameters.
+        get_robot_configurations_parameter_service_name = self.__node.declare_parameter(
+            "get_robot_configurations_parameter_service_name",
+            None,  # default value
+            ParameterDescriptor(
+                name="get_robot_configurations_parameter_service_name",
+                type=ParameterType.PARAMETER_STRING,
+                description="The name of the service to get the robot configuration parameters.",
+                read_only=True,
+            ),
+        )
+        self.__get_robot_configurations_parameter_service_name = (
+            get_robot_configurations_parameter_service_name.value
+        )
+
+        # The parameter that contains the namespace to use. The value for this parameter,
+        # if set, will be prepended to the parameter names for the robot configuration,
+        # followed by a period.
+        namespace_to_use_parameter_name = self.__node.declare_parameter(
+            "namespace_to_use_parameter_name",
+            "namespace_to_use",  # default value
+            ParameterDescriptor(
+                name="namespace_to_use_parameter_name",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The parameter that contains the namespace to use. The value for this "
+                    "parameter, if set, will be prepended to the parameter names for the "
+                    "robot configuration, followed by a period."
+                ),
+                read_only=True,
+            ),
+        )
+        self.__namespace_to_use_parameter_name = namespace_to_use_parameter_name.value
+
+        # The names of the parameters that contain robot joint configurations that should
+        # be contained within the workspace walls.
+        robot_configurations_parameter_names = self.__node.declare_parameter(
+            "robot_configurations_parameter_names",
+            None,  # default value
+            ParameterDescriptor(
+                name="robot_configurations_parameter_names",
+                type=ParameterType.PARAMETER_STRING_ARRAY,
+                description=(
+                    "The names of the parameters that contain robot joint configurations "
+                    "that should be contained within the workspace walls."
+                ),
+                read_only=True,
+            ),
+        )
+        self.__robot_configurations_parameter_names = (
+            robot_configurations_parameter_names.value
+        )
+        if self.__robot_configurations_parameter_names is None:
+            self.__robot_configurations_parameter_names = []
+
+        # The names and values of the fixed joints in the robot's full URDF.
+        fixed_joint_names = self.__node.declare_parameter(
+            "fixed_joint_names",
+            [
+                "robot_tilt",
+                "j2n6s200_joint_finger_1",
+                "j2n6s200_joint_finger_2",
+            ],  # default value
+            ParameterDescriptor(
+                name="fixed_joint_names",
+                type=ParameterType.PARAMETER_STRING_ARRAY,
+                description="The names of the fixed joints in the robot's full URDF.",
+                read_only=True,
+            ),
+        )
+        self.__fixed_joint_names = fixed_joint_names.value
+        fixed_joint_values = self.__node.declare_parameter(
+            "fixed_joint_values",
+            [0.0, 1.33, 1.33],  # default value
+            ParameterDescriptor(
+                name="fixed_joint_values",
+                type=ParameterType.PARAMETER_DOUBLE_ARRAY,
+                description="The values of the fixed joints in the robot's full URDF.",
+                read_only=True,
+            ),
+        )
+        self.__fixed_joint_values = fixed_joint_values.value
+        min_len = min(len(self.__fixed_joint_names), len(self.__fixed_joint_values))
+        self.__fixed_joint_names = self.__fixed_joint_names[:min_len]
+        self.__fixed_joint_values = self.__fixed_joint_values[:min_len]
+
+        # The name of the articulated joints in the robot's full URDF. The order
+        # of these must match the order ot joints in the robot configuration parameters.
+        articulated_joint_names = self.__node.declare_parameter(
+            "articulated_joint_names",
+            [
+                "j2n6s200_joint_1",
+                "j2n6s200_joint_2",
+                "j2n6s200_joint_3",
+                "j2n6s200_joint_4",
+                "j2n6s200_joint_5",
+                "j2n6s200_joint_6",
+            ],  # default value
+            ParameterDescriptor(
+                name="articulated_joint_names",
+                type=ParameterType.PARAMETER_STRING_ARRAY,
+                description="The names of the articulated joints in the robot's full URDF.",
+                read_only=True,
+            ),
+        )
+        self.__articulated_joint_names = articulated_joint_names.value
 
     def __get_homogenous_transform_in_base_frame(
         self,
@@ -323,10 +492,13 @@ class WorkspaceWalls:
         """
         # Get the bounds of all objects within the workspace walls
         all_bounds = np.array(list(self.__per_object_bounds.values()))
+        self.__node.get_logger().info(f"self.__per_object_bounds: {self.__per_object_bounds}")
 
         # Get the min and max bounds
         min_bounds = np.min(all_bounds[:, 0, :], axis=0)
         max_bounds = np.max(all_bounds[:, 1, :], axis=0)
+        self.__node.get_logger().info(f"min_bounds: {min_bounds}")
+        self.__node.get_logger().info(f"max_bounds: {max_bounds}")
 
         # Add margin
         min_bounds -= self.__workspace_wall_margin
@@ -385,11 +557,137 @@ class WorkspaceWalls:
 
         return workspace_walls
 
-    def initialize(
-        self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=5)
-    ) -> None:
+    @staticmethod
+    def urdf_replace_package_paths(
+        urdf: str,
+    ) -> str:
         """
-        Initialize the workspace walls.
+        Takes in a URDF string with package paths represented as `package://{name}/`
+        and replaces them with the absolute path to the package.
+
+        Parameters
+        ----------
+        urdf: The URDF string.
+
+        Returns
+        -------
+        The URDF string with package paths replaced.
+        """
+        keyword = "package://"
+
+        while urdf.find(keyword) != -1:
+            start = urdf.find(keyword)
+            end = urdf.find("/", start + len(keyword))
+            package_name = urdf[start + len(keyword) : end]
+            package_path = get_package_share_directory(package_name)
+            urdf = urdf[:start] + package_path + urdf[end:]
+
+        return urdf
+
+    def __get_robot_model(self) -> bool:
+        """
+        Get the robot's model.
+
+        Returns
+        -------
+        True if successful, False otherwise.
+        """
+        # Get the robot's URDF
+        request = GetParameters.Request()
+        request.names = [self.__urdf_parameter_name]
+        # TODO: this should be an async call with a timeout, also check if the service is ready
+        response = self.__get_urdf_parameter_service.call(request)
+        if (
+            len(response.values) == 0
+            or response.values[0].type != ParameterType.PARAMETER_STRING
+        ):
+            return False
+        robot_urdf = response.values[0].string_value
+        robot_urdf = WorkspaceWalls.urdf_replace_package_paths(robot_urdf)
+
+        # Load the URDF.
+        # pylint: disable=protected-access
+        # `yourdfpy` only allows loading URDF from file, so we bypass its default load.
+        parser = etree.XMLParser(remove_blank_text=True)
+        xml_root = etree.fromstring(robot_urdf, parser=parser)
+        self.__robot_model = URDF(robot=URDF._parse_robot(xml_element=xml_root))
+
+        return True
+
+    def __get_robot_configurations(self) -> Dict[str, List[float]]:
+        """
+        Get the robot's configurations.
+
+        Returns
+        -------
+        A map from the parameter name to the configuration.
+        """
+        # Get the value of the namespace_to_use parameter
+        request = GetParameters.Request()
+        request.names = [self.__namespace_to_use_parameter_name]
+        # TODO: this should be an async call with a timeout, also check if the service is ready
+        response = self.__get_robot_configurations_parameter_service.call(request)
+        if (
+            len(response.values) == 0
+            or response.values[0].type != ParameterType.PARAMETER_STRING
+        ):
+            prefix = ""
+        else:
+            prefix = response.values[0].string_value + "."
+
+        # Get the robot configurations
+        robot_configurations = {}
+        request.names = [
+            prefix + name for name in self.__robot_configurations_parameter_names
+        ]
+        # TODO: this should be an async call with a timeout, also check if the service is ready
+        response = self.__get_robot_configurations_parameter_service.call(request)
+        for i, param in enumerate(response.values):
+            if param.type != ParameterType.PARAMETER_DOUBLE_ARRAY:
+                continue
+            robot_configurations[self.__robot_configurations_parameter_names[i]] = list(
+                param.double_array_value
+            )
+
+        return robot_configurations
+
+    def __update_robot_configuration_bounds(self):
+        """
+        Updates the robot configuration bounds that must be contained within
+        the workspace walls.
+        """
+
+        # Get the robot configurations
+        robot_configurations = self.__get_robot_configurations()
+
+        # Get each configuration, get the bounds
+        for name, configuration in robot_configurations.items():
+            if len(configuration) != len(self.__articulated_joint_names):
+                self.__node.get_logger().error(
+                    f"Configuration {name} has the wrong number of joints."
+                )
+                continue
+
+            # Get the joint values
+            joint_values = dict(
+                zip(self.__fixed_joint_names, self.__fixed_joint_values)
+            )
+            joint_values.update(zip(self.__articulated_joint_names, configuration))
+
+            # Set the configuration in the URDF
+            self.__robot_model.update_cfg(joint_values)
+
+            # Get the bounds
+            bounds = self.__robot_model.scene.bounds
+
+            # Store the bounds
+            self.__per_object_bounds[name] = bounds
+
+    def __compute_and_add_workspace_walls(
+        self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=5)
+    ):
+        """
+        Recomputes workspace walls and adds them to the planning scene.
         """
         # Compute the workspace walls
         workspace_walls = self.__compute_workspace_walls()
@@ -398,5 +696,27 @@ class WorkspaceWalls:
         self.__collision_object_manager.add_collision_objects(
             workspace_walls, rate_hz, timeout
         )
+
+    def initialize(
+        self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=5)
+    ) -> None:
+        """
+        Initialize the workspace walls.
+        """
+        # Load the robot's URDF. We do this in `initialize` as opposed to `__init__`
+        # because the MoveGroup has to be running to get the paramter.
+        # TODO: make the below take account of the timeout!
+        if self.__use_robot_model:
+            self.__node.get_logger().info("Loading robot model.")
+            success = self.__get_robot_model()
+            if not success:
+                self.__node.get_logger().error("Failed to load robot model.")
+            else:
+                self.__node.get_logger().info("Loaded robot model.")
+            self.__node.get_logger().info("Updating robot configuration bounds.")
+            self.__update_robot_configuration_bounds()
+            self.__node.get_logger().info("Updated robot configuration bounds.")
+
+        self.__compute_and_add_workspace_walls(rate_hz, timeout)
 
         self.__node.get_logger().info("Initialized workspace walls.")

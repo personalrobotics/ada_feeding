@@ -38,6 +38,7 @@ This README is the definitive source for downloading, installing, and running th
         python3 -m pip install -r requirements.txt
    
     - Upgrade `transforms3d`, since [the release on Ubuntu packages is outdated](https://github.com/matthew-brett/transforms3d/issues/65): `python3 -m pip install transforms3d -U`
+    - Upgrade `networkx`, since `urdfpy`'s dependency list is outdated: `python3 -m pip install --upgrade networkx[default]`. Ignore the warning that `urdfpy` requires `nexworkx` version 2.2; we have verified that it works with 3.3.
     - Remove the duplicate matplotlib pip installation caused by installing scikit-spatial with pip (some accounts have required sudo access for this command, other have not. If you do not have sudo access and encounter this, contact a lab member who does):
   
       ```
