@@ -2,6 +2,11 @@
 ada_planning_scene:
   ros__parameters:
 
+    # If initialization has not succeeded in this time, terminate this node.
+    # This should be alrge because the node needs to wait for MoveIt2 to be
+    # available.
+    initialization_timeout_secs: 60.0
+
     # The base frame. Workspace walls and dynamic position updates (e.g., face and 
     # table) are published in this frame. Note that if using workspace walls, this
     # frame must match the base link in the full robot's URDF (note: not the move group).
