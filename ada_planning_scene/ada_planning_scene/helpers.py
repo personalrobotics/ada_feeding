@@ -7,6 +7,7 @@ scene.
 from typing import List, Optional, Tuple, Union
 
 # Third-party imports
+import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.time import Time
@@ -144,3 +145,18 @@ def has_timed_out(
         timeout=timeout,
     )
     return remaining_time.nanoseconds <= 0
+
+
+def check_ok(
+    node: Node,
+    start_time: Time,
+    timeout: Duration,
+) -> bool:
+    """
+    Check if the node is still okay and hasn't timed out
+    """
+    return rclpy.ok() and not has_timed_out(
+        node=node,
+        start_time=start_time,
+        timeout=timeout,
+    )

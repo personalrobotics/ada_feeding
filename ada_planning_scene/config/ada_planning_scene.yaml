@@ -4,7 +4,7 @@ ada_planning_scene:
 
     # The base frame. Workspace walls and dynamic position updates (e.g., face and 
     # table) are published in this frame. Note that if using workspace walls, this
-    # frame must match the base link in the robot's URDF.
+    # frame must match the base link in the full robot's URDF (note: not the move group).
     base_frame: root
 
     ############################################################################
@@ -91,7 +91,26 @@ ada_planning_scene:
       - "MoveToStagingConfiguration.tree_kwargs.goal_configuration"
       - "MoveToStowLocation.tree_kwargs.tree_kwargs"
 
-    # Which joints in the robot's URDF are fixed (along with values)
+    # Which joints in the robot's URDF are fixed (along with their values).
+    # These are used when computing the bounds of different robot arm configurationss.
+    fixed_joint_names:
+      - robot_tilt
+      - j2n6s200_joint_finger_1
+      - j2n6s200_joint_finger_2
+    fixed_joint_values:
+      - 0.0
+      - 1.33 # closed around fork handle
+      - 1.33 # closed around fork handle
+
+    # The names of the articulated joints. The values in the configurations above
+    # must have the same length as this list, and have the same order.
+    articulated_joint_names:
+      - j2n6s200_joint_1
+      - j2n6s200_joint_2
+      - j2n6s200_joint_3
+      - j2n6s200_joint_4
+      - j2n6s200_joint_5
+      - j2n6s200_joint_6
 
     ############################################################################
     # Parameters related to the UpdateFromFaceDetectionpace class

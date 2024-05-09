@@ -9,13 +9,16 @@ from os import path
 
 # Third-party imports
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
-import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
 
 # Local imports
 from ada_planning_scene.collision_object_manager import CollisionObjectManager
-from ada_planning_scene.helpers import CollisionObjectParams, get_remaining_time
+from ada_planning_scene.helpers import (
+    check_ok,
+    CollisionObjectParams,
+    get_remaining_time,
+)
 
 
 class PlanningSceneInitializer:
@@ -73,40 +76,6 @@ class PlanningSceneInitializer:
             ),
         )
         self.__wait_for_moveit_hz = __wait_for_moveit_hz.value
-
-        # If all the collision objects have not been succesfully added to the
-        # planning scene within this time, stop initialization.
-        initialization_timeout_secs = self.__node.declare_parameter(
-            "initialization_timeout_secs",
-            20.0,  # default value
-            ParameterDescriptor(
-                name="initialization_timeout_secs",
-                type=ParameterType.PARAMETER_DOUBLE,
-                description=(
-                    "If all the collision objects have not been succesfully added to the "
-                    "planning scene within this time, stop initialization."
-                ),
-                read_only=True,
-            ),
-        )
-        self.__initialization_timeout = Duration(
-            seconds=initialization_timeout_secs.value
-        )
-
-        # The rate (Hz) at which to publish each planning scene object
-        publish_hz = self.__node.declare_parameter(
-            "publish_hz",
-            10.0,  # default value
-            ParameterDescriptor(
-                name="publish_hz",
-                type=ParameterType.PARAMETER_DOUBLE,
-                description=(
-                    "The rate (Hz) at which to publish each planning scene object."
-                ),
-                read_only=True,
-            ),
-        )
-        self.__publish_hz = publish_hz.value
 
     def __load_objects_parameters(self) -> None:
         """
@@ -270,55 +239,81 @@ class PlanningSceneInitializer:
                 touch_links=touch_links,
             )
 
-    def __wait_for_moveit(self) -> None:
+    def __wait_for_moveit(self, timeout: Duration(seconds=10.0)) -> bool:
         """
         Wait for the MoveIt2 interface to be ready. Specifically, it waits
         until the `/get_planning_scene` service is ready.
+
+        Parameters
+        ----------
+        timeout: The maximum time to wait for the MoveIt2 interface to be ready.
         """
+        # Get the start time
+        start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(self.__wait_for_moveit_hz)
-        while rclpy.ok():
+
+        while check_ok(self.__node, start_time, timeout):
             # pylint: disable=protected-access
             # This is necessary. Ideally, the service would not be protected.
             if (
                 self.__collision_object_manager.moveit2._get_planning_scene_service.service_is_ready()
             ):
-                break
+                return True
             rate.sleep()
 
-    def initialize(self) -> None:
+        return False
+
+    def initialize(
+        self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=10.0)
+    ) -> bool:
         """
         First, wait for the MoveIt2 interface to be ready. Then, get the objects
         that are already in the planning scene. Then, add the objects to the
         planning scene.
         """
+        # Get the start time
+        start_time = self.__node.get_clock().now()
+
         # Wait for the MoveIt2 interface to be ready
         self.__node.get_logger().info("Waiting for MoveIt2 interface...")
-        self.__wait_for_moveit()
+        success = self.__wait_for_moveit(
+            timeout=get_remaining_time(self.__node, start_time, timeout)
+        )
+        if not success:
+            self.__node.get_logger().error(
+                "MoveIt2 interface is not ready. Exiting initialization."
+            )
+            return False
         self.__node.get_logger().info("...MoveIt2 is ready.")
-
-        # Start time
-        start_time = self.__node.get_clock().now()
 
         # Get the objects that are already in the planning scene
         self.__node.get_logger().info(
             "Getting objects currently in the planning scene..."
         )
-        self.__collision_object_manager.get_global_collision_objects(
-            rate_hz=self.__publish_hz,
-            timeout=get_remaining_time(
-                self.__node, start_time, self.__initialization_timeout
-            ),
+        success = self.__collision_object_manager.get_global_collision_objects(
+            rate_hz=rate_hz,
+            timeout=get_remaining_time(self.__node, start_time, timeout),
         )
+        if not success:
+            self.__node.get_logger().error(
+                "Failed to get objects in the planning scene. Exiting initialization."
+            )
+            return False
         self.__node.get_logger().info("...got planning scene objects.")
 
         # Add the objects to the planning scene
         self.__node.get_logger().info("Adding objects to the planning scene...")
-        self.__collision_object_manager.add_collision_objects(
+        success = self.__collision_object_manager.add_collision_objects(
             objects=self.objects,
-            rate_hz=self.__publish_hz,
-            timeout=get_remaining_time(
-                self.__node, start_time, self.__initialization_timeout
-            ),
+            rate_hz=rate_hz,
+            timeout=get_remaining_time(self.__node, start_time, timeout),
             ignore_existing=True,
         )
+        if not success:
+            self.__node.get_logger().error(
+                "Failed to add objects to the planning scene. Exiting initialization."
+            )
+            return False
         self.__node.get_logger().info("Initialized planning scene.")
+
+        return True

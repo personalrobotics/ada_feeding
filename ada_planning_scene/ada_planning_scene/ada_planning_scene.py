@@ -10,6 +10,7 @@ from typing import List
 # Third-party imports
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
+from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from tf2_ros.buffer import Buffer
@@ -18,6 +19,7 @@ from tf2_ros.transform_listener import TransformListener
 
 # Local imports
 from ada_planning_scene.collision_object_manager import CollisionObjectManager
+from ada_planning_scene.helpers import get_remaining_time
 from ada_planning_scene.planning_scene_initializer import PlanningSceneInitializer
 from ada_planning_scene.update_from_face_detection import UpdateFromFaceDetection
 from ada_planning_scene.update_from_table_detection import UpdateFromTableDetection
@@ -114,17 +116,68 @@ class ADAPlanningScene(Node):
         )
         self.__base_frame = base_frame.value
 
-    def initialize(self):
+        # If all the collision objects have not been succesfully added to the
+        # planning scene within this time, stop initialization.
+        initialization_timeout_secs = self.declare_parameter(
+            "initialization_timeout_secs",
+            20.0,  # default value
+            ParameterDescriptor(
+                name="initialization_timeout_secs",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "If all the collision objects have not been succesfully added to the "
+                    "planning scene within this time, stop initialization."
+                ),
+                read_only=True,
+            ),
+        )
+        self.__initialization_timeout = Duration(
+            seconds=initialization_timeout_secs.value
+        )
+
+        # The rate (Hz) at which to publish each planning scene object
+        initialization_hz = self.declare_parameter(
+            "initialization_hz",
+            10.0,  # default value
+            ParameterDescriptor(
+                name="initialization_hz",
+                type=ParameterType.PARAMETER_DOUBLE,
+                description=(
+                    "The rate (Hz) at which to publish each planning scene object during initialization."
+                ),
+                read_only=True,
+            ),
+        )
+        self.__initialization_hz = initialization_hz.value
+
+    def initialize(self) -> bool:
         """
         Initialize the planning scene.
         """
         # pylint: disable=attribute-defined-outside-init
         # Fine for this method
 
+        # Get the start time
+        start_time = self.get_clock().now()
+
         # Initialize the planning scene
-        self.initializer.initialize()
+        success = self.initializer.initialize(
+            rate_hz=self.__initialization_hz,
+            timeout=get_remaining_time(self, start_time, self.__initialization_timeout),
+        )
+        if not success:
+            self.get_logger().error("Failed to initialize the planning scene.")
+            return False
         if self.__use_workspace_walls:
-            self.__workspace_walls.initialize()
+            success = self.__workspace_walls.initialize(
+                rate_hz=self.__initialization_hz,
+                timeout=get_remaining_time(
+                    self, start_time, self.__initialization_timeout
+                ),
+            )
+            if not success:
+                self.get_logger().error("Failed to initialize the workspace walls.")
+                return False
 
         # pylint: disable=unused-private-member
         # Update attributes contain subscribers and automatically perform work
@@ -149,6 +202,9 @@ class ADAPlanningScene(Node):
             tf_buffer=self.__tf_buffer,
         )
 
+        self.get_logger().info("Finished initializing the planning scene.")
+        return True
+
 
 def main(args: List = None) -> None:
     """
@@ -171,7 +227,12 @@ def main(args: List = None) -> None:
     spin_thread.start()
 
     # Initialize the planning scene
-    ada_planning_scene.initialize()
+    success = ada_planning_scene.initialize()
+
+    if not success:
+        ada_planning_scene.get_logger().error("Exiting node.")
+        # If initialization fails, stop the node
+        rclpy.shutdown()
 
     # Join the spin thread (so it is spinning in the main thread)
     spin_thread.join()

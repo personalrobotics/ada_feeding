@@ -32,7 +32,11 @@ from yourdfpy import URDF
 
 # Local imports
 from ada_planning_scene.collision_object_manager import CollisionObjectManager
-from ada_planning_scene.helpers import CollisionObjectParams
+from ada_planning_scene.helpers import (
+    check_ok,
+    CollisionObjectParams,
+    get_remaining_time,
+)
 
 
 class WorkspaceWalls:
@@ -492,13 +496,10 @@ class WorkspaceWalls:
         """
         # Get the bounds of all objects within the workspace walls
         all_bounds = np.array(list(self.__per_object_bounds.values()))
-        self.__node.get_logger().info(f"self.__per_object_bounds: {self.__per_object_bounds}")
 
         # Get the min and max bounds
         min_bounds = np.min(all_bounds[:, 0, :], axis=0)
         max_bounds = np.max(all_bounds[:, 1, :], axis=0)
-        self.__node.get_logger().info(f"min_bounds: {min_bounds}")
-        self.__node.get_logger().info(f"max_bounds: {max_bounds}")
 
         # Add margin
         min_bounds -= self.__workspace_wall_margin
@@ -584,19 +585,52 @@ class WorkspaceWalls:
 
         return urdf
 
-    def __get_robot_model(self) -> bool:
+    def __get_robot_model(
+        self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=5)
+    ) -> bool:
         """
         Get the robot's model.
+
+        Parameters
+        ----------
+        rate_hz: The rate at which to call the service.
+        timeout: The timeout for the service.
 
         Returns
         -------
         True if successful, False otherwise.
         """
+        # Start the time
+        start_time = self.__node.get_clock().now()
+        rate = self.__node.create_rate(rate_hz)
+
+        # Wait until the service is ready
+        while not self.__get_urdf_parameter_service.service_is_ready():
+            if not check_ok(self.__node, start_time, timeout):
+                self.__node.get_logger().error(
+                    "Timeout while waiting for the get URDF parameter service."
+                )
+                return False
+            rate.sleep()
+
         # Get the robot's URDF
         request = GetParameters.Request()
         request.names = [self.__urdf_parameter_name]
-        # TODO: this should be an async call with a timeout, also check if the service is ready
-        response = self.__get_urdf_parameter_service.call(request)
+        future = self.__get_urdf_parameter_service.call_async(request)
+        while not future.done():
+            if not check_ok(self.__node, start_time, timeout):
+                self.__node.get_logger().error(
+                    "Timeout while getting the robot's URDF."
+                )
+                return False
+            rate.sleep()
+
+        # Get the response
+        try:
+            response = future.result()
+        except Exception as error:  # pylint: disable=broad-except
+            self.__node.get_logger().error(f"Failed to get the robot's URDF: {error}")
+            return False
         if (
             len(response.values) == 0
             or response.values[0].type != ParameterType.PARAMETER_STRING
@@ -605,28 +639,65 @@ class WorkspaceWalls:
         robot_urdf = response.values[0].string_value
         robot_urdf = WorkspaceWalls.urdf_replace_package_paths(robot_urdf)
 
-        # Load the URDF.
-        # pylint: disable=protected-access
-        # `yourdfpy` only allows loading URDF from file, so we bypass its default load.
+        # Load the URDF. Note that this is a blocking operation, so we can't
+        # check timeout during it.
         parser = etree.XMLParser(remove_blank_text=True)
         xml_root = etree.fromstring(robot_urdf, parser=parser)
+        # pylint: disable=protected-access
+        # `yourdfpy` only allows loading URDF from file, so we bypass its default load.
         self.__robot_model = URDF(robot=URDF._parse_robot(xml_element=xml_root))
 
         return True
 
-    def __get_robot_configurations(self) -> Dict[str, List[float]]:
+    def __get_parameter_prefix(
+        self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=5)
+    ) -> Tuple[bool, str]:
         """
-        Get the robot's configurations.
+        Get the namespace to use.
+
+        Parameters
+        ----------
+        rate_hz: The rate at which to call the service.
+        timeout: The timeout for the service.
 
         Returns
         -------
-        A map from the parameter name to the configuration.
+        success: True if successful, False otherwise.
+        prefix: The prefix to add to the parameter name.
         """
+        # Start the time
+        start_time = self.__node.get_clock().now()
+        rate = self.__node.create_rate(rate_hz)
+
+        # Wait for the service to be ready
+        while not self.__get_robot_configurations_parameter_service.service_is_ready():
+            if not check_ok(self.__node, start_time, timeout):
+                self.__node.get_logger().error(
+                    "Timeout while waiting for the get robot configurations parameter service."
+                )
+                return False, ""
+            rate.sleep()
+
         # Get the value of the namespace_to_use parameter
         request = GetParameters.Request()
         request.names = [self.__namespace_to_use_parameter_name]
-        # TODO: this should be an async call with a timeout, also check if the service is ready
-        response = self.__get_robot_configurations_parameter_service.call(request)
+        future = self.__get_robot_configurations_parameter_service.call_async(request)
+        while not future.done():
+            if not check_ok(self.__node, start_time, timeout):
+                self.__node.get_logger().error(
+                    "Timeout while getting the namespace to use."
+                )
+                return False, ""
+            rate.sleep()
+
+        # Get the response
+        try:
+            response = future.result()
+        except Exception as error:  # pylint: disable=broad-except
+            self.__node.get_logger().error(
+                f"Failed to get the namespace to use: {error}"
+            )
+            return False, ""
         if (
             len(response.values) == 0
             or response.values[0].type != ParameterType.PARAMETER_STRING
@@ -635,13 +706,68 @@ class WorkspaceWalls:
         else:
             prefix = response.values[0].string_value + "."
 
+        return True, prefix
+
+    def __get_robot_configurations(
+        self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=5)
+    ) -> Tuple[bool, Dict[str, List[float]]]:
+        """
+        Get the robot's configurations.
+
+        Parameters
+        ----------
+        rate_hz: The rate at which to call the service.
+        timeout: The timeout for the service.
+
+        Returns
+        -------
+        success: True if successful, False otherwise.
+        robot_configurations: A map from the parameter name to the configuration.
+        """
+        # Start the time
+        start_time = self.__node.get_clock().now()
+        rate = self.__node.create_rate(rate_hz)
+
+        # Get the prefix
+        success, prefix = self.__get_parameter_prefix(
+            rate_hz, get_remaining_time(self.__node, start_time, timeout)
+        )
+        if not success:
+            self.__node.get_logger().error("Failed to get the parameter prefix.")
+            return False, {}
+
+        # Wait for the service to be ready
+        while not self.__get_robot_configurations_parameter_service.service_is_ready():
+            if not check_ok(self.__node, start_time, timeout):
+                self.__node.get_logger().error(
+                    "Timeout while waiting for the get robot configurations parameter service."
+                )
+                return False, {}
+            rate.sleep()
+
         # Get the robot configurations
         robot_configurations = {}
+        request = GetParameters.Request()
         request.names = [
             prefix + name for name in self.__robot_configurations_parameter_names
         ]
-        # TODO: this should be an async call with a timeout, also check if the service is ready
-        response = self.__get_robot_configurations_parameter_service.call(request)
+        future = self.__get_robot_configurations_parameter_service.call_async(request)
+        while not future.done():
+            if not check_ok(self.__node, start_time, timeout):
+                self.__node.get_logger().error(
+                    "Timeout while getting the robot configurations."
+                )
+                return False, {}
+            rate.sleep()
+
+        # Get the response
+        try:
+            response = future.result()
+        except Exception as error:  # pylint: disable=broad-except
+            self.__node.get_logger().error(
+                f"Failed to get robot configurations: {error}"
+            )
+            return False, {}
         for i, param in enumerate(response.values):
             if param.type != ParameterType.PARAMETER_DOUBLE_ARRAY:
                 continue
@@ -649,19 +775,42 @@ class WorkspaceWalls:
                 param.double_array_value
             )
 
-        return robot_configurations
+        return True, robot_configurations
 
-    def __update_robot_configuration_bounds(self):
+    def __update_robot_configuration_bounds(
+        self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=5)
+    ) -> bool:
         """
         Updates the robot configuration bounds that must be contained within
         the workspace walls.
+
+        Parameters
+        ----------
+        rate_hz: The rate at which to call the service.
+        timeout: The timeout for the service.
+
+        Returns
+        -------
+        True if successful, False otherwise.
         """
+        # Start the time
+        start_time = self.__node.get_clock().now()
 
         # Get the robot configurations
-        robot_configurations = self.__get_robot_configurations()
+        success, robot_configurations = self.__get_robot_configurations(
+            rate_hz, get_remaining_time(self.__node, start_time, timeout)
+        )
+        if not success:
+            self.__node.get_logger().error("Failed to get robot configurations.")
+            return False
 
         # Get each configuration, get the bounds
         for name, configuration in robot_configurations.items():
+            if not check_ok(self.__node, start_time, timeout):
+                self.__node.get_logger().error(
+                    f"Timeout while getting robot configuration {name}."
+                )
+                return False
             if len(configuration) != len(self.__articulated_joint_names):
                 self.__node.get_logger().error(
                     f"Configuration {name} has the wrong number of joints."
@@ -683,40 +832,84 @@ class WorkspaceWalls:
             # Store the bounds
             self.__per_object_bounds[name] = bounds
 
+        return True
+
     def __compute_and_add_workspace_walls(
         self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=5)
     ):
         """
         Recomputes workspace walls and adds them to the planning scene.
+
+        Parameters
+        ----------
+        rate_hz: The rate at which to call the service.
+        timeout: The timeout for the service.
+
+        Returns
+        -------
+        True if successful, False otherwise.
         """
-        # Compute the workspace walls
+        # Compute the workspace walls. We don't pass the rate or timeout to
+        # this function because it is relatively fast and doesn't have asynchronous
+        # components.
         workspace_walls = self.__compute_workspace_walls()
 
         # Add the workspace walls to the planning scene
-        self.__collision_object_manager.add_collision_objects(
+        success = self.__collision_object_manager.add_collision_objects(
             workspace_walls, rate_hz, timeout
         )
+        return success
 
     def initialize(
         self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=5)
-    ) -> None:
+    ) -> bool:
         """
         Initialize the workspace walls.
+
+        Parameters
+        ----------
+        rate_hz: The rate at which to call the service.
+        timeout: The timeout for the service.
+
+        Returns
+        -------
+        True if successful, False otherwise.
         """
+        start_time = self.__node.get_clock().now()
+
         # Load the robot's URDF. We do this in `initialize` as opposed to `__init__`
         # because the MoveGroup has to be running to get the paramter.
-        # TODO: make the below take account of the timeout!
         if self.__use_robot_model:
+            # Get the robot model (may take <= 10 secs)
             self.__node.get_logger().info("Loading robot model.")
-            success = self.__get_robot_model()
+            success = self.__get_robot_model(
+                rate_hz=rate_hz,
+                timeout=get_remaining_time(self.__node, start_time, timeout),
+            )
             if not success:
                 self.__node.get_logger().error("Failed to load robot model.")
-            else:
-                self.__node.get_logger().info("Loaded robot model.")
+                return False
+            self.__node.get_logger().info("Loaded robot model.")
+
+            # Get the different arm configurations and their corresponding
+            # bounds that must be contained within the workspace walls.
             self.__node.get_logger().info("Updating robot configuration bounds.")
-            self.__update_robot_configuration_bounds()
-            self.__node.get_logger().info("Updated robot configuration bounds.")
+            success = self.__update_robot_configuration_bounds(
+                rate_hz=rate_hz,
+                timeout=get_remaining_time(self.__node, start_time, timeout),
+            )
+            if not success:
+                self.__node.get_logger().info(
+                    "Failed to update robot configuration bounds."
+                )
+                return False
 
-        self.__compute_and_add_workspace_walls(rate_hz, timeout)
-
+        success = self.__compute_and_add_workspace_walls(
+            rate_hz, get_remaining_time(self.__node, start_time, timeout)
+        )
+        if not success:
+            self.__node.get_logger().error("Failed to compute and add workspace walls.")
+            return False
         self.__node.get_logger().info("Initialized workspace walls.")
+
+        return True

@@ -12,14 +12,12 @@ from typing import Dict, Optional
 from moveit_msgs.msg import CollisionObject, PlanningScene
 from pymoveit2 import MoveIt2
 from pymoveit2.robots import kinova
-import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.duration import Duration
 from rclpy.node import Node
-from rclpy.time import Time
 
 # Local imports
-from ada_planning_scene.helpers import CollisionObjectParams, has_timed_out
+from ada_planning_scene.helpers import check_ok, CollisionObjectParams
 
 
 class CollisionObjectManager:
@@ -173,11 +171,7 @@ class CollisionObjectManager:
         # Get the planning scene
         while self.moveit2.planning_scene is None:
             # Check if the node is still OK and if the timeout has been reached
-            if not rclpy.ok() or has_timed_out(
-                node=self.__node,
-                start_time=start_time,
-                timeout=timeout,
-            ):
+            if not check_ok(self.__node, start_time, timeout):
                 self.__node.get_logger().error(
                     "Timed out while getting the planning scene."
                 )
@@ -201,20 +195,6 @@ class CollisionObjectManager:
         )
 
         return True
-
-    def __check_ok(
-        self,
-        start_time: Time,
-        timeout: Duration,
-    ) -> bool:
-        """
-        Check if the node is still okay and hasn't timed out
-        """
-        return rclpy.ok() and not has_timed_out(
-            node=self.__node,
-            start_time=start_time,
-            timeout=timeout,
-        )
 
     def add_collision_objects(
         self,
@@ -262,22 +242,18 @@ class CollisionObjectManager:
                 ].copy()
             self.__n_batches += 1
 
-        # Store whether the collision objects were successfully added
-        success = True
-
         # First, try to add all the collision objects
         collision_object_ids = set(objects.keys())
         i = -1
         while len(collision_object_ids) > 0:
             i += 1
             # Check if the node is still OK and if the timeout has been reached
-            if not self.__check_ok(start_time, timeout):
+            if not check_ok(self.__node, start_time, timeout):
                 self.__node.get_logger().error(
                     "Timed out while adding collision objects. "
                     f"May not have added {collision_object_ids}."
                 )
-                success = False
-                break
+                return False
 
             # Remove any collision objects that have already been added
             with self.__collision_objects_lock:
@@ -292,7 +268,7 @@ class CollisionObjectManager:
                 throttle_duration_sec=1.0,
             )
             for object_id in collision_object_ids:
-                if not self.__check_ok(start_time, timeout):
+                if not check_ok(self.__node, start_time, timeout):
                     break
                 params = objects[object_id]
                 # Collision mesh
@@ -326,13 +302,12 @@ class CollisionObjectManager:
         while len(collision_object_ids) > 0:
             i += 1
             # Check if the node is still OK and if the timeout has been reached
-            if not self.__check_ok(start_time, timeout):
+            if not check_ok(self.__node, start_time, timeout):
                 self.__node.get_logger().error(
                     "Timed out while attaching collision objects. "
                     f"May not have attached {attached_collision_object_ids}."
                 )
-                success = False
-                break
+                return False
 
             # Remove any attached collision objects that have already been attached
             with self.__collision_objects_lock:
@@ -349,7 +324,7 @@ class CollisionObjectManager:
                 throttle_duration_sec=1.0,
             )
             for object_id in attached_collision_object_ids:
-                if not self.__check_ok(start_time, timeout):
+                if not check_ok(self.__node, start_time, timeout):
                     break
                 params = objects[object_id]
                 self.moveit2.attach_collision_object(
@@ -365,7 +340,7 @@ class CollisionObjectManager:
             self.__collision_objects_per_batch.pop(batch_id)
             self.__attached_collision_objects_per_batch.pop(batch_id)
 
-        return success
+        return True
 
     def move_collision_objects(
         self,
@@ -407,7 +382,7 @@ class CollisionObjectManager:
         while len(collision_object_ids) > 0:
             i += 1
             # Check if the node is still OK and if the timeout has been reached
-            if not self.__check_ok(start_time, timeout):
+            if not check_ok(self.__node, start_time, timeout):
                 self.__node.get_logger().error(
                     "Timed out while moving collision objects. "
                     f"May not have moved {collision_object_ids}."
@@ -428,7 +403,7 @@ class CollisionObjectManager:
                 throttle_duration_sec=1.0,
             )
             for object_id in collision_object_ids:
-                if not self.__check_ok(start_time, timeout):
+                if not check_ok(self.__node, start_time, timeout):
                     break
                 params = objects[object_id]
                 if params.attached:
