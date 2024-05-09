@@ -6,7 +6,7 @@ objects to the planning scene.
 
 # Standard imports
 from threading import Lock
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 # Third-party imports
 from moveit_msgs.msg import CollisionObject, PlanningScene
@@ -202,6 +202,7 @@ class CollisionObjectManager:
         rate_hz: float = 10.0,
         timeout: Duration = Duration(seconds=10.0),
         ignore_existing: bool = False,
+        publish_feedback: Optional[Callable[[], None]] = None,
     ) -> bool:
         """
         Add collision objects to the planning scene.
@@ -212,12 +213,13 @@ class CollisionObjectManager:
         rate_hz: The rate at which to publish messages to add collision objects.
         timeout: The maximum amount of time to wait for the collision objects to be added.
         ignore_existing: If True, ignore the existing collision objects.
+        publish_feedback: If specified, invoke this function periodically.
 
         Returns
         -------
         True if the collision objects were successfully added, False otherwise.
         """
-        # pylint: disable=too-many-branches, too-many-statements
+        # pylint: disable=too-many-arguments, too-many-branches, too-many-statements
         # This is the main bread and butter of adding to the planning scene,
         # so is expected to be complex.
 
@@ -270,6 +272,11 @@ class CollisionObjectManager:
             for object_id in collision_object_ids:
                 if not check_ok(self.__node, start_time, timeout):
                     break
+
+                # Publish feedback
+                if publish_feedback is not None:
+                    publish_feedback()
+
                 params = objects[object_id]
                 # Collision mesh
                 if params.primitive_type is None:
@@ -324,6 +331,10 @@ class CollisionObjectManager:
                 throttle_duration_sec=1.0,
             )
             for object_id in attached_collision_object_ids:
+                # Publish feedback
+                if publish_feedback is not None:
+                    publish_feedback()
+
                 if not check_ok(self.__node, start_time, timeout):
                     break
                 params = objects[object_id]

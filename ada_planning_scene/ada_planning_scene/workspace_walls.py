@@ -5,7 +5,8 @@ in ADA's planning scene.
 
 # Standard imports
 import copy
-from typing import Dict, List, Optional, Tuple
+from threading import Lock
+from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 # Third-party imports
 from ament_index_python.packages import get_package_share_directory
@@ -18,6 +19,8 @@ import numpy as np
 import numpy.typing as npt
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from rcl_interfaces.srv import GetParameters
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.action.server import ServerGoalHandle
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
 from rclpy.node import Node
@@ -31,6 +34,7 @@ import trimesh
 from yourdfpy import URDF
 
 # Local imports
+from ada_feeding_msgs.action import Trigger
 from ada_planning_scene.collision_object_manager import CollisionObjectManager
 from ada_planning_scene.helpers import (
     check_ok,
@@ -38,11 +42,14 @@ from ada_planning_scene.helpers import (
     get_remaining_time,
 )
 
+# pylint: disable=too-many-lines
+# It is slightly over 1000, but that is because this module has a lot of computations.
+
 
 class WorkspaceWalls:
     """
     This class manages the workspace walls in ADA's planning scene. Specifically,
-    it exposes a method to initialize the workspace walls, and a service to trigger
+    it exposes a method to initialize the workspace walls, and an action to trigger
     re-computation of the workspace walls.
     """
 
@@ -117,6 +124,10 @@ class WorkspaceWalls:
         # As of now, these are only computed once.
         self.__per_object_bounds = {}
         self.__compute_object_bounds()
+
+        # Track the active goal request.
+        self.__active_goal_request_lock = Lock()
+        self.__active_goal_request = None
 
     def __load_parameters(self):
         """
@@ -709,7 +720,10 @@ class WorkspaceWalls:
         return True, prefix
 
     def __get_robot_configurations(
-        self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=5)
+        self,
+        rate_hz: float = 10.0,
+        timeout: Duration = Duration(seconds=5),
+        publish_feedback: Optional[Callable[[], None]] = None,
     ) -> Tuple[bool, Dict[str, List[float]]]:
         """
         Get the robot's configurations.
@@ -718,6 +732,7 @@ class WorkspaceWalls:
         ----------
         rate_hz: The rate at which to call the service.
         timeout: The timeout for the service.
+        publish_feedback: If not None, call this function periodically to publish feedback.
 
         Returns
         -------
@@ -743,6 +758,8 @@ class WorkspaceWalls:
                     "Timeout while waiting for the get robot configurations parameter service."
                 )
                 return False, {}
+            if publish_feedback is not None:
+                publish_feedback()
             rate.sleep()
 
         # Get the robot configurations
@@ -758,6 +775,8 @@ class WorkspaceWalls:
                     "Timeout while getting the robot configurations."
                 )
                 return False, {}
+            if publish_feedback is not None:
+                publish_feedback()
             rate.sleep()
 
         # Get the response
@@ -774,11 +793,16 @@ class WorkspaceWalls:
             robot_configurations[self.__robot_configurations_parameter_names[i]] = list(
                 param.double_array_value
             )
+            if publish_feedback is not None:
+                publish_feedback()
 
         return True, robot_configurations
 
     def __update_robot_configuration_bounds(
-        self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=5)
+        self,
+        rate_hz: float = 10.0,
+        timeout: Duration = Duration(seconds=5),
+        publish_feedback: Optional[Callable[[], None]] = None,
     ) -> bool:
         """
         Updates the robot configuration bounds that must be contained within
@@ -788,6 +812,7 @@ class WorkspaceWalls:
         ----------
         rate_hz: The rate at which to call the service.
         timeout: The timeout for the service.
+        publish_feedback: If not None, call this function periodically to publish feedback.
 
         Returns
         -------
@@ -798,7 +823,9 @@ class WorkspaceWalls:
 
         # Get the robot configurations
         success, robot_configurations = self.__get_robot_configurations(
-            rate_hz, get_remaining_time(self.__node, start_time, timeout)
+            rate_hz,
+            get_remaining_time(self.__node, start_time, timeout),
+            publish_feedback=publish_feedback,
         )
         if not success:
             self.__node.get_logger().error("Failed to get robot configurations.")
@@ -832,10 +859,17 @@ class WorkspaceWalls:
             # Store the bounds
             self.__per_object_bounds[name] = bounds
 
+            # Publish feedback
+            if publish_feedback is not None:
+                publish_feedback()
+
         return True
 
     def __compute_and_add_workspace_walls(
-        self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=5)
+        self,
+        rate_hz: float = 10.0,
+        timeout: Duration = Duration(seconds=5),
+        publish_feedback: Optional[Callable[[], None]] = None,
     ):
         """
         Recomputes workspace walls and adds them to the planning scene.
@@ -844,6 +878,7 @@ class WorkspaceWalls:
         ----------
         rate_hz: The rate at which to call the service.
         timeout: The timeout for the service.
+        publish_feedback: If not None, call this function periodically to publish feedback.
 
         Returns
         -------
@@ -853,10 +888,15 @@ class WorkspaceWalls:
         # this function because it is relatively fast and doesn't have asynchronous
         # components.
         workspace_walls = self.__compute_workspace_walls()
+        if publish_feedback is not None:
+            publish_feedback()
 
         # Add the workspace walls to the planning scene
         success = self.__collision_object_manager.add_collision_objects(
-            workspace_walls, rate_hz, timeout
+            workspace_walls,
+            rate_hz,
+            timeout,
+            publish_feedback=publish_feedback,
         )
         return success
 
@@ -904,6 +944,8 @@ class WorkspaceWalls:
                 )
                 return False
 
+        # Combine the bounds of each object that is within the workspace walls,
+        # and publish the workspace walls.
         success = self.__compute_and_add_workspace_walls(
             rate_hz, get_remaining_time(self.__node, start_time, timeout)
         )
@@ -912,4 +954,109 @@ class WorkspaceWalls:
             return False
         self.__node.get_logger().info("Initialized workspace walls.")
 
+        # Once initialization succeeds, create the action to trigger recomputation
+        self.__create_recopute_workspace_walls_action()
+
         return True
+
+    def __create_recopute_workspace_walls_action(self):
+        """
+        Create the action to recompute the workspace walls.
+        """
+        # Create the action server
+        # pylint: disable=unused-private-member, attribute-defined-outside-init
+        self.__recompute_workspace_walls_action = ActionServer(
+            self.__node,
+            Trigger,
+            "recompute_workspace_walls",
+            self.__execute_callback,
+            callback_group=MutuallyExclusiveCallbackGroup(),
+            goal_callback=self.__goal_callback,
+            cancel_callback=self.__cancel_callback,
+        )
+
+    def __goal_callback(self, goal_request: object) -> GoalResponse:
+        """
+        Accept a goal if this action does not already have an active goal,
+        else reject.
+
+        Parameters
+        ----------
+        goal_request: The goal request message.
+        """
+        self.__node.get_logger().info("Received goal request.")
+
+        # If we don't already have an active goal_request, accept this one
+        with self.__active_goal_request_lock:
+            if self.__active_goal_request is None:
+                self.__node.get_logger().info("Accepting goal request=")
+                self.__active_goal_request = goal_request
+                return GoalResponse.ACCEPT
+
+            # Otherwise, reject this goal request
+            self.__node.get_logger().info("Rejecting goal request")
+            return GoalResponse.REJECT
+
+    def __cancel_callback(self, _: ServerGoalHandle) -> CancelResponse:
+        """
+        Always accept client requests to cancel the active goal.
+
+        Parameters
+        ----------
+        goal_handle: The goal handle.
+        """
+        self.__node.get_logger().info("Received cancel request, accepting")
+        return CancelResponse.ACCEPT
+
+    async def __execute_callback(self, goal_handle: ServerGoalHandle) -> Awaitable:
+        """
+        Recompute the workspace walls.
+
+        Parameters
+        ----------
+        goal_handle: The goal handle.
+        """
+        # Get the start time
+        start_time = self.__node.get_clock().now()
+        self.__node.get_logger().info("Executing goal request")
+        success = True
+
+        # Publish feedback
+        def publish_feedback():
+            """
+            Publish feedback to the goal handle.
+            """
+            elapsed_time = self.__node.get_clock().now() - start_time
+            goal_handle.publish_feedback(
+                Trigger.Feedback(elapsed_time=elapsed_time.to_msg())
+            )
+
+        # Get the up-to-date robot arm configurations
+        if self.__use_robot_model:
+            success = self.__update_robot_configuration_bounds(
+                publish_feedback=publish_feedback
+            )
+            if not success:
+                self.__node.get_logger().error(
+                    "Failed to update robot configuration bounds."
+                )
+                goal_handle.abort()
+
+        # Recompute the workspace walls
+        if success:
+            success = self.__compute_and_add_workspace_walls(
+                publish_feedback=publish_feedback
+            )
+            if not success:
+                self.__node.get_logger().error("Failed to recompute workspace walls.")
+                goal_handle.abort()
+
+        # Succeed the goal
+        if success:
+            goal_handle.succeed()
+            self.__node.get_logger().info("Recomputed workspace walls.")
+
+        # Unset the goal and return the result
+        with self.__active_goal_request_lock:
+            self.__active_goal_request = None
+        return Trigger.Result(success=success)

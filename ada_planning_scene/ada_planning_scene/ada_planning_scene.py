@@ -120,7 +120,7 @@ class ADAPlanningScene(Node):
         # planning scene within this time, stop initialization.
         initialization_timeout_secs = self.declare_parameter(
             "initialization_timeout_secs",
-            20.0,  # default value
+            40.0,  # default value
             ParameterDescriptor(
                 name="initialization_timeout_secs",
                 type=ParameterType.PARAMETER_DOUBLE,
