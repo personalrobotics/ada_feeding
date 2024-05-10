@@ -148,23 +148,51 @@ class WorkspaceWalls:
         """
         Load parameters relevant to the workspace walls.
         """
-        # pylint: disable=attribute-defined-outside-init
+        # pylint: disable=attribute-defined-outside-init, too-many-locals
         # Fine for this method
 
         # The margin (m) to add between workspace wall and objects within the workspace
-        workspace_wall_margin = self.__node.declare_parameter(
-            "workspace_wall_margin",
-            0.1,  # default value
-            ParameterDescriptor(
-                name="workspace_wall_margin",
-                type=ParameterType.PARAMETER_DOUBLE,
-                description=(
-                    "The margin (m) to add between workspace wall and objects within the workspace."
-                ),
-                read_only=True,
-            ),
-        )
-        self.__workspace_wall_margin = workspace_wall_margin.value
+        self.__workspace_wall_margins = np.zeros((2, 3), dtype=float)
+        self.__disable_workspace_walls = np.zeros((2, 3), dtype=bool)
+        for i in range(2):
+            i_label = "min" if i == 0 else "max"
+            for j in range(3):
+                j_label = "x" if j == 0 else "y" if j == 1 else "z"
+
+                # Get the offset for the wall in that direction
+                name = f"workspace_wall_margin_{j_label}_{i_label}"
+                default = 0.1
+                margin = self.__node.declare_parameter(
+                    name,
+                    default,  # default value
+                    ParameterDescriptor(
+                        name=name,
+                        type=ParameterType.PARAMETER_DOUBLE,
+                        description=(
+                            "The margin (m) to add to the workspace wall on the "
+                            f"{i_label} side in the {j_label} dimension. default: {default}"
+                        ),
+                        read_only=True,
+                    ),
+                )
+                self.__workspace_wall_margins[i, j] = margin.value
+
+                # Check whether the wall in that direction is disabled
+                name = f"disable_workspace_wall_{j_label}_{i_label}"
+                disable = self.__node.declare_parameter(
+                    name,
+                    False,  # default value
+                    ParameterDescriptor(
+                        name=name,
+                        type=ParameterType.PARAMETER_BOOL,
+                        description=(
+                            f"Whether the workspace wall on the {i_label} side in the {j_label} "
+                            "dimension is disabled."
+                        ),
+                        read_only=True,
+                    ),
+                )
+                self.__disable_workspace_walls[i, j] = disable.value
 
         # The thickness (m) of the workspace walls
         workspace_wall_thickness = self.__node.declare_parameter(
@@ -547,8 +575,8 @@ class WorkspaceWalls:
         max_bounds = np.max(all_bounds[:, 1, :], axis=0)
 
         # Add margin
-        min_bounds -= self.__workspace_wall_margin
-        max_bounds += self.__workspace_wall_margin
+        min_bounds -= self.__workspace_wall_margins[0]
+        max_bounds += self.__workspace_wall_margins[1]
 
         return np.array([min_bounds, max_bounds])
 
@@ -577,7 +605,7 @@ class WorkspaceWalls:
         quat_xyzw = [0.0, 0.0, 0.0, 1.0]
         for i in range(2):
             for j in range(3):
-                if (i, j) not in labels:
+                if self.__disable_workspace_walls[i, j]:
                     continue
                 # Compute the position and dimensions
                 position = [
@@ -772,6 +800,7 @@ class WorkspaceWalls:
         rate_hz: float = 10.0,
         timeout: Duration = Duration(seconds=5),
         publish_feedback: Optional[Callable[[], None]] = None,
+        include_current_robot_config: bool = True,
     ) -> Tuple[bool, Dict[str, List[float]]]:
         """
         Get the robot's configurations.
@@ -781,6 +810,8 @@ class WorkspaceWalls:
         rate_hz: The rate at which to call the service.
         timeout: The timeout for the service.
         publish_feedback: If not None, call this function periodically to publish feedback.
+        include_current_robot_config: Whether to include the current robot configuration.
+            This can override the value set in the parameter.
 
         Returns
         -------
@@ -848,7 +879,10 @@ class WorkspaceWalls:
                 publish_feedback()
 
         # Add the current joint state
-        if self.__workspace_walls_contain_current_robot_config:
+        if (
+            self.__workspace_walls_contain_current_robot_config
+            and include_current_robot_config
+        ):
             current_config = []
             with self.__joint_states_lock:
                 for name in self.__articulated_joint_names:
@@ -864,6 +898,7 @@ class WorkspaceWalls:
         rate_hz: float = 10.0,
         timeout: Duration = Duration(seconds=5),
         publish_feedback: Optional[Callable[[], None]] = None,
+        include_current_robot_config: bool = True,
     ) -> bool:
         """
         Updates the robot configuration bounds that must be contained within
@@ -874,6 +909,8 @@ class WorkspaceWalls:
         rate_hz: The rate at which to call the service.
         timeout: The timeout for the service.
         publish_feedback: If not None, call this function periodically to publish feedback.
+        include_current_robot_config: Whether to include the current robot configuration.
+            This can override the value set in the parameter.
 
         Returns
         -------
@@ -887,6 +924,7 @@ class WorkspaceWalls:
             rate_hz,
             get_remaining_time(self.__node, start_time, timeout),
             publish_feedback=publish_feedback,
+            include_current_robot_config=include_current_robot_config,
         )
         if not success:
             self.__node.get_logger().error("Failed to get robot configurations.")
@@ -998,6 +1036,10 @@ class WorkspaceWalls:
             success = self.__update_robot_configuration_bounds(
                 rate_hz=rate_hz,
                 timeout=get_remaining_time(self.__node, start_time, timeout),
+                # For repeatability, during initialization we don't account for the
+                # current robot config, but during every other update, we do if
+                # the parameter is set.
+                include_current_robot_config=False,
             )
             if not success:
                 self.__node.get_logger().info(

@@ -74,9 +74,10 @@ ada_planning_scene:
     # Whether or not to add workspace walls to the planning scene.
     # If True, add axis-aligned walls to the planning scene that contain all
     # objects specified as being `within_workspace_walls`, with an additional
-    # margin of `workspace_wall_margin` meters.
+    # direction-pecific margin that defaults to 0.1 m.
     use_workspace_walls: True
-    workspace_wall_margin: 0.1 # m
+    workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
+    disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
 
     # Whether the workspace walls should contain the robot's current configuration
     # at time of recomputation.

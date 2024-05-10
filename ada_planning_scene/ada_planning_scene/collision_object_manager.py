@@ -271,7 +271,7 @@ class CollisionObjectManager:
             # Add the collision objects
             self.__node.get_logger().info(
                 f"Adding these objects to the planning scene: {collision_object_ids}",
-                throttle_duration_sec=1.0,
+                throttle_duration_sec=5.0,
             )
             for object_id in collision_object_ids:
                 if not check_ok(self.__node, start_time, timeout):
@@ -332,7 +332,7 @@ class CollisionObjectManager:
             # Attach the collision objects
             self.__node.get_logger().info(
                 f"Attaching these objects to the robot: {attached_collision_object_ids}",
-                throttle_duration_sec=1.0,
+                throttle_duration_sec=5.0,
             )
             for object_id in attached_collision_object_ids:
                 # Publish feedback
