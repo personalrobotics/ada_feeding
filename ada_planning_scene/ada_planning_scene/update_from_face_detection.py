@@ -65,13 +65,43 @@ class UpdateFromFaceDetection:
         # Many of the classes in ada_planning scene have similar initializations.
         self.__node = node
         self.__collision_object_manager = collision_object_manager
-        self.__objects = objects
         self.__base_frame_id = base_frame_id
         self.__tf_buffer = tf_buffer
         self.__tf_broadcaster = tf_broadcaster
 
         # Load the parameters
         self.__load_parameters()
+
+        # Get the default head and body params and poses, to avoid recomputing
+        # them every time we update the head and body.
+        self.__default_head_params = objects[self.__head_object_id]
+        self.__default_body_params = objects[self.__body_object_id]
+        self.__default_head_pose = Pose(
+            position=Point(
+                x=self.__default_head_params.position[0],
+                y=self.__default_head_params.position[1],
+                z=self.__default_head_params.position[2],
+            ),
+            orientation=Quaternion(
+                x=self.__default_head_params.quat_xyzw[0],
+                y=self.__default_head_params.quat_xyzw[1],
+                z=self.__default_head_params.quat_xyzw[2],
+                w=self.__default_head_params.quat_xyzw[3],
+            ),
+        )
+        self.__default_body_pose = Pose(
+            position=Point(
+                x=self.__default_body_params.position[0],
+                y=self.__default_body_params.position[1],
+                z=self.__default_body_params.position[2],
+            ),
+            orientation=Quaternion(
+                x=self.__default_body_params.quat_xyzw[0],
+                y=self.__default_body_params.quat_xyzw[1],
+                z=self.__default_body_params.quat_xyzw[2],
+                w=self.__default_body_params.quat_xyzw[3],
+            ),
+        )
 
         # Subscribe to the face detection topic
         # pylint: disable=unused-private-member
@@ -213,31 +243,18 @@ class UpdateFromFaceDetection:
             )
             return
 
-        # Get the original head pose
-        original_head_pose = Pose(
-            position=Point(
-                x=self.__objects[self.__head_object_id].position[0],
-                y=self.__objects[self.__head_object_id].position[1],
-                z=self.__objects[self.__head_object_id].position[2],
-            ),
-            orientation=Quaternion(
-                x=self.__objects[self.__head_object_id].quat_xyzw[0],
-                y=self.__objects[self.__head_object_id].quat_xyzw[1],
-                z=self.__objects[self.__head_object_id].quat_xyzw[2],
-                w=self.__objects[self.__head_object_id].quat_xyzw[3],
-            ),
-        )
-
         # Reject any head that is too far from the original head pose
         dist = (
-            (original_head_pose.position.x - detected_mouth_center.point.x) ** 2.0
-            + (original_head_pose.position.y - detected_mouth_center.point.y) ** 2.0
-            + (original_head_pose.position.z - detected_mouth_center.point.z) ** 2.0
+            (self.__default_head_pose.position.x - detected_mouth_center.point.x) ** 2.0
+            + (self.__default_head_pose.position.y - detected_mouth_center.point.y)
+            ** 2.0
+            + (self.__default_head_pose.position.z - detected_mouth_center.point.z)
+            ** 2.0
         ) ** 0.5
         if dist > self.__head_distance_threshold:
             self.__node.get_logger().error(
                 f"Detected face in position {detected_mouth_center.point} is {dist}m "
-                f"away from the default position {original_head_pose.position}. "
+                f"away from the default position {self.__default_head_pose.position}. "
                 f"Rejecting since it is greater than the threshold {self.__head_distance_threshold}m."
             )
             return
@@ -247,23 +264,24 @@ class UpdateFromFaceDetection:
         detected_mouth_pose.header = detected_mouth_center.header
         detected_mouth_pose.pose.position = detected_mouth_center.point
         # Fixed orientation
-        detected_mouth_pose.pose.orientation = original_head_pose.orientation
+        detected_mouth_pose.pose.orientation = self.__default_head_pose.orientation
 
-        # Move the head in the planning scene to that pose
-        self.__objects[self.__head_object_id].position = [
-            detected_mouth_pose.pose.position.x,
-            detected_mouth_pose.pose.position.y,
-            detected_mouth_pose.pose.position.z,
-        ]
-        # Fixed orientation
-        self.__objects[self.__head_object_id].quat_xyzw = [
-            detected_mouth_pose.pose.orientation.x,
-            detected_mouth_pose.pose.orientation.y,
-            detected_mouth_pose.pose.orientation.z,
-            detected_mouth_pose.pose.orientation.w,
-        ]
         self.__collision_object_manager.move_collision_objects(
-            objects={self.__head_object_id: self.__objects[self.__head_object_id]},
+            objects=CollisionObjectParams(
+                object_id=self.__head_object_id,
+                frame_id=self.__default_head_params.frame_id,
+                position=[
+                    detected_mouth_pose.pose.position.x,
+                    detected_mouth_pose.pose.position.y,
+                    detected_mouth_pose.pose.position.z,
+                ],
+                quat_xyzw=[
+                    detected_mouth_pose.pose.orientation.x,
+                    detected_mouth_pose.pose.orientation.y,
+                    detected_mouth_pose.pose.orientation.z,
+                    detected_mouth_pose.pose.orientation.w,
+                ],
+            ),
             rate_hz=self.__update_face_hz * 3.0,
         )
 
@@ -283,55 +301,38 @@ class UpdateFromFaceDetection:
             )
         )
 
-        # Scale the body object based on the user's head
-        # pose.
+        # Scale the body object based on the user's head pose.
         if (
-            detected_mouth_pose.header.frame_id
-            != self.__objects[self.__head_object_id].frame_id
+            detected_mouth_pose.header.frame_id != self.__default_head_params.frame_id
             or detected_mouth_pose.header.frame_id
-            != self.__objects[self.__body_object_id].frame_id
+            != self.__default_head_params.frame_id
         ):
             self.__node.get_logger().error(
                 "The detected mouth pose frame_id does not match the expected frame_id."
             )
             return
-        original_body_pose = Pose(
-            position=Point(
-                x=self.__objects[self.__body_object_id].position[0],
-                y=self.__objects[self.__body_object_id].position[1],
-                z=self.__objects[self.__body_object_id].position[2],
-            ),
-            orientation=Quaternion(
-                x=self.__objects[self.__body_object_id].quat_xyzw[0],
-                y=self.__objects[self.__body_object_id].quat_xyzw[1],
-                z=self.__objects[self.__body_object_id].quat_xyzw[2],
-                w=self.__objects[self.__body_object_id].quat_xyzw[3],
-            ),
-        )
 
         # Compute the new body scale
         body_scale = (
             1.0,
             1.0,
-            (detected_mouth_pose.pose.position.z - original_body_pose.position.z)
-            / (original_head_pose.position.z - original_body_pose.position.z),
+            (detected_mouth_pose.pose.position.z - self.__default_body_pose.position.z)
+            / (
+                self.__default_head_pose.position.z
+                - self.__default_body_pose.position.z
+            ),
         )
 
-        # Modify the wheelbodychair collision object in the planning scene
-        self.__objects[self.__body_object_id].position = [
-            original_body_pose.position.x,
-            original_body_pose.position.y,
-            original_body_pose.position.z,
-        ]
-        self.__objects[self.__body_object_id].quat_xyzw = [
-            original_body_pose.orientation.x,
-            original_body_pose.orientation.y,
-            original_body_pose.orientation.z,
-            original_body_pose.orientation.w,
-        ]
-        self.__objects[self.__body_object_id].mesh_scale = body_scale
         # We have to re-add it because the scale changed.
         self.__collision_object_manager.add_collision_objects(
-            objects={self.__body_object_id: self.__objects[self.__body_object_id]},
+            objects=CollisionObjectParams(
+                object_id=self.__body_object_id,
+                frame_id=self.__default_body_params.frame_id,
+                position=self.__default_body_params.position,
+                quat_xyzw=self.__default_body_params.quat_xyzw,
+                mesh_filepath=self.__default_body_params.mesh_filepath,
+                mesh=self.__default_body_params.mesh,
+                mesh_scale=body_scale,
+            ),
             rate_hz=self.__update_face_hz * 3.0,
         )

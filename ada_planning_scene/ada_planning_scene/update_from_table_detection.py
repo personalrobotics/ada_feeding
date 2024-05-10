@@ -59,12 +59,24 @@ class UpdateFromTableDetection:
         # Many of the classes in ada_planning scene have similar initializations.
         self.__node = node
         self.__collision_object_manager = collision_object_manager
-        self.__objects = objects
         self.__base_frame_id = base_frame_id
         self.__tf_buffer = tf_buffer
 
         # Load the parameters
         self.__load_parameters()
+
+        # Get the relevant default table parameters, to avoid recomputing them
+        # every time we update the table
+        self.__default_table_params = objects[self.__table_object_id]
+        self.__default_table_position = np.array(self.__default_table_params.position)
+        self.__default_table_quat_wxyz = np.array(
+            [
+                self.__default_table_params.quat_xyzw[3],  # w
+                self.__default_table_params.quat_xyzw[0],  # x
+                self.__default_table_params.quat_xyzw[1],  # y
+                self.__default_table_params.quat_xyzw[2],  # z
+            ]
+        )
 
         # Subscribe to the table detection topic
         # pylint: disable=unused-private-member
@@ -222,14 +234,13 @@ class UpdateFromTableDetection:
                 detected_table_pose.pose.position.z,
             ]
         )
-        default_table_position = np.array(
-            self.__objects[self.__table_object_id].position
+        position_dist = np.linalg.norm(
+            detected_table_posision - self.__default_table_position
         )
-        position_dist = np.linalg.norm(detected_table_posision - default_table_position)
         if position_dist > self.__table_distance_threshold:
             self.__node.get_logger().warn(
                 f"Rejecting detected table because its position {detected_table_posision} "
-                f" is too far from the default {default_table_position} ({position_dist} > "
+                f" is too far from the default {self.__default_table_position} ({position_dist} > "
                 f"{self.__table_distance_threshold})"
             )
             return
@@ -239,7 +250,7 @@ class UpdateFromTableDetection:
         # two rotations and reject the table if the min one is too large.
         # Note that the library we use for quaternion distance represents
         # quaternions as [w, x, y, z]
-        detected_table_quat = np.array(
+        detected_table_quat_wxyz = np.array(
             [
                 detected_table_pose.pose.orientation.w,
                 detected_table_pose.pose.orientation.x,
@@ -247,30 +258,37 @@ class UpdateFromTableDetection:
                 detected_table_pose.pose.orientation.z,
             ]
         )
-        default_table_quat = np.array(
-            [
-                self.__objects[self.__table_object_id].quat_xyzw[3],
-                self.__objects[self.__table_object_id].quat_xyzw[0],
-                self.__objects[self.__table_object_id].quat_xyzw[1],
-                self.__objects[self.__table_object_id].quat_xyzw[2],
-            ]
-        )
-        quat_dist = None
+        min_quat_dist = None
+        min_quat_wxyz = None
         for rotation in [[1, 0, 0, 0], [0, 0, 0, 1]]:
-            rotated_quat = quaternion_multiply(rotation, detected_table_quat)
+            rotated_quat = quaternion_multiply(rotation, detected_table_quat_wxyz)
             # Formula from https://math.stackexchange.com/questions/90081/quaternion-distance/90098#90098
-            dist = np.arccos(2 * (np.dot(default_table_quat, rotated_quat) ** 2) - 1)
-            if quat_dist is None or dist < quat_dist:
-                quat_dist = dist
-        if quat_dist > self.__table_rotation_threshold:
+            dist = np.arccos(
+                2 * (np.dot(self.__default_table_quat_wxyz, rotated_quat) ** 2) - 1
+            )
+            if min_quat_dist is None or dist < min_quat_dist:
+                min_quat_dist = dist
+                min_quat_wxyz = rotated_quat
+        if min_quat_dist > self.__table_rotation_threshold:
             self.__node.get_logger().warn(
-                f"Rejecting detected table because its orientation {detected_table_quat} "
-                f" is too far from the default {default_table_quat} ({quat_dist} > {self.__table_rotation_threshold})"
+                f"Rejecting detected table because its orientation {detected_table_quat_wxyz} "
+                f" is too far from the default {self.__default_table_quat_wxyz} ({min_quat_dist} > "
+                f"{self.__table_rotation_threshold})"
             )
             return
 
         # Move the table object in the planning scene
         self.__collision_object_manager.move_collision_objects(
-            objects={self.__table_object_id: self.__objects[self.__table_object_id]},
+            objects=CollisionObjectParams(
+                object_id=self.__default_table_params.id,
+                position=detected_table_posision,
+                quat_xyzw=(
+                    min_quat_wxyz[1],
+                    min_quat_wxyz[2],
+                    min_quat_wxyz[3],
+                    min_quat_wxyz[0],
+                ),
+                frame_id=self.__default_table_params.frame_id,
+            ),
             rate_hz=self.__update_table_hz * 3.0,
         )

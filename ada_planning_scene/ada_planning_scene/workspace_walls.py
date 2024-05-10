@@ -787,6 +787,9 @@ class WorkspaceWalls:
         success: True if successful, False otherwise.
         robot_configurations: A map from the parameter name to the configuration.
         """
+        # pylint: disable=too-many-locals, too-many-branches
+        # A few above is fine
+
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)

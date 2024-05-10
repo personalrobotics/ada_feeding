@@ -6,7 +6,7 @@ objects to the planning scene.
 
 # Standard imports
 from threading import Lock
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Union
 
 # Third-party imports
 from moveit_msgs.msg import CollisionObject, PlanningScene
@@ -198,7 +198,7 @@ class CollisionObjectManager:
 
     def add_collision_objects(
         self,
-        objects: Dict[str, CollisionObjectParams],
+        objects: Union[CollisionObjectParams, Dict[str, CollisionObjectParams]],
         rate_hz: float = 10.0,
         timeout: Duration = Duration(seconds=10.0),
         ignore_existing: bool = False,
@@ -226,6 +226,10 @@ class CollisionObjectManager:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+
+        # Check if the objects are a single object
+        if isinstance(objects, CollisionObjectParams):
+            objects = {objects.id: objects}
 
         # Create a new batch for this add_collision_objects operation
         with self.__collision_objects_lock:
@@ -355,7 +359,7 @@ class CollisionObjectManager:
 
     def move_collision_objects(
         self,
-        objects: Dict[str, CollisionObjectParams],
+        objects: Union[CollisionObjectParams, Dict[str, CollisionObjectParams]],
         rate_hz: float = 10.0,
         timeout: Duration = Duration(seconds=10.0),
     ) -> bool:
@@ -376,6 +380,10 @@ class CollisionObjectManager:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+
+        # Check if the objects are a single object
+        if isinstance(objects, CollisionObjectParams):
+            objects = {objects.id: objects}
 
         # Create a new batch for this add_collision_objects operation
         with self.__collision_objects_lock:
