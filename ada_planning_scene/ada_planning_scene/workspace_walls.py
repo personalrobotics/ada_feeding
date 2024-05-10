@@ -1021,7 +1021,8 @@ class WorkspaceWalls:
         """
         Create the action to recompute the workspace walls.
         """
-        # Create the action server
+        # Create the action server.
+        # Note: remapping action names does not work: https://github.com/ros2/ros2/issues/1312
         # pylint: disable=unused-private-member, attribute-defined-outside-init
         self.__recompute_workspace_walls_action = ActionServer(
             self.__node,

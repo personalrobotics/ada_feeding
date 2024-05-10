@@ -149,7 +149,8 @@ class SegmentFromPointNode(Node):
         # Convert between ROS and CV images
         self.bridge = CvBridge()
 
-        # Create the Action Server
+        # Create the Action Server.
+        # Note: remapping action names does not work: https://github.com/ros2/ros2/issues/1312
         self._action_server = ActionServer(
             self,
             SegmentFromPoint,

@@ -624,6 +624,7 @@ class CreateActionServers(Node):
                 )
 
             # Create the action server.
+            # Note: remapping action names does not work: https://github.com/ros2/ros2/issues/1312
             action_server = ActionServer(
                 self,
                 self._action_types[params.action_type],
