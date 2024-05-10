@@ -78,6 +78,10 @@ ada_planning_scene:
     use_workspace_walls: True
     workspace_wall_margin: 0.1 # m
 
+    # Whether the workspace walls should contain the robot's current configuration
+    # at time of recomputation.
+    workspace_walls_contain_current_robot_config: True
+
     # The service that needs to be called, and parameter that needs to be requested
     # from it, to get the robot URDF
     get_urdf_parameter_service_name: "/move_group/get_parameters"

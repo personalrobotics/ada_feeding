@@ -24,6 +24,7 @@ from rclpy.action.server import ServerGoalHandle
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
 from rclpy.node import Node
+from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
 from tf2_geometry_msgs import PoseStamped
 import tf2_py as tf2
@@ -102,6 +103,20 @@ class WorkspaceWalls:
             self.__use_robot_model = False
 
         if self.__use_robot_model:
+            if self.__workspace_walls_contain_current_robot_config:
+                # Subscribe to the joint_states in order to get the robot's current
+                # joint states.
+                # pylint: disable=unused-private-member
+                self.__joint_states_lock = Lock()
+                self.__joint_states = {}
+                self.__joint_states_sub = self.__node.create_subscription(
+                    JointState,
+                    "~/joint_states",
+                    self.__joint_states_callback,
+                    1,
+                    callback_group=MutuallyExclusiveCallbackGroup(),
+                )
+
             # The service to load the robot's URDF
             self.__robot_model = None
             self.__get_urdf_parameter_service = self.__node.create_client(
@@ -163,6 +178,25 @@ class WorkspaceWalls:
             ),
         )
         self.__workspace_wall_thickness = workspace_wall_thickness.value
+
+        # Whether the workspace walls should encompass the robot's current config
+        # at the time of (re)computation.
+        workspace_walls_contain_current_robot_config = self.__node.declare_parameter(
+            "workspace_walls_contain_current_robot_config",
+            True,  # default value
+            ParameterDescriptor(
+                name="workspace_walls_contain_current_robot_config",
+                type=ParameterType.PARAMETER_BOOL,
+                description=(
+                    "Whether the workspace walls should contain the robot's current "
+                    "joint configuration at time of (re)computation."
+                ),
+                read_only=True,
+            ),
+        )
+        self.__workspace_walls_contain_current_robot_config = (
+            workspace_walls_contain_current_robot_config.value
+        )
 
         # The name of the service to get the URDF parameter
         get_urdf_parameter_service_name = self.__node.declare_parameter(
@@ -526,6 +560,7 @@ class WorkspaceWalls:
 
         # Compute the bounds of the workspace
         bounds = self.__compute_workspace_bounds()
+        self.__node.get_logger().info(f"Got workspace walls {bounds}")
 
         # Add new objects for each workspace walls, with labels where left is +x,
         # top is +z, and front is -y. j corresponds to the dimension and i corresponds
@@ -719,6 +754,19 @@ class WorkspaceWalls:
 
         return True, prefix
 
+    def __joint_states_callback(self, msg: JointState) -> None:
+        """
+        The callback for when a new robot JointState message is received.
+
+        Parameters
+        ----------
+        msh: the JointState message
+        """
+        with self.__joint_states_lock:
+            for i, name in enumerate(msg.name):
+                if name in self.__articulated_joint_names:
+                    self.__joint_states[name] = msg.position[i]
+
     def __get_robot_configurations(
         self,
         rate_hz: float = 10.0,
@@ -795,6 +843,16 @@ class WorkspaceWalls:
             )
             if publish_feedback is not None:
                 publish_feedback()
+
+        # Add the current joint state
+        if self.__workspace_walls_contain_current_robot_config:
+            current_config = []
+            with self.__joint_states_lock:
+                for name in self.__articulated_joint_names:
+                    if name in self.__joint_states:
+                        current_config.append(self.__joint_states[name])
+            if len(current_config) == len(self.__articulated_joint_names):
+                robot_configurations["current_joint_states"] = current_config
 
         return True, robot_configurations
 
