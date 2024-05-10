@@ -33,6 +33,7 @@ from ada_feeding.behaviors.acquisition import (
 )
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2JointConstraint,
+    MoveIt2OrientationConstraint,
     MoveIt2PoseConstraint,
     MoveIt2PositionOffsetConstraint,
     MoveIt2Plan,
@@ -136,6 +137,16 @@ class AcquireFoodTree(MoveToTree):
             twist=Twist(),
         )
 
+        # The max amount that each joint can move for any computed plan. Intended
+        # to reduce swivels.
+        max_path_len_joint = {
+            "j2n6s200_joint_1": np.pi * 5.0 / 6.0,
+            "j2n6s200_joint_2": np.pi / 2.0,
+        }
+
+        # Get the base lin to publish servo commands in
+        base_link = "j2n6s200_link_base"
+
         ### Add Resting Position
         resting_position_behaviors = []
         if self.resting_joint_positions is not None:
@@ -199,8 +210,8 @@ class AcquireFoodTree(MoveToTree):
                 pre_moveto_config(
                     name="MaxFTRecoveryRetare",
                     re_tare=False,
-                    f_mag=50.0,
-                    param_service_name="~/set_servo_controller_parameters",
+                    f_mag=75.0,
+                    param_service_name="~/set_cartesian_controller_parameters",
                 ),
                 # Clear Octomap
                 py_trees_ros.service_clients.FromConstant(
@@ -227,6 +238,7 @@ class AcquireFoodTree(MoveToTree):
                                         name="RecoveryServo",
                                         ns=name,
                                         inputs={
+                                            "default_frame_id": base_link,
                                             "twist": Twist(
                                                 linear=Vector3(x=0.0, y=0.0, z=0.03),
                                                 angular=Vector3(),
@@ -246,15 +258,35 @@ class AcquireFoodTree(MoveToTree):
                                 pre_moveto_config(
                                     name="MaxFTRecoveryCartesian",
                                     re_tare=False,
-                                    f_mag=50.0,
+                                    f_mag=75.0,
                                 ),  # Protected by scoped FTThresh in AcquireTree
                                 MoveIt2PositionOffsetConstraint(
                                     name="RecoveryOffsetPose",
                                     ns=name,
                                     inputs={
-                                        "offset": Vector3(x=0.0, y=0.0, z=0.01),
+                                        "offset": Vector3(x=0.0, y=0.0, z=0.03),
                                         # Default end effector link
                                         # Default base link frame
+                                    },
+                                    outputs={
+                                        "constraints": BlackboardKey(
+                                            "goal_constraints"
+                                        ),
+                                    },
+                                ),
+                                # A cartesian plan requires a position and orientation.
+                                # Put no orientation constraint by setting high tolerances.
+                                MoveIt2OrientationConstraint(
+                                    name="",
+                                    ns=name,
+                                    inputs={
+                                        "constraints": BlackboardKey("goal_constraints"),
+                                        "quat_xyzw": (0.0, 0.0, 0.0, 1.0),
+                                        "tolerance": (
+                                            2.0 * np.pi,
+                                            2.0 * np.pi,
+                                            2.0 * np.pi,
+                                        ),
                                     },
                                     outputs={
                                         "constraints": BlackboardKey(
@@ -373,8 +405,8 @@ class AcquireFoodTree(MoveToTree):
                             "pose": BlackboardKey("move_above_pose"),
                             "frame_id": "food",
                             "tolerance_orientation": [
-                                0.001,
-                                0.001,
+                                0.01,
+                                0.01,
                                 0.01,
                             ],  # x, y, z rotvec
                             "parameterization": 1,
@@ -391,6 +423,7 @@ class AcquireFoodTree(MoveToTree):
                             "max_velocity_scale": self.max_velocity_scaling_move_above,
                             "max_acceleration_scale": self.max_acceleration_scaling_move_above,
                             "allowed_planning_time": 2.0,
+                            "max_path_len_joint": max_path_len_joint,
                         },
                         outputs={
                             "trajectory": BlackboardKey("trajectory"),
@@ -420,6 +453,7 @@ class AcquireFoodTree(MoveToTree):
                             "cartesian_max_step": 0.001,
                             "cartesian_fraction_threshold": 0.92,
                             "start_joint_state": BlackboardKey("test_into_joints"),
+                            "max_path_len_joint": max_path_len_joint,
                         },
                         outputs={"trajectory": BlackboardKey("move_into_trajectory")},
                     ),
@@ -584,10 +618,7 @@ class AcquireFoodTree(MoveToTree):
                                                     "cartesian": True,
                                                     "cartesian_max_step": 0.001,
                                                     "cartesian_fraction_threshold": 0.92,
-                                                    "max_path_len_joint": {
-                                                        "j2n6s200_joint_1": np.pi,
-                                                        "j2n6s200_joint_2": np.pi / 2.0,
-                                                    },
+                                                    "max_path_len_joint": max_path_len_joint,
                                                 },
                                                 outputs={
                                                     "trajectory": BlackboardKey(
@@ -638,7 +669,7 @@ class AcquireFoodTree(MoveToTree):
                                                         name="PostServoFTSet",
                                                         re_tare=False,
                                                         f_mag=1.0,
-                                                        param_service_name="~/set_servo_controller_parameters",
+                                                        param_service_name="~/set_cartesian_controller_parameters",
                                                     ),
                                                     StopServoTree(
                                                         self._node,

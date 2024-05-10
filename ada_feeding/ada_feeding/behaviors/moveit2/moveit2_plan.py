@@ -241,8 +241,10 @@ class MoveIt2Plan(BlackboardBehavior):
 
         # Lock MoveIt2 Object
         if self.moveit2_lock.locked():
+            self.logger.debug("MoveIt2 is locked")
             return py_trees.common.Status.RUNNING
         if self.tf_lock.locked():
+            self.logger.debug("TF is locked")
             return py_trees.common.Status.RUNNING
         with self.moveit2_lock, self.tf_lock:
             ### Check if plan done
@@ -320,11 +322,13 @@ class MoveIt2Plan(BlackboardBehavior):
                                 self.blackboard_set(
                                     "error_code", MoveIt2PlanErrorCode.PATH_LEN_JOINT
                                 )
-                            return py_trees.common.Status.FAILURE
+                                return py_trees.common.Status.FAILURE
 
                     # All checks passed
+                    self.logger.debug(f"Returning success: {traj}")
                     return py_trees.common.Status.SUCCESS
                 # Planning goal still running
+                self.logger.debug("MoveIt2 goal still running")
                 return py_trees.common.Status.RUNNING
 
             ### New Plan
@@ -342,12 +346,14 @@ class MoveIt2Plan(BlackboardBehavior):
                             goals_satisfied
                             and self.joint_constraint_satisfied(constraint_kwargs)
                         )
+                        self.logger.debug(f"MoveIt2Plan joint constraint satisfied {goals_satisfied}")
                         self.moveit2.set_joint_goal(**constraint_kwargs)
                     elif constraint_type == MoveIt2ConstraintType.POSITION:
                         goals_satisfied = (
                             goals_satisfied
                             and self.position_constraint_satisfied(constraint_kwargs)
                         )
+                        self.logger.debug(f"MoveIt2Plan position constraint satisfied {goals_satisfied}")
                         ## If Cartesian, transform to base link frame
                         if self.blackboard_get("cartesian"):
                             self.transform_goal_to_base_link(constraint_kwargs)
@@ -357,6 +363,7 @@ class MoveIt2Plan(BlackboardBehavior):
                             goals_satisfied
                             and self.orientation_constraint_satisfied(constraint_kwargs)
                         )
+                        self.logger.debug(f"MoveIt2Plan orientation constraint satisfied {goals_satisfied}")
                         ## If Cartesian, transform to base link frame
                         if self.blackboard_get("cartesian"):
                             self.transform_goal_to_base_link(constraint_kwargs)
@@ -463,12 +470,17 @@ class MoveIt2Plan(BlackboardBehavior):
 
             ### Begin Planning
             # pylint: disable=attribute-defined-outside-init
-            self.planning_future = self.moveit2.plan_async(
-                cartesian=self.blackboard_get("cartesian"),
-                max_step=self.blackboard_get("cartesian_max_step"),
-                start_joint_state=self.blackboard_get("start_joint_state"),
-            )
-            return py_trees.common.Status.RUNNING
+            try:
+                self.planning_future = self.moveit2.plan_async(
+                    cartesian=self.blackboard_get("cartesian"),
+                    max_step=self.blackboard_get("cartesian_max_step"),
+                    start_joint_state=self.blackboard_get("start_joint_state"),
+                )
+                return py_trees.common.Status.RUNNING
+            except IndexError as error:
+                self.logger.error(f"Not enough goal constraints; Error: {error}")
+                self.blackboard_set("error_code", MoveIt2PlanErrorCode.BAD_GOAL)
+                return py_trees.common.Status.FAILURE
 
     @override
     def terminate(self, new_status: py_trees.common.Status) -> None:
