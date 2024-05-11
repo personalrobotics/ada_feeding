@@ -15,7 +15,6 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from ada_watchdog_listener import ADAWatchdogListener
 from ament_index_python.packages import get_package_share_directory
 import py_trees
-from py_trees.visitors import DebugVisitor
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, SetParametersResult
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
@@ -28,6 +27,7 @@ import yaml
 # Local imports
 from ada_feeding import ActionServerBT
 from ada_feeding.helpers import import_from_string, register_logger
+from ada_feeding.visitors import DebugVisitor
 
 
 class ActionServerParams:
