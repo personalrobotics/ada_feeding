@@ -77,7 +77,7 @@ class MoveToMouthTree(MoveToTree):
     def __init__(
         self,
         node: Node,
-        mouth_position_tolerance: float = 0.005,
+        mouth_position_tolerance: float = 0.0075,
         relaxed_mouth_position_tolerance: float = 0.025,
         head_object_id: str = "head",
         max_linear_speed: float = 0.05,
