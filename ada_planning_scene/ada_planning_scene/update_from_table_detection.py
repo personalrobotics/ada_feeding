@@ -280,7 +280,7 @@ class UpdateFromTableDetection:
         # Move the table object in the planning scene
         self.__collision_object_manager.move_collision_objects(
             objects=CollisionObjectParams(
-                object_id=self.__default_table_params.id,
+                object_id=self.__default_table_params.object_id,
                 position=detected_table_posision,
                 quat_xyzw=(
                     min_quat_wxyz[1],

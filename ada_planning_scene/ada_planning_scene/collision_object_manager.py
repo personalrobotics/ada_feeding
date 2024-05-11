@@ -229,7 +229,7 @@ class CollisionObjectManager:
 
         # Check if the objects are a single object
         if isinstance(objects, CollisionObjectParams):
-            objects = {objects.id: objects}
+            objects = {objects.object_id: objects}
 
         # Create a new batch for this add_collision_objects operation
         with self.__collision_objects_lock:
@@ -383,7 +383,7 @@ class CollisionObjectManager:
 
         # Check if the objects are a single object
         if isinstance(objects, CollisionObjectParams):
-            objects = {objects.id: objects}
+            objects = {objects.object_id: objects}
 
         # Create a new batch for this add_collision_objects operation
         with self.__collision_objects_lock:
