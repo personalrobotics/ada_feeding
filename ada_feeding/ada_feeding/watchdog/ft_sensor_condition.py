@@ -65,7 +65,8 @@ class FTSensorCondition(WatchdogCondition):
         # For each dimension of a single force-torque datapoint, store the most
         # recent unique value and the time at which that value was received.
         self.last_unique_values = None
-        self.last_unique_values_timestamp = None
+        self.last_unique_msg_timestamp = None
+        self.last_unique_recv_timestamp = None
         self.last_unique_values_lock = Lock()
 
         # Subscribe to the FT sensor topic
@@ -105,17 +106,20 @@ class FTSensorCondition(WatchdogCondition):
             ]
         )
         ft_time = Time.from_msg(msg.header.stamp)
+        recv_time = self._node.get_clock().now()
 
         # Get the last unique values and the last unique values timestamp
         with self.last_unique_values_lock:
             last_unique_values = self.last_unique_values
-            last_unique_values_timestamp = self.last_unique_values_timestamp
+            last_unique_msg_timestamp = self.last_unique_msg_timestamp
+            last_unique_recv_timestamp = self.last_unique_recv_timestamp
 
         # If this is the first message received, initialize the last unique values
         # and the last unique values timestamp
         if last_unique_values is None:
             last_unique_values = ft_data
-            last_unique_values_timestamp = np.repeat(ft_time, ft_data.shape[0])
+            last_unique_msg_timestamp = np.repeat(ft_time, ft_data.shape[0])
+            last_unique_recv_timestamp = np.repeat(recv_time, ft_data.shape[0])
         else:
             # Update the last unique values
             dimensions_that_havent_changed = np.isclose(last_unique_values, ft_data)
@@ -124,16 +128,22 @@ class FTSensorCondition(WatchdogCondition):
                 last_unique_values,
                 ft_data,
             )
-            last_unique_values_timestamp = np.where(
+            last_unique_msg_timestamp = np.where(
                 dimensions_that_havent_changed,
-                last_unique_values_timestamp,
+                last_unique_msg_timestamp,
                 ft_time,
+            )
+            last_unique_recv_timestamp = np.where(
+                dimensions_that_havent_changed,
+                last_unique_recv_timestamp,
+                recv_time,
             )
 
         # Set the last unique values and the last unique values timestamp
         with self.last_unique_values_lock:
             self.last_unique_values = last_unique_values
-            self.last_unique_values_timestamp = last_unique_values_timestamp
+            self.last_unique_msg_timestamp = last_unique_msg_timestamp
+            self.last_unique_recv_timestamp = last_unique_recv_timestamp
 
     @staticmethod
     def duration_abs(duration: Duration) -> Duration:
@@ -190,27 +200,40 @@ class FTSensorCondition(WatchdogCondition):
             last Y secs have zero variance")] means that the status is False and
             the watchdog should fail.
         """
-        name_1 = "Receiving Force-Torque Data"
         now = self._node.get_clock().now()
+
+        name_1 = "Receiving Force-Torque Data"
         with self.last_unique_values_lock:
             status_1 = np.all(
-                self.duration_array_abs(now - self.last_unique_values_timestamp)
+                self.duration_array_abs(now - self.last_unique_recv_timestamp)
                 <= self.ft_timeout
             )
         if status_1:
             condition_1 = (
-                f"Over the last {self.ft_timeout.nanoseconds / 10.0**9} secs, "
-                "the F/T sensor has published data and every dimension of that "
-                "data has non-zero variance."
+                f"MESSAGES RECEIVED: Over the last {self.ft_timeout.nanoseconds / 10.0**9} "
+                "secs, the F/T sensor has received unique values for every dimension."
             )
         else:
             condition_1 = (
-                f"Over the last {self.ft_timeout.nanoseconds / 10.0**9} secs, either "
-                "the F/T sensor has not published data, or at least one dimension of "
-                "that data has zero variance."
+                f"MESSAGES NOT RECEIVED: Over the last {self.ft_timeout.nanoseconds / 10.0**9} "
+                "secs, the F/T sensor has not received unique values for every dimension."
             )
 
-        return [(status_1, name_1, condition_1)]
+        name_2 = "Receiving Up-to-Date Force-Torque Data"
+        with self.last_unique_values_lock:
+            status_2 = np.all(
+                self.duration_array_abs(now - self.last_unique_msg_timestamp)
+                <= self.ft_timeout
+            )
+        if status_2:
+            condition_2 = "MESSAGES UP-TO-DATE: The most recent message(s) have had up-to-date timestamps."
+        else:
+            condition_2 = (
+                "MESSAGES NOT UP-TO-DATE: The most recent message(s) have timestamps that are "
+                f">- {self.ft_timeout.nanoseconds / 10.0**9} secs in the past."
+            )
+
+        return [(status_1, name_1, condition_1), (status_2, name_2, condition_2)]
 
     def terminate(self) -> None:
         """

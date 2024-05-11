@@ -208,6 +208,7 @@ class ServoMove(BlackboardBehavior):
             twist.header.frame_id = self.blackboard_get("default_frame_id")
             twist.twist = self.blackboard_get("twist")
         twist.header.stamp = self.node.get_clock().now().to_msg()
+        self.logger.debug(f"ServoMove publishing twist {twist}")
         self.pub.publish(twist)
 
         # Write the remaining distance

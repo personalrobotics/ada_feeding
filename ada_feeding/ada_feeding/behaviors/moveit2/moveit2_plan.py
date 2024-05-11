@@ -346,14 +346,18 @@ class MoveIt2Plan(BlackboardBehavior):
                             goals_satisfied
                             and self.joint_constraint_satisfied(constraint_kwargs)
                         )
-                        self.logger.debug(f"MoveIt2Plan joint constraint satisfied {goals_satisfied}")
+                        self.logger.debug(
+                            f"MoveIt2Plan joint constraint satisfied {goals_satisfied}"
+                        )
                         self.moveit2.set_joint_goal(**constraint_kwargs)
                     elif constraint_type == MoveIt2ConstraintType.POSITION:
                         goals_satisfied = (
                             goals_satisfied
                             and self.position_constraint_satisfied(constraint_kwargs)
                         )
-                        self.logger.debug(f"MoveIt2Plan position constraint satisfied {goals_satisfied}")
+                        self.logger.debug(
+                            f"MoveIt2Plan position constraint satisfied {goals_satisfied}"
+                        )
                         ## If Cartesian, transform to base link frame
                         if self.blackboard_get("cartesian"):
                             self.transform_goal_to_base_link(constraint_kwargs)
@@ -363,7 +367,9 @@ class MoveIt2Plan(BlackboardBehavior):
                             goals_satisfied
                             and self.orientation_constraint_satisfied(constraint_kwargs)
                         )
-                        self.logger.debug(f"MoveIt2Plan orientation constraint satisfied {goals_satisfied}")
+                        self.logger.debug(
+                            f"MoveIt2Plan orientation constraint satisfied {goals_satisfied}"
+                        )
                         ## If Cartesian, transform to base link frame
                         if self.blackboard_get("cartesian"):
                             self.transform_goal_to_base_link(constraint_kwargs)

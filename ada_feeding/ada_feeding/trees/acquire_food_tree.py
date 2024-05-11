@@ -240,7 +240,7 @@ class AcquireFoodTree(MoveToTree):
                                         inputs={
                                             "default_frame_id": base_link,
                                             "twist": Twist(
-                                                linear=Vector3(x=0.0, y=0.0, z=0.03),
+                                                linear=Vector3(x=0.0, y=0.0, z=0.05),
                                                 angular=Vector3(),
                                             ),  # Default 1s duration
                                             "pub_topic": "~/cartesian_twist_cmds",
@@ -280,7 +280,9 @@ class AcquireFoodTree(MoveToTree):
                                     name="",
                                     ns=name,
                                     inputs={
-                                        "constraints": BlackboardKey("goal_constraints"),
+                                        "constraints": BlackboardKey(
+                                            "goal_constraints"
+                                        ),
                                         "quat_xyzw": (0.0, 0.0, 0.0, 1.0),
                                         "tolerance": (
                                             2.0 * np.pi,
