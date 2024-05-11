@@ -91,7 +91,7 @@ class MoveIt2Plan(BlackboardBehavior):
         ] = None,
         ignore_violated_path_constraints: Union[BlackboardKey, bool] = False,
         pipeline_id: Union[BlackboardKey, str] = "ompl",
-        planner_id: Union[BlackboardKey, str] = "RRTstarkConfigDefault",
+        planner_id: Union[BlackboardKey, str] = "RRTConnectkConfigDefault",
         allowed_planning_time: Union[BlackboardKey, float] = 0.5,
         max_velocity_scale: Union[BlackboardKey, float] = 0.1,
         max_acceleration_scale: Union[BlackboardKey, float] = 0.1,

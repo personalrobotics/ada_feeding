@@ -56,7 +56,7 @@ class MoveToPoseTree(MoveToTree):
         cartesian_max_step: float = 0.0025,
         cartesian_fraction_threshold: float = 0.0,
         pipeline_id: str = "ompl",
-        planner_id: str = "RRTstarkConfigDefault",
+        planner_id: str = "RRTConnectkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
         max_acceleration_scaling_factor: float = 0.1,

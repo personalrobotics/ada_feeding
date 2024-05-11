@@ -27,6 +27,7 @@ clear-cache-post-run=no
 # run arbitrary code.
 extension-pkg-allow-list=cv2,
                          cv,
+                         lxml,
                          tf2_py
 
 # A comma-separated list of package or module names from where C extensions may
@@ -35,6 +36,7 @@ extension-pkg-allow-list=cv2,
 # for backward compatibility.)
 extension-pkg-whitelist=cv2,
                         cv,
+                        lxml,
                         tf2_py
 
 # Return non-zero exit code if any of these messages/categories are detected,

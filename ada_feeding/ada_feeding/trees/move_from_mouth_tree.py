@@ -67,7 +67,7 @@ class MoveFromMouthTree(MoveToTree):
         orientation_constraint_to_end_configuration_tolerances: Optional[
             List[float]
         ] = None,
-        planner_id: str = "RRTstarkConfigDefault",
+        planner_id: str = "RRTConnectkConfigDefault",
         allowed_planning_time_to_staging_configuration: float = 0.5,
         allowed_planning_time_to_end_configuration: float = 0.5,
         max_linear_speed_to_staging_configuration: float = 0.05,
@@ -353,7 +353,7 @@ class MoveFromMouthTree(MoveToTree):
             ) ** 0.5
             if pose_distance > max_pose_distance:
                 max_pose_distance = pose_distance
-            prop = ((max_pose_distance - pose_distance) / max_pose_distance) ** 2.0
+            prop = (max_pose_distance - pose_distance) / max_pose_distance  # ** 2.0
             return (
                 self.max_linear_speed_to_staging_configuration * prop
                 + self.linear_speed_near_mouth * (1.0 - prop),

@@ -184,7 +184,9 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "feeding": [
                 "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false"
             ],
-            "moveit": ["ros2 launch ada_moveit demo.launch.py sim:=mock"],
+            "moveit": [
+                "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock"
+            ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
                 "node start_robot_browser.js",
@@ -259,7 +261,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "moveit": [
                 "Xvfb :5 -screen 0 800x600x24 &" if not args.dev else "",
                 "export DISPLAY=:5" if not args.dev else "",
-                f"ros2 launch ada_moveit demo.launch.py use_rviz:={'true' if args.dev else 'false'}",
+                f"ros2 launch ada_planning_scene ada_moveit_launch.xml use_rviz:={'true' if args.dev else 'false'}",
             ],
             "feeding": [
                 (

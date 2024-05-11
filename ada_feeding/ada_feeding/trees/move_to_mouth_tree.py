@@ -242,7 +242,7 @@ class MoveToMouthTree(MoveToTree):
             ) ** 0.5
             if pose_distance > max_pose_distance:
                 max_pose_distance = pose_distance
-            prop = ((max_pose_distance - pose_distance) / max_pose_distance) ** 0.5
+            prop = (max_pose_distance - pose_distance) / max_pose_distance  # ** 0.5
             return (
                 self.max_linear_speed * (1.0 - prop)
                 + self.linear_speed_near_mouth * prop,
