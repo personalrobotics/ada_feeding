@@ -11,10 +11,22 @@ import PropTypes from 'prop-types'
 import { View } from 'react-native'
 
 // Local imports
-import { useROS, createROSService, createROSServiceRequest, getValueFromParameter, getParameterFromValue } from '../../ros/ros_helpers'
+import {
+  useROS,
+  createROSService,
+  createROSServiceRequest,
+  getValueFromParameter,
+  getParameterFromValue,
+  callROSAction,
+  createROSActionClient,
+  createROSMessage,
+  destroyActionClient
+} from '../../ros/ros_helpers'
 import {
   GET_PARAMETERS_SERVICE_NAME,
   GET_PARAMETERS_SERVICE_TYPE,
+  RECOMPUTE_WORKSPACE_WALLS_ACTION_NAME,
+  RECOMPUTE_WORKSPACE_WALLS_ACTION_TYPE,
   SET_PARAMETERS_SERVICE_NAME,
   SET_PARAMETERS_SERVICE_TYPE
 } from '../Constants'
@@ -30,6 +42,7 @@ const SettingsPageParent = (props) => {
 
   // Get relevant local state variables
   const isResettingToPreset = useRef(false)
+  const numTimesResetWorkspaceWalls = useRef(0)
 
   // Flag to check if the current orientation is portrait
   const isPortrait = useMediaQuery({ query: '(orientation: portrait)' })
@@ -48,6 +61,14 @@ const SettingsPageParent = (props) => {
    */
   let getParametersService = useRef(createROSService(ros.current, GET_PARAMETERS_SERVICE_NAME, GET_PARAMETERS_SERVICE_TYPE))
   let setParametersService = useRef(createROSService(ros.current, SET_PARAMETERS_SERVICE_NAME, SET_PARAMETERS_SERVICE_TYPE))
+
+  /**
+   * Create the ROS Action Client. This is created in useRef to avoid
+   * re-creating it upon re-renders.
+   */
+  let recomputeWorkspaceWallsAction = useRef(
+    createROSActionClient(ros.current, RECOMPUTE_WORKSPACE_WALLS_ACTION_NAME, RECOMPUTE_WORKSPACE_WALLS_ACTION_TYPE)
+  )
 
   /**
    * Get the paramater values in the specified namespace or, if they don't exist,
@@ -130,20 +151,50 @@ const SettingsPageParent = (props) => {
     console.log('Sending SetParameter request', currentRequest)
     service.callService(currentRequest, (response) => {
       console.log('For request', currentRequest, 'received SetParameter response', response)
-      // If this is wrapping up a reset to preset, call the callback
-      if (isResettingToPreset.current) {
-        let resetToPresetSuccessCallback = props.resetToPresetSuccessCallback.current
-        resetToPresetSuccessCallback()
-        isResettingToPreset.current = false
+      // If it was succesful, and if the props specify, then call the action to update the
+      // workspace walls.
+      if (response.result.successful) {
+        if (props.resetWorkspaceWallsOnParameterUpdate) {
+          console.log('Calling recompute_workspace_walls action')
+          // numTimesResetWorkspaceWalls is used to ensure the result callback
+          // only gets registered the first time. This is okay because none of the
+          // values in the callback are expected to change.
+          callROSAction(
+            recomputeWorkspaceWallsAction.current,
+            createROSMessage({}),
+            null,
+            numTimesResetWorkspaceWalls.current > 0
+              ? null
+              : (result) => {
+                  console.log('Received result from recompute_workspace_walls action', result)
+                  // If this is wrapping up a reset to preset, call the callback
+                  if (isResettingToPreset.current) {
+                    let resetToPresetSuccessCallback = props.resetToPresetSuccessCallback.current
+                    resetToPresetSuccessCallback()
+                    isResettingToPreset.current = false
+                  }
+                }
+          )
+          numTimesResetWorkspaceWalls.current++
+        } else {
+          // If this is wrapping up a reset to preset, call the callback
+          if (isResettingToPreset.current) {
+            let resetToPresetSuccessCallback = props.resetToPresetSuccessCallback.current
+            resetToPresetSuccessCallback()
+            isResettingToPreset.current = false
+          }
+        }
       }
     })
   }, [
-    props.paramNames,
-    props.localParamValues,
-    settingsPresets,
-    setParametersService,
     isResettingToPreset,
-    props.resetToPresetSuccessCallback
+    numTimesResetWorkspaceWalls,
+    props.localParamValues,
+    props.paramNames,
+    props.resetToPresetSuccessCallback,
+    props.resetWorkspaceWallsOnParameterUpdate,
+    setParametersService,
+    settingsPresets
   ])
 
   /**
@@ -154,6 +205,16 @@ const SettingsPageParent = (props) => {
   useEffect(() => {
     setGlobalParameter()
   }, [setGlobalParameter])
+
+  /**
+   * When the component is unmounted, destroy the action client.
+   */
+  useEffect(() => {
+    let action = recomputeWorkspaceWallsAction.current
+    return () => {
+      destroyActionClient(action)
+    }
+  }, [])
 
   /**
    * A callback for when the user asks to reset parameters to a preset.
@@ -294,6 +355,9 @@ SettingsPageParent.propTypes = {
   resetToPresetSuccessCallback: PropTypes.shape({
     current: PropTypes.func.isRequired
   }),
+  // A prop to specify whether to invoke the action that resets workspace walls
+  // when the global parameters have been updated
+  resetWorkspaceWallsOnParameterUpdate: PropTypes.bool,
   // A function to call when the user is done with the page
   doneCallback: PropTypes.func.isRequired
 }
@@ -303,7 +367,8 @@ SettingsPageParent.defaultProps = {
   modalChildren: <></>,
   resetToPresetSuccessCallback: {
     current: () => {}
-  }
+  },
+  resetWorkspaceWallsOnParameterUpdate: false
 }
 
 export default SettingsPageParent

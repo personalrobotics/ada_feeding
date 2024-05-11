@@ -91,6 +91,8 @@ export const START_CARTESIAN_CONTROLLER_ACTION_NAME = 'ActivateCartesianControll
 export const START_CARTESIAN_CONTROLLER_ACTION_TYPE = 'ada_feeding_msgs/action/Trigger'
 export const START_JOINT_CONTROLLER_ACTION_NAME = 'ActivateJointController'
 export const START_JOINT_CONTROLLER_ACTION_TYPE = 'ada_feeding_msgs/action/Trigger'
+export const RECOMPUTE_WORKSPACE_WALLS_ACTION_NAME = 'recompute_workspace_walls'
+export const RECOMPUTE_WORKSPACE_WALLS_ACTION_TYPE = 'ada_feeding_msgs/action/Trigger'
 
 /**
  * For states that call ROS services, this dictionary contains

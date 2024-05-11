@@ -446,6 +446,7 @@ const CustomizeConfiguration = (props) => {
       localParamValues={currentConfigurationParams}
       setLocalParamValues={setCurrentConfigurationParams}
       resetToPresetSuccessCallback={resetToPresetSuccessCallback}
+      resetWorkspaceWallsOnParameterUpdate={true}
     >
       {renderSettings()}
     </SettingsPageParent>

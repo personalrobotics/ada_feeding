@@ -115,6 +115,10 @@ export function createROSServiceRequest(data) {
   return new ROSLIB.ServiceRequest(data)
 }
 
+// TODO: Should we add a `destroyService` function like we have for the action client?
+// The difference is that roslibjs explicitly provides a function to destroy the action
+// client, but only provides a function to unadvertise a service client.
+
 /**
  * Create a ROS Action Client.
  *
