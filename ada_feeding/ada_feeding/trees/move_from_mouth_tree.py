@@ -34,7 +34,7 @@ from ada_feeding.idioms.bite_transfer import (
     get_toggle_collision_object_behavior,
 )
 from ada_feeding.trees import MoveToTree
-from .activate_controller import ActivateController
+from .activate_controller import ActivateControllerTree
 
 
 class MoveFromMouthTree(MoveToTree):
@@ -379,7 +379,7 @@ class MoveFromMouthTree(MoveToTree):
                                 [self.wheelchair_collision_object_id],
                                 True,
                             ),
-                            ActivateController(self._node)
+                            ActivateControllerTree(self._node)
                             .create_tree(name=name + "ActivateCartesianController")
                             .root,
                         ],
@@ -388,7 +388,9 @@ class MoveFromMouthTree(MoveToTree):
                         name=name,
                         memory=True,
                         children=[
-                            ActivateController(self._node, controller_to_activate=None)
+                            ActivateControllerTree(
+                                self._node, controller_to_activate=None
+                            )
                             .create_tree(name=name + "DeactivateCartesianController")
                             .root,
                             get_toggle_collision_object_behavior(

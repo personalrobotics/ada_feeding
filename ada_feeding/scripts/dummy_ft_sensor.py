@@ -124,6 +124,7 @@ class DummyForceTorqueSensor(Node):
             response.message = "Successfully unset the bias"
         with self.set_bias_request_time_lock:
             self.set_bias_request_time = self.get_clock().now()
+        self.get_logger().info(response.message)
         return response
 
     def publish_msg(self) -> None:

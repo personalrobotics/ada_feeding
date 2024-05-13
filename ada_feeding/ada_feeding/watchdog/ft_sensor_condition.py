@@ -230,7 +230,7 @@ class FTSensorCondition(WatchdogCondition):
         else:
             condition_2 = (
                 "MESSAGES NOT UP-TO-DATE: The most recent message(s) have timestamps that are "
-                f">- {self.ft_timeout.nanoseconds / 10.0**9} secs in the past."
+                f">= {self.ft_timeout.nanoseconds / 10.0**9} secs in the past."
             )
 
         return [(status_1, name_1, condition_1), (status_2, name_2, condition_2)]

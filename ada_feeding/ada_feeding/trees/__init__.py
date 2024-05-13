@@ -22,6 +22,6 @@ from .move_to_mouth_tree import MoveToMouthTree
 from .trigger_tree import TriggerTree
 from .start_servo_tree import StartServoTree
 from .stop_servo_tree import StopServoTree
-from .activate_controller import ActivateController
+from .activate_controller import ActivateControllerTree
 
 from .acquire_food_tree import AcquireFoodTree
