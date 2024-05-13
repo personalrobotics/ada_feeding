@@ -1,0 +1,14 @@
+# This action type "inherits" from Trigger in that it has all the fields as
+# Trigger, and more.
+
+# What controller to activate. The action will deactive all other controllers.
+string controller_to_activate
+
+# Whether to also re-tare the force-torque sensor
+bool re_tare
+
+---
+bool success   # indicate successful run of triggered service
+string message # informational, e.g. for error messages
+---
+builtin_interfaces/Duration elapsed_time
