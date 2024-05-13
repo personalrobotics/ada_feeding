@@ -63,9 +63,11 @@ class WorkspaceWalls:
         self,
         node: Node,
         collision_object_manager: CollisionObjectManager,
-        objects: Dict[str, CollisionObjectParams],
+        objects: Dict[str, Dict[str, CollisionObjectParams]],
         base_frame_id: str,
         tf_buffer: Buffer,
+        namespaces: List[str],
+        namespace_to_use: str,
     ):
         """
         Initialize the workspace walls.
@@ -76,6 +78,9 @@ class WorkspaceWalls:
         collision_object_manager: The object to manage collision objects.
         objects: The collision objects in the planning scene.
         base_frame_id: The base frame ID. Walls will be published in this frame.
+        tf_buffer: The TF buffer.
+        namespaces: The list of namespaces to search for parameters.
+        namespace_to_use: The namespace to use for the parameters.
         """
         # pylint: disable=too-many-arguments
         # This class needs a lot of objects passed from the main node.
@@ -86,6 +91,8 @@ class WorkspaceWalls:
         self.__objects = objects
         self.__base_frame_id = base_frame_id
         self.__tf_buffer = tf_buffer
+        self.__namespaces = namespaces
+        self.__namespace_to_use = namespace_to_use
 
         # Load parameters
         self.__load_parameters()
@@ -152,47 +159,50 @@ class WorkspaceWalls:
         # Fine for this method
 
         # The margin (m) to add between workspace wall and objects within the workspace
-        self.__workspace_wall_margins = np.zeros((2, 3), dtype=float)
-        self.__disable_workspace_walls = np.zeros((2, 3), dtype=bool)
-        for i in range(2):
-            i_label = "min" if i == 0 else "max"
-            for j in range(3):
-                j_label = "x" if j == 0 else "y" if j == 1 else "z"
+        self.__workspace_wall_margins = {}
+        self.__disable_workspace_walls = {}
+        for namespace in self.__namespaces:
+            self.__workspace_wall_margins[namespace] = np.zeros((2, 3), dtype=float)
+            self.__disable_workspace_walls[namespace] = np.zeros((2, 3), dtype=bool)
+            for i in range(2):
+                i_label = "min" if i == 0 else "max"
+                for j in range(3):
+                    j_label = "x" if j == 0 else "y" if j == 1 else "z"
 
-                # Get the offset for the wall in that direction
-                name = f"workspace_wall_margin_{j_label}_{i_label}"
-                default = 0.1
-                margin = self.__node.declare_parameter(
-                    name,
-                    default,  # default value
-                    ParameterDescriptor(
-                        name=name,
-                        type=ParameterType.PARAMETER_DOUBLE,
-                        description=(
-                            "The margin (m) to add to the workspace wall on the "
-                            f"{i_label} side in the {j_label} dimension. default: {default}"
+                    # Get the offset for the wall in that direction
+                    name = f"{namespace}.workspace_wall_margin_{j_label}_{i_label}"
+                    default = 0.1
+                    margin = self.__node.declare_parameter(
+                        name,
+                        default,  # default value
+                        ParameterDescriptor(
+                            name=name,
+                            type=ParameterType.PARAMETER_DOUBLE,
+                            description=(
+                                "The margin (m) to add to the workspace wall on the "
+                                f"{i_label} side in the {j_label} dimension. default: {default}"
+                            ),
+                            read_only=True,
                         ),
-                        read_only=True,
-                    ),
-                )
-                self.__workspace_wall_margins[i, j] = margin.value
+                    )
+                    self.__workspace_wall_margins[namespace][i, j] = margin.value
 
-                # Check whether the wall in that direction is disabled
-                name = f"disable_workspace_wall_{j_label}_{i_label}"
-                disable = self.__node.declare_parameter(
-                    name,
-                    False,  # default value
-                    ParameterDescriptor(
-                        name=name,
-                        type=ParameterType.PARAMETER_BOOL,
-                        description=(
-                            f"Whether the workspace wall on the {i_label} side in the {j_label} "
-                            "dimension is disabled."
+                    # Check whether the wall in that direction is disabled
+                    name = f"{namespace}.disable_workspace_wall_{j_label}_{i_label}"
+                    disable = self.__node.declare_parameter(
+                        name,
+                        False,  # default value
+                        ParameterDescriptor(
+                            name=name,
+                            type=ParameterType.PARAMETER_BOOL,
+                            description=(
+                                f"Whether the workspace wall on the {i_label} side in the {j_label} "
+                                "dimension is disabled."
+                            ),
+                            read_only=True,
                         ),
-                        read_only=True,
-                    ),
-                )
-                self.__disable_workspace_walls[i, j] = disable.value
+                    )
+                    self.__disable_workspace_walls[namespace][i, j] = disable.value
 
         # The thickness (m) of the workspace walls
         workspace_wall_thickness = self.__node.declare_parameter(
@@ -554,7 +564,7 @@ class WorkspaceWalls:
         """
         Compute the bounds of all objects that are within the workspace walls.
         """
-        for object_id, params in self.__objects.items():
+        for object_id, params in self.__objects[self.__namespace_to_use].items():
             if params.within_workspace_walls:
                 if params.primitive_type is None:
                     bounds = self.__get_mesh_bounds(params)
@@ -575,8 +585,8 @@ class WorkspaceWalls:
         max_bounds = np.max(all_bounds[:, 1, :], axis=0)
 
         # Add margin
-        min_bounds -= self.__workspace_wall_margins[0]
-        max_bounds += self.__workspace_wall_margins[1]
+        min_bounds -= self.__workspace_wall_margins[self.__namespace_to_use][0]
+        max_bounds += self.__workspace_wall_margins[self.__namespace_to_use][1]
 
         return np.array([min_bounds, max_bounds])
 
@@ -605,7 +615,7 @@ class WorkspaceWalls:
         quat_xyzw = [0.0, 0.0, 0.0, 1.0]
         for i in range(2):
             for j in range(3):
-                if self.__disable_workspace_walls[i, j]:
+                if self.__disable_workspace_walls[self.__namespace_to_use][i, j]:
                     continue
                 # Compute the position and dimensions
                 position = [
@@ -1164,3 +1174,23 @@ class WorkspaceWalls:
         with self.__active_goal_request_lock:
             self.__active_goal_request = None
         return Trigger.Result(success=success)
+
+    # pylint: disable=duplicate-code
+    # Many of the classes in ada_planning_scene have this property and setter.
+    @property
+    def namespace_to_use(self) -> str:
+        """
+        Get the namespace to use for the parameters.
+        """
+        return self.__namespace_to_use
+
+    @namespace_to_use.setter
+    def namespace_to_use(self, namespace_to_use: str) -> None:
+        """
+        Set the namespace to use for the parameters.
+        """
+        if namespace_to_use not in self.__namespaces:
+            raise ValueError(
+                f"Namespace '{namespace_to_use}' not in the list of namespaces {self.__namespaces}."
+            )
+        self.__namespace_to_use = namespace_to_use

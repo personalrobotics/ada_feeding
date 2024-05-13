@@ -21,6 +21,11 @@ setup(
             os.path.join("share", package_name, "config"),
             glob(os.path.join("config", "*.yaml")),
         ),
+        # Include all assets files.
+        (
+            os.path.join("share", package_name, "assets"),
+            glob(os.path.join("assets", "*.stl")),
+        ),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
