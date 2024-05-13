@@ -94,7 +94,7 @@ function InfoModal(props) {
         <ToastContainer style={{ fontSize: textFontSize }} containerId={MODAL_CONTAINER_ID} enableMultiContainer={true} />
         <View
           style={{
-            flex: 2,
+            flex: 3,
             flexDirection: otherDirection,
             justifyContent: 'center',
             alignItems: 'center',
@@ -112,7 +112,7 @@ function InfoModal(props) {
         </View>
         <View
           style={{
-            flex: 9,
+            flex: 18,
             flexDirection: 'row',
             justifyContent: 'center',
             alignItems: 'center',
@@ -124,7 +124,7 @@ function InfoModal(props) {
           {mode === VIDEO_MODE ? (
             <VideoFeed topic={CAMERA_FEED_TOPIC} updateRateHz={10} webrtcURL={props.webrtcURL} />
           ) : mode === TELEOP_MODE ? (
-            <TeleopSubcomponent />
+            <TeleopSubcomponent allowIncreasingForceThreshold={true} />
           ) : mode === SYSTEM_STATUS_MODE ? (
             <div>System Status</div>
           ) : (

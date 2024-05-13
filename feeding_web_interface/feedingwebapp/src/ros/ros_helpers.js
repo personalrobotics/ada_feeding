@@ -226,12 +226,12 @@ export function getParameterFromValue(value, typeOverride = null) {
   if (typeOverride === 1 || typeof value === 'boolean') {
     parameter.bool_value = value
     parameter.type = 1
-  } else if (typeOverride === 2 || Number.isInteger(value)) {
-    parameter.integer_value = value
-    parameter.type = 2
   } else if (typeOverride === 3 || typeof value === 'number') {
     parameter.double_value = value
     parameter.type = 3
+  } else if (typeOverride === 2 || Number.isInteger(value)) {
+    parameter.integer_value = value
+    parameter.type = 2
   } else if (typeOverride === 4 || typeof value === 'string') {
     parameter.string_value = value
     parameter.type = 4
@@ -241,12 +241,12 @@ export function getParameterFromValue(value, typeOverride = null) {
   } else if (typeOverride === 6 || (Array.isArray(value) && value.length > 0 && typeof value[0] === 'boolean')) {
     parameter.bool_array_value = value
     parameter.type = 6
-  } else if (typeOverride === 7 || (Array.isArray(value) && value.length > 0 && Number.isInteger(value[0]))) {
-    parameter.integer_array_value = value
-    parameter.type = 7
   } else if (typeOverride === 8 || (Array.isArray(value) && value.length > 0 && typeof value[0] === 'number')) {
     parameter.double_array_value = value
     parameter.type = 8
+  } else if (typeOverride === 7 || (Array.isArray(value) && value.length > 0 && Number.isInteger(value[0]))) {
+    parameter.integer_array_value = value
+    parameter.type = 7
   } else if (typeOverride === 9 || (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string')) {
     parameter.string_array_value = value
     parameter.type = 9

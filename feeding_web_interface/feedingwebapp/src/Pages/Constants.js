@@ -87,10 +87,10 @@ ROS_ACTIONS_NAMES[MEAL_STATE.R_StowingArm] = {
   messageType: 'ada_feeding_msgs/action/MoveTo'
 }
 export { ROS_ACTIONS_NAMES }
-export const START_CARTESIAN_CONTROLLER_ACTION_NAME = 'ActivateCartesianController'
-export const START_CARTESIAN_CONTROLLER_ACTION_TYPE = 'ada_feeding_msgs/action/Trigger'
-export const START_JOINT_CONTROLLER_ACTION_NAME = 'ActivateJointController'
-export const START_JOINT_CONTROLLER_ACTION_TYPE = 'ada_feeding_msgs/action/Trigger'
+export const ACTIVATE_CONTROLLER_ACTION_NAME = 'ActivateController'
+export const ACTIVATE_CONTROLLER_ACTION_TYPE = 'ada_feeding_msgs/action/ActivateController'
+export const CARTESIAN_CONTROLLER_NAME = 'jaco_arm_cartesian_controller'
+export const JOINT_CONTROLLER_NAME = 'jaco_arm_servo_controller'
 export const RECOMPUTE_WORKSPACE_WALLS_ACTION_NAME = 'recompute_workspace_walls'
 export const RECOMPUTE_WORKSPACE_WALLS_ACTION_TYPE = 'ada_feeding_msgs/action/Trigger'
 
@@ -138,6 +138,11 @@ export const STAGING_PARAM_ORIENTATION = 'MoveFromMouth.tree_kwargs.staging_conf
 export const RESTING_PARAM_JOINTS_1 = 'AcquireFood.tree_kwargs.resting_joint_positions'
 // TODO: We may need to remove the orientation constraint from the below action.
 export const RESTING_PARAM_JOINTS_2 = 'MoveToRestingPosition.tree_kwargs.goal_configuration'
+
+// Parameters for modifying the force threshold
+export const FORCE_THRESHOLD_PARAM = 'wrench_threshold.fMag'
+export const DEFAULT_FORCE_THRESHOLD = 1.0 // N
+export const INCREASED_FORCE_THRESHOLD = 75.0 // N
 
 // Robot link names
 export const ROBOT_BASE_LINK = 'j2n6s200_link_base'

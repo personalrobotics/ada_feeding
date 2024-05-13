@@ -7,19 +7,33 @@ import PropTypes from 'prop-types'
 import { View } from 'react-native'
 
 // Local Imports
-import { useROS, createROSTopic, createROSMessage, createROSActionClient, callROSAction, destroyActionClient } from '../../ros/ros_helpers'
+import {
+  useROS,
+  createROSTopic,
+  createROSMessage,
+  createROSActionClient,
+  callROSAction,
+  destroyActionClient,
+  createROSService,
+  createROSServiceRequest,
+  getParameterFromValue
+} from '../../ros/ros_helpers'
 import '../Home/Home.css'
 import {
+  CARTESIAN_CONTROLLER_NAME,
+  JOINT_CONTROLLER_NAME,
   ROBOT_BASE_LINK,
   ROBOT_JOINTS,
   SERVO_CARTESIAN_TOPIC,
   SERVO_CARTESIAN_TOPIC_MSG,
   SERVO_JOINT_TOPIC,
   SERVO_JOINT_TOPIC_MSG,
-  START_CARTESIAN_CONTROLLER_ACTION_NAME,
-  START_CARTESIAN_CONTROLLER_ACTION_TYPE,
-  START_JOINT_CONTROLLER_ACTION_NAME,
-  START_JOINT_CONTROLLER_ACTION_TYPE
+  ACTIVATE_CONTROLLER_ACTION_NAME,
+  ACTIVATE_CONTROLLER_ACTION_TYPE,
+  SET_PARAMETERS_SERVICE_NAME,
+  INCREASED_FORCE_THRESHOLD,
+  DEFAULT_FORCE_THRESHOLD,
+  FORCE_THRESHOLD_PARAM
 } from '../Constants'
 import { useGlobalState } from '../GlobalState'
 import HoldButton from '../../buttons/HoldButton'
@@ -122,11 +136,17 @@ const TeleopSubcomponent = (props) => {
   /**
    * Create the ROS Action Client to start the teleop controllers.
    */
-  let startCartesianControllerAction = useMemo(() => {
-    return createROSActionClient(ros.current, START_CARTESIAN_CONTROLLER_ACTION_NAME, START_CARTESIAN_CONTROLLER_ACTION_TYPE)
-  }, [])
-  let startJointControllerAction = useMemo(() => {
-    return createROSActionClient(ros.current, START_JOINT_CONTROLLER_ACTION_NAME, START_JOINT_CONTROLLER_ACTION_TYPE)
+  let activateControllerActionGoal = useMemo(
+    () =>
+      createROSMessage({
+        controller_to_activate: teleopMode === JOINT_MODE ? JOINT_CONTROLLER_NAME : CARTESIAN_CONTROLLER_NAME,
+        re_tare: true
+      }),
+    [teleopMode]
+  )
+
+  let activateControllerAction = useMemo(() => {
+    return createROSActionClient(ros.current, ACTIVATE_CONTROLLER_ACTION_NAME, ACTIVATE_CONTROLLER_ACTION_TYPE)
   }, [])
 
   /**
@@ -144,9 +164,9 @@ const TeleopSubcomponent = (props) => {
    */
   useEffect(() => {
     console.log('Starting controller', refreshCount)
-    let action = teleopMode === JOINT_MODE ? startJointControllerAction : startCartesianControllerAction
-    callROSAction(action, createROSMessage({}), null, null)
-  }, [refreshCount, startCartesianControllerAction, startJointControllerAction, teleopMode])
+    let action = activateControllerAction
+    callROSAction(action, activateControllerActionGoal, null, null)
+  }, [refreshCount, activateControllerAction, activateControllerActionGoal])
 
   /**
    * When the component is unmounted, stop servo.
@@ -155,11 +175,10 @@ const TeleopSubcomponent = (props) => {
     let unmountCallback = props.unmountCallback
     return () => {
       console.log('Unmounting teleop subcomponent.')
-      destroyActionClient(startCartesianControllerAction)
-      destroyActionClient(startJointControllerAction)
+      destroyActionClient(activateControllerAction)
       unmountCallback.current()
     }
-  }, [startCartesianControllerAction, startJointControllerAction, props.unmountCallback])
+  }, [activateControllerAction, props.unmountCallback])
 
   /**
    * Callback function to publish constant cartesian cartesian velocity commands.
@@ -534,6 +553,38 @@ const TeleopSubcomponent = (props) => {
     },
     [teleopMode, setTeleopMode, textFontSize, sizeSuffix]
   )
+
+  /**
+   * Service and callback to increase the force threshold. Additionally, before
+   * unmounting, the force threshold should be reset.
+   */
+  const [forceThresholdIsIncreased, setForceThresholdIsIncreased] = useState(false)
+  let changeForceThresholdService = useMemo(() => {
+    let activeController = teleopMode === JOINT_MODE ? JOINT_CONTROLLER_NAME : CARTESIAN_CONTROLLER_NAME
+    return createROSService(ros.current, activeController + '/set_parameters_atomically', SET_PARAMETERS_SERVICE_NAME)
+  }, [ros, teleopMode])
+  const setForceThreshold = useCallback(
+    (threshold) => {
+      let service = changeForceThresholdService
+      let request = createROSServiceRequest({
+        parameters: [{ name: FORCE_THRESHOLD_PARAM, value: getParameterFromValue(threshold, 3) }]
+      })
+      console.log('Calling setForceThreshold with request', request, 'for service', service.name)
+      service.callService(request, (response) => {
+        console.log('For setForceThreshold request', request, 'received response', response)
+        setForceThresholdIsIncreased(threshold > DEFAULT_FORCE_THRESHOLD)
+      })
+    },
+    [changeForceThresholdService, setForceThresholdIsIncreased]
+  )
+  useEffect(() => {
+    return () => {
+      if (props.allowIncreasingForceThreshold) {
+        setForceThreshold(DEFAULT_FORCE_THRESHOLD)
+      }
+    }
+  }, [props.allowIncreasingForceThreshold, setForceThreshold])
+
   // Render the component
   return (
     <View
@@ -562,7 +613,7 @@ const TeleopSubcomponent = (props) => {
       </View>
       <View
         style={{
-          flex: 9,
+          flex: 14,
           justifyContent: 'center',
           alignItems: 'center',
           width: '100%',
@@ -572,7 +623,7 @@ const TeleopSubcomponent = (props) => {
         {/* Allow users to tune to speed of the current teleop mode */}
         <View
           style={{
-            flex: 1,
+            flex: props.allowIncreasingForceThreshold ? 1 : 2,
             flexDirection: 'row',
             justifyContent: 'center',
             alignItems: 'center',
@@ -628,10 +679,58 @@ const TeleopSubcomponent = (props) => {
             }}
           />
         </View>
+        {/* If the props specify, show a button to increase the force threshold. */}
+        {props.allowIncreasingForceThreshold ? (
+          <View
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              width: '100%'
+            }}
+          >
+            {forceThresholdIsIncreased ? (
+              <Button
+                variant='warning'
+                className='mx-2 mb-2 btn-huge'
+                size='lg'
+                style={{
+                  fontSize: (textFontSize * 1.0).toString() + sizeSuffix,
+                  paddingTop: 0,
+                  paddingBottom: 0,
+                  margin: '0 !important',
+                  width: '100%'
+                }}
+                onClick={() => setForceThreshold(DEFAULT_FORCE_THRESHOLD)}
+              >
+                &#x26E8; Restore Force Threshold
+              </Button>
+            ) : (
+              <Button
+                variant='danger'
+                className='mx-2 mb-2 btn-huge'
+                size='lg'
+                style={{
+                  fontSize: (textFontSize * 1.0).toString() + sizeSuffix,
+                  paddingTop: 0,
+                  paddingBottom: 0,
+                  margin: '0 !important',
+                  width: '100%'
+                }}
+                onClick={() => setForceThreshold(INCREASED_FORCE_THRESHOLD)}
+              >
+                &#9888; Increase Force Threshold
+              </Button>
+            )}
+          </View>
+        ) : (
+          <></>
+        )}
         {/* Render the controls for the mode */}
         <View
           style={{
-            flex: 5,
+            flex: 8,
             flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
@@ -652,10 +751,13 @@ TeleopSubcomponent.propTypes = {
   // A reference to a function to be called if StopServo is succesfully run.
   unmountCallback: PropTypes.object,
   // A function to be called when one of the teleop buttons are released
-  teleopButtonOnReleaseCallback: PropTypes.func
+  teleopButtonOnReleaseCallback: PropTypes.func,
+  // Whether to allow the user to increase the force threshold
+  allowIncreasingForceThreshold: PropTypes.bool
 }
 TeleopSubcomponent.defaultProps = {
   unmountCallback: { current: () => {} },
-  teleopButtonOnReleaseCallback: () => {}
+  teleopButtonOnReleaseCallback: () => {},
+  allowIncreasingForceThreshold: false
 }
 export default TeleopSubcomponent
