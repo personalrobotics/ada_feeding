@@ -53,12 +53,6 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
-# Install assets.
-install(DIRECTORY
-  assets
-  DESTINATION share/${PROJECT_NAME}/
-)
-
 # Install Python tests
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)

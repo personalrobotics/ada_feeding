@@ -12,72 +12,122 @@ ada_planning_scene:
     # frame must match the base link in the full robot's URDF (note: not the move group).
     base_frame: root
 
+    # A list of custom namespaces, and the namespace to use. The following parameters
+    # are expected to be within each namespace:
+    #  - `object_ids` with a list of object IDs within the namespace.
+    #  - For each object, the parameters necessary to place that mesh/primitive (see below).
+    #  - `workspace_wall_margin_{x,y,z}_{min/max}`: the margin to use for the workspace walls (default 0.1m)
+    #  - `disable_workspace_wall_{x,y,z}_{min/max}`: whether or not to disable the workspace walls in that direction
+    #  - All parameters from UpdateFromFaceDetection except `update_face_hz`.
+    #  - All other parameters from UpdateFromTableDetection except `update_table_hz`.
+    namespaces:
+      - seated
+      - bedside
+    namespace_to_use: seated
+
     ############################################################################
     # Parameters related to the PlanningSceneInitializer class
     ############################################################################
+    
+    seated:
+      object_ids: # list of objects to add to the planning scene
+        - wheelchair
+        - body
+        - table
+        - head
+      # For each object, specify:
+      #   - Shape: EITHER `filepath` (for a mesh) OR `primitive_type` and
+      #     `primitive_dims`(for a primitive -- see shape_msgs/SolidPrimitive.msg)
+      #   - Pose: `position` and `quat_xyzw` (see geometry_msgs/Pose.msg)
+      #   - Frame ID: `frame_id` (the frame_id of the object that the pose is
+      #     relative to)
+      #   - [Optional] to attach the collision object specify `attached` to be True.
+      #     In that case, `frame_id` must be a link on the robot to attach the object
+      #     to, and `touch_links` must be a list of additional links that should be
+      #     ignored for collision checking.
+      #   - [Optional] to ensure the workspace walls include the object, specify
+      #     `within_workspace_walls` to be True.
+      wheelchair: # the wheelchair mesh
+        filename: wheelchair.stl
+        position: [0.02, -0.02, -0.05]
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+        frame_id: root # the frame_id that the pose is relative to
+        within_workspace_walls: True # whether to add workspace walls around the wheelchair
+      # an expanded mesh around the wheelchair to account for a user sitting in it
+      # NOTE: If you change this you must also change the hardcoded initial pose in
+      # bite transfer.
+      body: 
+        filename: body_collision_in_wheelchair.stl
+        position: [0.02, -0.02, -0.05] # should match the wheelchair position
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
+        frame_id: root # the frame_id that the pose is relative to
+        within_workspace_walls: True # whether to add workspace walls around the wheelchair
+      table: # the table mesh
+        filename: table.stl
+        # Initial predicted position and orientation of the table; these values get
+        # updated as the robot perceives the table.
+        position: [0.08, -0.5, -0.56]
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+        offsets: [-0.20, -0.25, -0.689] 
+        frame_id: root # the frame_id that the pose is relative to
+      # NOTE: If you change this you must also change the hardcoded initial pose in
+      # bite transfer.
+      head: # the head mesh
+        filename: tom.stl
+        # This is an initial guess of head position; it will be updated as the
+        # robot perceives the face.
+        position: [0.29, 0.35, 0.85]
+        quat_xyzw: [-0.0616284, -0.0616284, -0.6804416, 0.704416]
+        frame_id: root # the frame_id that the pose is relative to
+        within_workspace_walls: True # whether to add workspace walls around the wheelchair
 
-    object_ids: # list of objects to add to the planning scene
-      - wheelchair
-      - wheelchair_collision
-      - table
-      - head
-    # For each object, specify:
-    #   - Shape: EITHER `filepath` (for a mesh) OR `primitive_type` and
-    #     `primitive_dims`(for a primitive -- see shape_msgs/SolidPrimitive.msg)
-    #   - Pose: `position` and `quat_xyzw` (see geometry_msgs/Pose.msg)
-    #   - Frame ID: `frame_id` (the frame_id of the object that the pose is
-    #     relative to)
-    #   - [Optional] to attach the collision object specify `attached` to be True.
-    #     In that case, `frame_id` must be a link on the robot to attach the object
-    #     to, and `touch_links` must be a list of additional links that should be
-    #     ignored for collision checking.
-    #   - [Optional] to ensure the workspace walls include the object, specify
-    #     `within_workspace_walls` to be True.
-    wheelchair: # the wheelchair mesh
-      filename: wheelchair.stl
-      position: [0.02, -0.02, -0.05]
-      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
-      frame_id: root # the frame_id that the pose is relative to
-      within_workspace_walls: True # whether to add workspace walls around the wheelchair
-    # an expanded mesh around the wheelchair to account for a user sitting in it
-    # NOTE: If you change this you must also change the hardcoded initial pose in
-    # bite transfer.
-    wheelchair_collision: 
-      filename: wheelchair_collision.stl
-      position: [0.02, -0.02, -0.05] # should match the wheelchair position
-      quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
-      frame_id: root # the frame_id that the pose is relative to
-      within_workspace_walls: True # whether to add workspace walls around the wheelchair
-    table: # the table mesh
-      filename: table.stl
-      # Initial predicted position and orientation of the table; these values get
-      # updated as the robot perceives the table.
-      position: [0.08, -0.5, -0.56]
-      quat_xyzw: [0.0, 0.0, 0.0, 1.0]
-      offsets: [-0.20, -0.25, -0.79] 
-      frame_id: root # the frame_id that the pose is relative to
-    # NOTE: If you change this you must also change the hardcoded initial pose in
-    # bite transfer.
-    head: # the head mesh
-      filename: tom.stl
-      # This is an initial guess of head position; it will be updated as the
-      # robot perceives the face.
-      position: [0.29, 0.35, 0.85]
-      quat_xyzw: [-0.0616284, -0.0616284, -0.704416, 0.704416]
-      frame_id: root # the frame_id that the pose is relative to
-      within_workspace_walls: True # whether to add workspace walls around the wheelchair
+    bedside:
+      object_ids: # list of objects to add to the planning scene
+        - bed
+        - body
+        - table
+        - head
+      bed: # the wheelchair mesh
+        filename: bed_with_back.stl
+        position: [-0.68, 0.6, -0.92]
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+        frame_id: root # the frame_id that the pose is relative to
+        within_workspace_walls: False # whether to add workspace walls around the wheelchair
+      body: 
+        filename: body_collision_in_bed.stl
+        position: [-0.68, 0.6, -0.92] # should match the wheelchair position
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
+        frame_id: root # the frame_id that the pose is relative to
+        within_workspace_walls: True # whether to add workspace walls around the wheelchair
+      table: # the table mesh
+        filename: hospital_table.stl
+        # Initial predicted position and orientation of the table; these values get
+        # updated as the robot perceives the table.
+        position: [-0.68, 0.6, -0.92]
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+        frame_id: root # the frame_id that the pose is relative to
+        within_workspace_walls: True # whether to add workspace walls around the wheelchair
+      head: # the head mesh
+        filename: tom.stl
+        # This is an initial guess of head position; it will be updated as the
+        # robot perceives the face.
+        position: [-0.68, 0.42, 0.4]
+        quat_xyzw: [-0.0616284, -0.0616284, -0.6804416, 0.704416]
+        frame_id: root # the frame_id that the pose is relative to
+        within_workspace_walls: True # whether to add workspace walls around the wheelchair
 
     ############################################################################
     # Parameters related to the WorkspaceWalls class
     ############################################################################
 
-    # Whether or not to add workspace walls to the planning scene.
-    # If True, add axis-aligned walls to the planning scene that contain all
-    # objects specified as being `within_workspace_walls`, with an additional
-    # direction-pecific margin that defaults to 0.1 m.
-    use_workspace_walls: True
-    workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
-    disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
+    # Direction-specific margins for how far the workspace wall should be (default 0.1m)
+    # from the nearest contained object in that direction.
+    # Also, direction-specific flags to disable the workspace wall in that direction.
+    seated:
+      workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
+      disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
+    bedside:
+      disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
 
     # Whether the workspace walls should contain the robot's current configuration
     # at time of recomputation.
@@ -127,21 +177,37 @@ ada_planning_scene:
     ############################################################################
 
     # Reject any mouth poses that are greater than the distance threshold away from the default head position
-    head_object_id: head
-    head_distance_threshold: 0.5 # m
+    seated:
+      head_object_id: head
+      head_distance_threshold: 0.5 # m
+    bedside:
+      head_object_id: head
+      head_distance_threshold: 0.5 # m
 
     ############################################################################
     # Parameters related to the UpdateFromTableDetectionpace class
     ############################################################################
 
-    # The offset values (in meters) for the center coordinates ([x, y, z]) of the table. These 
-    # values are used to translate the detected position into the table's origin.
-    table_detection_offsets: [-0.20, -0.25, -0.735]
-    # A threshold on the angular distance (in radians) between the default table  
-    # quaternion and the latest table quaternion to determine whether to reject 
-    # or accept the latest table quaternion 
-    table_quat_dist_thresh: 0.349
-    # A threshold on the linear distance (in m) between the default table position
-    # and the latest table position to detemine whether to reject or accept the
-    # latest table position
-    table_pos_dist_thresh: 0.5
+    # - `table_origin_offset`: The offset values (in meters) for the center coordinates ([x, y, z]) 
+    #    of the table. These values are used to translate the detected position into the table's origin.
+    # - `table_quat_dist_thresh`: The threshold on the angular distance (in radians) between the default
+    #    table quaternion and the latest table quaternion to determine whether to reject or accept the
+    #    latest table quaternion.
+    # - `table_pos_dist_thresh`: The threshold on the linear distance (in m) between the default table position
+    #    and the latest table position to determine whether to reject or accept the latest table position.
+
+    seated:
+      table_origin_offset: [-0.20, -0.25, -0.79]
+      table_quat_dist_thresh: 0.349
+      table_pos_dist_thresh: 0.5
+    bedside:
+      disable_table_detection: true
+      # TODO: The offset values have to be tuned. The z-value has already been computed, 
+      # by analytically computing the z value of the top-surface of the table. The x and
+      # y have to be tuned. Note that given how close the robot is to the table, the table
+      # detector node may have to be extended to only allow updating certain dimensions of
+      # the pose, and leaving other dimensions the default (e.g., don't update x or yaw, as
+      # those could allow the table to collide with the robot base in the planning scene).
+      table_origin_offset: [-0.20, -0.25, 1.0067]
+      table_quat_dist_thresh: 0.349
+      table_pos_dist_thresh: 0.5

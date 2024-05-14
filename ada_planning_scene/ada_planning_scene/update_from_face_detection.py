@@ -6,14 +6,16 @@ detection gets toggled on and off.
 """
 
 # Standard imports
+from collections import namedtuple
 from threading import Lock
-from typing import Dict
+from typing import Dict, List
 
 # Third-party imports
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion, Transform, Vector3
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.exceptions import ParameterAlreadyDeclaredException
 from rclpy.node import Node
 from tf2_geometry_msgs import TransformStamped
 import tf2_py as tf2
@@ -24,6 +26,13 @@ from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from ada_feeding_msgs.msg import FaceDetection
 from ada_planning_scene.collision_object_manager import CollisionObjectManager
 from ada_planning_scene.helpers import CollisionObjectParams
+
+
+# Define a namedtuple to store latest the joint state
+UpdateFromFaceDetectionParams = namedtuple(
+    "UpdateFromFaceDetectionParams",
+    ["head_object_id", "body_object_id", "head_distance_threshold", "mouth_frame_id"],
+)
 
 
 class UpdateFromFaceDetection:
@@ -42,10 +51,12 @@ class UpdateFromFaceDetection:
         self,
         node: Node,
         collision_object_manager: CollisionObjectManager,
-        objects: Dict[str, CollisionObjectParams],
+        objects: Dict[str, Dict[str, CollisionObjectParams]],
         base_frame_id: str,
         tf_buffer: Buffer,
         tf_broadcaster: StaticTransformBroadcaster,
+        namespaces: List[str],
+        namespace_to_use: str,
     ):
         """
         Initialize the UpdateFromFaceDetection.
@@ -58,6 +69,8 @@ class UpdateFromFaceDetection:
         base_frame_id: The base frame ID.
         tf_buffer: The TF buffer.
         tf_broadcaster: The TF static transform broadcaster.
+        namespaces: The list of namespaces to search for parameters.
+        namespace_to_use: The namespace to use for the parameters.
         """
         # pylint: disable=too-many-arguments
         # This class needs a lot of objects passed from the main node.
@@ -66,42 +79,57 @@ class UpdateFromFaceDetection:
         self.__node = node
         self.__collision_object_manager = collision_object_manager
         self.__base_frame_id = base_frame_id
+        self.__objects = objects
         self.__tf_buffer = tf_buffer
         self.__tf_broadcaster = tf_broadcaster
+        self.__namespaces = namespaces
+        self.__namespace_to_use = namespace_to_use
 
         # Load the parameters
         self.__load_parameters()
 
         # Get the default head and body params and poses, to avoid recomputing
         # them every time we update the head and body.
-        self.__default_head_params = objects[self.__head_object_id]
-        self.__default_body_params = objects[self.__body_object_id]
-        self.__default_head_pose = Pose(
-            position=Point(
-                x=self.__default_head_params.position[0],
-                y=self.__default_head_params.position[1],
-                z=self.__default_head_params.position[2],
-            ),
-            orientation=Quaternion(
-                x=self.__default_head_params.quat_xyzw[0],
-                y=self.__default_head_params.quat_xyzw[1],
-                z=self.__default_head_params.quat_xyzw[2],
-                w=self.__default_head_params.quat_xyzw[3],
-            ),
-        )
-        self.__default_body_pose = Pose(
-            position=Point(
-                x=self.__default_body_params.position[0],
-                y=self.__default_body_params.position[1],
-                z=self.__default_body_params.position[2],
-            ),
-            orientation=Quaternion(
-                x=self.__default_body_params.quat_xyzw[0],
-                y=self.__default_body_params.quat_xyzw[1],
-                z=self.__default_body_params.quat_xyzw[2],
-                w=self.__default_body_params.quat_xyzw[3],
-            ),
-        )
+        self.__default_head_params = {}
+        self.__default_body_params = {}
+        self.__default_head_poses = {}
+        self.__default_body_poses = {}
+        for namespace in self.__namespaces:
+            head_object_id = self.__namespace_to_params[namespace].head_object_id
+            body_object_id = self.__namespace_to_params[namespace].body_object_id
+
+            self.__default_head_params[namespace] = self.__objects[namespace][
+                head_object_id
+            ]
+            self.__default_body_params[namespace] = self.__objects[namespace][
+                body_object_id
+            ]
+            self.__default_head_poses[namespace] = Pose(
+                position=Point(
+                    x=self.__default_head_params[namespace].position[0],
+                    y=self.__default_head_params[namespace].position[1],
+                    z=self.__default_head_params[namespace].position[2],
+                ),
+                orientation=Quaternion(
+                    x=self.__default_head_params[namespace].quat_xyzw[0],
+                    y=self.__default_head_params[namespace].quat_xyzw[1],
+                    z=self.__default_head_params[namespace].quat_xyzw[2],
+                    w=self.__default_head_params[namespace].quat_xyzw[3],
+                ),
+            )
+            self.__default_body_poses[namespace] = Pose(
+                position=Point(
+                    x=self.__default_body_params[namespace].position[0],
+                    y=self.__default_body_params[namespace].position[1],
+                    z=self.__default_body_params[namespace].position[2],
+                ),
+                orientation=Quaternion(
+                    x=self.__default_body_params[namespace].quat_xyzw[0],
+                    y=self.__default_body_params[namespace].quat_xyzw[1],
+                    z=self.__default_body_params[namespace].quat_xyzw[2],
+                    w=self.__default_body_params[namespace].quat_xyzw[3],
+                ),
+            )
 
         # Subscribe to the face detection topic
         # pylint: disable=unused-private-member
@@ -124,88 +152,118 @@ class UpdateFromFaceDetection:
 
     def __load_parameters(self) -> None:
         """
-        Load the parameters.
+        Load the parameters. Note that this class is re-initialized when the
+        namespace changes, which requires us to handle ParameterAlreadyDeclaredException.
         """
         # pylint: disable=attribute-defined-outside-init
         # Fine for this method
 
         # How often to update the planning scene based on face detection
-        update_face_hz = self.__node.declare_parameter(
-            "update_face_hz",
-            3.0,  # default value
-            descriptor=ParameterDescriptor(
-                name="update_face_hz",
-                type=ParameterType.PARAMETER_DOUBLE,
-                description=(
-                    "The rate (Hz) at which to update the planning scene based on the results "
-                    "of face detection."
+        try:
+            update_face_hz = self.__node.declare_parameter(
+                "update_face_hz",
+                3.0,  # default value
+                descriptor=ParameterDescriptor(
+                    name="update_face_hz",
+                    type=ParameterType.PARAMETER_DOUBLE,
+                    description=(
+                        "The rate (Hz) at which to update the planning scene based on the results "
+                        "of face detection."
+                    ),
+                    read_only=True,
                 ),
-                read_only=True,
-            ),
-        )
+            )
+        except ParameterAlreadyDeclaredException:
+            update_face_hz = self.__node.get_parameter("update_face_hz")
         self.__update_face_hz = update_face_hz.value
 
-        # The object ID of the head in the planning scene
-        head_object_id = self.__node.declare_parameter(
-            "head_object_id",
-            "head",
-            descriptor=ParameterDescriptor(
-                name="head_object_id",
-                type=ParameterType.PARAMETER_STRING,
-                description=(
-                    "The object ID of the head in the planning scene. "
-                    "This is used to move the head based on face detection."
-                ),
-                read_only=True,
-            ),
-        )
-        self.__head_object_id = head_object_id.value
+        # Load the parameters within each namespace
+        self.__namespace_to_params = {}
+        for namespace in self.__namespaces:
+            try:
+                # The object ID of the head in the planning scene
+                head_object_id = self.__node.declare_parameter(
+                    f"{namespace}.head_object_id",
+                    "head",
+                    descriptor=ParameterDescriptor(
+                        name=f"{namespace}.head_object_id",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "The object ID of the head in the planning scene. "
+                            "This is used to move the head based on face detection."
+                        ),
+                        read_only=True,
+                    ),
+                )
+            except ParameterAlreadyDeclaredException:
+                head_object_id = self.__node.get_parameter(
+                    f"{namespace}.head_object_id"
+                )
 
-        # The object ID of the body in the planning scene
-        body_object_id = self.__node.declare_parameter(
-            "body_object_id",
-            "wheelchair_collision",
-            descriptor=ParameterDescriptor(
-                name="body_object_id",
-                type=ParameterType.PARAMETER_STRING,
-                description=(
-                    "The object ID of the body in the planning scene. "
-                    "This is used to move and scale the body based on face detection."
-                ),
-                read_only=True,
-            ),
-        )
-        self.__body_object_id = body_object_id.value
+            try:
+                # The object ID of the body in the planning scene
+                body_object_id = self.__node.declare_parameter(
+                    f"{namespace}.body_object_id",
+                    "body",
+                    descriptor=ParameterDescriptor(
+                        name=f"{namespace}.body_object_id",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "The object ID of the body in the planning scene. "
+                            "This is used to move and scale the body based on face detection."
+                        ),
+                        read_only=True,
+                    ),
+                )
+            except ParameterAlreadyDeclaredException:
+                body_object_id = self.__node.get_parameter(
+                    f"{namespace}.body_object_id"
+                )
 
-        # If the head is farther than this distance from the default position,
-        # use the default position instead
-        head_distance_threshold = self.__node.declare_parameter(
-            "head_distance_threshold",
-            0.5,
-            descriptor=ParameterDescriptor(
-                name="head_distance_threshold",
-                type=ParameterType.PARAMETER_DOUBLE,
-                description=(
-                    "Reject any mouth positions that are greater than the distance "
-                    "threshold away from the default head position, in m."
-                ),
-                read_only=True,
-            ),
-        )
-        self.__head_distance_threshold = head_distance_threshold.value
+            try:
+                # If the head is farther than this distance from the default position,
+                # use the default position instead
+                head_distance_threshold = self.__node.declare_parameter(
+                    f"{namespace}.head_distance_threshold",
+                    0.5,
+                    descriptor=ParameterDescriptor(
+                        name=f"{namespace}.head_distance_threshold",
+                        type=ParameterType.PARAMETER_DOUBLE,
+                        description=(
+                            "Reject any mouth positions that are greater than the distance "
+                            "threshold away from the default head position, in m."
+                        ),
+                        read_only=True,
+                    ),
+                )
+            except ParameterAlreadyDeclaredException:
+                head_distance_threshold = self.__node.get_parameter(
+                    f"{namespace}.head_distance_threshold"
+                )
 
-        # The TF frame to use for the mouth
-        mouth_frame_id = self.__node.declare_parameter(
-            "mouth_frame_id",
-            "mouth",
-            descriptor=ParameterDescriptor(
-                name="mouth_frame_id",
-                type=ParameterType.PARAMETER_STRING,
-                description=("The name of the frame to use for the mouth."),
-                read_only=True,
-            ),
-        )
-        self.__mouth_frame_id = mouth_frame_id.value
+            try:
+                # The TF frame to use for the mouth
+                mouth_frame_id = self.__node.declare_parameter(
+                    f"{namespace}.mouth_frame_id",
+                    "mouth",
+                    descriptor=ParameterDescriptor(
+                        name=f"{namespace}.mouth_frame_id",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=("The name of the frame to use for the mouth."),
+                        read_only=True,
+                    ),
+                )
+            except ParameterAlreadyDeclaredException:
+                mouth_frame_id = self.__node.get_parameter(
+                    f"{namespace}.mouth_frame_id"
+                )
+
+            self.__namespace_to_params[namespace] = UpdateFromFaceDetectionParams(
+                head_object_id=head_object_id.value,
+                body_object_id=body_object_id.value,
+                head_distance_threshold=head_distance_threshold.value,
+                mouth_frame_id=mouth_frame_id.value,
+            )
 
     def __face_detection_callback(self, msg: FaceDetection) -> None:
         """
@@ -243,19 +301,35 @@ class UpdateFromFaceDetection:
             )
             return
 
+        # Get the parameters for the namespace we are using
+        head_distance_threshold = self.__namespace_to_params[
+            self.__namespace_to_use
+        ].head_distance_threshold
+        head_object_id = self.__namespace_to_params[
+            self.__namespace_to_use
+        ].head_object_id
+        mouth_frame_id = self.__namespace_to_params[
+            self.__namespace_to_use
+        ].mouth_frame_id
+        body_object_id = self.__namespace_to_params[
+            self.__namespace_to_use
+        ].body_object_id
+        default_head_pose = self.__default_head_poses[self.__namespace_to_use]
+        default_head_params = self.__default_head_params[self.__namespace_to_use]
+        default_body_pose = self.__default_body_poses[self.__namespace_to_use]
+        default_body_params = self.__default_body_params[self.__namespace_to_use]
+
         # Reject any head that is too far from the original head pose
         dist = (
-            (self.__default_head_pose.position.x - detected_mouth_center.point.x) ** 2.0
-            + (self.__default_head_pose.position.y - detected_mouth_center.point.y)
-            ** 2.0
-            + (self.__default_head_pose.position.z - detected_mouth_center.point.z)
-            ** 2.0
+            (default_head_pose.position.x - detected_mouth_center.point.x) ** 2.0
+            + (default_head_pose.position.y - detected_mouth_center.point.y) ** 2.0
+            + (default_head_pose.position.z - detected_mouth_center.point.z) ** 2.0
         ) ** 0.5
-        if dist > self.__head_distance_threshold:
+        if dist > head_distance_threshold:
             self.__node.get_logger().error(
                 f"Detected face in position {detected_mouth_center.point} is {dist}m "
-                f"away from the default position {self.__default_head_pose.position}. "
-                f"Rejecting since it is greater than the threshold {self.__head_distance_threshold}m."
+                f"away from the default position {default_head_pose.position}. "
+                f"Rejecting since it is greater than the threshold {head_distance_threshold}m."
             )
             return
 
@@ -264,12 +338,12 @@ class UpdateFromFaceDetection:
         detected_mouth_pose.header = detected_mouth_center.header
         detected_mouth_pose.pose.position = detected_mouth_center.point
         # Fixed orientation
-        detected_mouth_pose.pose.orientation = self.__default_head_pose.orientation
+        detected_mouth_pose.pose.orientation = default_head_pose.orientation
 
         self.__collision_object_manager.move_collision_objects(
             objects=CollisionObjectParams(
-                object_id=self.__head_object_id,
-                frame_id=self.__default_head_params.frame_id,
+                object_id=head_object_id,
+                frame_id=default_head_params.frame_id,
                 position=[
                     detected_mouth_pose.pose.position.x,
                     detected_mouth_pose.pose.position.y,
@@ -289,7 +363,7 @@ class UpdateFromFaceDetection:
         self.__tf_broadcaster.sendTransform(
             TransformStamped(
                 header=detected_mouth_pose.header,
-                child_frame_id=self.__mouth_frame_id,
+                child_frame_id=mouth_frame_id,
                 transform=Transform(
                     translation=Vector3(
                         x=detected_mouth_pose.pose.position.x,
@@ -303,9 +377,8 @@ class UpdateFromFaceDetection:
 
         # Scale the body object based on the user's head pose.
         if (
-            detected_mouth_pose.header.frame_id != self.__default_head_params.frame_id
-            or detected_mouth_pose.header.frame_id
-            != self.__default_head_params.frame_id
+            detected_mouth_pose.header.frame_id != default_head_params.frame_id
+            or detected_mouth_pose.header.frame_id != default_head_params.frame_id
         ):
             self.__node.get_logger().error(
                 "The detected mouth pose frame_id does not match the expected frame_id."
@@ -316,23 +389,40 @@ class UpdateFromFaceDetection:
         body_scale = (
             1.0,
             1.0,
-            (detected_mouth_pose.pose.position.z - self.__default_body_pose.position.z)
-            / (
-                self.__default_head_pose.position.z
-                - self.__default_body_pose.position.z
-            ),
+            (detected_mouth_pose.pose.position.z - default_body_pose.position.z)
+            / (default_head_pose.position.z - default_body_pose.position.z),
         )
 
         # We have to re-add it because the scale changed.
         self.__collision_object_manager.add_collision_objects(
             objects=CollisionObjectParams(
-                object_id=self.__body_object_id,
-                frame_id=self.__default_body_params.frame_id,
-                position=self.__default_body_params.position,
-                quat_xyzw=self.__default_body_params.quat_xyzw,
-                mesh_filepath=self.__default_body_params.mesh_filepath,
-                mesh=self.__default_body_params.mesh,
+                object_id=body_object_id,
+                frame_id=default_body_params.frame_id,
+                position=default_body_params.position,
+                quat_xyzw=default_body_params.quat_xyzw,
+                mesh_filepath=default_body_params.mesh_filepath,
+                mesh=default_body_params.mesh,
                 mesh_scale=body_scale,
             ),
             rate_hz=self.__update_face_hz * 3.0,
         )
+
+    # pylint: disable=duplicate-code
+    # Many of the classes in ada_planning_scene have this property and setter.
+    @property
+    def namespace_to_use(self) -> str:
+        """
+        Get the namespace to use for the parameters.
+        """
+        return self.__namespace_to_use
+
+    @namespace_to_use.setter
+    def namespace_to_use(self, namespace_to_use: str) -> None:
+        """
+        Set the namespace to use for the parameters.
+        """
+        if namespace_to_use not in self.__namespaces:
+            raise ValueError(
+                f"Namespace '{namespace_to_use}' not in the list of namespaces {self.__namespaces}."
+            )
+        self.__namespace_to_use = namespace_to_use

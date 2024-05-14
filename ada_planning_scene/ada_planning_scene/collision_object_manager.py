@@ -30,7 +30,8 @@ class CollisionObjectManager:
        MoveIt2 has confirmed that the collision object has been added.
     """
 
-    # TODO: extend this class with the ability to remove collision objects.
+    # TODO: extend this class with the ability to remove specific collision objects
+    # (right now it can only clear the entire planning scene).
 
     __GLOBAL_BATCH_ID = "global"
     __BATCH_ID_FORMAT = "batch_{:d}"
@@ -449,3 +450,43 @@ class CollisionObjectManager:
             self.__attached_collision_objects_per_batch.pop(batch_id)
 
         return success
+
+    def clear_all_collision_objects(
+        self, rate_hz: float = 10.0, timeout: Duration = Duration(seconds=10.0)
+    ) -> bool:
+        """
+        Remove all attached and unattached collision objects from the planning scene.
+
+        Parameters
+        ----------
+        rate_hz: The rate at which to check for the planning scene.
+        timeout: The maximum amount of time to wait for the planning scene.
+
+        Returns
+        -------
+        True if the planning scene was successfully cleared, False otherwise.
+        """
+        # Start the time
+        start_time = self.__node.get_clock().now()
+        rate = self.__node.create_rate(rate_hz)
+
+        # Clear the planning scene
+        future = self.moveit2.clear_all_collision_objects()
+        if future is None:
+            self.__node.get_logger().error(
+                "Could not clear planning scene; service is not ready"
+            )
+            return False
+
+        while not future.done():
+            if not check_ok(self.__node, start_time, timeout):
+                self.__node.get_logger().error(
+                    "Timed out while clearing the planning scene."
+                )
+                self.moveit2.cancel_clear_all_collision_objects_future(future)
+                return False
+
+            # Sleep
+            rate.sleep()
+
+        return self.moveit2.process_clear_all_collision_objects_future(future)
