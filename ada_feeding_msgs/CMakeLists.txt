@@ -23,6 +23,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Mask.msg"
 
   "action/AcquireFood.action"
+  "action/ActivateController.action"
   "action/MoveTo.action"
   "action/MoveToConfiguration.action"
   "action/MoveToMouth.action"

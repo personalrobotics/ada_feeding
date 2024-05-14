@@ -40,7 +40,7 @@ def retry_call_ros_service(
     key_request: The key for the request in the blackboard. If None, the constant
         value in `request` is used. Note that exactly one of `key_request` and
         `request` must be None.
-    request: The request for the ROS service. If None, the value atored in the
+    request: The request for the ROS service. If None, the value stored in the
         blackboard with key `key_request` will be used. Note that exactly one of
         `key_request` and `request` must be None.
     key_response: The key to write the response to the blackboard. If None, the

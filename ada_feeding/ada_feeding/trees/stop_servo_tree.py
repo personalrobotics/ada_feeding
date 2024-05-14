@@ -22,7 +22,7 @@ from std_srvs.srv import Trigger
 from ada_feeding.behaviors.ros import UpdateTimestamp
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import retry_call_ros_service, wait_for_secs
-from .activate_controller import ActivateController
+from .activate_controller import ActivateControllerTree
 from .trigger_tree import TriggerTree
 
 
@@ -133,7 +133,7 @@ class StopServoTree(TriggerTree):
 
         # Create the behavior to turn off the controllers
         stop_controllers = (
-            ActivateController(
+            ActivateControllerTree(
                 self._node,
                 controller_to_activate=None,
             )

@@ -17,7 +17,7 @@ from std_srvs.srv import Trigger
 
 # Local imports
 from ada_feeding.idioms import retry_call_ros_service
-from .activate_controller import ActivateController
+from .activate_controller import ActivateControllerTree
 from .trigger_tree import TriggerTree
 
 
@@ -57,7 +57,7 @@ class StartServoTree(TriggerTree):
 
         # Create the behavior to switch controllers
         switch_controllers = (
-            ActivateController(
+            ActivateControllerTree(
                 self._node,
                 controller_to_activate=self.servo_controller_name,
             )
