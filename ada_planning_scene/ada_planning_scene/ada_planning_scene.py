@@ -190,6 +190,9 @@ class ADAPlanningScene(Node):
         # Get the start time
         start_time = self.get_clock().now()
 
+        # Clear the planning scene
+        self.__collision_object_manager.clear_all_collision_objects()
+
         # Initialize the planning scene
         success = self.__initializer.initialize(
             rate_hz=self.__initialization_hz,
@@ -252,9 +255,6 @@ class ADAPlanningScene(Node):
                         "The `namespace_to_use` parameter must be part of the `namespaces` parameter."
                     )
                     return SetParametersResult(successful=False)
-
-                # Clear the planning scene
-                self.__collision_object_manager.clear_all_collision_objects()
 
                 # Set the parameter
                 self.__namespace_to_use = namespace_to_use

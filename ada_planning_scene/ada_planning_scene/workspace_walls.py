@@ -142,10 +142,9 @@ class WorkspaceWalls:
                 )
             )
 
-        # Get the bounds of all the objects that are within the workspace walls.
-        # As of now, these are only computed once.
+        # Keep track of a bounding box for every object and configuration within
+        # the workspace walls.
         self.__per_object_bounds = {}
-        self.__compute_object_bounds()
 
         # Track the active goal request.
         self.__active_goal_request_lock = Lock()
@@ -571,6 +570,9 @@ class WorkspaceWalls:
                 else:
                     bounds = self.__get_primitive_bounds(params)
                 self.__per_object_bounds[object_id] = bounds
+        self.__node.get_logger().debug(
+            f"Got object bounding boxes: {self.__per_object_bounds}"
+        )
 
     def __compute_workspace_bounds(self) -> npt.NDArray:
         """
@@ -684,6 +686,10 @@ class WorkspaceWalls:
         -------
         True if successful, False otherwise.
         """
+        # Assume the URDF doesn't change. Thus, don't reload it.
+        if self.__robot_model is not None:
+            return True
+
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
@@ -1025,6 +1031,11 @@ class WorkspaceWalls:
         True if successful, False otherwise.
         """
         start_time = self.__node.get_clock().now()
+
+        # Get the bounds of all the objects that are within the workspace walls.
+        # As of now, these are only computed once.
+        self.__per_object_bounds = {}  # Empty any pre-computed bounds
+        self.__compute_object_bounds()
 
         # Load the robot's URDF. We do this in `initialize` as opposed to `__init__`
         # because the MoveGroup has to be running to get the paramter.

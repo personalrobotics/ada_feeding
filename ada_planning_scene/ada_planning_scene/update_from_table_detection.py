@@ -14,6 +14,7 @@ import numpy as np
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.exceptions import ParameterAlreadyDeclaredException
 from rclpy.node import Node
 import tf2_py as tf2
 from tf2_ros.buffer import Buffer
@@ -125,93 +126,117 @@ class UpdateFromTableDetection:
 
     def __load_parameters(self) -> None:
         """
-        Load the parameters.
+        Load the parameters. Note that this class is re-initialized when the
+        namespace changes, which requires us to handle ParameterAlreadyDeclaredException.
         """
         # pylint: disable=attribute-defined-outside-init
         # Fine for this method
 
-        # How often to update the planning scene based on table detection
-        update_table_hz = self.__node.declare_parameter(
-            "update_table_hz",
-            3.0,  # default value
-            descriptor=ParameterDescriptor(
-                name="update_table_hz",
-                type=ParameterType.PARAMETER_DOUBLE,
-                description=(
-                    "The rate (Hz) at which to update the planning scene based on "
-                    "the results of table detection."
+        try:
+            # How often to update the planning scene based on table detection
+            update_table_hz = self.__node.declare_parameter(
+                "update_table_hz",
+                3.0,  # default value
+                descriptor=ParameterDescriptor(
+                    name="update_table_hz",
+                    type=ParameterType.PARAMETER_DOUBLE,
+                    description=(
+                        "The rate (Hz) at which to update the planning scene based on "
+                        "the results of table detection."
+                    ),
+                    read_only=True,
                 ),
-                read_only=True,
-            ),
-        )
+            )
+        except ParameterAlreadyDeclaredException:
+            update_table_hz = self.__node.get_parameter("update_table_hz")
         self.__update_table_hz = update_table_hz.value
 
         # Load the parameters within each namespace
         self.__namespace_to_params = {}
         for namespace in self.__namespaces:
-            # The object ID of the table in the planning scene
-            table_object_id = self.__node.declare_parameter(
-                f"{namespace}.table_object_id",
-                "table",
-                descriptor=ParameterDescriptor(
-                    name=f"{namespace}.table_object_id",
-                    type=ParameterType.PARAMETER_STRING,
-                    description=(
-                        "The object ID of the table in the planning scene. "
-                        "This is used to move the table based on table detection."
+            try:
+                # The object ID of the table in the planning scene
+                table_object_id = self.__node.declare_parameter(
+                    f"{namespace}.table_object_id",
+                    "table",
+                    descriptor=ParameterDescriptor(
+                        name=f"{namespace}.table_object_id",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "The object ID of the table in the planning scene. "
+                            "This is used to move the table based on table detection."
+                        ),
+                        read_only=True,
                     ),
-                    read_only=True,
-                ),
-            )
+                )
+            except ParameterAlreadyDeclaredException:
+                table_object_id = self.__node.get_parameter(
+                    f"{namespace}.table_object_id"
+                )
 
-            # Where the origin of the table is expected to be relative to the detected point
-            table_origin_offset = self.__node.declare_parameter(
-                f"{namespace}.table_origin_offset",
-                [-0.20, -0.25, -0.79],  # default value
-                descriptor=ParameterDescriptor(
-                    name=f"{namespace}.table_origin_offset",
-                    type=ParameterType.PARAMETER_DOUBLE_ARRAY,
-                    description=(
-                        "(x, y, z) values to add to the detected table pose (e.g., plate "
-                        "center) to get the table origin."
+            try:
+                # Where the origin of the table is expected to be relative to the detected point
+                table_origin_offset = self.__node.declare_parameter(
+                    f"{namespace}.table_origin_offset",
+                    [-0.20, -0.25, -0.79],  # default value
+                    descriptor=ParameterDescriptor(
+                        name=f"{namespace}.table_origin_offset",
+                        type=ParameterType.PARAMETER_DOUBLE_ARRAY,
+                        description=(
+                            "(x, y, z) values to add to the detected table pose (e.g., plate "
+                            "center) to get the table origin."
+                        ),
+                        read_only=True,
                     ),
-                    read_only=True,
-                ),
-            )
+                )
+            except ParameterAlreadyDeclaredException:
+                table_origin_offset = self.__node.get_parameter(
+                    f"{namespace}.table_origin_offset"
+                )
 
-            # If the detected table has moved more than this relative to the default,
-            # publish the default pose instead.
-            table_distance_threshold = self.__node.declare_parameter(
-                f"{namespace}.table_distance_threshold",
-                0.5,  # default value
-                descriptor=ParameterDescriptor(
-                    name=f"{namespace}.table_distance_threshold",
-                    type=ParameterType.PARAMETER_DOUBLE,
-                    description=(
-                        "The threshold for the distance (m) between "
-                        "the latest detected table position "
-                        "and the default table position."
+            try:
+                # If the detected table has moved more than this relative to the default,
+                # publish the default pose instead.
+                table_distance_threshold = self.__node.declare_parameter(
+                    f"{namespace}.table_distance_threshold",
+                    0.5,  # default value
+                    descriptor=ParameterDescriptor(
+                        name=f"{namespace}.table_distance_threshold",
+                        type=ParameterType.PARAMETER_DOUBLE,
+                        description=(
+                            "The threshold for the distance (m) between "
+                            "the latest detected table position "
+                            "and the default table position."
+                        ),
+                        read_only=True,
                     ),
-                    read_only=True,
-                ),
-            )
+                )
+            except ParameterAlreadyDeclaredException:
+                table_distance_threshold = self.__node.get_parameter(
+                    f"{namespace}.table_distance_threshold"
+                )
 
-            # If the detected table has rotated more than this relative to the default,
-            # publish the default pose instead.
-            table_rotation_threshold = self.__node.declare_parameter(
-                f"{namespace}.table_rotation_threshold",
-                np.pi / 6.0,  # default value
-                descriptor=ParameterDescriptor(
-                    name=f"{namespace}.table_rotation_threshold",
-                    type=ParameterType.PARAMETER_DOUBLE,
-                    description=(
-                        "The threshold for the angular distance between "
-                        "the latest detected table quaternion "
-                        "and the previously detected table quaternion."
+            try:
+                # If the detected table has rotated more than this relative to the default,
+                # publish the default pose instead.
+                table_rotation_threshold = self.__node.declare_parameter(
+                    f"{namespace}.table_rotation_threshold",
+                    np.pi / 6.0,  # default value
+                    descriptor=ParameterDescriptor(
+                        name=f"{namespace}.table_rotation_threshold",
+                        type=ParameterType.PARAMETER_DOUBLE,
+                        description=(
+                            "The threshold for the angular distance between "
+                            "the latest detected table quaternion "
+                            "and the previously detected table quaternion."
+                        ),
+                        read_only=True,
                     ),
-                    read_only=True,
-                ),
-            )
+                )
+            except ParameterAlreadyDeclaredException:
+                table_rotation_threshold = self.__node.get_parameter(
+                    f"{namespace}.table_rotation_threshold"
+                )
 
             # Store the parameters
             self.__namespace_to_params[namespace] = UpdateFromTableDetectionParams(

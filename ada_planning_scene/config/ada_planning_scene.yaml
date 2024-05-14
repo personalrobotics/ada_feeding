@@ -23,7 +23,7 @@ ada_planning_scene:
     namespaces:
       - seated
       - bedside
-    namespace_to_use: bedside
+    namespace_to_use: seated
 
     ############################################################################
     # Parameters related to the PlanningSceneInitializer class
@@ -68,7 +68,7 @@ ada_planning_scene:
         # updated as the robot perceives the table.
         position: [0.08, -0.5, -0.56]
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
-        offsets: [-0.20, -0.25, -0.79] 
+        offsets: [-0.20, -0.25, -0.689] 
         frame_id: root # the frame_id that the pose is relative to
       # NOTE: If you change this you must also change the hardcoded initial pose in
       # bite transfer.
@@ -77,7 +77,7 @@ ada_planning_scene:
         # This is an initial guess of head position; it will be updated as the
         # robot perceives the face.
         position: [0.29, 0.35, 0.85]
-        quat_xyzw: [-0.0616284, -0.0616284, -0.704416, 0.704416]
+        quat_xyzw: [-0.0616284, -0.0616284, -0.6804416, 0.704416]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
 
@@ -89,21 +89,21 @@ ada_planning_scene:
         - head
       bed: # the wheelchair mesh
         filename: bed_with_back.stl
-        position: [0.0, 0.5, 0.0]
+        position: [-0.68, 0.6, -0.92]
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: False # whether to add workspace walls around the wheelchair
       body: 
         filename: body_collision_in_bed.stl
-        position: [0.0, 0.5, 0.0] # should match the wheelchair position
+        position: [-0.68, 0.6, -0.92] # should match the wheelchair position
         quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
         frame_id: root # the frame_id that the pose is relative to
-        within_workspace_walls: False # whether to add workspace walls around the wheelchair
+        within_workspace_walls: True # whether to add workspace walls around the wheelchair
       table: # the table mesh
         filename: hospital_table.stl
         # Initial predicted position and orientation of the table; these values get
         # updated as the robot perceives the table.
-        position: [0.0, 0.5, 0.0]
+        position: [-0.68, 0.6, -0.92]
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
@@ -111,8 +111,8 @@ ada_planning_scene:
         filename: tom.stl
         # This is an initial guess of head position; it will be updated as the
         # robot perceives the face.
-        position: [0.29, 0.35, 0.85]
-        quat_xyzw: [-0.0616284, -0.0616284, -0.704416, 0.704416]
+        position: [-0.68, 0.42, 0.4]
+        quat_xyzw: [-0.0616284, -0.0616284, -0.6804416, 0.704416]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
 
@@ -127,9 +127,7 @@ ada_planning_scene:
       workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
       disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
     bedside:
-      workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
       disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
-      disable_workspace_wall_x_min: True
 
     # Whether the workspace walls should contain the robot's current configuration
     # at time of recomputation.
@@ -190,27 +188,25 @@ ada_planning_scene:
     # Parameters related to the UpdateFromTableDetectionpace class
     ############################################################################
 
+    # - `table_detection_offsets`: The offset values (in meters) for the center coordinates ([x, y, z]) 
+    #    of the table. These values are used to translate the detected position into the table's origin.
+    # - `table_quat_dist_thresh`: The threshold on the angular distance (in radians) between the default
+    #    table quaternion and the latest table quaternion to determine whether to reject or accept the
+    #    latest table quaternion.
+    # - `table_pos_dist_thresh`: The threshold on the linear distance (in m) between the default table position
+    #    and the latest table position to determine whether to reject or accept the latest table position.
+
     seated:
-      # The offset values (in meters) for the center coordinates ([x, y, z]) of the table. These 
-      # values are used to translate the detected position into the table's origin.
-      table_detection_offsets: [-0.20, -0.25, -0.735]
-      # A threshold on the angular distance (in radians) between the default table  
-      # quaternion and the latest table quaternion to determine whether to reject 
-      # or accept the latest table quaternion 
+      table_detection_offsets: [-0.20, -0.25, -0.6835]
       table_quat_dist_thresh: 0.349
-      # A threshold on the linear distance (in m) between the default table position
-      # and the latest table position to detemine whether to reject or accept the
-      # latest table position
       table_pos_dist_thresh: 0.5
     bedside:
-      # The offset values (in meters) for the center coordinates ([x, y, z]) of the table. These 
-      # values are used to translate the detected position into the table's origin.
-      table_detection_offsets: [-0.20, -0.25, -0.735]
-      # A threshold on the angular distance (in radians) between the default table  
-      # quaternion and the latest table quaternion to determine whether to reject 
-      # or accept the latest table quaternion 
+      # TODO: The offset values have to be tuned. The z-value has already been computed, 
+      # by analytically computing the z value of the top-surface of the table. The x and
+      # y have to be tuned. Note that given how close the robot is to the table, the table
+      # detector node may have to be extended to only allow updating certain dimensions of
+      # the pose, and leaving other dimensions the default (e.g., don't update x or yaw, as
+      # those could allow the table to collide with the robot base in the planning scene).
+      table_detection_offsets: [-0.20, -0.25, 1.0067]
       table_quat_dist_thresh: 0.349
-      # A threshold on the linear distance (in m) between the default table position
-      # and the latest table position to detemine whether to reject or accept the
-      # latest table position
       table_pos_dist_thresh: 0.5
