@@ -28,6 +28,7 @@ from ada_planning_scene.helpers import CollisionObjectParams
 UpdateFromTableDetectionParams = namedtuple(
     "UpdateFromTableDetectionParams",
     [
+        "disable_table_detection",
         "table_object_id",
         "table_origin_offset",
         "table_distance_threshold",
@@ -238,8 +239,27 @@ class UpdateFromTableDetection:
                     f"{namespace}.table_rotation_threshold"
                 )
 
+            try:
+                disable_table_detection = self.__node.declare_parameter(
+                    f"{namespace}.disable_table_detection",
+                    False,  # default value
+                    descriptor=ParameterDescriptor(
+                        name=f"{namespace}.disable_table_detection",
+                        type=ParameterType.PARAMETER_BOOL,
+                        description=(
+                            "Whether to disable table detection in this namespace."
+                        ),
+                        read_only=True,
+                    ),
+                )
+            except ParameterAlreadyDeclaredException:
+                disable_table_detection = self.__node.get_parameter(
+                    f"{namespace}.disable_table_detection"
+                )
+
             # Store the parameters
             self.__namespace_to_params[namespace] = UpdateFromTableDetectionParams(
+                disable_table_detection=disable_table_detection.value,
                 table_object_id=table_object_id.value,
                 table_origin_offset=table_origin_offset.value,
                 table_distance_threshold=table_distance_threshold.value,
@@ -261,6 +281,8 @@ class UpdateFromTableDetection:
         """
         # pylint: disable=too-many-locals
         # This is where the main work happens.
+        if self.__namespace_to_params[self.__namespace_to_use].disable_table_detection:
+            return
 
         # Get the latest table detection message
         with self.__latest_table_detection_lock:

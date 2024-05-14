@@ -190,9 +190,6 @@ class ADAPlanningScene(Node):
         # Get the start time
         start_time = self.get_clock().now()
 
-        # Clear the planning scene
-        self.__collision_object_manager.clear_all_collision_objects()
-
         # Initialize the planning scene
         success = self.__initializer.initialize(
             rate_hz=self.__initialization_hz,

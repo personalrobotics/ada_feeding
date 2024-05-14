@@ -188,7 +188,7 @@ ada_planning_scene:
     # Parameters related to the UpdateFromTableDetectionpace class
     ############################################################################
 
-    # - `table_detection_offsets`: The offset values (in meters) for the center coordinates ([x, y, z]) 
+    # - `table_origin_offset`: The offset values (in meters) for the center coordinates ([x, y, z]) 
     #    of the table. These values are used to translate the detected position into the table's origin.
     # - `table_quat_dist_thresh`: The threshold on the angular distance (in radians) between the default
     #    table quaternion and the latest table quaternion to determine whether to reject or accept the
@@ -197,16 +197,17 @@ ada_planning_scene:
     #    and the latest table position to determine whether to reject or accept the latest table position.
 
     seated:
-      table_detection_offsets: [-0.20, -0.25, -0.6835]
+      table_origin_offset: [-0.20, -0.25, -0.79]
       table_quat_dist_thresh: 0.349
       table_pos_dist_thresh: 0.5
     bedside:
+      disable_table_detection: true
       # TODO: The offset values have to be tuned. The z-value has already been computed, 
       # by analytically computing the z value of the top-surface of the table. The x and
       # y have to be tuned. Note that given how close the robot is to the table, the table
       # detector node may have to be extended to only allow updating certain dimensions of
       # the pose, and leaving other dimensions the default (e.g., don't update x or yaw, as
       # those could allow the table to collide with the robot base in the planning scene).
-      table_detection_offsets: [-0.20, -0.25, 1.0067]
+      table_origin_offset: [-0.20, -0.25, 1.0067]
       table_quat_dist_thresh: 0.349
       table_pos_dist_thresh: 0.5

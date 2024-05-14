@@ -472,6 +472,11 @@ class CollisionObjectManager:
 
         # Clear the planning scene
         future = self.moveit2.clear_all_collision_objects()
+        if future is None:
+            self.__node.get_logger().error(
+                "Could not clear planning scene; service is not ready"
+            )
+            return False
 
         while not future.done():
             if not check_ok(self.__node, start_time, timeout):

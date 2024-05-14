@@ -322,20 +322,33 @@ class PlanningSceneInitializer:
             return False
         self.__node.get_logger().info("...MoveIt2 is ready.")
 
-        # Get the objects that are already in the planning scene
-        self.__node.get_logger().info(
-            "Getting objects currently in the planning scene..."
-        )
-        success = self.__collision_object_manager.get_global_collision_objects(
+        # Clear the planning scene
+        self.__node.get_logger().info("Clearing planning scene...")
+        success = self.__collision_object_manager.clear_all_collision_objects(
             rate_hz=rate_hz,
             timeout=get_remaining_time(self.__node, start_time, timeout),
         )
-        if not success:
+        if success:
+            self.__node.get_logger().info("...cleared planning scene.")
+        else:
             self.__node.get_logger().error(
-                "Failed to get objects in the planning scene. Exiting initialization."
+                "...failed to clear planning scene. Continuing."
             )
-            return False
-        self.__node.get_logger().info("...got planning scene objects.")
+
+        # # Get the objects that are already in the planning scene
+        # self.__node.get_logger().info(
+        #     "Getting objects currently in the planning scene..."
+        # )
+        # success = self.__collision_object_manager.get_global_collision_objects(
+        #     rate_hz=rate_hz,
+        #     timeout=get_remaining_time(self.__node, start_time, timeout),
+        # )
+        # if not success:
+        #     self.__node.get_logger().error(
+        #         "Failed to get objects in the planning scene. Exiting initialization."
+        #     )
+        #     return False
+        # self.__node.get_logger().info("...got planning scene objects.")
 
         # Add the objects to the planning scene
         self.__node.get_logger().info("Adding objects to the planning scene...")
