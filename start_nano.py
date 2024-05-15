@@ -107,7 +107,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "start the camera."
         )
     else:
-        print(f"# Terminating nano's camera in a screen session")
+        print("# Terminating nano's camera in a screen session")
     print(
         "################################################################################"
     )
@@ -120,8 +120,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
     }
     close_commands = {}
     attach_to_screen_name = "camera"
-    initial_close_commands = ["\003"] # Ctrl+c termination
-    initial_start_commands = []
+    initial_close_commands = ["\003"]  # Ctrl+c termination
+    initial_start_commands = [f"cd {pwd}"]
     for screen_name, commands in screen_sessions.items():
         screen_sessions[screen_name] = initial_start_commands + commands
         if screen_name not in close_commands:
