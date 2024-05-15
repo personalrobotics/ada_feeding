@@ -247,7 +247,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "pm2 log server",
             ],
             "camera": [
-                "ssh nano './run_camera.sh'",
+                "ssh nano './start_nano.sh'",
             ],
             "ft": [
                 "ros2 run forque_sensor_hardware forque_sensor_hardware --ros-args -p host:=ft-sensor-2",
