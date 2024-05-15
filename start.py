@@ -10,6 +10,9 @@ import getpass
 import os
 import sys
 
+# pylint: disable=duplicate-code
+# This is intentionally similar to start_nano.py
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--sim",

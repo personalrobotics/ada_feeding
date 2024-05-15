@@ -10,6 +10,9 @@ import getpass
 import os
 import sys
 
+# pylint: disable=duplicate-code
+# This is intentionally similar to start_nano.py
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "-t",
@@ -31,6 +34,11 @@ parser.add_argument(
     "--close",
     action="store_true",
     help="If set, only terminate the code in the screens.",
+)
+parser.add_argument(
+    "--tty",
+    default="",
+    help="If set, redirect output to this device.",
 )
 
 
@@ -107,7 +115,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "start the camera."
         )
     else:
-        print("# Terminating nano's camera in a screen session")
+        print("# Terminating nano's camera in the screen session")
     print(
         "################################################################################"
     )
@@ -115,11 +123,11 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
     # Determine which screen sessions to start and what commands to run
     screen_sessions = {
         "camera": [
-            "~/run_camera.sh",
+            "~/run_camera.sh"
+            + ("" if len(args.tty) == 0 else f" 2>&1 | tee {args.tty}"),
         ],
     }
     close_commands = {}
-    attach_to_screen_name = "camera"
     initial_close_commands = ["\003"]  # Ctrl+c termination
     initial_start_commands = [f"cd {pwd}"]
     for screen_name, commands in screen_sessions.items():
@@ -168,18 +176,12 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "################################################################################"
         )
 
-        print(f"# Done! Attaching to the {attach_to_screen_name} screen session")
-        await asyncio.create_subprocess_shell(f"screen -rd {attach_to_screen_name}")
+        print("# Done!")
 
 
 if __name__ == "__main__":
     # Get the arguments
     args = parser.parse_args()
-    # Check args
-    if args.sim not in ["real", "mock", "dummy"]:
-        raise ValueError(
-            f"Unknown sim value {args.sim}. Must be one of ['real', 'mock', 'dummy']."
-        )
 
     # Ensure the script is not being run as sudo. Sudo has a different screen
     # server and may have different versions of libraries installed.
@@ -191,11 +193,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Get the path to the home folder.
-    home_pwd = os.path.abspath("~")
+    HOME_PWD = "~"
 
     # Run the main function
     sudo_password = None  # pylint: disable=invalid-name
-    asyncio.run(main(args, home_pwd))
+    asyncio.run(main(args, HOME_PWD))
 
     # Return success
     sys.exit(0)
