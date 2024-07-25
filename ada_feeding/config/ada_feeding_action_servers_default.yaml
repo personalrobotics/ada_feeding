@@ -20,6 +20,10 @@ ada_feeding_action_servers:
         - StopServo
         - ActivateController
         - MoveToConfiguration
+        - StressPosition1
+        - StressPosition2
+        - StressPosition3
+        - StressPosition4
 
       # Parameters for the MoveAbovePlate action
       # TODO: Consider whether to make a version of this with a wheelchair wall
