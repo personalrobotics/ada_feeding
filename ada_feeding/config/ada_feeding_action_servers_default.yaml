@@ -287,7 +287,7 @@ ada_feeding_action_servers:
           max_velocity_scaling_factor: 1.0 # optional in (0.0, 1.0], default: 0.1
         tick_rate: 10 # Hz, optional, default: 30
 
-      # Parameters for the StressPosition1 action
+      # Parameters for the StressPosition1 action (front right)
       StressPosition1: # required
         action_type: ada_feeding_msgs.action.MoveTo # required
         tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
@@ -298,14 +298,80 @@ ada_feeding_action_servers:
           - max_velocity_scaling_factor
         tree_kwargs: # optional
           joint_positions: # required
-            - -0.265982148607228
-            - 4.180799922567826
-            - 2.7398840979233308
-            - -1.4274884327444246
-            - 0.5790079726062695
-            - 1.3428768597697547
-            - 0.8944068062946262
-            - 1.3022209548409456
+            - -0.26598 # j2n6s200_joint_1
+            -  4.18079 # j2n6s200_joint_2
+            -  2.73988 # j2n6s200_joint_3
+            - -1.42748 # j2n6s200_joint_4
+            -  0.57900 # j2n6s200_joint_5
+            -  0.89440 # j2n6s200_joint_6
+          toggle_watchdog_listener: false # optional, default: true
+          f_mag: 4.0 # N
+          max_velocity_scaling_factor: 1.0 # optional in (0.0, 1.0], default: 0.1
+        tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the StressPosition2 action (back right)
+      StressPosition2: # required
+        action_type: ada_feeding_msgs.action.MoveTo # required
+        tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
+        tree_kws: # optional
+          - joint_positions
+          - toggle_watchdog_listener
+          - f_mag
+          - max_velocity_scaling_factor
+        tree_kwargs: # optional
+          joint_positions: # required
+            - -0.75149 # j2n6s200_joint_1
+            -  4.21806 # j2n6s200_joint_2
+            -  2.80158 # j2n6s200_joint_3
+            - -1.29849 # j2n6s200_joint_4
+            -  0.55861 # j2n6s200_joint_5
+            -  0.78958 # j2n6s200_joint_6
+          toggle_watchdog_listener: false # optional, default: true
+          f_mag: 4.0 # N
+          max_velocity_scaling_factor: 1.0 # optional in (0.0, 1.0], default: 0.1
+        tick_rate: 10 # Hz, optional, default: 30
+
+
+      # Parameters for the StressPosition3 action (back left)
+      StressPosition3: # required
+        action_type: ada_feeding_msgs.action.MoveTo # required
+        tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
+        tree_kws: # optional
+          - joint_positions
+          - toggle_watchdog_listener
+          - f_mag
+          - max_velocity_scaling_factor
+        tree_kwargs: # optional
+          joint_positions: # required
+            - -2.22420 # j2n6s200_joint_1
+            -  4.15629 # j2n6s200_joint_2
+            -  2.61924 # j2n6s200_joint_3
+            - -1.73073 # j2n6s200_joint_4
+            -  0.56510 # j2n6s200_joint_5
+            -  1.22899 # j2n6s200_joint_6
+          toggle_watchdog_listener: false # optional, default: true
+          f_mag: 4.0 # N
+          max_velocity_scaling_factor: 1.0 # optional in (0.0, 1.0], default: 0.1
+        tick_rate: 10 # Hz, optional, default: 30
+
+
+      # Parameters for the StressPosition4 action (front left)
+      StressPosition4: # required
+        action_type: ada_feeding_msgs.action.MoveTo # required
+        tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
+        tree_kws: # optional
+          - joint_positions
+          - toggle_watchdog_listener
+          - f_mag
+          - max_velocity_scaling_factor
+        tree_kwargs: # optional
+          joint_positions: # required
+            - -2.46579 # j2n6s200_joint_1
+            -  4.07131 # j2n6s200_joint_2
+            -  2.63985 # j2n6s200_joint_3
+            - -1.40804 # j2n6s200_joint_4
+            -  0.60922 # j2n6s200_joint_5
+            -  0.86533 # j2n6s200_joint_6
           toggle_watchdog_listener: false # optional, default: true
           f_mag: 4.0 # N
           max_velocity_scaling_factor: 1.0 # optional in (0.0, 1.0], default: 0.1
