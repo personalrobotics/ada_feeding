@@ -286,3 +286,27 @@ ada_feeding_action_servers:
           f_mag: 4.0 # N
           max_velocity_scaling_factor: 1.0 # optional in (0.0, 1.0], default: 0.1
         tick_rate: 10 # Hz, optional, default: 30
+
+      # Parameters for the StressPosition1 action
+      StressPosition1: # required
+        action_type: ada_feeding_msgs.action.MoveTo # required
+        tree_class: ada_feeding.trees.MoveToConfigurationWithFTThresholdsTree # required
+        tree_kws: # optional
+          - joint_positions
+          - toggle_watchdog_listener
+          - f_mag
+          - max_velocity_scaling_factor
+        tree_kwargs: # optional
+          joint_positions: # required
+            - -0.265982148607228
+            - 4.180799922567826
+            - 2.7398840979233308
+            - -1.4274884327444246
+            - 0.5790079726062695
+            - 1.3428768597697547
+            - 0.8944068062946262
+            - 1.3022209548409456
+          toggle_watchdog_listener: false # optional, default: true
+          f_mag: 4.0 # N
+          max_velocity_scaling_factor: 1.0 # optional in (0.0, 1.0], default: 0.1
+        tick_rate: 10 # Hz, optional, default: 30
