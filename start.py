@@ -249,7 +249,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
                     "run_web_bridge:=false run_food_detection:=false run_face_detection:=false "
                     "run_food_on_fork_detection:=false run_table_detection:=false "
-                    "run_real_sense:=false" f"policy:={args.policy}"
+                    "run_real_sense:=false " f"policy:={args.policy}"
                 ),
             ],
             "browser": [
