@@ -19,6 +19,9 @@ float64 average_depth
 # An arbitrary ID that defines the segmented item
 string item_id
 
+# An ID that semantically labels a specific, segmented item
+string object_id
+
 # A score that indicates how confident the segemntation algorithm is in 
 # this mask.
 float64 confidence

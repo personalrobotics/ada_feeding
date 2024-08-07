@@ -1,6 +1,8 @@
 # The interface for an action that gets an image from the camera and returns
 # the masks of all segmented items within that image.
 
+# The list of input semantic labels for the food items on the plate
+string[] input_labels
 ---
 # Possible return statuses
 uint8 STATUS_SUCCEEDED=0
@@ -17,6 +19,9 @@ std_msgs/Header header
 sensor_msgs/CameraInfo camera_info
 # Masks of all the detected items in the image
 ada_feeding_msgs/Mask[] detected_items
+# A list of semantic labels corresponding to each of the masks of detected
+# items in the image
+string[] item_labels
 ---
 # How much time the action has spent segmenting the food item
 builtin_interfaces/Duration elapsed_time
