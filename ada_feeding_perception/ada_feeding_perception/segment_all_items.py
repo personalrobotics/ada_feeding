@@ -40,6 +40,11 @@ from ada_feeding_perception.helpers import (
     get_img_msg_type,
     ros_msg_to_cv2_image,
 )
+from ada_feeding_perception.segment_from_point import (
+    initialize_sam,
+    initialize_efficient_sam,
+    generate_mask_msg,
+)
 
 class SegmentAllItemsNode(Node):
     """
@@ -124,6 +129,222 @@ class SegmentAllItemsNode(Node):
             cancel_callback=self.cancel_callback,
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
+
+    def read_params(
+        self,
+    ) -> Tuple[Parameter, Parameter, Parameter, Parameter, Parameter]:
+        """
+        Read the parameters for this node.
+
+        Returns
+        -------
+        """
+        (
+            sam_model_name,
+            sam_model_base_url,
+            efficient_sam_model_name,
+            efficient_sam_model_base_url,
+            groundingdino_model_path,
+            model_dir,
+            use_efficient_sam,
+            n_contender_masks,
+            rate_hz,
+            min_depth_mm,
+            max_depth_mm,
+        ) = self.declare_parameters(
+            "",
+            [
+                (
+                    "sam_model_name",
+                    None,
+                    ParameterDescriptor(
+                        name="sam_model_name",
+                        type=ParameterType.PARAMETER_STRING,
+                        description="The name of the model checkpoint to use for SAM",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "sam_model_base_url",
+                    None,
+                    ParameterDescriptor(
+                        name="sam_model_base_url",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "The URL to download the model checkpoint from if "
+                            "it is not already downloaded for SAM"
+                        ),
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "efficient_sam_model_name",
+                    None,
+                    ParameterDescriptor(
+                        name="efficient_sam_model_name",
+                        type=ParameterType.PARAMETER_STRING,
+                        description="The name of the model checkpoint to use for EfficientSAM",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "efficient_sam_model_base_url",
+                    None,
+                    ParameterDescriptor(
+                        name="efficient_sam_model_base_url",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "The URL to download the model checkpoint from if "
+                            "it is not already downloaded for EfficientSAM"
+                        ),
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "groundingdino_model_path",
+                    None,
+                    ParameterDescriptor(
+                        name="groundingdino_model_path",
+                        type=ParameterType.PARAMETER_STRING,
+                        description="The name of the model checkpoint to use for Open-GroundingDINO",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "model_dir",
+                    None,
+                    ParameterDescriptor(
+                        name="model_dir",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "The location of the directory where the model "
+                            "checkpoint is / should be stored"
+                        ),
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "use_efficient_sam",
+                    True,
+                    ParameterDescriptor(
+                        name="use_efficient_sam",
+                        type=ParameterType.PARAMETER_BOOL,
+                        description=("Whether to use EfficientSAM or SAM"),
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "n_contender_masks",
+                    3,
+                    ParameterDescriptor(
+                        name="n_contender_masks",
+                        type=ParameterType.PARAMETER_INTEGER,
+                        description="The number of contender masks to return per point.",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "rate_hz",
+                    10.0,
+                    ParameterDescriptor(
+                        name="rate_hz",
+                        type=ParameterType.PARAMETER_DOUBLE,
+                        description="The rate at which to return feedback.",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "min_depth_mm",
+                    330,
+                    ParameterDescriptor(
+                        name="min_depth_mm",
+                        type=ParameterType.PARAMETER_INTEGER,
+                        description="The minimum depth in mm to consider in a mask.",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "max_depth_mm",
+                    10150000,
+                    ParameterDescriptor(
+                        name="max_depth_mm",
+                        type=ParameterType.PARAMETER_INTEGER,
+                        description="The maximum depth in mm to consider in a mask.",
+                        read_only=True,
+                    ),
+                ),
+            ],
+        )
+
+        if use_efficient_sam.value:
+            seg_model_name = efficient_sam_model_name.value
+            seg_model_base_url = efficient_sam_model_base_url.value
+        else:
+            seg_model_name = sam_model_name.value
+            seg_model_base_url = sam_model_base_url.value
+
+        return (
+            seg_model_name,
+            seg_model_base_url,
+            groundingdino_model_path.value,
+            model_dir.value,
+            use_efficient_sam.value,
+            n_contender_masks.value,
+            rate_hz.value,
+            min_depth_mm.value,
+            max_depth_mm.value,
+        )
+    
+    def camera_info_callback(self, msg: CameraInfo) -> None:
+        """
+        Store the latest camera info message.
+
+        Parameters
+        ----------
+        msg: The camera info message.
+        """
+        with self.camera_info_lock:
+            self.camera_info = msg
+
+    def depth_image_callback(self, msg: Union[Image, CompressedImage]) -> None:
+        """
+        Store the latest depth image message.
+
+        Parameters
+        ----------
+        msg: The depth image message.
+        """
+        with self.latest_depth_img_msg_lock:
+            self.latest_depth_img_msg = msg
+
+    def image_callback(self, msg: Union[Image, CompressedImage]) -> None:
+        """
+        Store the latest image message.
+
+        Parameters
+        ----------
+        msg: The image message.
+        """
+        with self.latest_img_msg_lock:
+            self.latest_img_msg = msg
+    
+def main(args=None):
+    """
+    Launch the ROS node and spin.
+    """
+    rclpy.init(args=args)
+
+    segment_all_items = SegmentAllItemsNode()
+
+    # Use a MultiThreadedExecutor to enable processing goals concurrently
+    executor = MultiThreadedExecutor(num_threads=5)
+
+    rclpy.spin(segment_all_items, executor=executor)
+
+
+if __name__ == "__main__":
+    main()
+
 
         
 
