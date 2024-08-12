@@ -53,6 +53,10 @@ This README is the definitive source for downloading, installing, and running th
         cd ~/colcon_ws
         colcon build --symlink-install # if sim-only, add '--packages-skip ada_hardware'
 
+### Setup (Robot Hardware)
+
+If you change the e-stop button, the e-stop button's adapter(s), and/or the device this code is being run on, you may have to change several device-specific parameters for the e-stop to work. Read the long comment above `amixer_configuration_name` in `ada_feeding/config/ada_watchdog.yaml` for detailed instructions on changing these parameters.
+
 ### Setup (Web App)
 
 1. Install the Node Version Manager (nvm): https://github.com/nvm-sh/nvm?tab=readme-ov-file#install--update-script
