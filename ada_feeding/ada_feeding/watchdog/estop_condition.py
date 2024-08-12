@@ -76,6 +76,7 @@ class EStopCondition(WatchdogCondition):
         self.start_time = None
         self.last_recv_data_time_lock = Lock()
         self.last_recv_data_time = None
+        self.curr_data_arr = None
         self.prev_data_arr = None
         self.prev_button_click_start_time = None
         self.num_clicks = 0
@@ -753,6 +754,9 @@ class EStopCondition(WatchdogCondition):
         with self.last_recv_data_time_lock:
             self.last_recv_data_time = self._node.get_clock().now()
 
+        # Update the previous data array
+        self.prev_data_arr = self.curr_data_arr
+
         # Skip the first few seconds of data, to avoid initial noise
         if self.start_time is None:
             self.start_time = self._node.get_clock().now()
@@ -760,18 +764,15 @@ class EStopCondition(WatchdogCondition):
             return (data, pyaudio.paContinue)
 
         # Convert the data to a numpy array
-        data_arr = np.frombuffer(data, dtype=np.int16)
-        self._node.get_logger().debug(
-            f"Data max: {np.max(data_arr)}, min: {np.min(data_arr)}"
-        )
+        self.curr_data_arr = np.frombuffer(data, dtype=np.int16)
 
         # Check if the e-stop button has been pressed
         if EStopCondition.rising_edge_detector(
-            data_arr,
+            self.curr_data_arr,
             self.prev_data_arr,
             self.max_threshold,
         ) or EStopCondition.falling_edge_detector(
-            data_arr,
+            self.curr_data_arr,
             self.prev_data_arr,
             self.min_threshold,
         ):
@@ -787,15 +788,14 @@ class EStopCondition(WatchdogCondition):
                     self.num_clicks += 1
 
         # Return the data
-        self.prev_data_arr = data_arr
         with self.std_ema_lock:
-            prev_data_arr_std = np.std(self.prev_data_arr)
+            curr_data_arr_std = np.std(self.curr_data_arr)
             if self.std_ema is None:
-                self.std_ema = prev_data_arr_std
+                self.std_ema = curr_data_arr_std
             else:
                 self.std_ema = self.std_ema * (
                     self.std_ema_alpha
-                ) + prev_data_arr_std * (1.0 - self.std_ema_alpha)
+                ) + curr_data_arr_std * (1.0 - self.std_ema_alpha)
         return (data, pyaudio.paContinue)
 
     def check_startup(self) -> List[Tuple[bool, str, str]]:
