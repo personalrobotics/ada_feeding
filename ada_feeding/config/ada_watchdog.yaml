@@ -106,10 +106,10 @@ ada_watchdog:
     #         - Plug in the microphone.
     #         - Run `arecord -l`.
     #         - The name that is different, within square brackets, is the name of the mic.
-    amixer_configuration_name: lovelace
+    amixer_configuration_name: t0b1
     t0b1:
-      pactl_mic_name: ''  # TODO
-      amixer_card_num: 0  # TODO
+      pactl_mic_name: 'alsa_input.pci-0000_00_1f.3.analog-stereo'
+      amixer_card_num: 0
       amixer_mic_toggle_control_name: "'Capture',0"
       amixer_mic_control_names:
         - "'Capture',0"
