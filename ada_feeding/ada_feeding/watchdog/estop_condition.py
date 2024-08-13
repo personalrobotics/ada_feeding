@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 import pyaudio
+import pyudev
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.duration import Duration
@@ -69,12 +70,13 @@ class EStopCondition(WatchdogCondition):
         self.__load_parameters()
 
         # Set system volume
-        self.__set_system_volume()
+        self.__configure_system_audio()
 
         # Initialize the accumulators
         self.start_time = None
         self.last_recv_data_time_lock = Lock()
         self.last_recv_data_time = None
+        self.curr_data_arr = None
         self.prev_data_arr = None
         self.prev_button_click_start_time = None
         self.num_clicks = 0
@@ -86,14 +88,8 @@ class EStopCondition(WatchdogCondition):
         self.std_ema = None
         self.std_ema_lock = Lock()
 
-        # Start listening for ACPI events on a separate thread
-        self.acpi_thread = Thread(target=self.__acpi_listener, daemon=True)
-        self.acpi_thread.start()
-
-        # Initialize the pyaudio object
-        self.audio = pyaudio.PyAudio()
-
         # Initialize the stream, with a callback
+        self.audio = None
         self.stream = None
         self.last_stream_init_time = self._node.get_clock().now()
         self.__init_stream()
@@ -136,21 +132,6 @@ class EStopCondition(WatchdogCondition):
         )
         self.chunk = chunk.value
 
-        device = self._node.declare_parameter(
-            "device",
-            0,
-            ParameterDescriptor(
-                name="device",
-                type=ParameterType.PARAMETER_INTEGER,
-                description=(
-                    "The index of the audio device to use. This should usually "
-                    "be 0, to indicate the default audio device."
-                ),
-                read_only=True,
-            ),
-        )
-        self.device = device.value
-
         stream_open_retry_hz = self._node.declare_parameter(
             "stream_open_retry_hz",
             1.0,
@@ -183,23 +164,6 @@ class EStopCondition(WatchdogCondition):
             ),
         )
         self.initial_wait_duration = Duration(seconds=initial_wait_secs.value)
-
-        acpi_event_name = self._node.declare_parameter(
-            "acpi_event_name",
-            "jack/microphone MICROPHONE",
-            ParameterDescriptor(
-                name="acpi_event_name",
-                type=ParameterType.PARAMETER_STRING,
-                description=(
-                    "The name of the ACPI event that is triggered when the e-stop "
-                    "button is (un)plugged. Get this value by running `acpi_listener` "
-                    "in the terminal and unplugging the e-stop button. Exclude the word "
-                    "` plug` or ` unplug` from the end of the event name."
-                ),
-                read_only=True,
-            ),
-        )
-        self.acpi_event_name = acpi_event_name.value
 
         min_threshold = self._node.declare_parameter(
             "min_threshold",
@@ -267,6 +231,28 @@ class EStopCondition(WatchdogCondition):
                 read_only=True,
             ),
         )
+        pactl_mic_name = self._node.declare_parameter(
+            f"{amixer_configuration_name.value}.pactl_mic_name",
+            None,
+            ParameterDescriptor(
+                name=f"{amixer_configuration_name.value}.pactl_mic_name",
+                type=ParameterType.PARAMETER_STRING,
+                description=("The name of the microphone to set as default."),
+                read_only=True,
+            ),
+        )
+        amixer_card_num = self._node.declare_parameter(
+            f"{amixer_configuration_name.value}.amixer_card_num",
+            None,
+            ParameterDescriptor(
+                name=f"{amixer_configuration_name.value}.amixer_card_num",
+                type=ParameterType.PARAMETER_INTEGER,
+                description=(
+                    "The sound card number of the microphone to set as default."
+                ),
+                read_only=True,
+            ),
+        )
         amixer_mic_toggle_control_name = self._node.declare_parameter(
             f"{amixer_configuration_name.value}.amixer_mic_toggle_control_name",
             None,
@@ -310,10 +296,69 @@ class EStopCondition(WatchdogCondition):
                 read_only=True,
             ),
         )
-        self.amixer_configuration = {
+        is_usb = self._node.declare_parameter(
+            f"{amixer_configuration_name.value}.is_usb",
+            False,
+            ParameterDescriptor(
+                name="is_usb",
+                type=ParameterType.PARAMETER_BOOL,
+                description=(
+                    "Whether the microphone is a USB microphone. If True, the "
+                    "udev event listener is used to detect it being unplugged, "
+                    "else the ACPI event listener is used."
+                ),
+                read_only=True,
+            ),
+        )
+        acpi_event_name = self._node.declare_parameter(
+            f"{amixer_configuration_name.value}.acpi_event_name",
+            None,
+            ParameterDescriptor(
+                name="acpi_event_name",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The name of the ACPI event that is triggered when the e-stop "
+                    "button is (un)plugged. Only applicable if `is_usb` is False."
+                ),
+                read_only=True,
+            ),
+        )
+        udev_id = self._node.declare_parameter(
+            f"{amixer_configuration_name.value}.udev_id",
+            None,
+            ParameterDescriptor(
+                name="udev_id",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The id of the USB device. Only applicable if `is_usb` is True."
+                ),
+                read_only=True,
+            ),
+        )
+        device_name = self._node.declare_parameter(
+            f"{amixer_configuration_name.value}.device_name",
+            None,
+            ParameterDescriptor(
+                name="device_name",
+                type=ParameterType.PARAMETER_STRING,
+                description=(
+                    "The name of the audio device. This is used to get the device "
+                    "index for `pyaudio`. If unspecified, device index 0 is used, "
+                    "which typically works if your device is connected by the 3.5mm aux port."
+                ),
+                read_only=True,
+            ),
+        )
+        self.audio_configuration = {
+            "pactl_mic_name": pactl_mic_name.value,
+            "amixer_card_num": amixer_card_num.value,
             "amixer_mic_toggle_control_name": amixer_mic_toggle_control_name.value,
             "amixer_mic_control_names": amixer_mic_control_names.value,
             "amixer_mic_control_percentages": amixer_mic_control_percentages.value,
+            "is_usb": is_usb.value,
+            "acpi_event_name": acpi_event_name.value,
+            "device_name": device_name.value,
+            "udev_id": udev_id.value,
         }
 
         std_ema_min_thresh = self._node.declare_parameter(
@@ -375,39 +420,64 @@ class EStopCondition(WatchdogCondition):
         )
         self.num_secs_threshold = num_secs_threshold.value
 
-    def __set_system_volume(self) -> None:
+    def __configure_system_audio(self) -> None:
         """
-        Set the system volume using `amixer`. This is necessary because the
-        e-stop button is a microphone, so the system's microphone volume will
-        impact the amplitude of readings for the e-stop button.
+        Configure the system audio. This function sets the default mic and sets
+        its volume. This is necessary because the  e-stop button is a microphone,
+        so the system's microphone volume will impact the amplitude of readings
+        for the e-stop button.
 
         TODO: Although not crucial, we should consider storing the original
         system volume, and then restoring it when thos watchdog condition is
         terminated.
         """
-        # Get the amixer_configuration
-        toggle_control_name = self.amixer_configuration[
-            "amixer_mic_toggle_control_name"
-        ]
-        control_names = self.amixer_configuration["amixer_mic_control_names"]
-        control_percentages = self.amixer_configuration[
-            "amixer_mic_control_percentages"
-        ]
+        # pylint: disable=too-many-branches
+        # There are several steps to the configuration, so we need many branches.
 
-        # First, unmute the microphone
+        # Get the amixer_configuration
+        pactl_mic_name = self.audio_configuration["pactl_mic_name"]
+        amixer_card_num = self.audio_configuration["amixer_card_num"]
+        if amixer_card_num is None:
+            amixer_card_num = "0"
+        if not isinstance(amixer_card_num, str):
+            amixer_card_num = str(amixer_card_num)
+        toggle_control_name = self.audio_configuration["amixer_mic_toggle_control_name"]
+        control_names = self.audio_configuration["amixer_mic_control_names"]
+        control_percentages = self.audio_configuration["amixer_mic_control_percentages"]
+        is_usb = self.audio_configuration["is_usb"]
+
+        # Set the default microphone
+        if pactl_mic_name is not None:
+            try:
+                set_default_mic = subprocess.check_output(
+                    ["pactl", "set-default-source", pactl_mic_name]
+                )
+                if b"Failure" in set_default_mic:
+                    self._node.get_logger().error(
+                        f"Failed to set default microphone to {pactl_mic_name}:\n{set_default_mic}"
+                    )
+            except subprocess.CalledProcessError as exc:
+                self._node.get_logger().error(
+                    f"Error setting default microphone: {exc.output}"
+                )
+
+        # Unmute the microphone
         if toggle_control_name is not None:
             try:
-                toggle_output = subprocess.check_output(
-                    ["amixer", "sget", toggle_control_name]
+                unmute_output = subprocess.check_output(
+                    [
+                        "amixer",
+                        "-c",
+                        amixer_card_num,
+                        "sset",
+                        toggle_control_name,
+                        "unmute",
+                    ]
                 )
-                if b"[off]" in toggle_output:
-                    toggle_output = subprocess.check_output(
-                        ["amixer", "sset", toggle_control_name, "toggle"]
+                if b"[on]" not in unmute_output:
+                    self._node.get_logger().error(
+                        f"Microphone remained muted even after unmuting:\n{unmute_output}"
                     )
-                    if b"[on]" not in toggle_output:
-                        self._node.get_logger().error(
-                            f"Microphone remained muted even after toggling:\n{toggle_output}"
-                        )
             except subprocess.CalledProcessError as exc:
                 self._node.get_logger().error(
                     f"Error toggling microphone on: {exc.output}"
@@ -418,14 +488,21 @@ class EStopCondition(WatchdogCondition):
                 "cannot be unmuted"
             )
 
-        # Then, set the microphone volume
+        # Set the microphone volume
         if control_names is not None and control_percentages is not None:
             for i in range(min(len(control_names), len(control_percentages))):
                 try:
                     control_name = control_names[i]
                     control_percentage = control_percentages[i]
                     control_output = subprocess.check_output(
-                        ["amixer", "sset", control_name, f"{control_percentage}%"]
+                        [
+                            "amixer",
+                            "-c",
+                            amixer_card_num,
+                            "sset",
+                            control_name,
+                            f"{control_percentage}%",
+                        ]
                     )
                     if f"[{control_percentage}%]".encode() not in control_output:
                         self._node.get_logger().error(
@@ -442,11 +519,48 @@ class EStopCondition(WatchdogCondition):
                 "are not set, so the system microphone volume cannot be set"
             )
 
+        # Monitor for the audio device being unplugged
+        if is_usb:
+            self.udev_context = pyudev.Context()
+            self.udev_monitor = pyudev.Monitor.from_netlink(self.udev_context)
+            self.udev_monitor.filter_by(subsystem="sound")
+            self.udev_observer = pyudev.MonitorObserver(
+                self.udev_monitor, self.__udev_listener
+            )
+            self.udev_observer.start()
+        else:
+            # Start listening for ACPI events on a separate thread
+            self.acpi_thread = Thread(target=self.__acpi_listener, daemon=True)
+            self.acpi_thread.start()
+
     def __init_stream(self) -> None:
         """
         Initialize the audio stream. This function opens the audio stream and
         sets the callback function.
         """
+        # Initialize the pyaudio object
+        self.audio = pyaudio.PyAudio()
+
+        # Get the device index
+        device_i = 0
+        device_name = self.audio_configuration["device_name"]
+        if device_name is not None:
+            device_i = None
+            names = []
+            for i in range(self.audio.get_device_count()):
+                device_info = self.audio.get_device_info_by_index(i)
+                if device_info["maxInputChannels"] > 0:
+                    names.append(device_info["name"])
+                    if device_name in device_info["name"]:
+                        device_i = i
+                        break
+            if device_i is None:
+                self._node.get_logger().error(
+                    f"Device name {device_name} not found. Available devices: {repr(names)}. "
+                    "Using device index 0."
+                )
+                device_i = 0
+
         self.last_stream_init_time = self._node.get_clock().now()
         try:
             self.stream = self.audio.open(
@@ -455,18 +569,52 @@ class EStopCondition(WatchdogCondition):
                 rate=self.rate,
                 input=True,
                 frames_per_buffer=self.chunk,
-                input_device_index=self.device,
+                input_device_index=device_i,
                 stream_callback=self.__audio_callback,
             )
         except OSError as exc:
             self._node.get_logger().error(
                 (
-                    f"Error opening audio device {self.device}. "
+                    f"Error opening audio device with index {device_i}. "
                     f"{EStopCondition.PYAUDIO_STREAM_TROUBLESHOOTING}\n\n"
                     f"Excpetion: {exc}"
                 ),
                 throttle_duration_sec=1,
             )
+
+    def __deinit_stream(self) -> None:
+        """
+        Deinitialize the audio stream. This function stops the audio stream and
+        closes it.
+        """
+        if self.audio is not None:
+            self.audio.terminate()
+            self.audio = None
+        if self.stream is not None:
+            self.stream.stop_stream()
+            self.stream.close()
+            self.stream = None
+
+    def __udev_listener(self, action: str, device: pyudev.Device) -> None:
+        """
+        Listens for UDEV events. If the e-stop button is unplugged, sets the
+        `is_mic_unplugged` flag to True.
+        """
+        udev_id = self.audio_configuration["udev_id"]
+        device_id = device.get("ID_ID")
+        self._node.get_logger().info(f"UDEV event: {action} {device_id}")
+        if device_id is not None and udev_id in device_id:
+            if action == "remove":
+                self._node.get_logger().info("E-Stop button unplugged")
+                with self.is_mic_unplugged_lock:
+                    self.is_mic_unplugged = True
+            # Although there is also an "add" action, that doesn't have the devce ID.
+            elif action == "change":
+                self._node.get_logger().info("E-Stop button plugged in")
+                with self.is_mic_unplugged_lock:
+                    self.is_mic_unplugged = False
+                self.__deinit_stream()
+                self.__init_stream()
 
     def __acpi_listener(self) -> None:
         """
@@ -476,6 +624,7 @@ class EStopCondition(WatchdogCondition):
         chunk = 4096
         plug_keyword = "plug"
         unplug_keyword = "unplug"
+        acpi_event_name = self.audio_configuration["acpi_event_name"]
 
         # Open a socket to listen for ACPI events
         stream = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -486,12 +635,14 @@ class EStopCondition(WatchdogCondition):
             data_bytes = stream.recv(chunk)
             data = data_bytes.decode("utf-8")
             for event in data.split("\n"):
-                if self.acpi_event_name in event:
+                if acpi_event_name in event:
                     keyword = event.split(" ")[-1]
                     if unplug_keyword == keyword:
+                        self._node.get_logger().info("E-Stop button unplugged")
                         with self.is_mic_unplugged_lock:
                             self.is_mic_unplugged = True
                     elif plug_keyword == keyword:
+                        self._node.get_logger().info("E-Stop button plugged in")
                         with self.is_mic_unplugged_lock:
                             self.is_mic_unplugged = False
 
@@ -606,6 +757,9 @@ class EStopCondition(WatchdogCondition):
         with self.last_recv_data_time_lock:
             self.last_recv_data_time = self._node.get_clock().now()
 
+        # Update the previous data array
+        self.prev_data_arr = self.curr_data_arr
+
         # Skip the first few seconds of data, to avoid initial noise
         if self.start_time is None:
             self.start_time = self._node.get_clock().now()
@@ -613,15 +767,15 @@ class EStopCondition(WatchdogCondition):
             return (data, pyaudio.paContinue)
 
         # Convert the data to a numpy array
-        data_arr = np.frombuffer(data, dtype=np.int16)
+        self.curr_data_arr = np.frombuffer(data, dtype=np.int16)
 
         # Check if the e-stop button has been pressed
         if EStopCondition.rising_edge_detector(
-            data_arr,
+            self.curr_data_arr,
             self.prev_data_arr,
             self.max_threshold,
         ) or EStopCondition.falling_edge_detector(
-            data_arr,
+            self.curr_data_arr,
             self.prev_data_arr,
             self.min_threshold,
         ):
@@ -633,18 +787,18 @@ class EStopCondition(WatchdogCondition):
             ):
                 self.prev_button_click_start_time = self._node.get_clock().now()
                 with self.num_clicks_lock:
+                    self._node.get_logger().info("E-Stop button clicked")
                     self.num_clicks += 1
 
         # Return the data
-        self.prev_data_arr = data_arr
         with self.std_ema_lock:
-            prev_data_arr_std = np.std(self.prev_data_arr)
+            curr_data_arr_std = np.std(self.curr_data_arr)
             if self.std_ema is None:
-                self.std_ema = prev_data_arr_std
+                self.std_ema = curr_data_arr_std
             else:
                 self.std_ema = self.std_ema * (
                     self.std_ema_alpha
-                ) + prev_data_arr_std * (1.0 - self.std_ema_alpha)
+                ) + curr_data_arr_std * (1.0 - self.std_ema_alpha)
         return (data, pyaudio.paContinue)
 
     def check_startup(self) -> List[Tuple[bool, str, str]]:
@@ -764,8 +918,4 @@ class EStopCondition(WatchdogCondition):
         """
         Terminate the EStop condition. This cleanly closes the pyaudio connection.
         """
-        # Close the audio stream
-        if self.stream is not None:
-            self.stream.stop_stream()
-            self.stream.close()
-        self.audio.terminate()
+        self.__deinit_stream()
