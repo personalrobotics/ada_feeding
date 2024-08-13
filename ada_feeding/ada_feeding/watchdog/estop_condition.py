@@ -464,17 +464,20 @@ class EStopCondition(WatchdogCondition):
         # Unmute the microphone
         if toggle_control_name is not None:
             try:
-                toggle_output = subprocess.check_output(
-                    ["amixer", "-c", amixer_card_num, "sget", toggle_control_name]
+                unmute_output = subprocess.check_output(
+                    [
+                        "amixer",
+                        "-c",
+                        amixer_card_num,
+                        "sset",
+                        toggle_control_name,
+                        "unmute",
+                    ]
                 )
-                if b"[off]" in toggle_output:
-                    toggle_output = subprocess.check_output(
-                        ["amixer", "sset", toggle_control_name, "toggle"]
+                if b"[on]" not in unmute_output:
+                    self._node.get_logger().error(
+                        f"Microphone remained muted even after unmuting:\n{unmute_output}"
                     )
-                    if b"[on]" not in toggle_output:
-                        self._node.get_logger().error(
-                            f"Microphone remained muted even after toggling:\n{toggle_output}"
-                        )
             except subprocess.CalledProcessError as exc:
                 self._node.get_logger().error(
                     f"Error toggling microphone on: {exc.output}"
