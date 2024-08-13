@@ -2,6 +2,7 @@
 
 # Create a SIGINT handler
 control_c() {
+    echo "Ctrl+C pressed"
     # Terminate the camera screen
     python3 ~/start_nano.py -c
     # Exit the script

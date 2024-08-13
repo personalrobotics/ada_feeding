@@ -91,8 +91,10 @@ async def execute_command(screen_name: str, command: str, indent: int = 8) -> No
     indentation = " " * indent
     printable_command = command.replace("\003", "SIGINT")
     print(f"# {indentation}`{printable_command}`")
+    if command != "\003":
+        command += "\n"
     await asyncio.create_subprocess_shell(
-        f"screen -S {screen_name} -X stuff '{command}\n'"
+        f"screen -S {screen_name} -X stuff '{command}'"
     )
     await asyncio.sleep(args.launch_wait_secs)
     if command.startswith("sudo"):
@@ -250,7 +252,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "pm2 log server",
             ],
             "camera": [
-                "ssh nano './start_nano.sh'",
+                "ssh nano -t './start_nano.sh'",
             ],
             "ft": [
                 "ros2 run forque_sensor_hardware forque_sensor_hardware --ros-args -p host:=ft-sensor-2",
