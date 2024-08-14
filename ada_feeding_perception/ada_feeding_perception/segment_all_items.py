@@ -287,7 +287,7 @@ class SegmentAllItemsNode(Node):
                 ),
                 (
                     "box_threshold",
-                    30.0,
+                    0.30,
                     ParameterDescriptor(
                         name="box_threshold",
                         type=ParameterType.PARAMETER_DOUBLE,
@@ -298,7 +298,7 @@ class SegmentAllItemsNode(Node):
                 ),
                 (
                     "text_threshold",
-                    25.0,
+                    0.25,
                     ParameterDescriptor(
                         name="text_threshold",
                         type=ParameterType.PARAMETER_DOUBLE,
@@ -485,6 +485,42 @@ class SegmentAllItemsNode(Node):
         """
         with self.latest_img_msg_lock:
             self.latest_img_msg = msg
+    
+    def goal_callback(self, goal_request: SegmentAllItems.Goal) -> GoalResponse:
+        """
+        """
+        # If no RGB image is received, reject the goal request
+        with self.latest_img_msg_lock:
+            if self.latest_img_msg is None:
+                self.get_logger().info(
+                    "Rejecting goal request because no color image was received"
+                )
+                return GoalResponse.REJECT
+
+        # If no depth image is received, reject the goal request
+        with self.latest_depth_img_msg_lock:
+            if self.latest_depth_img_msg is None:
+                self.get_logger().info(
+                    "Rejecting goal request because no depth image was received"
+                )
+                return GoalResponse.REJECT
+        
+        # Accept the goal request is there isn't already an active one,
+        # otherwise reject it
+        with self.active_goal_request_lock:
+            if self.active_goal_request is None:
+                self.get_logger().info("Accepting goal request")
+                self.active_goal_request = goal_request 
+                return GoalResponse.ACCEPT
+            self.get_logger().info(
+                "Rejecting goal request because there is already an active one"
+            )
+            return GoalResponse.REJECT
+    
+    def cancel_callback(self) -> CancelResponse:
+        """
+        """
+        return CancelResponse.ACCEPT
 
     def run_sam(
         self, 
@@ -650,6 +686,21 @@ class SegmentAllItemsNode(Node):
 
         return bbox_predictions
     
+    def generate_mask_msg(
+        self, 
+        item_id: str, 
+        score: float, 
+        mask:npt.NDArray[np.bool_], 
+        image: npt.NDArray, 
+        depth_img: npt.NDArray, 
+        bbox: Tuple[int, int, int, int],
+    ) -> Optional[Mask]:
+        """
+        """
+
+        mask_msg = Mask()
+        return mask_msg
+    
     async def run_vision_pipeline(self, image_msg: Image, caption: str):
         """
         Run the vision pipeline consisting of GroundingDINO and EfficientSAM on the image.
@@ -667,9 +718,7 @@ class SegmentAllItemsNode(Node):
 
         Returns
         -------
-        mask_predictions: A dictionary containing the pixel-wise masks for each food item label 
-                          detected from running the GroundingDINO + EfficientSAM vision pipeline
-                          on the image.
+        
         """
         self.get_logger().info("Running the vision pipeline...")
         # Define the result and create result message header
@@ -694,18 +743,24 @@ class SegmentAllItemsNode(Node):
         # Run Open-GroundingDINO on the image
         bbox_predictions = self.run_grounding_dino(image, caption, self.box_threshold, self.text_threshold)
 
-        # Get the top contender mask for each food item label detected by 
-        # GroundingDINO using EfficientSAM
-        mask_predictions = {}
+        # Collect the top contender mask for each food item label detected by 
+        # GroundingDINO using EfficientSAM and create dictionary of mask 
+        # predictions from the pipeline 
+        detected_items = []
+        item_labels = []
         for phrase, boxes in bbox_predictions.items():
             for box in boxes:
                 masks, scores = self.run_efficient_sam(image, None, box, 1)
                 if len(masks) > 0:
-                    mask_msg = self.generate_mask_msg()
-                    mask_predictions[phrase] = masks[0]
+                    mask_msg = self.generate_mask_msg(
+                        phrase, scores[0], masks[0], image, depth_img, box
+                    )
+                    detected_items.append(mask_msg)
+                    item_labels.append(phrase)
                 break
-            
-        return mask_predictions 
+        result.detected_items = detected_items
+        result.item_labels = item_labels    
+        return result 
 
     async def execute_callback(
         self, goal_handle: ServerGoalHandle
@@ -804,7 +859,3 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-
-
-        
-
