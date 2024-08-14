@@ -241,18 +241,6 @@ class EStopCondition(WatchdogCondition):
                 read_only=True,
             ),
         )
-        amixer_card_num = self._node.declare_parameter(
-            f"{amixer_configuration_name.value}.amixer_card_num",
-            None,
-            ParameterDescriptor(
-                name=f"{amixer_configuration_name.value}.amixer_card_num",
-                type=ParameterType.PARAMETER_INTEGER,
-                description=(
-                    "The sound card number of the microphone to set as default."
-                ),
-                read_only=True,
-            ),
-        )
         amixer_mic_toggle_control_name = self._node.declare_parameter(
             f"{amixer_configuration_name.value}.amixer_mic_toggle_control_name",
             None,
@@ -351,7 +339,6 @@ class EStopCondition(WatchdogCondition):
         )
         self.audio_configuration = {
             "pactl_mic_name": pactl_mic_name.value,
-            "amixer_card_num": amixer_card_num.value,
             "amixer_mic_toggle_control_name": amixer_mic_toggle_control_name.value,
             "amixer_mic_control_names": amixer_mic_control_names.value,
             "amixer_mic_control_percentages": amixer_mic_control_percentages.value,
@@ -431,20 +418,35 @@ class EStopCondition(WatchdogCondition):
         system volume, and then restoring it when thos watchdog condition is
         terminated.
         """
-        # pylint: disable=too-many-branches
-        # There are several steps to the configuration, so we need many branches.
+        # pylint: disable=too-many-branches, too-many-statements, too-many-locals
+        # There are several steps to the configuration, which justifies the code.
 
         # Get the amixer_configuration
         pactl_mic_name = self.audio_configuration["pactl_mic_name"]
-        amixer_card_num = self.audio_configuration["amixer_card_num"]
-        if amixer_card_num is None:
-            amixer_card_num = "0"
-        if not isinstance(amixer_card_num, str):
-            amixer_card_num = str(amixer_card_num)
         toggle_control_name = self.audio_configuration["amixer_mic_toggle_control_name"]
         control_names = self.audio_configuration["amixer_mic_control_names"]
         control_percentages = self.audio_configuration["amixer_mic_control_percentages"]
         is_usb = self.audio_configuration["is_usb"]
+
+        # Get the amixer card number
+        amixer_card_num = "0"
+        try:
+            pactl_sources = subprocess.check_output(["pactl", "list", "sources"])
+            pactl_sources = pactl_sources.decode("utf-8")
+            for source in pactl_sources.split("Source #"):
+                if f"Name: {pactl_mic_name}" in source:
+                    key = 'alsa.card = "'
+                    start_i = source.find(key)
+                    if start_i == -1:
+                        continue
+                    start_i += len(key)
+                    end_i = source.find('"', start_i)
+                    amixer_card_num = source[start_i:end_i]
+                    break
+        except subprocess.CalledProcessError as exc:
+            self._node.get_logger().error(
+                f"Error getting amixer card number, defaulting to 0: {exc.output}"
+            )
 
         # Set the default microphone
         if pactl_mic_name is not None:
