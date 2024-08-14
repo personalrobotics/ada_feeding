@@ -269,6 +269,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 f"ros2 launch ada_planning_scene ada_moveit_launch.xml use_rviz:={'true' if args.dev else 'false'}",
             ],
             "feeding": [
+                "sudo ./configure_lovelace.sh",
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml "
                     f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false"
