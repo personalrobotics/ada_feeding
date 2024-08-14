@@ -535,7 +535,7 @@ class SegmentAllItemsNode(Node):
         seed_point: Tuple[int, int], 
         bbox: Tuple[int, int, int, int], 
         prompt: int,
-    ):
+    ) -> Tuple[npt.NDArray, npt.NDArray]:
         """
         Run EfficientSAM on the image.
 
@@ -649,6 +649,122 @@ class SegmentAllItemsNode(Node):
                 bbox_predictions[phrase].append(box.cpu().numpy())
 
         return bbox_predictions
+    
+    async def run_vision_pipeline(self, image: npt.NDArray, caption: str):
+        """
+        Run the vision pipeline consisting of GroundingDINO and EfficientSAM on the image.
+        The caption and latest image are prompted to GroundingDINO which outputs bounding boxes
+        for each food item label in the caption detected in the image. The detected items are then
+        segmented by passing in the bounding box detections into EfficientSAM which outputs
+        pixel-wise masks for each bounding box. The top masks are then returned along with the 
+        food item label for each mask as a dictionary. 
+
+        Parameters
+        ----------
+        image: The image to segment, in BGR.
+        caption: The caption to use for GroundingDINO containing all the food items 
+                 detected in the image.
+
+        Returns
+        -------
+        mask_predictions: A dictionary containing the pixel-wise masks for each food item label 
+                          detected from running the GroundingDINO + EfficientSAM vision pipeline
+                          on the image.
+        """
+        # Run Open-GroundingDINO on the image
+        bbox_predictions = self.run_grounding_dino(image, caption, self.box_threshold, self.text_threshold)
+
+        # Get the top contender mask for each food item label detected by 
+        # GroundingDINO using EfficientSAM
+        mask_predictions = {}
+        for phrase, boxes in bbox_predictions.items():
+            for box in boxes:
+                masks, scores = self.run_efficient_sam(image, None, box, 1)
+                if len(masks) > 0:
+                    mask_predictions[phrase] = masks[0]
+                break
+            
+        return mask_predictions 
+
+    async def execute_callback(
+        self, goal_handle: ServerGoalHandle
+    ) -> SegmentAllItems.Result:
+        """
+        Execute the action server callback.
+
+        Parameters
+        ----------
+        goal_handle: The goal handle for the action server.
+
+        Returns
+        -------
+        The result of the action server containing masks for all food items 
+        detected in the image.
+        """
+        starting_time = self.get_clock().now()
+        self.get_logger().info("Received a new goal!")
+
+        # Get the latest image and camera info
+        with self.latest_img_msg_lock:
+            latest_img_msg = self.latest_img_msg
+        with self.camera_info_lock:
+            camera_info = self.camera_info
+
+        # Check if the image and camera info are available
+        if latest_img_msg is None or camera_info is None:
+            self.get_logger().error("Image or camera info not available.")
+            return SegmentAllItems.Result()
+
+        # Convert the input label list from goal request to a single string caption
+        # for GroundingDINO
+        caption = '. '.join(goal_handle.request.input_labels.lower().strip())
+        caption += '.'
+
+        # Start running the vision pipeline as a separate thread
+        rate = self.create_rate(self.rate_hz)
+        vision_pipeline_task = self.executor.create_task(
+            self.run_vision_pipeline, latest_img_msg, caption
+        )
+
+        # Wait for the vision pipeline to finish and keep publishing 
+        # feedback (elapsed time) while waiting
+        feedback = SegmentAllItems.Feedback()
+        while (
+            rclpy.ok() 
+            and not goal_handle.is_cancel_requested()
+            and not vision_pipeline_task.done()
+        ):
+            feedback.elapsed_time = ((self.get_clock().now() - starting_time).nanoseconds / 
+                                     1e9).to_msg()
+            goal_handle.publish_feedback(feedback) 
+            rate.sleep()
+
+        # If there is a cancel request, cancel the vision pipeline task
+        if goal_handle.is_cancel_requested():
+            self.get_logger().info("Goal cancelled.")
+            goal_handle.canceled()
+            result = SegmentAllItems.Result()
+            result.status = result.STATUS_CANCELLED
+
+            # Clear the active goal
+            with self.active_goal_request_lock:
+                self.active_goal_request = None
+
+            return result
+        
+        # Set the result after the task has been completed        
+        self.get_logger().info("Goal not cancelled.")
+        self.get_logger().info("VIsion pipeline completed successfully.")
+        result = vision_pipeline_task.result()
+        goal_handle.succeed()
+        result.status = result.STATUS_SUCCEEDED
+
+        # Clear the active goal
+        with self.active_goal_request_lock:
+            self.active_goal_request = None
+
+        return result
+
 
     
 def main(args=None):
