@@ -650,7 +650,7 @@ class SegmentAllItemsNode(Node):
 
         return bbox_predictions
     
-    async def run_vision_pipeline(self, image: npt.NDArray, caption: str):
+    async def run_vision_pipeline(self, image_msg: Image, caption: str):
         """
         Run the vision pipeline consisting of GroundingDINO and EfficientSAM on the image.
         The caption and latest image are prompted to GroundingDINO which outputs bounding boxes
@@ -671,6 +671,26 @@ class SegmentAllItemsNode(Node):
                           detected from running the GroundingDINO + EfficientSAM vision pipeline
                           on the image.
         """
+        self.get_logger().info("Running the vision pipeline...")
+        # Define the result and create result message header
+        result = SegmentAllItems.Result()
+        result.header = image_msg.header
+        with self.camera_info_lock:
+            if self.camera_info is not None:
+                result.camera_info = self.camera_info
+            else:
+                self.get_logger().warn(
+                    "Camera info not received, not including in result message"
+                )
+
+        # Get the latest depth image and convert the depth image to OpenCV format
+        with self.latest_depth_img_msg_lock:
+            depth_img_msg = self.latest_depth_img_msg
+        depth_img = ros_msg_to_cv2_image(depth_img_msg, self.bridge)
+        
+        # Convert the image to OpenCV format
+        image = ros_msg_to_cv2_image(image_msg, self.bridge)
+
         # Run Open-GroundingDINO on the image
         bbox_predictions = self.run_grounding_dino(image, caption, self.box_threshold, self.text_threshold)
 
@@ -681,6 +701,7 @@ class SegmentAllItemsNode(Node):
             for box in boxes:
                 masks, scores = self.run_efficient_sam(image, None, box, 1)
                 if len(masks) > 0:
+                    mask_msg = self.generate_mask_msg()
                     mask_predictions[phrase] = masks[0]
                 break
             
