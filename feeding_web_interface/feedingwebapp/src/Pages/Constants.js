@@ -138,6 +138,7 @@ export const STAGING_PARAM_ORIENTATION = 'MoveFromMouth.tree_kwargs.staging_conf
 export const RESTING_PARAM_JOINTS_1 = 'AcquireFood.tree_kwargs.resting_joint_positions'
 // TODO: We may need to remove the orientation constraint from the below action.
 export const RESTING_PARAM_JOINTS_2 = 'MoveToRestingPosition.tree_kwargs.goal_configuration'
+export const STOW_PARAM_JOINTS = 'MoveToStowLocation.tree_kwargs.joint_positions'
 
 // Parameters for modifying the force threshold
 export const FORCE_THRESHOLD_PARAM = 'wrench_threshold.fMag'

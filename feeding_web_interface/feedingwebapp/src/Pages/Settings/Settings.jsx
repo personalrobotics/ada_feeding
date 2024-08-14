@@ -19,7 +19,8 @@ import {
   RESTING_PARAM_JOINTS_2,
   STAGING_PARAM_JOINTS,
   STAGING_PARAM_ORIENTATION,
-  STAGING_PARAM_POSITION
+  STAGING_PARAM_POSITION,
+  STOW_PARAM_JOINTS
 } from '../Constants'
 
 /**
@@ -34,13 +35,14 @@ const Settings = (props) => {
   const abovePlateParamNames = useMemo(() => [ABOVE_PLATE_PARAM_JOINTS], [])
   const restingParamNames = useMemo(() => [RESTING_PARAM_JOINTS_1, RESTING_PARAM_JOINTS_2], [])
   const stagingParamNames = useMemo(() => [STAGING_PARAM_JOINTS, STAGING_PARAM_POSITION, STAGING_PARAM_ORIENTATION], [])
+  const stowParamNames = useMemo(() => [STOW_PARAM_JOINTS], [])
 
   const getComponentBySettingsState = useCallback(() => {
     console.log('getComponentBySettingsState', settingsState)
     switch (settingsState) {
       case SETTINGS_STATE.MAIN:
         return <Main />
-      case SETTINGS_STATE.BITE_TRANSFER:
+      case SETTINGS_STATE.DISTANCE_TO_MOUTH:
         return <BiteTransfer webrtcURL={props.webrtcURL} />
       case SETTINGS_STATE.ABOVE_PLATE:
         return (
@@ -118,11 +120,29 @@ const Settings = (props) => {
             webrtcURL={props.webrtcURL}
           />
         )
+      case SETTINGS_STATE.STOW_CONFIGURATION:
+        return (
+          <CustomizeConfiguration
+            startingMealState={MEAL_STATE.R_StowingArm}
+            paramNames={stowParamNames}
+            getEndEffectorPose={false}
+            getParamValues={[getJointPositionsFromRobotStateResponse]}
+            configurationName='Stow Position'
+            buttonName='Stow Arm'
+            otherButtonConfigs={[
+              {
+                name: 'Move Above Plate',
+                mealState: MEAL_STATE.R_MovingAbovePlate
+              }
+            ]}
+            webrtcURL={props.webrtcURL}
+          />
+        )
       default:
         console.log('Invalid settings state', settingsState)
         return <Main />
     }
-  }, [abovePlateParamNames, restingParamNames, stagingParamNames, props.webrtcURL, settingsState])
+  }, [abovePlateParamNames, restingParamNames, stagingParamNames, stowParamNames, props.webrtcURL, settingsState])
 
   // Render the component
   return (

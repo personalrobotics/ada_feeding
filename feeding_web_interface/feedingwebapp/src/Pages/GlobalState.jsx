@@ -76,15 +76,24 @@ export { NON_MOVING_STATES }
 /**
  * SETTINGS_STATE controls which settings page to display.
  *  - MAIN: The main page, with options to navigate to the other pages.
- *  - BITE_TRANSFER: The bite transfer page, where the user can configure
- *    parameters for bite transfer.
+ *  - DISTANCE_TO_MOUTH: Allow the user to customize how close the robot gets
+ *    to their mouth.
+ *  - ABOVE_PLATE: Allow the user to customize how high the fixed above plate
+ *    arm configuration.
+ *  - RESTING_CONFIGURATION: Allow the user to customize the fixed resting
+ *    arm configuration.
+ *  - STAGING_CONFIGURATION: Allow the user to customize the fixed staging
+ *    arm configuration.
+ *  - STOW_CONFIGURATION: Allow the user to customize the fixed stow arm
+ *    configuration.
  */
 export const SETTINGS_STATE = {
   MAIN: 'MAIN',
-  BITE_TRANSFER: 'BITE_TRANSFER',
+  DISTANCE_TO_MOUTH: 'DISTANCE_TO_MOUTH',
   ABOVE_PLATE: 'ABOVE_PLATE',
   RESTING_CONFIGURATION: 'RESTING_CONFIGURATION',
-  STAGING_CONFIGURATION: 'STAGING_CONFIGURATION'
+  STAGING_CONFIGURATION: 'STAGING_CONFIGURATION',
+  STOW_CONFIGURATION: 'STOW_CONFIGURATION'
 }
 
 // The name of the default parameter namespace

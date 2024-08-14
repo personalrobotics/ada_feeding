@@ -158,13 +158,14 @@ const Main = () => {
   let moveAbovePlateConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingAbovePlate]
   let moveToRestingConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToRestingPosition]
   let moveToStagingConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToStagingConfiguration]
+  let moveToStowConfigurationImage = MOVING_STATE_ICON_DICT[MEAL_STATE.R_StowingArm]
 
   // Configure the different options in the settings menu
   let settingsConfig = [
     {
-      title: 'Bite Transfer',
+      title: 'Distance to Mouth',
       icon: moveToMouthConfigurationImage,
-      onClick: () => onClickSettingsPage(SETTINGS_STATE.BITE_TRANSFER)
+      onClick: () => onClickSettingsPage(SETTINGS_STATE.DISTANCE_TO_MOUTH)
     },
     {
       title: 'Above Plate',
@@ -180,6 +181,11 @@ const Main = () => {
       title: 'Staging Position',
       icon: moveToStagingConfigurationImage,
       onClick: () => onClickSettingsPage(SETTINGS_STATE.STAGING_CONFIGURATION)
+    },
+    {
+      title: 'Stow Position',
+      icon: moveToStowConfigurationImage,
+      onClick: () => onClickSettingsPage(SETTINGS_STATE.STOW_CONFIGURATION)
     }
   ]
 
@@ -239,7 +245,7 @@ const Main = () => {
             <Button
               variant='outline-dark'
               style={{
-                fontSize: '30px',
+                fontSize: '25px',
                 display: 'flex',
                 flexDirection: 'row',
                 justifyContent: 'center',
