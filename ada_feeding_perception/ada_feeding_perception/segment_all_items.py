@@ -26,13 +26,13 @@ from rclpy.parameter import Parameter
 from segment_anything import sam_model_registry, SamPredictor
 from groundingdino.models import build_model
 from groundingdino.util.slconfig import SLConfig
-from groundingdino.util.utils import get_phrases_from_posmap, clean_slate_dict
+from groundingdino.util.utils import get_phrases_from_posmap, clean_state_dict
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image, RegionOfInterest
 import torch
 from torchvision import transforms
 
 # Local imports
-from ada_feeding_perception.action import SegmentAllItems
+from ada_feeding_msgs.action import SegmentAllItems
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_perception.helpers import (
     bbox_from_mask,
@@ -42,9 +42,6 @@ from ada_feeding_perception.helpers import (
     get_connected_component,
     get_img_msg_type,
     ros_msg_to_cv2_image,
-)
-from ada_feeding_perception.segment_from_point import (
-    generate_mask_msg,
 )
 
 class SegmentAllItemsNode(Node):
@@ -372,7 +369,7 @@ class SegmentAllItemsNode(Node):
         # Load the GroundingDINO model checkpoint
         checkpoint = torch.load(groundingdino_model_path, map_location="cpu")
         load_log = groundingdino.load_state_dict(
-            clean_slate_dict(checkpoint["model"]), strict=False
+            clean_state_dict(checkpoint["model"]), strict=False
         )
         self.get_logger().info(f"Loaded model checkpoint: {load_log}")
         _ = groundingdino.eval()
