@@ -1,0 +1,28 @@
+# NOTE: You have to change this node name if you change the node name in the launchfile.
+segment_all_items:
+  ros_parameters:
+    # The name of the Segment Anything model to use
+    sam_model_name: sam_vit_b_01ec64.pth
+    # The URL to download the model checkpoint from if it is not already downloaded
+    sam_model_base_url: "https://dl.fbaipublicfiles.com/segment_anything/"
+
+    # The name of the Efficient Segment Anything model checkpoint to use
+    efficient_sam_model_name: efficient_sam_vitt.pt
+    # The URL to download the model checkpoint from if it is not already downloaded
+    efficient_sam_model_base_url: "https://raw.githubusercontent.com/yformer/EfficientSAM/main/weights/"
+
+    # The path to the configuration file for GroundingDINO
+    groundingdino_config_path: config/GroundingDINO_SwinT_OGC.py
+    # The name of the GroundingDINO model checkpoint to use
+    groundingdino_model_path: groundingdino_swint_ogc.pth
+
+    # Whether to use SAM or EfficientSAM
+    use_efficient_sam: true
+
+    # The rate (hz) at which to return feedback
+    rate_hz: 10.0
+
+    # The threshold for bounding box detections by GroundingDINO
+    box_threshold: 0.30
+    # The threshold for text detections by GroundingDINO
+    text_threshold: 0.25

@@ -49,6 +49,7 @@ setup(
             "food_on_fork_detection = ada_feeding_perception.food_on_fork_detection:main",
             "republisher = ada_feeding_perception.republisher:main",
             "segment_from_point = ada_feeding_perception.segment_from_point:main",
+            "segment_all_items = ada_feeding_perception.segment_all_items:main",
             "test_segment_from_point = ada_feeding_perception.test_segment_from_point:main",
             "face_detection = ada_feeding_perception.face_detection:main",
             "table_detection = ada_feeding_perception.table_detection:main",

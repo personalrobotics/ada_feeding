@@ -241,7 +241,7 @@ class SegmentAllItemsNode(Node):
                         description="The name of the configuration file to use for Open-GroundingDINO",
                         read_only=True,
                     ),
-                )
+                ),
                 (
                     "groundingdino_model_path",
                     None,
