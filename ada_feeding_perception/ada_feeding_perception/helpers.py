@@ -41,6 +41,12 @@ __COMPRESSED_DEPTH_16UC1_HEADER = array.array(
     "B", [0, 0, 0, 0, 46, 32, 133, 4, 192, 24, 60, 78]
 )
 
+try:
+    generic_image_type = Union[Image, rImage, CompressedImage, rCompressedImage]
+except NameError as _:
+    # This only happens if rosbags wasn't imported, which is logged above.
+    generic_image_type = Union[Image, CompressedImage]
+
 
 def show_normalized_depth_img(img, wait=True, window_name="img"):
     """
@@ -227,7 +233,7 @@ def depth_img_to_pointcloud(
 
 
 def ros_msg_to_cv2_image(
-    msg: Union[Image, rImage, CompressedImage, rCompressedImage],
+    msg: generic_image_type,
     bridge: Optional[CvBridge] = None,
 ) -> npt.NDArray:
     """
@@ -277,7 +283,7 @@ def cv2_image_to_ros_msg(
     compress: bool,
     bridge: Optional[CvBridge] = None,
     encoding: str = "passthrough",
-) -> Union[Image, CompressedImage]:
+) -> generic_image_type:
     """
     Convert a cv2 image to a ROS Image or CompressedImage message. Note that this
     does not set the header of the message; that must be done outside of this

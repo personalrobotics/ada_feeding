@@ -60,7 +60,7 @@ class CollisionObjectManager:
         )
 
         # Add the parameters to store the (attached) collision objects that have
-        # beed added since the start of each batch.
+        # been added since the start of each batch.
         self.__collision_objects_lock = Lock()
         self.__n_batches = 0
         self.__collision_objects_per_batch = {

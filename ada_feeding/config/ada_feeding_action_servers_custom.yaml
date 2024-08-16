@@ -44,6 +44,13 @@ ada_feeding_action_servers:
       - 6.7890666046778065
       - -1.2377163671553406
       - -2.845521578354632
+      MoveToStowLocation.tree_kwargs.joint_positions:
+      - -4.710004519102688
+      - 3.99497173223704
+      - 5.821128455947493
+      - -6.180243112219014
+      - -0.03213529960954986
+      - 3.09639028777566
     side_staging_2:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.9352339979119222
@@ -82,6 +89,13 @@ ada_feeding_action_servers:
       - 0.7394639609157636
       - -1.8431887041459447
       - -2.598331227031222
+      MoveToStowLocation.tree_kwargs.joint_positions:
+      - -4.75874755758608
+      - 4.016084474410861
+      - 5.719014337638367
+      - -4.805756745041778
+      - 0.15785301466004853
+      - 1.831326452018514
     side_staging_3:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.6599792550212555
@@ -120,3 +134,10 @@ ada_feeding_action_servers:
       - 0.7394639609157636
       - -1.8431887041459447
       - -2.598331227031222
+      MoveToStowLocation.tree_kwargs.joint_positions:
+      - 1.4888151736945519
+      - 4.067945009266301
+      - 5.718849221650782
+      - 0.41718325265453116
+      - 5.824282703942583
+      - 2.9376642889102835

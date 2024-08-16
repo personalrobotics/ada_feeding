@@ -25,21 +25,11 @@ ada_watchdog:
     # The number of samples to take at a time. If you are getting overflow
     # errors, try increasing this number.
     chunk: 4800
-    # The device ID of the microphone (e-stop button). This should usually
-    # be 0, the system default
-    device: 0
     # How often (in Hz) to retry opening the microphone if it fails.
     stream_open_retry_hz: 1.0
     # How long to wait before checking the microphone readings. This is because
     # there is initial noise when we first listen to the microphone.
     initial_wait_secs: 2.0
-    # The ACPI event for when the microphone is (un)plugged. To find this, run
-    # `acpi_listen` in a terminal and plug/unplug the microphone. The output
-    # should look something like this:
-    #   jack/microphone MICROPHONE plug
-    #   jack/microphone MICROPHONE unplug
-    # Include the first two words in this parameter, exclude the third.
-    acpi_event_name: "jack/microphone MICROPHONE"
     # If there is a falling edge that passes this 16-bit int, it is considered a button
     # click.
     min_threshold: -10000
@@ -56,7 +46,14 @@ ada_watchdog:
     # controls, we specify device-specific configurations.
     # 
     # Instructions to get the amixer parameters are here:
-    #     1. `amixer_mic_toggle_control_name`:
+    #     1. `pactl_mic_name`:
+    #         - Unplug the microphone.
+    #         - Run `pactl list short sinks`.
+    #         - Plug in the microphone.
+    #         - Run `pactl list short sinks`.
+    #         - The name that is different is the name of the mic. If there are
+    #           multiple, use the one without "monitor" appended to its name.
+    #     2. `amixer_mic_toggle_control_name`:
     #         - Mute the microphone in the system settings.
     #         - Run `amixer` in a terminal.
     #         - Unmute the microphone in the system settings.
@@ -64,14 +61,14 @@ ada_watchdog:
     #         - See which control switched from [off] to [on]. That is the control
     #           name you want. (Note: saving amixer output to file and running `diff`
     #           make this process easier.)
-    #     2. `amixer_mic_control_names`:
+    #     3. `amixer_mic_control_names`:
     #         - Unmute the microphone in the system settings, and set its volume to be
     #           low but not 0%.
     #         - Run `amixer` in a terminal.
     #         - In system settings, set the microphone volume to be 100%.
     #         - Run `amixer` in a terminal.
     #         - See which controls changed. Those are the control names you want.
-    #     3. `amixer_mic_control_percentages`:
+    #     4. `amixer_mic_control_percentages`:
     #         - Open Audacity and System Settings side-by-side. Start recording in
     #           Audacity. Press the e-stop button and notice the curve. You want the
     #           low/high points of the curve to reach +/-1.0, but not exceed it (evidenced
@@ -79,8 +76,34 @@ ada_watchdog:
     #           System Settings until you get this.
     #         - Run `amixer` in a terminal. Check the percentages for the controls you found
     #           in the previous step. Those are the percentages you want.
+    #         - (Note: we have had this script work even if in audacity the curve only reaches
+    #           +/- 0.5, but it is better to aim for +/- 1.0 if possible.)
+    #     5. `is_usb`: true if the microphone is a USB microphone, false otherwise (3.5mm aux).
+    #     6. `acpi_event_name`: Only applicable if `is_usb` is false.
+    #         - Run `acpi_listen`.
+    #         - Plug in the microphone.
+    #         - Unplug the microphone.
+    #         - The output should look something like this:
+    #             jack/microphone MICROPHONE plug
+    #             jack/microphone MICROPHONE unplug
+    #         - Include the first two words in this parameter, exclude the third (plug/unplug).
+    #     7. `udev_id`: Only applicable if `is_usb` is true.
+    #         - Run `udevadm monitor -u -p --subsystem-match=sound`.
+    #         - Plug in the microphone.
+    #         - Get the value after `ID_ID=`.
+    #         - Unplug the microphone.
+    #         - Verify that the value is the same.
+    #         - Use that value.
+    #     8. `device_name`: The name of the device. This isused to get the right device number
+    #         for pyaudio. If unspecified, device number 0 is used (typically fine for 3.5mm aux mics).
+    #         - Unplug the microphone.
+    #         - Run `arecord -l`.
+    #         - Plug in the microphone.
+    #         - Run `arecord -l`.
+    #         - The name that is different, within square brackets, is the name of the mic.
     amixer_configuration_name: lovelace
     t0b1:
+      pactl_mic_name: 'alsa_input.pci-0000_00_1f.3.analog-stereo'
       amixer_mic_toggle_control_name: "'Capture',0"
       amixer_mic_control_names:
         - "'Capture',0"
@@ -88,11 +111,15 @@ ada_watchdog:
       amixer_mic_control_percentages:
         - 37
         - 0
+      is_usb: false
+      acpi_event_name: "jack/microphone MICROPHONE"
     lovelace:
-      amixer_mic_toggle_control_name: "'Capture',0"
+      pactl_mic_name: 'alsa_input.usb-Plugable_Plugable_USB_Audio_Device_000000000000-00.analog-stereo'
+      amixer_mic_toggle_control_name: "'Mic',0"
       amixer_mic_control_names:
-        - "'Capture',0"
-        - "'Internal Mic Boost',0"
+        - "'Mic',0"
       amixer_mic_control_percentages:
-        - 40
-        - 0
+        - 100
+      is_usb: true
+      udev_id: 'usb-Plugable_Plugable_USB_Audio_Device_000000000000-00'
+      device_name: 'Plugable USB Audio Device'
