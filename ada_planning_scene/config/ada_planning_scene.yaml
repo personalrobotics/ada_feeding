@@ -23,7 +23,7 @@ ada_planning_scene:
     namespaces:
       - seated
       - bedside
-    namespace_to_use: seated
+    namespace_to_use: bedside # seated
 
     ############################################################################
     # Parameters related to the PlanningSceneInitializer class
@@ -49,7 +49,7 @@ ada_planning_scene:
       #     `within_workspace_walls` to be True.
       wheelchair: # the wheelchair mesh
         filename: wheelchair.stl
-        position: [0.02, -0.02, -0.05]
+        position: [0.02, -0.02, -0.15]
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
@@ -58,7 +58,7 @@ ada_planning_scene:
       # bite transfer.
       body: 
         filename: body_collision_in_wheelchair.stl
-        position: [0.02, -0.02, -0.05] # should match the wheelchair position
+        position: [0.20, -0.01, -0.05] # should match the wheelchair position
         quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
@@ -89,30 +89,30 @@ ada_planning_scene:
         - head
       bed: # the wheelchair mesh
         filename: bed_with_back.stl
-        position: [-0.68, 0.6, -0.92]
-        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+        position: [0.68, -0.6, -1.05]
+        quat_xyzw: [0.0, 0.0, 1.0, 0.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: False # whether to add workspace walls around the wheelchair
       body: 
         filename: body_collision_in_bed.stl
-        position: [-0.68, 0.6, -0.92] # should match the wheelchair position
-        quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
+        position: [0.68, -0.6, -1.05] # should match the wheelchair position
+        quat_xyzw: [0.0, 0.0, 1.0, 0.0] # should match the wheelchair orientation
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
       table: # the table mesh
         filename: hospital_table.stl
         # Initial predicted position and orientation of the table; these values get
         # updated as the robot perceives the table.
-        position: [-0.68, 0.6, -0.92]
-        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+        position: [0.68, -0.6, -1.05]
+        quat_xyzw: [0.0, 0.0, 1.0, 0.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
       head: # the head mesh
         filename: tom.stl
         # This is an initial guess of head position; it will be updated as the
         # robot perceives the face.
-        position: [-0.68, 0.42, 0.4]
-        quat_xyzw: [-0.0616284, -0.0616284, -0.6804416, 0.704416]
+        position: [0.68, -0.42, 0.27]
+        quat_xyzw: [-0.0626945, -0.0626602, 0.6918303, 0.7165989]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
 
@@ -127,7 +127,7 @@ ada_planning_scene:
       workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
       disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
     bedside:
-      disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
+      disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
 
     # Whether the workspace walls should contain the robot's current configuration
     # at time of recomputation.
