@@ -7,6 +7,7 @@ ada_feeding_action_servers:
     - side_staging_3
     - hospital_table_mount_1
     hospital_table_mount_1:
+      planning_scene_namespace_to_use: bedside
       AcquireFood.tree_kwargs.resting_joint_positions:
       - 1.969353563943468
       - 4.070232398326571
@@ -46,6 +47,7 @@ ada_feeding_action_servers:
       - 0.761846098823169
     namespace_to_use: default
     side_staging_1:
+      planning_scene_namespace_to_use: seated
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.8849039817349507
       - 4.195202297742974
@@ -91,6 +93,7 @@ ada_feeding_action_servers:
       - -0.03213529960954986
       - 3.09639028777566
     side_staging_2:
+      planning_scene_namespace_to_use: seated
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.9352339979119222
       - 4.019241119250932
@@ -136,6 +139,7 @@ ada_feeding_action_servers:
       - 0.15785301466004853
       - 1.831326452018514
     side_staging_3:
+      planning_scene_namespace_to_use: seated
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.6599792550212555
       - 3.1739410060865496
