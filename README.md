@@ -47,11 +47,17 @@ This README is the definitive source for downloading, installing, and running th
     - [`pyrealsense2` is not released for ARM systems](https://github.com/IntelRealSense/librealsense/issues/6449#issuecomment-650784066), so ARM users will have to [build from source](https://github.com/IntelRealSense/librealsense/blob/master/wrappers/python/readme.md#building-from-source). You may have to add the `-DPYTHON_EXECUTABLE=/usr/bin/python3` flag to the `cmake` command. When running `sudo make install`, pay close attention to which path `pyrealsense2` is installed to and add *that path* to the `PYTHONPATH` -- it should be `/use/local/lib` but may be `/usr/local/OFF`.
    
 7. Install the JACO SDK (real robot only). All SDKs are listed [here](https://www.kinovarobotics.com/resources?r=79301&s); PRL currently uses the [Gen2 SDK v1.5.1](https://drive.google.com/file/d/1UEQAow0XLcVcPCeQfHK9ERBihOCclkJ9/view). Note that although the latest version of that SDK is for Ubuntu 16.04, it still works on Ubuntu 22.04 (only for x86 systems, not ARM system).
-8. (Optional): We recommend using [FastRTPS](https://docs.ros.org/en/humble/Installation/DDS-Implementations/Working-with-eProsima-Fast-DDS.html) as ROS middleware, as [CycloneDDS unnecessarily sends packets over the network](https://github.com/ros2/rmw_cyclonedds/issues/489). Install it with `sudo apt install ros-humble-rmw-fastrtps-cpp`. Then, add the following line to your `~/bashrc`: `export RMW_IMPLEMENTATION=rmw_fastrtps_cpp`. Note that you have to [rebuild your workspace from scratch after doing this](https://docs.ros.org/en/humble/How-To-Guides/Working-with-multiple-RMW-implementations.html#adding-rmw-implementations-to-your-workspace).
-8. Build your workspace:
+8. (Optional): We recommend using CycloneDDS as your ROS2 midleware, with a custom configuration file that enables multicast on loopback and prioritizes loopback. Install it with `sudo apt install ros-humble-rmw-cyclonedds-cpp`. Then, add the following lines to your `~/bashrc`: `export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp; export CYCLONEDDS_URI=~/colcon_ws/src/ada_feeding/cyclonedds.xml`. Note that you have to [rebuild your workspace from scratch after doing this](https://docs.ros.org/en/humble/How-To-Guides/Working-with-multiple-RMW-implementations.html#adding-rmw-implementations-to-your-workspace).
+9. Build your workspace:
 
         cd ~/colcon_ws
         colcon build --symlink-install # if sim-only, add '--packages-skip ada_hardware'
+
+### Setup (System Configuration)
+
+Our system includes two computers, `lovelace` (Lenovo Legion 5i) and `nano` (Nvidia Jetson Nano), where the former runs camera code and the latter runs everything else. This repository includes some system-specific bash scripts to configure those computers. Specifically, move `start_nano.sh`, `start_nano.py`, and `run_camera.sh` to the home directory of `nano`. On `lovelace`, add a cronjob to run `configure_lovelace.sh` on reboot (e.g., `sudo crontab -e`, then add the line `@reboot <path/to/ada_feeding>/configure_lovelace.sh`).
+
+Note that these scripts will likely need to be changed for your setup's computers; however, perhaps the commands in these scripts can provide you inspiration.
 
 ### Setup (Robot Hardware)
 
