@@ -933,9 +933,7 @@ def main(args: List = None) -> None:
     create_action_servers = CreateActionServers()
 
     # Use a MultiThreadedExecutor to enable processing goals concurrently
-    executor = MultiThreadedExecutor(
-        num_threads=multiprocessing.cpu_count()*2
-    )
+    executor = MultiThreadedExecutor(num_threads=multiprocessing.cpu_count() * 2)
 
     # pylint: disable=broad-exception-caught
     # All exceptions need printing at shutdown
