@@ -8,7 +8,7 @@
     <General>
       <Interfaces>
         <NetworkInterface name="lo" priority="default" multicast="true"/>
-        <NetworkInterface name="enp49s0" priority="default"/>
+        <NetworkInterface name="wlp0s20f3" priority="default" multicast="true"/>
       </Interfaces>
     </General>
   </Domain>

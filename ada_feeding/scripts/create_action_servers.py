@@ -6,6 +6,7 @@ that wrap behavior trees.
 
 # Standard imports
 import collections.abc
+import multiprocessing
 import os
 import threading
 import traceback
@@ -932,7 +933,9 @@ def main(args: List = None) -> None:
     create_action_servers = CreateActionServers()
 
     # Use a MultiThreadedExecutor to enable processing goals concurrently
-    executor = MultiThreadedExecutor()
+    executor = MultiThreadedExecutor(
+        num_threads=multiprocessing.cpu_count()*2
+    )
 
     # pylint: disable=broad-exception-caught
     # All exceptions need printing at shutdown

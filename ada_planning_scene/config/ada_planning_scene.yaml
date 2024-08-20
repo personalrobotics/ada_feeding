@@ -23,7 +23,7 @@ ada_planning_scene:
     namespaces:
       - seated
       - bedside
-    namespace_to_use: bedside # seated
+    namespace_to_use: seated # bedside # 
 
     ############################################################################
     # Parameters related to the PlanningSceneInitializer class

@@ -63,6 +63,7 @@ class SegmentFromPointNode(Node):
 
         # Check if cuda is available
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.get_logger().info(f"Using device {self.device}")
 
         # Read the parameters
         # NOTE: These parameters are only read once. Any changes after the node
