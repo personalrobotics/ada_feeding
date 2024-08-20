@@ -770,6 +770,10 @@ class EStopCondition(WatchdogCondition):
 
         # Convert the data to a numpy array
         self.curr_data_arr = np.frombuffer(data, dtype=np.int16)
+        self._node.get_logger().debug(
+            f"Data min: {np.min(self.curr_data_arr)}, max: {np.max(self.curr_data_arr)}, "
+            f"mean: {np.mean(self.curr_data_arr)}, median: {np.median(self.curr_data_arr)}"
+        )
 
         # Check if the e-stop button has been pressed
         if EStopCondition.rising_edge_detector(
