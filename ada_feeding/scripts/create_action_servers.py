@@ -18,6 +18,7 @@ from ada_watchdog_listener import ADAWatchdogListener
 from ament_index_python.packages import get_package_share_directory
 import py_trees
 from rcl_interfaces.msg import (
+    Parameter as ParameterMsg,
     ParameterDescriptor,
     ParameterType,
     ParameterValue,
@@ -416,6 +417,7 @@ class CreateActionServers(Node):
         planning_scene_namespace_to_use: str,
         timeout_secs: float = 10.0,
         rate_hz: float = 10.0,
+        reinit_same_namespace: bool = True,
     ) -> bool:
         """
         Sets the planning scene namespace to use for the node. Further, it gets the
@@ -427,6 +429,9 @@ class CreateActionServers(Node):
         planning_scene_namespace_to_use: The planning scene namespace to use.
         timeout_secs: The timeout in seconds for the service calls.
         rate_hz: The rate at which to check for the parameter value.
+        reinit_same_namespace: If True, reinitialize the planning scene node if the
+            namespace is the same as the current one. This is useful e.g., to update the
+            workspace walls with the new configurations. default: true.
 
         Returns
         -------
@@ -436,36 +441,47 @@ class CreateActionServers(Node):
         timeout = rclpy.time.Duration(seconds=timeout_secs)
         rate = self.create_rate(rate_hz)
 
-        # First, get the current value of the parameter
-        request = GetParameters.Request()
-        request.names = ["namespace_to_use"]
-        future = self.planning_scene_get_parameters_client.call_async(request)
-        while (
-            rclpy.ok()
-            and not future.done()
-            and (self.get_clock().now() - start_time < timeout)
-        ):
-            rate.sleep()
-        curr_planning_scene_namespace_to_use = None
-        if future.done():
-            response = future.result()
-            if len(response.values) > 0:
-                if response.values[0].type == ParameterType.PARAMETER_STRING:
-                    curr_planning_scene_namespace_to_use = response.values[
-                        0
-                    ].string_value
-        if curr_planning_scene_namespace_to_use is None:
-            self.get_logger().warn("Failed to get parameters from ada_planning_scene.")
-            return False
+        if not reinit_same_namespace:
+            # Wait for the service to be ready
+            self.planning_scene_set_parameters_client.wait_for_service(
+                (self.get_clock().now() - start_time).nanoseconds / 1.0e9
+            )
 
-        # If the parameter is the same, return
-        if curr_planning_scene_namespace_to_use == planning_scene_namespace_to_use:
-            return True
+            # First, get the current value of the parameter
+            request = GetParameters.Request()
+            request.names = ["namespace_to_use"]
+            future = self.planning_scene_get_parameters_client.call_async(request)
+            while (
+                rclpy.ok()
+                and not future.done()
+                and (self.get_clock().now() - start_time < timeout)
+            ):
+                rate.sleep()
+            curr_planning_scene_namespace_to_use = None
+            if future.done():
+                response = future.result()
+                if len(response.values) > 0:
+                    if response.values[0].type == ParameterType.PARAMETER_STRING:
+                        curr_planning_scene_namespace_to_use = response.values[
+                            0
+                        ].string_value
+            if curr_planning_scene_namespace_to_use is None:
+                self.get_logger().warn("Failed to get parameters from ada_planning_scene.")
+                return False
+
+            # If the parameter is the same, return
+            if curr_planning_scene_namespace_to_use == planning_scene_namespace_to_use:
+                return True
+
+        # Wait for the service to be ready
+        self.planning_scene_set_parameters_client.wait_for_service(
+            (self.get_clock().now() - start_time).nanoseconds / 1.0e9
+        )
 
         # Otherwise, set the parameter
         request = SetParametersAtomically.Request()
         request.parameters = [
-            Parameter(
+            ParameterMsg(
                 name="namespace_to_use",
                 value=ParameterValue(
                     type=ParameterType.PARAMETER_STRING,
@@ -484,13 +500,12 @@ class CreateActionServers(Node):
             response = future.result()
             if response.successful:
                 self.get_logger().info(
-                    f"Successfully set planning scene namespace from {curr_planning_scene_namespace_to_use} to "
-                    f"{planning_scene_namespace_to_use}"
+                    f"Successfully set planning scene namespace to {planning_scene_namespace_to_use}"
                 )
                 return True
         self.get_logger().warn(
-            f"Failed to set planning scene namespace from {curr_planning_scene_namespace_to_use} to "
-            f"{planning_scene_namespace_to_use}"
+            f"Failed to set planning scene namespace to {planning_scene_namespace_to_use}. "
+            f"Elapsed time: {(self.get_clock().now() - start_time).nanoseconds / 1.0e9} seconds."
         )
         return False
 
