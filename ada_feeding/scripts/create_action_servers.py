@@ -466,7 +466,9 @@ class CreateActionServers(Node):
                             0
                         ].string_value
             if curr_planning_scene_namespace_to_use is None:
-                self.get_logger().warn("Failed to get parameters from ada_planning_scene.")
+                self.get_logger().warn(
+                    "Failed to get parameters from ada_planning_scene."
+                )
                 return False
 
             # If the parameter is the same, return
