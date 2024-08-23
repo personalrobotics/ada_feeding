@@ -28,8 +28,8 @@ from ada_feeding.behaviors.moveit2 import (
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import (
-    get_add_in_front_of_wheelchair_wall_behavior,
-    get_remove_in_front_of_wheelchair_wall_behavior,
+    get_add_in_front_of_face_wall_behavior,
+    get_remove_in_front_of_face_wall_behavior,
 )
 from ada_feeding.trees import (
     MoveToTree,
@@ -112,8 +112,6 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
 
         ### Define Tree Logic
 
-        in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
-
         constraints = [
             # Goal configuration: staging configuration
             MoveIt2JointConstraint(
@@ -161,14 +159,12 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                 # from moving unnecessarily close to the user.
                 scoped_behavior(
                     name=name + " InFrontOfWheelchairWallScope",
-                    pre_behavior=get_add_in_front_of_wheelchair_wall_behavior(
+                    pre_behavior=get_add_in_front_of_face_wall_behavior(
                         name + "AddWheelchairWall",
-                        in_front_of_wheelchair_wall_id,
                     ),
                     # Remove the wall in front of the wheelchair
-                    post_behavior=get_remove_in_front_of_wheelchair_wall_behavior(
+                    post_behavior=get_remove_in_front_of_face_wall_behavior(
                         name + "RemoveWheelchairWall",
-                        in_front_of_wheelchair_wall_id,
                     ),
                     # Move to the staging configuration
                     workers=constraints

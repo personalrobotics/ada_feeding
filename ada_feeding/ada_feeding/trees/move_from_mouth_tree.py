@@ -29,8 +29,8 @@ from ada_feeding.behaviors.ros import CreatePoseStamped
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior, servo_until_pose
 from ada_feeding.idioms.bite_transfer import (
-    get_add_in_front_of_wheelchair_wall_behavior,
-    get_remove_in_front_of_wheelchair_wall_behavior,
+    get_add_in_front_of_face_wall_behavior,
+    get_remove_in_front_of_face_wall_behavior,
     get_toggle_collision_object_behavior,
 )
 from ada_feeding.trees import MoveToTree
@@ -216,7 +216,6 @@ class MoveFromMouthTree(MoveToTree):
 
         ### Define tree logic
 
-        in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
         base_link = "j2n6s200_link_base"
 
         # The tree may or may not have orientation path constraints active
@@ -476,13 +475,11 @@ class MoveFromMouthTree(MoveToTree):
                 # Moving closer to the user than it currently is.
                 scoped_behavior(
                     name=name + " AddInFrontOfWheelchairWallScope",
-                    pre_behavior=get_add_in_front_of_wheelchair_wall_behavior(
+                    pre_behavior=get_add_in_front_of_face_wall_behavior(
                         name + "AddInFrontOfWheelchairWallScopePre",
-                        in_front_of_wheelchair_wall_id,
                     ),
-                    post_behavior=get_remove_in_front_of_wheelchair_wall_behavior(
+                    post_behavior=get_remove_in_front_of_face_wall_behavior(
                         name + "RemoveInFrontOfWheelchairWallScopePost",
-                        in_front_of_wheelchair_wall_id,
                     ),
                     workers=[
                         # Retare the F/T sensor and set the F/T Thresholds
