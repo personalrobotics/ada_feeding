@@ -30,9 +30,6 @@ class CollisionObjectManager:
        MoveIt2 has confirmed that the collision object has been added.
     """
 
-    # TODO: extend this class with the ability to remove specific collision objects
-    # (right now it can only clear the entire planning scene).
-
     __GLOBAL_BATCH_ID = "global"
     __BATCH_ID_FORMAT = "batch_{:d}"
 
@@ -490,3 +487,24 @@ class CollisionObjectManager:
             rate.sleep()
 
         return self.moveit2.process_clear_all_collision_objects_future(future)
+
+    def remove_collision_object(
+        self,
+        object_id: str,
+    ) -> bool:
+        """
+        Remove a specific collision object from the planning scene.
+
+        Parameters
+        ----------
+        object_id: The ID of the collision object to remove.
+
+        Returns
+        -------
+        True if the collision object was successfully removed, False otherwise.
+        """
+        # TODO: Extend this to verify that the object was removed in a closed-loop
+        # fashion, as `add_collision_objects` does.
+        self.__node.get_logger().info(f"Removing collision object {object_id}...")
+        self.moveit2.remove_collision_object(id=object_id)
+        return True

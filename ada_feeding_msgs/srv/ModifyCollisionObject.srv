@@ -1,0 +1,16 @@
+# A service to add or remove a collision object.
+
+# The operation, adapted from https://github.com/moveit/moveit_msgs/blob/humble/msg/CollisionObject.msg
+byte ADD=0
+byte REMOVE=1
+byte operation
+
+# The object name in MoveIt2
+string object_id
+
+---
+# Whether or not it was succesfully added
+bool success
+
+# Additional information
+string message
