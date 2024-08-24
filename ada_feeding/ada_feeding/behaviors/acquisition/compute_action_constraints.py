@@ -63,6 +63,7 @@ class ComputeActionConstraints(BlackboardBehavior):
         move_above_dist_m: Union[BlackboardKey, float] = 0.05,
         food_frame_id: Union[BlackboardKey, str] = "food",
         approach_frame_id: Union[BlackboardKey, str] = "approach",
+        action: Union[BlackboardKey, Optional[AcquisitionSchema]] = None,
     ) -> None:
         """
         Blackboard Inputs
@@ -141,64 +142,67 @@ class ComputeActionConstraints(BlackboardBehavior):
             self.logger.error(f"Malformed action select response: {response}")
             return py_trees.common.Status.FAILURE
 
-        # Sample Action
-        index = np.random.choice(np.arange(prob.size), p=prob)
-        action = response.actions[index]
+        action_set = self.blackboard_get("action")
+        if action_set is None:
+            # Sample Action
+            index = np.random.choice(np.arange(prob.size), p=prob)
+            action = response.actions[index]
+            self.logger.info(f"Chosen action index: {index}")
 
-        ### Construct Constraints
+            ### Construct Constraints
 
-        # Re-scale pre-transform to move_above_dist_m
-        position = ros2_numpy.numpify(action.pre_transform.position)
-        if np.isclose(np.linalg.norm(position), 0.0):
-            self.logger.error(
-                f"Malformed action pre_transform: {action.pre_transform.position}"
+            # Re-scale pre-transform to move_above_dist_m
+            position = ros2_numpy.numpify(action.pre_transform.position)
+            if np.isclose(np.linalg.norm(position), 0.0):
+                self.logger.error(
+                    f"Malformed action pre_transform: {action.pre_transform.position}"
+                )   
+                return py_trees.common.Status.FAILURE
+            position = (
+                position
+                * self.blackboard_get("move_above_dist_m")
+                / np.linalg.norm(position)
             )
-            return py_trees.common.Status.FAILURE
-        position = (
-            position
-            * self.blackboard_get("move_above_dist_m")
-            / np.linalg.norm(position)
-        )
-        action.pre_transform.position = ros2_numpy.msgify(Point, position)
-        self.blackboard_set("move_above_pose", action.pre_transform)
+            action.pre_transform.position = ros2_numpy.msgify(Point, position)
+            self.blackboard_set("move_above_pose", action.pre_transform)
 
-        # Calculate Approach Target (in food frame)
-        move_into_pose = Pose()
-        move_into_pose.orientation = deepcopy(action.pre_transform.orientation)
-        offset = ros2_numpy.numpify(action.pre_offset)
-        move_into_pose.position = ros2_numpy.msgify(Point, offset)
-        self.blackboard_set("move_into_pose", move_into_pose)
+            # Calculate Approach Target (in food frame)
+            move_into_pose = Pose()
+            move_into_pose.orientation = deepcopy(action.pre_transform.orientation)
+            offset = ros2_numpy.numpify(action.pre_offset)
+            move_into_pose.position = ros2_numpy.msgify(Point, offset)
+            self.blackboard_set("move_into_pose", move_into_pose)
 
-        ### Calculate Approach Frame
-        approach_vec = offset - position
-        approach_frame = TransformStamped()
-        approach_mat = np.eye(4)
-        if not np.all(np.isclose(approach_vec[:2], np.zeros(2))):
-            approach_mat[:3, :3] = R.from_rotvec(
-                np.arctan2(approach_vec[1], approach_vec[0]) * np.array([0, 0, 1])
-            ).as_matrix()
-        approach_frame.transform = ros2_numpy.msgify(Transform, approach_mat)
-        approach_frame.header.stamp = self.node.get_clock().now().to_msg()
-        approach_frame.header.frame_id = "food"
-        approach_frame.child_frame_id = "approach"
-        set_static_tf(approach_frame, self.blackboard, self.node)
+            ### Calculate Approach Frame
+            approach_vec = offset - position
+            approach_frame = TransformStamped()
+            approach_mat = np.eye(4)
+            if not np.all(np.isclose(approach_vec[:2], np.zeros(2))):
+                approach_mat[:3, :3] = R.from_rotvec(
+                    np.arctan2(approach_vec[1], approach_vec[0]) * np.array([0, 0, 1])
+                ).as_matrix()
+            approach_frame.transform = ros2_numpy.msgify(Transform, approach_mat)
+            approach_frame.header.stamp = self.node.get_clock().now().to_msg()
+            approach_frame.header.frame_id = "food"
+            approach_frame.child_frame_id = "approach"
+            set_static_tf(approach_frame, self.blackboard, self.node)
 
-        ### Calculate F/T Thresholds
-        self.blackboard_set(
-            "approach_thresh",
-            create_ft_thresh_request(action.pre_force, action.pre_torque),
-        )
-        self.blackboard_set(
-            "grasp_thresh",
-            create_ft_thresh_request(action.grasp_force, action.grasp_torque),
-        )
-        self.blackboard_set(
-            "ext_thresh",
-            create_ft_thresh_request(action.ext_force, action.ext_torque),
-        )
+            ### Calculate F/T Thresholds
+            self.blackboard_set(
+                "approach_thresh",
+                create_ft_thresh_request(action.pre_force, action.pre_torque),
+            )
+            self.blackboard_set(
+                "grasp_thresh",
+                create_ft_thresh_request(action.grasp_force, action.grasp_torque),
+            )
+            self.blackboard_set(
+                "ext_thresh",
+                create_ft_thresh_request(action.ext_force, action.ext_torque),
+            )
 
-        ### Final write to Blackboard
-        self.blackboard_set("action", action)
+            ### Final write to Blackboard
+            self.blackboard_set("action", action)
         return py_trees.common.Status.SUCCESS
 
 
