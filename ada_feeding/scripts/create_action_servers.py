@@ -500,7 +500,7 @@ class CreateActionServers(Node):
             rate.sleep()
         if future.done():
             response = future.result()
-            if response.successful:
+            if response.result.successful:
                 self.get_logger().info(
                     f"Successfully set planning scene namespace to {planning_scene_namespace_to_use}"
                 )
