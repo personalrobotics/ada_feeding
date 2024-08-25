@@ -257,8 +257,15 @@ class ADAPlanningScene(Node):
                 self.__namespace_to_use = namespace_to_use
                 self.__initializer.namespace_to_use = namespace_to_use
                 self.__workspace_walls.namespace_to_use = namespace_to_use
-                self.__update_from_face_detection.namespace_to_use = namespace_to_use
-                self.__update_from_table_detection.namespace_to_use = namespace_to_use
+                # The hasattr is necessary in case this gets called before initialization is complete
+                if hasattr(self, "__update_from_face_detection"):
+                    self.__update_from_face_detection.namespace_to_use = (
+                        namespace_to_use
+                    )
+                if hasattr(self, "__update_from_table_detection"):
+                    self.__update_from_table_detection.namespace_to_use = (
+                        namespace_to_use
+                    )
 
                 # Re-initialize the planning scene
                 self.initialize()
