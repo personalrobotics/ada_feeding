@@ -124,7 +124,7 @@ function InfoModal(props) {
           {mode === VIDEO_MODE ? (
             <VideoFeed topic={CAMERA_FEED_TOPIC} updateRateHz={10} webrtcURL={props.webrtcURL} />
           ) : mode === TELEOP_MODE ? (
-            <TeleopSubcomponent allowIncreasingForceThreshold={true} />
+            <TeleopSubcomponent allowIncreasingForceThreshold={true} allowRetaringFTSensor={true} />
           ) : mode === SYSTEM_STATUS_MODE ? (
             <div>System Status</div>
           ) : (

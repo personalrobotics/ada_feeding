@@ -30,7 +30,9 @@ import {
   SERVO_JOINT_TOPIC_MSG,
   ACTIVATE_CONTROLLER_ACTION_NAME,
   ACTIVATE_CONTROLLER_ACTION_TYPE,
-  SET_PARAMETERS_SERVICE_NAME,
+  SET_PARAMETERS_SERVICE_TYPE,
+  RETARE_FT_SENSOR_SERVICE_NAME,
+  RETARE_FT_SENSOR_SERVICE_TYPE,
   INCREASED_FORCE_THRESHOLD,
   DEFAULT_FORCE_THRESHOLD,
   FORCE_THRESHOLD_PARAM
@@ -561,7 +563,7 @@ const TeleopSubcomponent = (props) => {
   const [forceThresholdIsIncreased, setForceThresholdIsIncreased] = useState(false)
   let changeForceThresholdService = useMemo(() => {
     let activeController = teleopMode === JOINT_MODE ? JOINT_CONTROLLER_NAME : CARTESIAN_CONTROLLER_NAME
-    return createROSService(ros.current, activeController + '/set_parameters_atomically', SET_PARAMETERS_SERVICE_NAME)
+    return createROSService(ros.current, activeController + '/set_parameters_atomically', SET_PARAMETERS_SERVICE_TYPE)
   }, [ros, teleopMode])
   const setForceThreshold = useCallback(
     (threshold) => {
@@ -584,6 +586,21 @@ const TeleopSubcomponent = (props) => {
       }
     }
   }, [props.allowIncreasingForceThreshold, setForceThreshold])
+
+  /**
+   * Service and callback for retaring the force-torque sensor.
+   */
+  let reTareService = useMemo(() => {
+    return createROSService(ros.current, RETARE_FT_SENSOR_SERVICE_NAME, RETARE_FT_SENSOR_SERVICE_TYPE)
+  }, [ros])
+  const reTareFTSensor = useCallback(() => {
+    let service = reTareService
+    let request = createROSServiceRequest({ data: true })
+    console.log('Calling reTareFTSensor with request', request)
+    service.callService(request, (response) => {
+      console.log('For reTareFTSensor request', request, 'received response', response)
+    })
+  }, [reTareService])
 
   // Render the component
   return (
@@ -727,6 +744,36 @@ const TeleopSubcomponent = (props) => {
         ) : (
           <></>
         )}
+        {/* If the props specify, show a button to re-tare the force-torque sensor */}
+        {props.allowRetaringFTSensor ? (
+          <View
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              width: '100%'
+            }}
+          >
+            <Button
+              variant='warning'
+              className='mx-2 mb-2 btn-huge'
+              size='lg'
+              style={{
+                fontSize: (textFontSize * 1.0).toString() + sizeSuffix,
+                paddingTop: 0,
+                paddingBottom: 0,
+                margin: '0 !important',
+                width: '100%'
+              }}
+              onClick={reTareFTSensor}
+            >
+              &#x2696; Re-Zero Force Sensor
+            </Button>
+          </View>
+        ) : (
+          <></>
+        )}
         {/* Render the controls for the mode */}
         <View
           style={{
@@ -753,11 +800,14 @@ TeleopSubcomponent.propTypes = {
   // A function to be called when one of the teleop buttons are released
   teleopButtonOnReleaseCallback: PropTypes.func,
   // Whether to allow the user to increase the force threshold
-  allowIncreasingForceThreshold: PropTypes.bool
+  allowIncreasingForceThreshold: PropTypes.bool,
+  // Whether to allow the user to retare the force-torque sensor
+  allowRetaringFTSensor: PropTypes.bool
 }
 TeleopSubcomponent.defaultProps = {
   unmountCallback: { current: () => {} },
   teleopButtonOnReleaseCallback: () => {},
-  allowIncreasingForceThreshold: false
+  allowIncreasingForceThreshold: false,
+  allowRetaringFTSensor: false
 }
 export default TeleopSubcomponent
