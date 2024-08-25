@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=too-many-lines
 """
 This module contains a node, CreateActionServers, for creating action servers
 that wrap behavior trees.
@@ -16,10 +17,18 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from ada_watchdog_listener import ADAWatchdogListener
 from ament_index_python.packages import get_package_share_directory
 import py_trees
-from rcl_interfaces.msg import ParameterDescriptor, ParameterType, SetParametersResult
+from rcl_interfaces.msg import (
+    Parameter as ParameterMsg,
+    ParameterDescriptor,
+    ParameterType,
+    ParameterValue,
+    SetParametersResult,
+)
+from rcl_interfaces.srv import GetParameters, SetParametersAtomically
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.action.server import ServerGoalHandle
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -86,6 +95,9 @@ class CreateActionServers(Node):
     # pylint: disable=too-many-instance-attributes
     # Fine because of the generic parameters and watchdog capabiltiies.
 
+    # pylint: disable=attribute-defined-outside-init
+    # Fine because we are defining these attributes in the `initialize` function.
+
     DEFAULT_PARAMETER_NAMESPACE = "default"
 
     def __init__(self) -> None:
@@ -99,6 +111,25 @@ class CreateActionServers(Node):
         # seems to forget that some nodes were declared. This is a workaround.
         super().__init__("create_action_servers", allow_undeclared_parameters=True)
         register_logger(self.get_logger())
+
+    def initialize(self) -> None:
+        """
+        Initialize the node. This is a separate function from above so rclpy can
+        be spinning while this function is called.
+        """
+        # Create clients to get and set parameters for the `ada_planning_scene` node.
+        # This is necessary to couple custom configurations in this node with custom
+        # planning scenes.
+        self.planning_scene_get_parameters_client = self.create_client(
+            GetParameters,
+            "/ada_planning_scene/get_parameters",
+            callback_group=MutuallyExclusiveCallbackGroup(),
+        )
+        self.planning_scene_set_parameters_client = self.create_client(
+            SetParametersAtomically,
+            "/ada_planning_scene/set_parameters_atomically",
+            callback_group=MutuallyExclusiveCallbackGroup(),
+        )
 
         # Read the parameters that specify what action servers to create.
         self.namespace_to_use = CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
@@ -198,6 +229,30 @@ class CreateActionServers(Node):
         )
         self.set_namespace_to_use(namespace_to_use.value)
 
+        # Get the planning scene namespace to use
+        for namespace in [default_namespace] + custom_namespaces:
+            planning_scene_namespace_to_use = self.declare_parameter(
+                f"{namespace}.planning_scene_namespace_to_use",
+                value="seated",
+                descriptor=ParameterDescriptor(
+                    name="planning_scene_namespace_to_use",
+                    type=ParameterType.PARAMETER_STRING,
+                    description=(
+                        "The planning scene namespace to use. Must be one of the "
+                        "parameters i the ada_planning_scene config file."
+                    ),
+                    read_only=False,
+                ),
+            )
+            planning_scene_namespace_to_use = planning_scene_namespace_to_use.value
+            self.parameters[namespace][
+                "planning_scene_namespace_to_use"
+            ] = planning_scene_namespace_to_use
+            if namespace == self.namespace_to_use:
+                self.set_planning_scene_namespace_to_use(
+                    planning_scene_namespace_to_use
+                )
+
         # Read each action server's params
         action_server_params = {}
         for server_name in server_names.value:
@@ -269,7 +324,7 @@ class CreateActionServers(Node):
                 for kw in tree_kws.value:
                     full_name = f"{server_name}.tree_kwargs.{kw}"
                     # Get the default value
-                    default_value = self.declare_tree_kwarg(
+                    default_value = self.declare_parameter_in_namespace(
                         namespace=default_namespace,
                         full_name=full_name,
                     )
@@ -285,7 +340,7 @@ class CreateActionServers(Node):
                     self.parameters[default_namespace][full_name] = default_value
                     # Get the custom value(s)
                     for namespace in custom_namespaces:
-                        custom_value = self.declare_tree_kwarg(
+                        custom_value = self.declare_parameter_in_namespace(
                             namespace=namespace,
                             full_name=full_name,
                         )
@@ -323,7 +378,7 @@ class CreateActionServers(Node):
         if namespace not in self.parameters.keys():
             self.parameters[namespace] = {}
         for full_name in self.parameters[default_namespace].keys():
-            custom_value = self.declare_tree_kwarg(
+            custom_value = self.declare_parameter_in_namespace(
                 namespace=namespace,
                 full_name=full_name,
             )
@@ -357,9 +412,110 @@ class CreateActionServers(Node):
                 )
                 self.namespace_to_use = default_namespace
 
-    def declare_tree_kwarg(self, namespace: str, full_name: str) -> Parameter:
+    def set_planning_scene_namespace_to_use(
+        self,
+        planning_scene_namespace_to_use: str,
+        timeout_secs: float = 10.0,
+        rate_hz: float = 10.0,
+        reinit_same_namespace: bool = True,
+    ) -> bool:
         """
-        This method declares a tree_kwarg parameter in the given namespace.
+        Sets the planning scene namespace to use for the node. Further, it gets the
+        current parameter value for the planning scene node and, if it is different,
+        updates the parameter value for that node.
+
+        Parameters
+        ----------
+        planning_scene_namespace_to_use: The planning scene namespace to use.
+        timeout_secs: The timeout in seconds for the service calls.
+        rate_hz: The rate at which to check for the parameter value.
+        reinit_same_namespace: If True, reinitialize the planning scene node if the
+            namespace is the same as the current one. This is useful e.g., to update the
+            workspace walls with the new configurations. default: true.
+
+        Returns
+        -------
+        True if the parameter was set successfully, False otherwise.
+        """
+        start_time = self.get_clock().now()
+        timeout = rclpy.time.Duration(seconds=timeout_secs)
+        rate = self.create_rate(rate_hz)
+
+        if not reinit_same_namespace:
+            # Wait for the service to be ready
+            self.planning_scene_set_parameters_client.wait_for_service(
+                (self.get_clock().now() - start_time).nanoseconds / 1.0e9
+            )
+
+            # First, get the current value of the parameter
+            request = GetParameters.Request()
+            request.names = ["namespace_to_use"]
+            future = self.planning_scene_get_parameters_client.call_async(request)
+            while (
+                rclpy.ok()
+                and not future.done()
+                and (self.get_clock().now() - start_time < timeout)
+            ):
+                rate.sleep()
+            curr_planning_scene_namespace_to_use = None
+            if future.done():
+                response = future.result()
+                if len(response.values) > 0:
+                    if response.values[0].type == ParameterType.PARAMETER_STRING:
+                        curr_planning_scene_namespace_to_use = response.values[
+                            0
+                        ].string_value
+            if curr_planning_scene_namespace_to_use is None:
+                self.get_logger().warn(
+                    "Failed to get parameters from ada_planning_scene."
+                )
+                return False
+
+            # If the parameter is the same, return
+            if curr_planning_scene_namespace_to_use == planning_scene_namespace_to_use:
+                return True
+
+        # Wait for the service to be ready
+        self.planning_scene_set_parameters_client.wait_for_service(
+            (self.get_clock().now() - start_time).nanoseconds / 1.0e9
+        )
+
+        # Otherwise, set the parameter
+        request = SetParametersAtomically.Request()
+        request.parameters = [
+            ParameterMsg(
+                name="namespace_to_use",
+                value=ParameterValue(
+                    type=ParameterType.PARAMETER_STRING,
+                    string_value=planning_scene_namespace_to_use,
+                ),
+            )
+        ]
+        future = self.planning_scene_set_parameters_client.call_async(request)
+        while (
+            rclpy.ok()
+            and not future.done()
+            and (self.get_clock().now() - start_time < timeout)
+        ):
+            rate.sleep()
+        if future.done():
+            response = future.result()
+            if response.successful:
+                self.get_logger().info(
+                    f"Successfully set planning scene namespace to {planning_scene_namespace_to_use}"
+                )
+                return True
+        self.get_logger().warn(
+            f"Failed to set planning scene namespace to {planning_scene_namespace_to_use}. "
+            f"Elapsed time: {(self.get_clock().now() - start_time).nanoseconds / 1.0e9} seconds."
+        )
+        return False
+
+    def declare_parameter_in_namespace(
+        self, namespace: str, full_name: str
+    ) -> Parameter:
+        """
+        This method declares a dynamically-typed parameter in the given namespace.
 
         Parameters
         ----------
@@ -426,6 +582,17 @@ class CreateActionServers(Node):
                 updated_parameters = True
                 # If this namespace has custom parameters, switch to them
                 for full_name, value in self.parameters[self.namespace_to_use].items():
+                    # Handle non tree_kwargs
+                    if full_name == "planning_scene_namespace_to_use":
+                        if value is None:
+                            self.get_logger().info(
+                                f"Namespace {param.value} has no parameter `{full_name}`. "
+                                f"Resorting to default value {self.parameters[default_namespace][full_name]}."
+                            )
+                            value = self.parameters[default_namespace][full_name]
+                        self.set_planning_scene_namespace_to_use(value)
+
+                    # Handle tree_kwargs
                     if "tree_kwargs" not in full_name:
                         self.get_logger().warn(
                             f"Non tree_kwarg parameter {full_name} in self.parameters. "
@@ -480,6 +647,40 @@ class CreateActionServers(Node):
                     if namespace not in self.parameters.keys():
                         self.declare_namespace_parameters(namespace)
                 updated_parameters = True
+                continue
+
+            # Change the planning_scene_namespace_to_use
+            if "planning_scene_namespace_to_use" in param.name:
+                # Deconstruct the parameter name
+                namespace, full_name = param.name.split(".")
+                # Verify it is a valid parameter name
+                if namespace not in self.parameters.keys():
+                    self.get_logger().warn(
+                        f"Unknown namespace {namespace} for parameter {param.name}. "
+                        "Skipping this parameter."
+                    )
+                    continue
+                if full_name != "planning_scene_namespace_to_use":
+                    self.get_logger().warn(
+                        f"Unknown parameter {param.name}. Skipping this parameter."
+                    )
+                    continue
+                param_value = CreateActionServers.get_parameter_value(param)
+                if not isinstance(
+                    param_value, type(self.parameters[default_namespace][full_name])
+                ):
+                    self.get_logger().warn(
+                        f"Parameter {param.name} must be of type "
+                        f"{type(self.parameters[default_namespace][full_name])} "
+                        f"but is of type {type(param_value)}"
+                    )
+                    return SetParametersResult(successful=False, reason="type mismatch")
+                # Change the parameter
+                self.parameters[namespace][full_name] = param_value
+                updated_parameters = True
+                # If this is the namespace we're using, update the planning_scene_namespace_to_use
+                if namespace == self.namespace_to_use:
+                    self.set_planning_scene_namespace_to_use(param_value)
                 continue
 
             # Change a tree_kwarg
@@ -935,10 +1136,23 @@ def main(args: List = None) -> None:
     # Use a MultiThreadedExecutor to enable processing goals concurrently
     executor = MultiThreadedExecutor(num_threads=multiprocessing.cpu_count() * 2)
 
+    # Spin in the background until the node has initialized
+    spin_thread = threading.Thread(
+        target=rclpy.spin,
+        args=(create_action_servers,),
+        kwargs={"executor": executor},
+        daemon=True,
+    )
+    spin_thread.start()
+
     # pylint: disable=broad-exception-caught
     # All exceptions need printing at shutdown
     try:
-        rclpy.spin(create_action_servers, executor=executor)
+        # Initialize the node
+        create_action_servers.initialize()
+
+        # Spin in the foreground
+        spin_thread.join()
     except Exception:
         traceback.print_exc()
 

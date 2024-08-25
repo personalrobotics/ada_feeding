@@ -44,6 +44,7 @@ ada_feeding_action_servers:
       - -1.4163968994364629
       - -2.0259084528523905
       - 0.761846098823169
+      planning_scene_namespace_to_use: bedside
     namespace_to_use: default
     side_staging_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
@@ -90,6 +91,7 @@ ada_feeding_action_servers:
       - -6.180243112219014
       - -0.03213529960954986
       - 3.09639028777566
+      planning_scene_namespace_to_use: seated
     side_staging_2:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.9352339979119222
@@ -135,6 +137,7 @@ ada_feeding_action_servers:
       - -4.805756745041778
       - 0.15785301466004853
       - 1.831326452018514
+      planning_scene_namespace_to_use: seated
     side_staging_3:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.6599792550212555
@@ -180,3 +183,4 @@ ada_feeding_action_servers:
       - 0.41718325265453116
       - 5.824282703942583
       - 2.9376642889102835
+      planning_scene_namespace_to_use: seated
