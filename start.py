@@ -172,7 +172,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 ),
             ],
             "nano_bridge": [
-                "ros2 launch nano_bridge nano_bridge_sender.launch.xml",
+                "ros2 launch nano_bridge sender.launch.xml",
             ],
             "perception": [
                 (

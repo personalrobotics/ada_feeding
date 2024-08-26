@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-This module contains a node, ReceiverNode, which subscribes to a ByteMultiArray
-topic published by SenderNode and republishes the messages to the original topics,
+This module contains a node, ReceiverCompressedImageNode, which subscribes to a
+topic published by SenderCompressedImageNode and republishes the messages to the original topics,
 prepended with a parameter-specified prefix.
 """
 # pylint: disable=duplicate-code
@@ -10,12 +10,9 @@ prepended with a parameter-specified prefix.
 
 # Standard imports
 import os
-import pickle as pkl
-import traceback
-from typing import Type
 
 # Third-party imports
-from std_msgs.msg import ByteMultiArray
+from sensor_msgs.msg import CompressedImage as CompressedImageOutput
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -25,13 +22,13 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rclpy.publisher import Publisher
 
 # Local imports
-from .helpers import import_from_string
+from nano_bridge.msg import CompressedImage as CompressedImageInput
 
 
-class ReceiverNode(Node):
+class ReceiverCompressedImageNode(Node):
     """
-    The ReceiverNode class subscribes to a ByteMultiArray topic published by
-    SenderNode and republishes the messages to the original topics, prepended
+    The ReceiverCompressedImageNode class subscribes to a CompressedImage topic published by
+    SenderCompressedImageNode and republishes the messages to the original topics, prepended
     with a parameter-specified prefix.
     """
 
@@ -46,13 +43,12 @@ class ReceiverNode(Node):
         self.__load_parameters()
 
         # Create the publishers
-        self.__types: dict[str, Type] = {}
         self.__pubs: dict[str, Publisher] = {}
 
         # Create the subscriber
         # pylint: disable=unused-private-member
         self.__sub = self.create_subscription(
-            msg_type=ByteMultiArray,
+            msg_type=CompressedImageInput,
             topic="~/data",
             callback=self.__callback,
             callback_group=MutuallyExclusiveCallbackGroup(),
@@ -75,20 +71,12 @@ class ReceiverNode(Node):
         )
         self.__prefix = prefix.value
 
-    def __callback(self, msg: ByteMultiArray) -> None:
+    def __callback(self, msg: CompressedImageInput) -> None:
         """
         Callback function for the subscriber.
         """
-        # Get the topic name and type
-        if len(msg.layout.dim) < 2:
-            self.get_logger().error("Invalid message layout.")
-            return
-        topic_name = msg.layout.dim[0].label
-        topic_type = msg.layout.dim[1].label
-
-        # Import the topic type
-        if topic_type not in self.__types:
-            self.__types[topic_type] = import_from_string(topic_type)
+        # Get the topic name
+        topic_name = msg.topic
 
         # Create the publisher
         if topic_name not in self.__pubs:
@@ -98,7 +86,7 @@ class ReceiverNode(Node):
                 topic_name.lstrip("/"),
             )
             self.__pubs[topic_name] = self.create_publisher(
-                msg_type=self.__types[topic_type],
+                msg_type=CompressedImageOutput,
                 topic=repub_topic_name,
                 qos_profile=QoSProfile(
                     depth=1, reliability=ReliabilityPolicy.BEST_EFFORT
@@ -106,17 +94,8 @@ class ReceiverNode(Node):
             )
             self.get_logger().info(f"Created publisher for {repub_topic_name}.")
 
-        # Unpickle the message
-        try:
-            data = b"".join(msg.data)
-            msg_decoded = pkl.loads(data)
-        except pkl.PickleError as exc:
-            self.get_logger().error(f"{traceback.format_exc()}")
-            self.get_logger().error(f"Error unpickling message: {exc}")
-            return
-
         # Publish the message
-        self.__pubs[topic_name].publish(msg_decoded)
+        self.__pubs[topic_name].publish(msg.data)
 
 
 def main(args=None):
@@ -126,7 +105,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Create the node
-    receiver = ReceiverNode()
+    receiver = ReceiverCompressedImageNode()
 
     # Spin the node
     executor = MultiThreadedExecutor()

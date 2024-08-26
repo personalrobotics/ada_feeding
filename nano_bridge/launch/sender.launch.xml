@@ -1,6 +1,18 @@
 <launch>
-  <node pkg="nano_bridge" exec="nano_bridge_sender" name="nano_bridge_sender">
-    <param from="$(find-pkg-share nano_bridge)/config/nano_bridge.yaml"/>
-    <remap from="~/data" to="/nano_bridge/data"/>
-  </node>
+  <arg name="compressed_image" default="true" description="Whether to run the compressed image version of the node, or the generic one" />
+
+  <group if="$(var compressed_image)">
+    <node pkg="nano_bridge" exec="sender_compressed_image.py" name="sender_compressed_image">
+      <param from="$(find-pkg-share nano_bridge)/config/nano_bridge.yaml"/>
+      <remap from="~/data" to="/nano_bridge/data"/>
+    </node>
+  </group>
+
+  <group unless="$(var compressed_image)">
+    <node pkg="nano_bridge" exec="sender.py" name="sender">
+      <param from="$(find-pkg-share nano_bridge)/config/nano_bridge.yaml"/>
+      <remap from="~/data" to="/nano_bridge/data"/>
+    </node>
+  </group>
+
 </launch>
