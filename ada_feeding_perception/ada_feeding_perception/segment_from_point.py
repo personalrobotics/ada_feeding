@@ -23,6 +23,7 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from segment_anything import sam_model_registry, SamPredictor
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image, RegionOfInterest
 import torch
@@ -98,7 +99,7 @@ class SegmentFromPointNode(Node):
             CameraInfo,
             "~/camera_info",
             self.camera_info_callback,
-            1,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -118,7 +119,7 @@ class SegmentFromPointNode(Node):
             aligned_depth_type,
             aligned_depth_topic,
             self.depth_image_callback,
-            1,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -137,7 +138,7 @@ class SegmentFromPointNode(Node):
             image_type,
             image_topic,
             self.image_callback,
-            1,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 

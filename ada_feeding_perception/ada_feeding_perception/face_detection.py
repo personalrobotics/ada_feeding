@@ -23,6 +23,7 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from sensor_msgs.msg import CompressedImage, CameraInfo, Image
 from skspatial.objects import Plane, Points
@@ -159,7 +160,7 @@ class FaceDetectionNode(Node):
             image_type,
             image_topic,
             self.camera_callback,
-            1,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -179,7 +180,7 @@ class FaceDetectionNode(Node):
             aligned_depth_type,
             aligned_depth_topic,
             self.depth_callback,
-            1,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -192,7 +193,7 @@ class FaceDetectionNode(Node):
             CameraInfo,
             "~/camera_info",
             self.camera_info_callback,
-            1,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 

@@ -3,7 +3,7 @@ republisher:
   ros__parameters:
     # The name of the topics to republish from
     from_topics:
-      - /camera/color/camera_info
+      - /camera/aligned_depth_to_color/camera_info
       - /local/camera/aligned_depth_to_color/image_raw/compressedDepth
 
     # The types of topics to republish from
@@ -21,7 +21,7 @@ republisher:
     # The name of the topics to republish to. NOTE: the `prefix` in the launchfile
     # must match the below pattern!
     to_topics:
-      - /local/camera/color/camera_info
+      - /local/camera/aligned_depth_to_color/camera_info
       - /local/camera/aligned_depth_to_color/depth_octomap
 
     # The target rates (Hz) for the republished topics. Rates <= 0 will publish
