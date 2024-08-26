@@ -11,6 +11,7 @@ from threading import Lock
 from typing import Dict, List
 
 # Third-party imports
+from builtin_interfaces.msg import Time
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion, Transform, Vector3
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
@@ -290,6 +291,9 @@ class UpdateFromFaceDetection:
 
         # Transform the detected mouth center from the camera frame into the base frame
         try:
+            msg.detected_mouth_center.header.stamp = Time(
+                sec=0, nanosec=0
+            )  # Get latest transform
             detected_mouth_center = self.__tf_buffer.transform(
                 msg.detected_mouth_center,
                 self.__base_frame_id,

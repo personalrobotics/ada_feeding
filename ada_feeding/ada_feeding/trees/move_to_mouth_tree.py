@@ -84,7 +84,7 @@ class MoveToMouthTree(MoveToTree):
         max_angular_speed: float = 0.15,
         linear_speed_near_mouth: float = 0.025,
         angular_speed_near_mouth: float = 0.075,
-        wheelchair_collision_object_id: str = "wheelchair_collision",
+        wheelchair_collision_object_id: str = "body",
         force_threshold: float = 1.0,
         torque_threshold: float = 1.0,
         allowed_face_distance: Tuple[float, float] = (0.4, 1.25),

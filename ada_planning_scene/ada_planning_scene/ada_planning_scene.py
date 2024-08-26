@@ -9,7 +9,9 @@ from typing import List
 
 # Third-party imports
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, SetParametersResult
+from rcl_interfaces.srv import GetParameters
 import rclpy
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -190,6 +192,14 @@ class ADAPlanningScene(Node):
         # Get the start time
         start_time = self.get_clock().now()
 
+        # Get the namespace to use
+        self.__get_namespace_to_use()
+        self.get_logger().info(
+            f"Using the `{self.__namespace_to_use}` namespace for the planning scene."
+        )
+        self.__initializer.namespace_to_use = self.__namespace_to_use
+        self.__workspace_walls.namespace_to_use = self.__namespace_to_use
+
         # Initialize the planning scene
         success = self.__initializer.initialize(
             rate_hz=self.__initialization_hz,
@@ -235,6 +245,97 @@ class ADAPlanningScene(Node):
 
         self.get_logger().info("Finished initializing the planning scene.")
         return True
+
+    def __get_namespace_to_use(
+        self, timeout_secs: float = 10.0, rate_hz: float = 10.0
+    ) -> None:
+        """
+        This method attempts to get the namespace to use parameter from `ada_feeding_action_servers`, if it exists.
+        Else, it sticks with the default defined in the config file.
+
+        Parameters
+        ----------
+        timeout_secs : float
+            The time to wait for the parameter to be available.
+        rate_hz : float
+            The rate at which to check whether the future is complete
+        """
+        start_time = self.get_clock().now()
+        timeout = rclpy.time.Duration(seconds=timeout_secs)
+        rate = self.create_rate(rate_hz)
+
+        # Create the client to get parameters
+        ada_feeding_get_parameters_client = self.create_client(
+            GetParameters,
+            "/ada_feeding_action_servers/get_parameters",
+            callback_group=MutuallyExclusiveCallbackGroup(),
+        )
+        # Wait for the service to be ready
+        self.get_logger().info("Waiting for `ada_feeding_action_servers` to be ready.")
+        ada_feeding_get_parameters_client.wait_for_service(
+            (self.get_clock().now() - start_time).nanoseconds / 1.0e9
+        )
+        self.get_logger().info("`ada_feeding_action_servers` is ready.")
+
+        # First, get `namespace_to_use` and `default.planning_scene_namespace_to_use`.
+        request = GetParameters.Request()
+        request.names = ["namespace_to_use", "default.planning_scene_namespace_to_use"]
+        future = ada_feeding_get_parameters_client.call_async(request)
+        while (
+            rclpy.ok()
+            and not future.done()
+            and (self.get_clock().now() - start_time < timeout)
+        ):
+            rate.sleep()
+        ada_feeding_namespace_to_use = None
+        ada_feeding_default_planning_scene_namespace = None
+        if future.done():
+            response = future.result()
+            if len(response.values) > 1:
+                if response.values[0].type == ParameterType.PARAMETER_STRING:
+                    ada_feeding_namespace_to_use = response.values[0].string_value
+                if response.values[1].type == ParameterType.PARAMETER_STRING:
+                    ada_feeding_default_planning_scene_namespace = response.values[
+                        1
+                    ].string_value
+        if (
+            ada_feeding_namespace_to_use is None
+            or ada_feeding_default_planning_scene_namespace is None
+        ):
+            self.get_logger().warn(
+                "Failed to get `namespace_to_use` and `default.planning_scene_namespace_to_use` from "
+                "`ada_feeding_action_servers`. Perhaps it is not running yet? Using the default namespace "
+                "in the `ada_planning_scene` YAML file."
+            )
+            return
+
+        # Second, get `planning_scene_namespace_to_use` within the `namespace_to_use` namespace.
+        request = GetParameters.Request()
+        request.names = [
+            f"{ada_feeding_namespace_to_use}.planning_scene_namespace_to_use"
+        ]
+        future = ada_feeding_get_parameters_client.call_async(request)
+        while (
+            rclpy.ok()
+            and not future.done()
+            and (self.get_clock().now() - start_time < timeout)
+        ):
+            rate.sleep()
+        if future.done():
+            response = future.result()
+            if len(response.values) > 0:
+                # If the parameter is set, that is the namespace to use
+                if response.values[0].type == ParameterType.PARAMETER_STRING:
+                    self.__namespace_to_use = response.values[0].string_value
+                    return
+                # If the parameter is not set, use the default namespace in `ada_feeding`
+                self.__namespace_to_use = ada_feeding_default_planning_scene_namespace
+                return
+        self.get_logger().warn(
+            f"Failed to get `{request.names[0]}` from `ada_feeding_action_servers`. Using the default namespace "
+            "in the `ada_planning_scene` YAML file."
+        )
+        return
 
     def parameter_callback(self, params: List[Parameter]) -> SetParametersResult:
         """

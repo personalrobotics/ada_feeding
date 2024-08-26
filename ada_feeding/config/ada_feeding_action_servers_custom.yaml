@@ -22,14 +22,14 @@ ada_feeding_action_servers:
       - 4.916644381246061
       - 1.7380801275071338
       MoveFromMouth.tree_kwargs.staging_configuration_position:
-      - 0.34747696493865265
-      - -0.07308038779785833
-      - 0.19207163519381526
+      - 0.6081959669757366
+      - -0.07835060871598665
+      - 0.20003578660416194
       MoveFromMouth.tree_kwargs.staging_configuration_quat_xyzw:
-      - 0.7090915266866867
-      - 0.08670448875279435
-      - 0.17412279154394644
-      - 0.6777557022085493
+      - 0.7144799976612057
+      - 0.07058338991982127
+      - 0.17428652585921275
+      - 0.6739143305446146
       MoveToRestingPosition.tree_kwargs.goal_configuration:
       - 1.969353563943468
       - 4.070232398326571
@@ -38,12 +38,12 @@ ada_feeding_action_servers:
       - -1.5705609033545338
       - 0.5052628782035897
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
-      - 2.2403158237891443
-      - 4.1219802814679
-      - 1.2300668363982512
-      - -1.4163968994364629
-      - -2.0259084528523905
-      - 0.761846098823169
+      - -3.690196913927282
+      - 4.26842937402412
+      - 1.9913679193043357
+      - -1.0381758266878451
+      - -2.0708628783690375
+      - 1.397755837070344
       planning_scene_namespace_to_use: bedside
     namespace_to_use: default
     side_staging_1:

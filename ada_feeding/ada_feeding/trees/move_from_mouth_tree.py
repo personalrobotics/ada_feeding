@@ -78,7 +78,7 @@ class MoveFromMouthTree(MoveToTree):
         max_velocity_scaling_factor_to_end_configuration: float = 0.1,
         cartesian_jump_threshold_to_staging_configuration: float = 0.0,
         cartesian_max_step_to_staging_configuration: float = 0.0025,
-        wheelchair_collision_object_id: str = "wheelchair_collision",
+        wheelchair_collision_object_id: str = "body",
         force_threshold_to_staging_configuration: float = 1.0,
         torque_threshold_to_staging_configuration: float = 1.0,
         force_threshold_to_end_configuration: float = 4.0,

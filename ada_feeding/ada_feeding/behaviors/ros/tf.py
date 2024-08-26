@@ -341,6 +341,8 @@ class ApplyTransform(BlackboardBehavior):
         if self.tf_lock.locked():
             return py_trees.common.Status.RUNNING
 
+        self.logger.debug(f"Applying transform to {stamped_msg}")
+
         transformed_msg = None
         with self.tf_lock:
             if target_frame is not None:
