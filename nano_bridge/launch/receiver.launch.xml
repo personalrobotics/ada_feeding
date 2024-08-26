@@ -1,0 +1,6 @@
+<launch>
+  <node pkg="nano_bridge" exec="nano_bridge_receiver" name="nano_bridge_receiver">
+    <param from="$(find-pkg-share nano_bridge)/config/nano_bridge.yaml"/>
+    <remap from="~/data" to="/nano_bridge/data"/>
+  </node>
+</launch>

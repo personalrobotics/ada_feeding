@@ -126,6 +126,10 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "~/run_camera.sh"
             + ("" if len(args.tty) == 0 else f" 2>&1 | tee {args.tty}"),
         ],
+        "nano_bridge": [
+            "~/run_nano_bridge.sh"
+            + ("" if len(args.tty) == 0 else f" 2>&1 | tee {args.tty}"),
+        ],
     }
     close_commands = {}
     initial_close_commands = ["\003"]  # Ctrl+c termination

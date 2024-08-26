@@ -3,17 +3,11 @@ republisher:
   ros__parameters:
     # The name of the topics to republish from
     from_topics:
-      - /camera/color/image_raw/compressed
       - /camera/color/camera_info
-      - /camera/aligned_depth_to_color/image_raw/compressedDepth
-      - /camera/aligned_depth_to_color/camera_info
       - /local/camera/aligned_depth_to_color/image_raw/compressedDepth
 
     # The types of topics to republish from
     in_topic_types:
-      - sensor_msgs.msg.CompressedImage
-      - sensor_msgs.msg.CameraInfo
-      - sensor_msgs.msg.CompressedImage
       - sensor_msgs.msg.CameraInfo
       - sensor_msgs.msg.CompressedImage
 
@@ -22,26 +16,17 @@ republisher:
     # Image->CompressedImage and vice-versa.
     out_topic_types:
       - ""
-      - ""
-      - ""
-      - ""
       - sensor_msgs.msg.Image
 
     # The name of the topics to republish to. NOTE: the `prefix` in the launchfile
     # must match the below pattern!
     to_topics:
-      - /local/camera/color/image_raw/compressed
       - /local/camera/color/camera_info
-      - /local/camera/aligned_depth_to_color/image_raw/compressedDepth
-      - /local/camera/aligned_depth_to_color/camera_info
       - /local/camera/aligned_depth_to_color/depth_octomap
 
     # The target rates (Hz) for the republished topics. Rates <= 0 will publish
     # every message.
     target_rates:
-      - 0
-      - 0
-      - 0
       - 0
       - 0
 
@@ -58,9 +43,6 @@ republisher:
     # Any of these post-processing functions can be combined in a comma-separated list.
     # If an empty string, no post-processors are applied.
     post_processors:
-      - ""
-      - ""
-      - ""
       - ""
       - threshold,mask,temporal,spatial # Apply filters to the depth image for the Octomap
     # The binary mask used for "mask" post-processing. This mask will get scaled,

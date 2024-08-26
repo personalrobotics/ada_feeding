@@ -1,0 +1,12 @@
+nano_bridge_sender:
+  ros__parameters:
+    topic_names:
+      - /camera/color/image_raw/compressed
+      - /camera/aligned_depth_to_color/image_raw/compressedDepth
+    topic_types:
+      - sensor_msgs.msg.CompressedImage
+      - sensor_msgs.msg.CompressedImage
+
+nano_bridge_receiver:
+  ros__parameters:
+    prefix: local
