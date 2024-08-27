@@ -171,8 +171,11 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "run_food_on_fork_detection:=false run_table_detection:=false "
                 ),
             ],
-            "nano_bridge": [
+            "nano_bridge_sender": [
                 "ros2 launch nano_bridge sender.launch.xml",
+            ],
+            "nano_bridge_receiver": [
+                "ros2 launch nano_bridge receiver.launch.xml",
             ],
             "perception": [
                 (

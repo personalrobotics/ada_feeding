@@ -77,7 +77,9 @@ def generate_launch_description():
         ),
         (
             "~/camera_info",
-            PythonExpression(expression=["'", prefix, "/camera/aligned_depth_to_color/camera_info'"]),
+            PythonExpression(
+                expression=["'", prefix, "/camera/aligned_depth_to_color/camera_info'"]
+            ),
         ),
     ]
     aligned_depth_remapping = [
