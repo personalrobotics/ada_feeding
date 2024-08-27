@@ -46,11 +46,11 @@ export class WebRTCConnection {
           console.log('onnegotiationneeded')
           const offer = await this.peerConnection.createOffer()
           await this.peerConnection.setLocalDescription(offer)
-          const ip = await this.getIPAddress()
+          // const ip = await this.getIPAddress()
           const payload = {
             sdp: this.peerConnection.localDescription,
-            topic: this.topic,
-            ip: ip
+            topic: this.topic
+            // ip: ip
           }
           console.log('sending payload', payload)
           const { data } = await axios.post(this.url, payload)
