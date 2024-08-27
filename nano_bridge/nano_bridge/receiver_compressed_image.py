@@ -264,7 +264,7 @@ class ReceiverCompressedImageNode(Node):
 
         # Create the camera info message
         if self.__sync_camera_info_with_topic is not None:
-            self.__camera_info_msg.header.stamp = msg.header.stamp
+            self.__camera_info_msg.header.stamp = msg.data.header.stamp
             self.__pub_camera_info.publish(self.__camera_info_msg)
 
         # Publish the message
