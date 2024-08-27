@@ -57,7 +57,7 @@ This README is the definitive source for downloading, installing, and running th
 
 ### Setup (System Configuration)
 
-Our system includes two computers, `lovelace` (Lenovo Legion 5i) and `nano` (Nvidia Jetson Nano), where the former runs camera code and the latter runs everything else. This repository includes some system-specific bash scripts to configure those computers. Specifically, move `start_nano.sh`, `start_nano.py`, and `run_camera.sh` to the home directory of `nano`. On `lovelace`, add a cronjob to run `configure_lovelace.sh` on reboot (e.g., `sudo crontab -e`, then add the line `@reboot <path/to/ada_feeding>/configure_lovelace.sh`).
+Our system includes two computers, `lovelace` (Lenovo Legion 5i) and `nano` (Nvidia Jetson Nano), where the former runs camera code and the latter runs everything else. This repository includes some system-specific bash scripts to configure those computers. Specifically, move `start_nano.sh`, `start_nano.py`, `run_camera.sh`, and `run_nano_bridge.sh` to the home directory of `nano`. Copy `nano_bridge` into the ROS2 workspace on `nano` (e.g., `~/Workspace/camera_ros2`), and rebuild it. On `lovelace`, add a cronjob to run `configure_lovelace.sh` on reboot (e.g., `sudo crontab -e`, then add the line `@reboot <path/to/ada_feeding>/configure_lovelace.sh`).
 
 Note that these scripts will likely need to be changed for your setup's computers; however, perhaps the commands in these scripts can provide you inspiration.
 
