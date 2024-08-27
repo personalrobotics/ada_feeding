@@ -201,6 +201,7 @@ class CollisionObjectManager:
         timeout: Duration = Duration(seconds=10.0),
         ignore_existing: bool = False,
         publish_feedback: Optional[Callable[[], None]] = None,
+        retry_until_added: bool = True,
     ) -> bool:
         """
         Add collision objects to the planning scene.
@@ -212,6 +213,7 @@ class CollisionObjectManager:
         timeout: The maximum amount of time to wait for the collision objects to be added.
         ignore_existing: If True, ignore the existing collision objects.
         publish_feedback: If specified, invoke this function periodically.
+        retry_until_added: If True, keep retrying until all collision objects are added.
 
         Returns
         -------
@@ -302,6 +304,8 @@ class CollisionObjectManager:
                         frame_id=params.frame_id,
                     )
                 rate.sleep()
+            if not retry_until_added:
+                break
 
         # Second, attach all collision objects that need to be attached
         attached_collision_object_ids = {
@@ -346,6 +350,8 @@ class CollisionObjectManager:
                     touch_links=params.touch_links,
                 )
                 rate.sleep()
+            if not retry_until_added:
+                break
 
         # Remove the batch that corresponds to this add_collision_objects
         # operation

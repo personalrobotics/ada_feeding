@@ -451,6 +451,7 @@ class PlanningSceneInitializer:
                 success = self.__collision_object_manager.add_collision_objects(
                     objects=self.objects[self.__namespace_to_use][object_id],
                     ignore_existing=True,
+                    retry_until_added=False,
                 )
                 message = f"Object '{object_id}' {'' if success else 'not '}added."
             elif request.operation == ModifyCollisionObject.Request.REMOVE:

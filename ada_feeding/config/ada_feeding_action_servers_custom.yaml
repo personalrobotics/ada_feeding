@@ -45,7 +45,7 @@ ada_feeding_action_servers:
       - -2.1827671763194583
       - 1.6106314909061383
       planning_scene_namespace_to_use: bedside
-    namespace_to_use: hospital_table_mount_1
+    namespace_to_use: default
     side_staging_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.8849039817349507
