@@ -307,7 +307,7 @@ def servo_until_pose(
         sense_behavior.add_child(
             SetStaticTransform(
                 name=f"{name} ServoUntilPose PublishPose",
-                ns=name,
+                ns=ns,
                 inputs={
                     "transform": BlackboardKey("ee_to_target_pose_stamped"),
                     "child_frame_id": "servo_until_pose_target",

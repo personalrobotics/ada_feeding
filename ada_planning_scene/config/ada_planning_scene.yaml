@@ -105,36 +105,36 @@ ada_planning_scene:
         - in_front_of_face_wall # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
       bed: # the wheelchair mesh
         filename: bed_with_back.stl
-        position: [0.68, -0.4, -1.24]
-        quat_xyzw: [0.0, 0.0, 1.0, 0.0]
+        position: [-0.68, 0.4, -1.24]
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: False # whether to add workspace walls around the wheelchair
       body: 
         filename: body_collision_in_bed.stl
-        position: [0.68, -0.4, -1.24] # should match the wheelchair position
-        quat_xyzw: [0.0, 0.0, 1.0, 0.0] # should match the wheelchair orientation
+        position: [-0.68, 0.4, -1.24] # should match the wheelchair position
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
       table: # the table mesh
         filename: hospital_table.stl
         # Initial predicted position and orientation of the table; these values get
         # updated as the robot perceives the table.
-        position: [0.68, -0.6, -1.04]
-        quat_xyzw: [0.0, 0.0, 1.0, 0.0]
+        position: [-0.68, 0.6, -1.04]
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
       head: # the head mesh
         filename: tom.stl
         # This is an initial guess of head position; it will be updated as the
         # robot perceives the face.
-        position: [0.68, -0.22, 0.08]
-        quat_xyzw: [0.0010617, -0.0010994, 0.6946612, 0.7193354]
+        position: [-0.68, 0.22, 0.08]
+        quat_xyzw: [0.0010617, -0.0010994, -0.6946612, 0.7193354]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
       in_front_of_face_wall: # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
         primitive_type: 1 # shape_msgs/SolidPrimitive.BOX
         primitive_dims: [0.65, 0.01, 0.6]
-        position: [0.37, -0.11, 0.26]
+        position: [-0.37, 0.11, 0.26]
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         add_on_initialize: False # don't add this to the planning scene initially
@@ -209,9 +209,11 @@ ada_planning_scene:
     seated:
       head_object_id: head
       head_distance_threshold: 0.5 # m
+      update_body: True
     bedside:
       head_object_id: head
       head_distance_threshold: 0.5 # m
+      update_body: False
 
     ############################################################################
     # Parameters related to the UpdateFromTableDetectionpace class

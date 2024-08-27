@@ -97,6 +97,12 @@ class MoveToMouthTree(MoveToTree):
             -0.5,
             0.5,
         ),
+        mouth_orientation: Tuple[float, float, float, float] = (
+            0.0,
+            0.0,
+            -0.7071068,
+            0.7071068,
+        ),  # Facing away from the wheelchair backrest
     ):
         """
         Initializes tree-specific parameters.
@@ -132,6 +138,8 @@ class MoveToMouthTree(MoveToTree):
         plan_distance_from_mouth: The distance (m) to plan from the mouth center.
         fork_target_orientation_from_mouth: The fork's target orientation, in *mouth*
             frame. Pointing straight to the mouth is (0.5, -0.5, -0.5, 0.5).
+        mouth_orientation: The quaternion for the mouth pose. By default, it is facing
+            away from the wheelchair backrest in the seated planning scene.
         """
 
         # pylint: disable=too-many-locals
@@ -159,6 +167,7 @@ class MoveToMouthTree(MoveToTree):
         self.face_detection_timeout = face_detection_timeout
         self.plan_distance_from_mouth = plan_distance_from_mouth
         self.fork_target_orientation_from_mouth = fork_target_orientation_from_mouth
+        self.mouth_orientation = mouth_orientation
 
         self.face_detection_relative_blackboard_key = "face_detection"
 
@@ -364,12 +373,7 @@ class MoveToMouthTree(MoveToTree):
                                     ns=name,
                                     inputs={
                                         "position": BlackboardKey("mouth_position"),
-                                        "quaternion": [
-                                            0.0,
-                                            0.0,
-                                            -0.7071068,
-                                            0.7071068,
-                                        ],  # Facing away from wheelchair backrest
+                                        "quaternion": self.mouth_orientation,
                                     },
                                     outputs={
                                         "pose_stamped": BlackboardKey(

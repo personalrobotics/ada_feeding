@@ -522,8 +522,8 @@ class AcquireFoodTree(MoveToTree):
                                     name="BackupFlipFoodFrameSel",
                                     memory=True,
                                     children=[
-                                        move_above_plan(True),
                                         move_above_plan(False),
+                                        move_above_plan(True),
                                     ],
                                 ),
                                 MoveIt2Execute(
