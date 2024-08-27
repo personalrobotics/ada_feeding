@@ -20,3 +20,36 @@ sender_compressed_image:
 receiver_compressed_image:
   ros__parameters:
     prefix: local
+
+    sync_camera_info_with_topic: /camera/aligned_depth_to_color/image_raw/compressedDepth
+    camera_info_pub_topic: /local/camera/aligned_depth_to_color/camera_info
+    camera_info:
+      frame_id: camera_color_optical_frame
+      height: 480
+      width: 640
+      distortion_model: plumb_bob
+      d: [0.0, 0.0, 0.0, 0.0, 0.0]
+      k:
+        - 614.5933227539062
+        - 0.0
+        - 312.1358947753906
+        - 0.0
+        - 614.6914672851562
+        - 223.70831298828125
+        - 0.0
+        - 0.0
+        - 1.0
+      r: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      p:
+        - 614.5933227539062
+        - 0.0
+        - 312.1358947753906
+        - 0.0
+        - 0.0
+        - 614.6914672851562
+        - 223.70831298828125
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        - 0.0
