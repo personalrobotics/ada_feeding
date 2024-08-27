@@ -48,6 +48,7 @@ const Header = (props) => {
   // Get the relevant global state variables
   const mealState = useGlobalState((state) => state.mealState)
   const inNonMovingState = useGlobalState((state) => state.inNonMovingState)
+  const paused = useGlobalState((state) => state.paused)
   const setAppPage = useGlobalState((state) => state.setAppPage)
 
   /**
@@ -66,7 +67,7 @@ const Header = (props) => {
     // Both checks are necessary because some states that are nominally non-moving
     // could be in an auto-continue state, and some states that are nominally moving
     // could be paused.
-    if (inNonMovingState && NON_MOVING_STATES.has(mealState)) {
+    if ((inNonMovingState && NON_MOVING_STATES.has(mealState)) || (!NON_MOVING_STATES.has(mealState) && paused)) {
       setAppPage(APP_PAGE.Settings)
     } else {
       toast.info('Wait for robot motion to complete before accessing Settings.', {
@@ -74,7 +75,7 @@ const Header = (props) => {
         toastId: 'noSettings'
       })
     }
-  }, [inNonMovingState, mealState, setAppPage])
+  }, [inNonMovingState, mealState, paused, setAppPage])
 
   // Render the component. The NavBar will stay fixed even as we vertically scroll.
   return (
