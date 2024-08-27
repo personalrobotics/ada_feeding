@@ -151,12 +151,6 @@ ada_planning_scene:
       disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
     bedside:
       disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
-      # TODO: remove!
-      disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
-      disable_workspace_wall_x_min: True # Remove the back wall, to be able to see in in RVIZ
-      disable_workspace_wall_x_max: True # Remove the back wall, to be able to see in in RVIZ
-      disable_workspace_wall_z_min: True # Remove the back wall, to be able to see in in RVIZ
-      disable_workspace_wall_z_max: True # Remove the back wall, to be able to see in in RVIZ
 
     # Whether the workspace walls should contain the robot's current configuration
     # at time of recomputation.
@@ -166,7 +160,12 @@ ada_planning_scene:
     # from it, to get the robot URDF
     get_urdf_parameter_service_name: "/move_group/get_parameters"
     urdf_parameter_name: "robot_description"
-
+      # TODO: remove!
+      disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
+      disable_workspace_wall_x_min: True # Remove the back wall, to be able to see in in RVIZ
+      disable_workspace_wall_x_max: True # Remove the back wall, to be able to see in in RVIZ
+      disable_workspace_wall_z_min: True # Remove the back wall, to be able to see in in RVIZ
+      disable_workspace_wall_z_max: True # Remove the back wall, to be able to see in in RVIZ
     # The service that needs to be called, and parameters that need to be requested,
     # to get the robot joint positions that must be in the workspace walls. Note that
     # the parameter name is made by first getting the parameter value from the

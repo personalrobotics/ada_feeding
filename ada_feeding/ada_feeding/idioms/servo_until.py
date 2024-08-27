@@ -27,7 +27,6 @@ import numpy as np
 import py_trees
 from py_trees.behaviours import UnsetBlackboardVariable
 from py_trees.blackboard import Blackboard
-import rclpy  # TODO: remove!
 from rclpy.duration import Duration
 from rclpy.time import Time
 import ros2_numpy
@@ -151,17 +150,6 @@ def pose_within_tolerances(
         target_pose.pose.position
     ) - ros2_numpy.numpify(current_pose.pose.position)
 
-    # TODO: remove!
-    rclpy.logging.get_logger("pose_within_tolerances").info(
-        f"linear_displacement: {linear_displacement}"
-    )
-    rclpy.logging.get_logger("pose_within_tolerances").info(
-        f"target_pose: {ros2_numpy.numpify(target_pose.pose.position)}"
-    )
-    rclpy.logging.get_logger("pose_within_tolerances").info(
-        f"current_pose: {ros2_numpy.numpify(current_pose.pose.position)}"
-    )
-
     linear_distance = np.linalg.norm(linear_displacement)
     if linear_distance > tolerance_position:
         return False
@@ -201,8 +189,7 @@ def servo_until_pose(
     ignore_orientation: bool = False,
     subscribe_to_servo_status: bool = True,
     pub_topic: str = "~/servo_twist_cmds",
-    # TODO: change default to False!
-    viz: bool = True,
+    viz: bool = False,
 ) -> py_trees.behaviour.Behaviour:
     """
     Servos until the end_effector_frame reaches within the specified tolerances
