@@ -94,7 +94,7 @@ class SenderCompressedImageNode(Node):
                 self.__msg_recv_time[topic_name] = start_time
             self.__msg_count[topic_name] += 1
 
-        # Create the ByteMultiArray message
+        # Create the message
         msg_out = CompressedImageOutput(
             topic=topic_name,
             data=msg_in,
