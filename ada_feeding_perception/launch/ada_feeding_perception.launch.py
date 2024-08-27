@@ -9,9 +9,14 @@ from ament_index_python.packages import get_package_share_directory
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.launch_description_sources import AnyLaunchDescriptionSource
+from launch.substitutions import (
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
 
 
 # pylint: disable=too-many-locals
@@ -47,6 +52,20 @@ def generate_launch_description():
     )
     launch_description.add_action(republisher)
 
+    # Add the nano_bridge receiver node
+    nano_bridge_receiver = IncludeLaunchDescription(
+        AnyLaunchDescriptionSource(
+            PathJoinSubstitution(
+                [
+                    get_package_share_directory("nano_bridge"),
+                    "launch",
+                    "receiver.launch.xml",
+                ]
+            ),
+        ),
+    )
+    launch_description.add_action(nano_bridge_receiver)
+
     # Remap from the perception nodes to the realsense topics
     prefix = "/local"  # NOTE: must match the topic names in the yaml file!
     realsense_remappings = [
@@ -58,7 +77,9 @@ def generate_launch_description():
         ),
         (
             "~/camera_info",
-            PythonExpression(expression=["'", prefix, "/camera/color/camera_info'"]),
+            PythonExpression(
+                expression=["'", prefix, "/camera/aligned_depth_to_color/camera_info'"]
+            ),
         ),
     ]
     aligned_depth_remapping = [

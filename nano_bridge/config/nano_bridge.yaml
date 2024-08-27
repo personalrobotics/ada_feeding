@@ -1,0 +1,22 @@
+sender:
+  ros__parameters:
+    topic_names:
+      - /camera/color/image_raw/compressed
+      - /camera/aligned_depth_to_color/image_raw/compressedDepth
+    topic_types:
+      - sensor_msgs.msg.CompressedImage
+      - sensor_msgs.msg.CompressedImage
+
+receiver:
+  ros__parameters:
+    prefix: local
+
+sender_compressed_image:
+  ros__parameters:
+    topic_names:
+      - /camera/color/image_raw/compressed
+      - /camera/aligned_depth_to_color/image_raw/compressedDepth
+
+receiver_compressed_image:
+  ros__parameters:
+    prefix: local

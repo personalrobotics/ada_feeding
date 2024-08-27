@@ -21,6 +21,7 @@ import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from std_srvs.srv import SetBool
 from tf2_ros.buffer import Buffer
@@ -129,7 +130,7 @@ class FoodOnForkDetectionNode(Node):
             CameraInfo,
             "~/camera_info",
             self.camera_info_callback,
-            1,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -150,7 +151,7 @@ class FoodOnForkDetectionNode(Node):
             aligned_depth_type,
             aligned_depth_topic,
             self.depth_callback,
-            1,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -174,7 +175,7 @@ class FoodOnForkDetectionNode(Node):
                 image_type,
                 image_topic,
                 self.camera_callback,
-                1,
+                QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
                 callback_group=MutuallyExclusiveCallbackGroup(),
             )
 

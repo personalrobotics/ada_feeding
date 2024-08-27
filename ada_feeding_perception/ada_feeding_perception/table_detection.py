@@ -16,6 +16,7 @@ import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from std_srvs.srv import SetBool
@@ -85,7 +86,7 @@ class TableDetectionNode(Node):
             CameraInfo,
             "~/camera_info",
             self.camera_info_callback,
-            1,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -104,7 +105,7 @@ class TableDetectionNode(Node):
             aligned_depth_type,
             aligned_depth_topic,
             self.depth_image_callback,
-            1,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -123,7 +124,7 @@ class TableDetectionNode(Node):
             image_type,
             image_topic,
             self.image_callback,
-            1,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 

@@ -25,6 +25,7 @@ import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 # Local imports
 from ada_feeding.helpers import import_from_string
@@ -208,7 +209,9 @@ class Republisher(Node):
                 msg_type=self.in_topic_types[i],
                 topic=self.from_topics[i],
                 callback=callback,
-                qos_profile=1,  # TODO: we should get and mirror the QOS profile of the from_topic
+                qos_profile=QoSProfile(
+                    depth=1, reliability=ReliabilityPolicy.BEST_EFFORT
+                ),  # TODO: we should get and mirror the QOS profile of the from_topic
                 callback_group=MutuallyExclusiveCallbackGroup(),
             )
             self.subs.append(subscriber)

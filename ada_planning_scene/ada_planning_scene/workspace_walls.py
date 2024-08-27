@@ -1057,10 +1057,9 @@ class WorkspaceWalls:
             success = self.__update_robot_configuration_bounds(
                 rate_hz=rate_hz,
                 timeout=get_remaining_time(self.__node, start_time, timeout),
-                # For repeatability, during initialization we don't account for the
-                # current robot config, but during every other update, we do if
-                # the parameter is set.
-                include_current_robot_config=False,
+                # Although accounting for the current configuration during initialization
+                # harms repeatability, it does ensure the robot will always be able to move.
+                include_current_robot_config=True,
             )
             if not success:
                 self.__node.get_logger().info(
