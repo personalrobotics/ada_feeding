@@ -30,11 +30,15 @@ ada_planning_scene:
     ############################################################################
     
     seated:
-      object_ids: # list of objects to add to the planning scene
+      # list of objects to add to the planning scene. Before changing names,
+      # check where else they are used (e.g., in `ada_feeding`). Ideally, the object_ids
+      # across different namespaces should be the same.
+      object_ids:
         - wheelchair
-        - body
+        - body # expanded mesh around the wheelchair to account for a user sitting in it
         - table
         - head
+        - in_front_of_face_wall # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
       # For each object, specify:
       #   - Shape: EITHER `filepath` (for a mesh) OR `primitive_type` and
       #     `primitive_dims`(for a primitive -- see shape_msgs/SolidPrimitive.msg)
@@ -47,16 +51,17 @@ ada_planning_scene:
       #     ignored for collision checking.
       #   - [Optional] to ensure the workspace walls include the object, specify
       #     `within_workspace_walls` to be True.
+      #   - [Optional] to specify that the object should not initially be added to the
+      #     planning scene, specify `add_on_initialize` to False.
       wheelchair: # the wheelchair mesh
         filename: wheelchair.stl
         position: [0.02, -0.02, -0.05]
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
-      # an expanded mesh around the wheelchair to account for a user sitting in it
       # NOTE: If you change this you must also change the hardcoded initial pose in
       # bite transfer.
-      body: 
+      body: # an expanded mesh around the wheelchair to account for a user sitting in it
         filename: body_collision_in_wheelchair.stl
         position: [0.02, -0.02, -0.05] # should match the wheelchair position
         quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
@@ -80,41 +85,59 @@ ada_planning_scene:
         quat_xyzw: [-0.0616284, -0.0616284, -0.6804416, 0.704416]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
+      in_front_of_face_wall: # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
+        primitive_type: 1 # shape_msgs/SolidPrimitive.BOX
+        primitive_dims: [0.65, 0.01, 0.4]
+        position: [0.37, 0.17, 0.85]
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+        frame_id: root # the frame_id that the pose is relative to
+        add_on_initialize: False # don't add this to the planning scene initially
 
     bedside:
+      # list of objects to add to the planning scene. Before changing names,
+      # check where else they are used (e.g., in `ada_feeding`). Ideally, the object_ids
+      # across different namespaces should be the same.
       object_ids: # list of objects to add to the planning scene
         - bed
-        - body
+        - body # expanded mesh above the bed to account for a user lying in it
         - table
         - head
+        - in_front_of_face_wall # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
       bed: # the wheelchair mesh
         filename: bed_with_back.stl
-        position: [0.68, -0.6, -1.05]
-        quat_xyzw: [0.0, 0.0, 1.0, 0.0]
+        position: [-0.68, 0.4, -1.24]
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: False # whether to add workspace walls around the wheelchair
       body: 
         filename: body_collision_in_bed.stl
-        position: [0.68, -0.6, -1.05] # should match the wheelchair position
-        quat_xyzw: [0.0, 0.0, 1.0, 0.0] # should match the wheelchair orientation
+        position: [-0.68, 0.4, -1.24] # should match the wheelchair position
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
       table: # the table mesh
         filename: hospital_table.stl
         # Initial predicted position and orientation of the table; these values get
         # updated as the robot perceives the table.
-        position: [0.68, -0.6, -1.05]
-        quat_xyzw: [0.0, 0.0, 1.0, 0.0]
+        position: [-0.68, 0.6, -1.04]
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
       head: # the head mesh
         filename: tom.stl
         # This is an initial guess of head position; it will be updated as the
         # robot perceives the face.
-        position: [0.68, -0.42, 0.27]
-        quat_xyzw: [-0.0626945, -0.0626602, 0.6918303, 0.7165989]
+        position: [-0.68, 0.22, 0.08]
+        quat_xyzw: [0.0010617, -0.0010994, -0.6946612, 0.7193354]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
+      in_front_of_face_wall: # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
+        primitive_type: 1 # shape_msgs/SolidPrimitive.BOX
+        primitive_dims: [0.65, 0.01, 0.6]
+        position: [-0.37, 0.11, 0.26]
+        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+        frame_id: root # the frame_id that the pose is relative to
+        add_on_initialize: False # don't add this to the planning scene initially
 
     ############################################################################
     # Parameters related to the WorkspaceWalls class
@@ -128,6 +151,12 @@ ada_planning_scene:
       disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
     bedside:
       disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
+      # TODO: remove!
+      disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
+      disable_workspace_wall_x_min: True # Remove the back wall, to be able to see in in RVIZ
+      disable_workspace_wall_x_max: True # Remove the back wall, to be able to see in in RVIZ
+      disable_workspace_wall_z_min: True # Remove the back wall, to be able to see in in RVIZ
+      disable_workspace_wall_z_max: True # Remove the back wall, to be able to see in in RVIZ
 
     # Whether the workspace walls should contain the robot's current configuration
     # at time of recomputation.
@@ -180,9 +209,11 @@ ada_planning_scene:
     seated:
       head_object_id: head
       head_distance_threshold: 0.5 # m
+      update_body: True
     bedside:
       head_object_id: head
       head_distance_threshold: 0.5 # m
+      update_body: False
 
     ############################################################################
     # Parameters related to the UpdateFromTableDetectionpace class
@@ -195,19 +226,11 @@ ada_planning_scene:
     #    latest table quaternion.
     # - `table_pos_dist_thresh`: The threshold on the linear distance (in m) between the default table position
     #    and the latest table position to determine whether to reject or accept the latest table position.
-
     seated:
       table_origin_offset: [-0.20, -0.25, -0.79]
       table_quat_dist_thresh: 0.349
       table_pos_dist_thresh: 0.5
     bedside:
-      disable_table_detection: true
-      # TODO: The offset values have to be tuned. The z-value has already been computed, 
-      # by analytically computing the z value of the top-surface of the table. The x and
-      # y have to be tuned. Note that given how close the robot is to the table, the table
-      # detector node may have to be extended to only allow updating certain dimensions of
-      # the pose, and leaving other dimensions the default (e.g., don't update x or yaw, as
-      # those could allow the table to collide with the robot base in the planning scene).
-      table_origin_offset: [-0.20, -0.25, 1.0067]
+      table_origin_offset: [0.23, -0.71, -1.0067]
       table_quat_dist_thresh: 0.349
       table_pos_dist_thresh: 0.5

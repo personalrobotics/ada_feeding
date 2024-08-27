@@ -10,10 +10,12 @@ from typing import List
 
 # Third-party imports
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
 from rclpy.node import Node
 
 # Local imports
+from ada_feeding_msgs.srv import ModifyCollisionObject
 from ada_planning_scene.collision_object_manager import CollisionObjectManager
 from ada_planning_scene.helpers import (
     check_ok,
@@ -54,10 +56,14 @@ class PlanningSceneInitializer:
         self.__namespaces = namespaces
         self.__namespace_to_use = namespace_to_use
 
+        # Initialize the parameters
         self.objects = (
             {}
         )  # namespace (str) -> object_id (str) -> params (CollisionObjectParams)
         self.__load_parameters()
+
+        # Don't yet initialize the service to modify collision objects
+        self._modify_collision_object_service = None
 
     def __load_parameters(self) -> None:
         """
@@ -253,6 +259,18 @@ class PlanningSceneInitializer:
                         read_only=True,
                     ),
                 )
+                add_on_initialize = self.__node.declare_parameter(
+                    f"{namespace}.{object_id}.add_on_initialize",
+                    True,
+                    descriptor=ParameterDescriptor(
+                        name=f"{namespace}.{object_id}.add_on_initialize",
+                        type=ParameterType.PARAMETER_BOOL,
+                        description=(
+                            "Whether to add the object to the planning scene during initialization."
+                        ),
+                        read_only=True,
+                    ),
+                )
 
                 # Add the object to the list of objects
                 filepath = (
@@ -273,6 +291,7 @@ class PlanningSceneInitializer:
                     within_workspace_walls=within_workspace_walls.value,
                     attached=attached.value,
                     touch_links=touch_links,
+                    add_on_initialize=add_on_initialize.value,
                 )
 
     def __wait_for_moveit(self, timeout: Duration(seconds=10.0)) -> bool:
@@ -352,8 +371,13 @@ class PlanningSceneInitializer:
 
         # Add the objects to the planning scene
         self.__node.get_logger().info("Adding objects to the planning scene...")
+        objects_to_add = {
+            object_id: params
+            for object_id, params in self.objects[self.__namespace_to_use].items()
+            if params.add_on_initialize
+        }
         success = self.__collision_object_manager.add_collision_objects(
-            objects=self.objects[self.__namespace_to_use],
+            objects=objects_to_add,
             rate_hz=rate_hz,
             timeout=get_remaining_time(self.__node, start_time, timeout),
             ignore_existing=True,
@@ -364,6 +388,20 @@ class PlanningSceneInitializer:
             )
             return False
         self.__node.get_logger().info("Initialized planning scene.")
+
+        # Initialize the service to modify collision objects
+        self.__node.get_logger().info(
+            "Initializing service to modify collision objects..."
+        )
+        self._modify_collision_object_service = self.__node.create_service(
+            ModifyCollisionObject,
+            "~/modify_collision_object",
+            self.__modify_collision_object_callback,
+            callback_group=MutuallyExclusiveCallbackGroup(),
+        )
+        self.__node.get_logger().info(
+            "...initialized service to modify collision objects."
+        )
 
         return True
 
@@ -386,3 +424,44 @@ class PlanningSceneInitializer:
                 f"Namespace '{namespace_to_use}' not in the list of namespaces {self.__namespaces}."
             )
         self.__namespace_to_use = namespace_to_use
+
+    def __modify_collision_object_callback(
+        self,
+        request: ModifyCollisionObject.Request,
+        response: ModifyCollisionObject.Response,
+    ) -> ModifyCollisionObject.Response:
+        """
+        Add or remove a collision object in the planning scene.
+
+        Parameters
+        ----------
+        request: The request to modify the collision object.
+        response: The response to modify the collision object.
+
+        Returns
+        -------
+        response: The response to modify the collision object.
+        """
+        object_id = request.object_id
+        if object_id not in self.objects[self.__namespace_to_use]:
+            success = False
+            message = f"Object '{object_id}' not found."
+        else:
+            if request.operation == ModifyCollisionObject.Request.ADD:
+                success = self.__collision_object_manager.add_collision_objects(
+                    objects=self.objects[self.__namespace_to_use][object_id],
+                    ignore_existing=True,
+                    retry_until_added=False,
+                )
+                message = f"Object '{object_id}' {'' if success else 'not '}added."
+            elif request.operation == ModifyCollisionObject.Request.REMOVE:
+                success = self.__collision_object_manager.remove_collision_object(
+                    object_id=object_id
+                )
+                message = f"Object '{object_id}' {'' if success else 'not '}removed."
+            else:
+                success = False
+                message = "Invalid operation."
+        response.success = success
+        response.message = message
+        return response

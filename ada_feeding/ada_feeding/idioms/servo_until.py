@@ -27,6 +27,7 @@ import numpy as np
 import py_trees
 from py_trees.behaviours import UnsetBlackboardVariable
 from py_trees.blackboard import Blackboard
+import rclpy  # TODO: remove!
 from rclpy.duration import Duration
 from rclpy.time import Time
 import ros2_numpy
@@ -38,6 +39,7 @@ from ada_feeding.behaviors.moveit2 import ServoMove
 from ada_feeding.behaviors.ros import (
     ApplyTransform,
     PoseStampedToTwistStamped,
+    SetStaticTransform,
     TrackHz,
     UpdateTimestamp,
 )
@@ -148,6 +150,18 @@ def pose_within_tolerances(
     linear_displacement = ros2_numpy.numpify(
         target_pose.pose.position
     ) - ros2_numpy.numpify(current_pose.pose.position)
+
+    # TODO: remove!
+    rclpy.logging.get_logger("pose_within_tolerances").info(
+        f"linear_displacement: {linear_displacement}"
+    )
+    rclpy.logging.get_logger("pose_within_tolerances").info(
+        f"target_pose: {ros2_numpy.numpify(target_pose.pose.position)}"
+    )
+    rclpy.logging.get_logger("pose_within_tolerances").info(
+        f"current_pose: {ros2_numpy.numpify(current_pose.pose.position)}"
+    )
+
     linear_distance = np.linalg.norm(linear_displacement)
     if linear_distance > tolerance_position:
         return False
@@ -187,6 +201,8 @@ def servo_until_pose(
     ignore_orientation: bool = False,
     subscribe_to_servo_status: bool = True,
     pub_topic: str = "~/servo_twist_cmds",
+    # TODO: change default to False!
+    viz: bool = True,
 ) -> py_trees.behaviour.Behaviour:
     """
     Servos until the end_effector_frame reaches within the specified tolerances
@@ -228,6 +244,7 @@ def servo_until_pose(
     subscribe_to_servo_status: if True, subscribe to the servo status topic and
         fail on failure statuses. If False, ignore that topic.
     pub_topic: The topic to publish twist commands to.
+    viz: if True, publish the target pose as a static TF transform.
 
     Returns
     -------
@@ -254,6 +271,127 @@ def servo_until_pose(
     if not subscribe_to_servo_status:
         servo_inputs["servo_status_sub_topic"] = None
 
+    # Sense the distance from the end effector to the target pose
+    sense_behavior = py_trees.composites.Sequence(
+        name=f"{name} ServoUntilPose Condition",
+        memory=True,
+        children=[
+            # Update the timestamp of the target_pose_stamped
+            UpdateTimestamp(
+                name=f"{name} Update Timestamp",
+                ns=ns,
+                inputs={
+                    "stamped_msg": target_pose_stamped_key,
+                    "timestamp": Time(seconds=0.0),  # Get latest transform
+                },
+                outputs={
+                    "stamped_msg": target_pose_stamped_key,
+                },
+            ),
+            # Get the target_pose_stamped in the end effector frame
+            ApplyTransform(
+                name=f"{name} ServoUntilPose GetEEDisplacement",
+                ns=ns,
+                inputs={
+                    "stamped_msg": target_pose_stamped_key,
+                    "target_frame": end_effector_frame,
+                },
+                outputs={
+                    "transformed_msg": BlackboardKey("ee_to_target_pose_stamped"),
+                },
+            ),
+        ],
+    )
+    if viz:
+        # Cache the target pose on the static TF tree
+        sense_behavior.add_child(
+            SetStaticTransform(
+                name=f"{name} ServoUntilPose PublishPose",
+                ns=ns,
+                inputs={
+                    "transform": BlackboardKey("ee_to_target_pose_stamped"),
+                    "child_frame_id": "servo_until_pose_target",
+                },
+            ),
+        )
+
+    # Check whether the ee_to_target_pose_stamped is within the tolerances.
+    # Note that this behavior can technically return FAILURE for a reason
+    # other than the condition not being met, specifically if the blackboard
+    # variable doens't exist or the permissions are not correctly set.
+    # Therefore, it is crucial to be vigilant when testing this idiom.
+    check_behavior = py_trees.behaviours.CheckBlackboardVariableValue(
+        name=f"{name} ServoUntilPose CheckTolerances",
+        check=py_trees.common.ComparisonExpression(
+            variable=ee_to_target_pose_stamped_absolute_key,
+            value=PoseStamped(
+                header=Header(frame_id=end_effector_frame),
+                pose=Pose(
+                    position=Point(x=0.0, y=0.0, z=0.0),
+                    orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0),
+                ),
+            ),
+            operator=partial(
+                pose_within_tolerances,
+                tolerance_position=tolerance_position,
+                tolerance_orientation=np.inf
+                if ignore_orientation
+                else tolerance_orientation,
+            ),
+        ),
+    )
+
+    # Compute the twist based on the ee_to_target_pose_stamped
+    compute_twist_behavior = py_trees.composites.Sequence(
+        name=f"{name} ServoUntilPose Condition",
+        memory=False,
+        children=[
+            # Monitor the rate at which this idiom is running
+            TrackHz(
+                name=f"{name} TrackHz",
+                ns=ns,
+                inputs={
+                    "num_ticks": BlackboardKey("num_ticks"),
+                    "start_time": BlackboardKey("start_time"),
+                },
+                outputs={
+                    "hz": BlackboardKey("servoHz"),
+                    "num_ticks": BlackboardKey("num_ticks"),
+                    "start_time": BlackboardKey("start_time"),
+                },
+            ),
+            # Compute the twist
+            PoseStampedToTwistStamped(
+                name=f"{name} {SERVO_UNTIL_POSE_DISTANCE_BEHAVIOR_NAME}",
+                ns=ns,
+                inputs={
+                    "pose_stamped": BlackboardKey("ee_to_target_pose_stamped"),
+                    "speed": speed,
+                    "hz": BlackboardKey("servoHz"),
+                    "round_decimals": round_decimals,
+                    "angular_override": Vector3(x=0.0, y=0.0, z=0.0)
+                    if ignore_orientation
+                    else None,
+                },
+                outputs={
+                    "twist_stamped": BlackboardKey("twist_in_ee_frame"),
+                },
+            ),
+            # Convert to base frame
+            ApplyTransform(
+                name=f"{name} ServoUntilPose GetEETwist",
+                ns=ns,
+                inputs={
+                    "stamped_msg": BlackboardKey("twist_in_ee_frame"),
+                    "target_frame": base_link,
+                },
+                outputs={
+                    "transformed_msg": twist_blackboard_key,
+                },
+            ),
+        ],
+    )
+
     return py_trees.composites.Selector(
         name=name,
         memory=True,
@@ -276,124 +414,9 @@ def servo_until_pose(
                     servo_until(
                         name=name,
                         ns=ns,
-                        # Sense the distance from the end effector to the target pose
-                        sense=py_trees.composites.Sequence(
-                            name=f"{name} ServoUntilPose Condition",
-                            memory=True,
-                            children=[
-                                # Update the timestamp of the target_pose_stamped
-                                UpdateTimestamp(
-                                    name=f"{name} Update Timestamp",
-                                    ns=ns,
-                                    inputs={
-                                        "stamped_msg": target_pose_stamped_key,
-                                        "timestamp": Time(
-                                            seconds=0.0
-                                        ),  # Get latest transform
-                                    },
-                                    outputs={
-                                        "stamped_msg": target_pose_stamped_key,
-                                    },
-                                ),
-                                # Get the target_pose_stamped in the end effector frame
-                                ApplyTransform(
-                                    name=f"{name} ServoUntilPose GetEEDisplacement",
-                                    ns=ns,
-                                    inputs={
-                                        "stamped_msg": target_pose_stamped_key,
-                                        "target_frame": end_effector_frame,
-                                    },
-                                    outputs={
-                                        "transformed_msg": BlackboardKey(
-                                            "ee_to_target_pose_stamped"
-                                        ),
-                                    },
-                                ),
-                            ],
-                        ),
-                        # Check whether the ee_to_target_pose_stamped is within the tolerances.
-                        # Note that this behavior can technically return FAILURE for a reason
-                        # other than the condition not being met, specifically if the blackboard
-                        # variable doens't exist or the permissions are not correctly set.
-                        # Therefore, it is crucial to be vigilant when testing this idiom.
-                        check=py_trees.behaviours.CheckBlackboardVariableValue(
-                            name=f"{name} ServoUntilPose CheckTolerances",
-                            check=py_trees.common.ComparisonExpression(
-                                variable=ee_to_target_pose_stamped_absolute_key,
-                                value=PoseStamped(
-                                    header=Header(frame_id=end_effector_frame),
-                                    pose=Pose(
-                                        position=Point(x=0.0, y=0.0, z=0.0),
-                                        orientation=Quaternion(
-                                            x=0.0, y=0.0, z=0.0, w=1.0
-                                        ),
-                                    ),
-                                ),
-                                operator=partial(
-                                    pose_within_tolerances,
-                                    tolerance_position=tolerance_position,
-                                    tolerance_orientation=np.inf
-                                    if ignore_orientation
-                                    else tolerance_orientation,
-                                ),
-                            ),
-                        ),
-                        # Compute the twist based on the ee_to_target_pose_stamped
-                        compute_twist=py_trees.composites.Sequence(
-                            name=f"{name} ServoUntilPose Condition",
-                            memory=False,
-                            children=[
-                                # Monitor the rate at which this idiom is running
-                                TrackHz(
-                                    name=f"{name} TrackHz",
-                                    ns=ns,
-                                    inputs={
-                                        "num_ticks": BlackboardKey("num_ticks"),
-                                        "start_time": BlackboardKey("start_time"),
-                                    },
-                                    outputs={
-                                        "hz": BlackboardKey("servoHz"),
-                                        "num_ticks": BlackboardKey("num_ticks"),
-                                        "start_time": BlackboardKey("start_time"),
-                                    },
-                                ),
-                                # Compute the twist
-                                PoseStampedToTwistStamped(
-                                    name=f"{name} {SERVO_UNTIL_POSE_DISTANCE_BEHAVIOR_NAME}",
-                                    ns=ns,
-                                    inputs={
-                                        "pose_stamped": BlackboardKey(
-                                            "ee_to_target_pose_stamped"
-                                        ),
-                                        "speed": speed,
-                                        "hz": BlackboardKey("servoHz"),
-                                        "round_decimals": round_decimals,
-                                        "angular_override": Vector3(x=0.0, y=0.0, z=0.0)
-                                        if ignore_orientation
-                                        else None,
-                                    },
-                                    outputs={
-                                        "twist_stamped": BlackboardKey(
-                                            "twist_in_ee_frame"
-                                        ),
-                                    },
-                                ),
-                                # Convert to base frame
-                                ApplyTransform(
-                                    name=f"{name} ServoUntilPose GetEETwist",
-                                    ns=ns,
-                                    inputs={
-                                        "stamped_msg": BlackboardKey(
-                                            "twist_in_ee_frame"
-                                        ),
-                                        "target_frame": base_link,
-                                    },
-                                    outputs={
-                                        "transformed_msg": twist_blackboard_key,
-                                    },
-                                ),
-                            ],
-                        ),
+                        sense=sense_behavior,
+                        check=check_behavior,
+                        compute_twist=compute_twist_behavior,
                         servo_inputs=servo_inputs,
                     ),
                 ],

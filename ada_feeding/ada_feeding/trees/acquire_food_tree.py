@@ -48,8 +48,8 @@ from ada_feeding.idioms import (
     retry_call_ros_service,
 )
 from ada_feeding.idioms.bite_transfer import (
-    get_add_in_front_of_wheelchair_wall_behavior,
-    get_remove_in_front_of_wheelchair_wall_behavior,
+    get_add_in_front_of_face_wall_behavior,
+    get_remove_in_front_of_face_wall_behavior,
 )
 from ada_feeding.idioms.ft_thresh_utils import ft_thresh_satisfied
 from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_success
@@ -154,14 +154,12 @@ class AcquireFoodTree(MoveToTree):
             resting_position_behaviors.append(
                 scoped_behavior(
                     name=name + " InFrontOfWheelchairWallScope",
-                    pre_behavior=get_add_in_front_of_wheelchair_wall_behavior(
+                    pre_behavior=get_add_in_front_of_face_wall_behavior(
                         name + "AddWheelchairWall",
-                        "in_front_of_wheelchair_wall",
                     ),
                     # Remove the wall in front of the wheelchair
-                    post_behavior=get_remove_in_front_of_wheelchair_wall_behavior(
+                    post_behavior=get_remove_in_front_of_face_wall_behavior(
                         name + "RemoveWheelchairWall",
-                        "in_front_of_wheelchair_wall",
                     ),
                     workers=[
                         py_trees_ros.service_clients.FromConstant(
@@ -524,8 +522,8 @@ class AcquireFoodTree(MoveToTree):
                                     name="BackupFlipFoodFrameSel",
                                     memory=True,
                                     children=[
-                                        move_above_plan(True),
                                         move_above_plan(False),
+                                        move_above_plan(True),
                                     ],
                                 ),
                                 MoveIt2Execute(

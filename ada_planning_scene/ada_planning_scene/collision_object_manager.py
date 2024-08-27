@@ -30,9 +30,6 @@ class CollisionObjectManager:
        MoveIt2 has confirmed that the collision object has been added.
     """
 
-    # TODO: extend this class with the ability to remove specific collision objects
-    # (right now it can only clear the entire planning scene).
-
     __GLOBAL_BATCH_ID = "global"
     __BATCH_ID_FORMAT = "batch_{:d}"
 
@@ -204,6 +201,7 @@ class CollisionObjectManager:
         timeout: Duration = Duration(seconds=10.0),
         ignore_existing: bool = False,
         publish_feedback: Optional[Callable[[], None]] = None,
+        retry_until_added: bool = True,
     ) -> bool:
         """
         Add collision objects to the planning scene.
@@ -215,6 +213,7 @@ class CollisionObjectManager:
         timeout: The maximum amount of time to wait for the collision objects to be added.
         ignore_existing: If True, ignore the existing collision objects.
         publish_feedback: If specified, invoke this function periodically.
+        retry_until_added: If True, keep retrying until all collision objects are added.
 
         Returns
         -------
@@ -305,6 +304,8 @@ class CollisionObjectManager:
                         frame_id=params.frame_id,
                     )
                 rate.sleep()
+            if not retry_until_added:
+                break
 
         # Second, attach all collision objects that need to be attached
         attached_collision_object_ids = {
@@ -349,6 +350,8 @@ class CollisionObjectManager:
                     touch_links=params.touch_links,
                 )
                 rate.sleep()
+            if not retry_until_added:
+                break
 
         # Remove the batch that corresponds to this add_collision_objects
         # operation
@@ -490,3 +493,24 @@ class CollisionObjectManager:
             rate.sleep()
 
         return self.moveit2.process_clear_all_collision_objects_future(future)
+
+    def remove_collision_object(
+        self,
+        object_id: str,
+    ) -> bool:
+        """
+        Remove a specific collision object from the planning scene.
+
+        Parameters
+        ----------
+        object_id: The ID of the collision object to remove.
+
+        Returns
+        -------
+        True if the collision object was successfully removed, False otherwise.
+        """
+        # TODO: Extend this to verify that the object was removed in a closed-loop
+        # fashion, as `add_collision_objects` does.
+        self.__node.get_logger().info(f"Removing collision object {object_id}...")
+        self.moveit2.remove_collision_object(id=object_id)
+        return True

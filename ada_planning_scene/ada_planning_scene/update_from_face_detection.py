@@ -11,6 +11,7 @@ from threading import Lock
 from typing import Dict, List
 
 # Third-party imports
+from builtin_interfaces.msg import Time
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion, Transform, Vector3
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
@@ -31,7 +32,13 @@ from ada_planning_scene.helpers import CollisionObjectParams
 # Define a namedtuple to store latest the joint state
 UpdateFromFaceDetectionParams = namedtuple(
     "UpdateFromFaceDetectionParams",
-    ["head_object_id", "body_object_id", "head_distance_threshold", "mouth_frame_id"],
+    [
+        "head_object_id",
+        "body_object_id",
+        "head_distance_threshold",
+        "mouth_frame_id",
+        "update_body",
+    ],
 )
 
 
@@ -258,11 +265,29 @@ class UpdateFromFaceDetection:
                     f"{namespace}.mouth_frame_id"
                 )
 
+            try:
+                # Whether to move the body as well as the head
+                update_body = self.__node.declare_parameter(
+                    f"{namespace}.update_body",
+                    False,
+                    descriptor=ParameterDescriptor(
+                        name=f"{namespace}.update_body",
+                        type=ParameterType.PARAMETER_BOOL,
+                        description=(
+                            "Whether to update the body as well as the head based on face detection."
+                        ),
+                        read_only=True,
+                    ),
+                )
+            except ParameterAlreadyDeclaredException:
+                update_body = self.__node.get_parameter(f"{namespace}.update_body")
+
             self.__namespace_to_params[namespace] = UpdateFromFaceDetectionParams(
                 head_object_id=head_object_id.value,
                 body_object_id=body_object_id.value,
                 head_distance_threshold=head_distance_threshold.value,
                 mouth_frame_id=mouth_frame_id.value,
+                update_body=update_body.value,
             )
 
     def __face_detection_callback(self, msg: FaceDetection) -> None:
@@ -290,6 +315,9 @@ class UpdateFromFaceDetection:
 
         # Transform the detected mouth center from the camera frame into the base frame
         try:
+            msg.detected_mouth_center.header.stamp = Time(
+                sec=0, nanosec=0
+            )  # Get latest transform
             detected_mouth_center = self.__tf_buffer.transform(
                 msg.detected_mouth_center,
                 self.__base_frame_id,
@@ -314,6 +342,7 @@ class UpdateFromFaceDetection:
         body_object_id = self.__namespace_to_params[
             self.__namespace_to_use
         ].body_object_id
+        update_body = self.__namespace_to_params[self.__namespace_to_use].update_body
         default_head_pose = self.__default_head_poses[self.__namespace_to_use]
         default_head_params = self.__default_head_params[self.__namespace_to_use]
         default_body_pose = self.__default_body_poses[self.__namespace_to_use]
@@ -376,36 +405,37 @@ class UpdateFromFaceDetection:
         )
 
         # Scale the body object based on the user's head pose.
-        if (
-            detected_mouth_pose.header.frame_id != default_head_params.frame_id
-            or detected_mouth_pose.header.frame_id != default_head_params.frame_id
-        ):
-            self.__node.get_logger().error(
-                "The detected mouth pose frame_id does not match the expected frame_id."
+        if update_body:
+            if (
+                detected_mouth_pose.header.frame_id != default_head_params.frame_id
+                or detected_mouth_pose.header.frame_id != default_head_params.frame_id
+            ):
+                self.__node.get_logger().error(
+                    "The detected mouth pose frame_id does not match the expected frame_id."
+                )
+                return
+
+            # Compute the new body scale
+            body_scale = (
+                1.0,
+                1.0,
+                (detected_mouth_pose.pose.position.z - default_body_pose.position.z)
+                / (default_head_pose.position.z - default_body_pose.position.z),
             )
-            return
 
-        # Compute the new body scale
-        body_scale = (
-            1.0,
-            1.0,
-            (detected_mouth_pose.pose.position.z - default_body_pose.position.z)
-            / (default_head_pose.position.z - default_body_pose.position.z),
-        )
-
-        # We have to re-add it because the scale changed.
-        self.__collision_object_manager.add_collision_objects(
-            objects=CollisionObjectParams(
-                object_id=body_object_id,
-                frame_id=default_body_params.frame_id,
-                position=default_body_params.position,
-                quat_xyzw=default_body_params.quat_xyzw,
-                mesh_filepath=default_body_params.mesh_filepath,
-                mesh=default_body_params.mesh,
-                mesh_scale=body_scale,
-            ),
-            rate_hz=self.__update_face_hz * 3.0,
-        )
+            # We have to re-add it because the scale changed.
+            self.__collision_object_manager.add_collision_objects(
+                objects=CollisionObjectParams(
+                    object_id=body_object_id,
+                    frame_id=default_body_params.frame_id,
+                    position=default_body_params.position,
+                    quat_xyzw=default_body_params.quat_xyzw,
+                    mesh_filepath=default_body_params.mesh_filepath,
+                    mesh=default_body_params.mesh,
+                    mesh_scale=body_scale,
+                ),
+                rate_hz=self.__update_face_hz * 3.0,
+            )
 
     # pylint: disable=duplicate-code
     # Many of the classes in ada_planning_scene have this property and setter.

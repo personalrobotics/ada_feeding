@@ -319,6 +319,9 @@ class UpdateFromTableDetection:
         default_table_quat_wxyz = self.__default_table_quat_wxyz[
             self.__namespace_to_use
         ]
+        self.__node.get_logger().debug(
+            f"Detected table position: {default_table_position}"
+        )
 
         # Translate detected position of table into table's origin
         detected_table_pose.pose.position.x += table_origin_offset[0]

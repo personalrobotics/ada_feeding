@@ -41,6 +41,7 @@
     <remap from="~/stop_servo" to="/servo_node/stop_servo" />
     <remap from="~/action_select" to="/ada_feeding_action_select/action_select" />
     <remap from="~/action_report" to="/ada_feeding_action_select/action_report" />
+    <remap from="~/modify_collision_object" to="/ada_planning_scene/modify_collision_object" />
   </node>
 
   <!-- Launch a republisher to pass web app servo commands to the servo node -->

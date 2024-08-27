@@ -4,6 +4,7 @@
   <arg name="sim" default="real" description="Which sim to use: 'mock', 'isaac', or 'real'"/>
   <arg name="use_rviz" default="True" description="Whether or not to launch RVIZ"/>
   <arg name="run_moveit" default="True" description="Whether or not to launch MoveIt"/>
+  <arg name="run_planning_scene" default="True" description="Whether or not to launch the planning scene node"/>
 
   <!-- Launch MoveIt -->
   <group if="$(var run_moveit)">
@@ -16,13 +17,15 @@
   </group>
 
   <!-- Populate the planning scene -->
-  <node pkg="ada_planning_scene" exec="ada_planning_scene" name="ada_planning_scene" respawn="true" args="--ros-args --log-level $(var log_level) --log-level rcl:=INFO --log-level rmw_fastrtps_cpp:=INFO">
-    <param from="$(find-pkg-share ada_planning_scene)/config/ada_planning_scene.yaml"/>
-    <param name="assets_dir" value="$(find-pkg-share ada_planning_scene)/assets/"/>
-    <remap from="~/face_detection" to="/face_detection" />
-    <remap from="~/joint_states" to="/joint_states" />
-    <remap from="~/monitored_planning_scene" to="/monitored_planning_scene" />
-    <remap from="~/table_detection" to="/table_detection" />
-  </node>
+  <group if="$(var run_planning_scene)">
+    <node pkg="ada_planning_scene" exec="ada_planning_scene" name="ada_planning_scene" respawn="true" args="--ros-args --log-level $(var log_level) --log-level rcl:=INFO --log-level rmw_fastrtps_cpp:=INFO">
+      <param from="$(find-pkg-share ada_planning_scene)/config/ada_planning_scene.yaml"/>
+      <param name="assets_dir" value="$(find-pkg-share ada_planning_scene)/assets/"/>
+      <remap from="~/face_detection" to="/face_detection" />
+      <remap from="~/joint_states" to="/joint_states" />
+      <remap from="~/monitored_planning_scene" to="/monitored_planning_scene" />
+      <remap from="~/table_detection" to="/table_detection" />
+    </node>
+  </group>
 
 </launch>

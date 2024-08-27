@@ -15,9 +15,8 @@ from py_trees.blackboard import Blackboard
 from std_srvs.srv import SetBool
 
 # Local imports
+from ada_feeding_msgs.srv import ModifyCollisionObject
 from ada_feeding.behaviors.moveit2 import (
-    ModifyCollisionObject,
-    ModifyCollisionObjectOperation,
     ToggleCollisionObject,
 )
 from .retry_call_ros_service import retry_call_ros_service
@@ -127,9 +126,49 @@ def get_toggle_watchdog_listener_behavior(
     return toggle_watchdog_listener
 
 
-def get_add_in_front_of_wheelchair_wall_behavior(
+def get_modify_collision_object_behavior(
     name: str,
-    collision_object_id: str,
+    object_id: str,
+    add: bool,
+) -> py_trees.behaviour.Behaviour:
+    """
+    Creates a behaviour that adds or removes a collision object.
+
+    Parameters
+    ----------
+    name: The name of the behaviour.
+    object_id: The ID of the collision object to add or remove.
+    add: Whether to add or remove the collision object.
+
+    Returns
+    -------
+    behavior: The behaviour that adds or removes the collision object.
+    """
+    modify_collision_object_key_response = Blackboard.separator.join([name, "response"])
+    return retry_call_ros_service(
+        name=name,
+        service_type=ModifyCollisionObject,
+        service_name="~/modify_collision_object",
+        key_request=None,
+        request=ModifyCollisionObject.Request(
+            operation=ModifyCollisionObject.Request.ADD
+            if add
+            else ModifyCollisionObject.Request.REMOVE,
+            object_id=object_id,
+        ),
+        key_response=modify_collision_object_key_response,
+        response_checks=[
+            py_trees.common.ComparisonExpression(
+                variable=modify_collision_object_key_response + ".success",
+                value=True,
+                operator=operator.eq,
+            )
+        ],
+    )
+
+
+def get_add_in_front_of_face_wall_behavior(
+    name: str,
 ):
     """
     Creates a behavior that adds a collision wall between the staging pose and the user,
@@ -138,35 +177,20 @@ def get_add_in_front_of_wheelchair_wall_behavior(
     Parameters
     ----------
     name: The name of the behaviour.
-    collision_object_id: The ID of the collision object to add.
 
     Returns
     -------
     behavior: The behaviour that adds the collision wall.
     """
-    # Create the behavior to add a collision wall between the staging pose and the user,
-    # to prevent the robot from moving closer to the user.
-    return ModifyCollisionObject(
+    return get_modify_collision_object_behavior(
         name=name,
-        inputs={
-            "operation": ModifyCollisionObjectOperation.ADD,
-            "collision_object_id": collision_object_id,
-            "collision_object_position": (0.37, 0.17, 0.85),
-            "collision_object_orientation": (0.0, 0.0, 0.0, 1.0),
-            "prim_type": 1,  # Box=1. See shape_msgs/SolidPrimitive.msg
-            "dims": [
-                0.65,
-                0.01,
-                0.4,
-            ],  # Box has 3 dims: [x, y, z]
-            "frame_id": "root",
-        },
+        object_id="in_front_of_face_wall",
+        add=True,
     )
 
 
-def get_remove_in_front_of_wheelchair_wall_behavior(
+def get_remove_in_front_of_face_wall_behavior(
     name: str,
-    collision_object_id: str,
 ):
     """
     Creates a behavior that removes the collision wall between the staging pose and the user.
@@ -179,13 +203,8 @@ def get_remove_in_front_of_wheelchair_wall_behavior(
     -------
     behavior: The behaviour that removes the collision wall.
     """
-    # Create the behavior to remove the collision wall between the staging pose and the user.
-    remove_in_front_of_wheelchair_wall = ModifyCollisionObject(
+    return get_modify_collision_object_behavior(
         name=name,
-        inputs={
-            "operation": ModifyCollisionObjectOperation.REMOVE,
-            "collision_object_id": collision_object_id,
-        },
+        object_id="in_front_of_face_wall",
+        add=False,
     )
-
-    return remove_in_front_of_wheelchair_wall
