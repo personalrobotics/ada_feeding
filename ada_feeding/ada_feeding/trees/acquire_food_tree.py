@@ -15,6 +15,7 @@ import numpy as np
 from overrides import override
 import py_trees
 from py_trees.blackboard import Blackboard
+from py_trees.behaviours import Success
 import py_trees_ros
 from rcl_interfaces.srv import SetParameters
 import rclpy
@@ -162,14 +163,14 @@ class AcquireFoodTree(MoveToTree):
                         name + "RemoveWheelchairWall",
                     ),
                     workers=[
-                        py_trees_ros.service_clients.FromConstant(
-                            name="ClearOctomap",
-                            service_name="/clear_octomap",
-                            service_type=Empty,
-                            service_request=Empty.Request(),
-                            # Default fail if service is down
-                            wait_for_server_timeout_sec=0.0,
-                        ),
+                        # py_trees_ros.service_clients.FromConstant(
+                        #     name="ClearOctomap",
+                        #     service_name="/clear_octomap",
+                        #     service_type=Empty,
+                        #     service_request=Empty.Request(),
+                        #     # Default fail if service is down
+                        #     wait_for_server_timeout_sec=0.0,
+                        # ),
                         MoveIt2JointConstraint(
                             name="RestingConstraint",
                             ns=name,
@@ -323,7 +324,8 @@ class AcquireFoodTree(MoveToTree):
         )  # End RecoverySequence
 
         def move_above_plan(
-            flip_food_frame: bool = False, action: Optional[BlackboardKey] = None, 
+            flip_food_frame: bool = False,
+            action: Optional[BlackboardKey] = None,
         ) -> py_trees.behaviour.Behaviour:
             return py_trees.composites.Sequence(
                 name="MoveAbovePlanningSeq",
@@ -380,7 +382,8 @@ class AcquireFoodTree(MoveToTree):
                             inputs={
                                 "action_select_response": BlackboardKey(
                                     "action_response"
-                                ), "action": action,
+                                ),
+                                "action": action,
                                 # Default move_above_dist_m = 0.05
                                 # Default food_frame_id = "food"
                                 # Default approach_frame_id = "approach"
@@ -469,21 +472,27 @@ class AcquireFoodTree(MoveToTree):
                 scoped_behavior(
                     name="TableCollision",
                     # Set Approach F/T Thresh
-                    pre_behavior=ToggleCollisionObject(
-                        name="AllowTable",
-                        ns=name,
-                        inputs={
-                            "collision_object_ids": ["table"],
-                            "allow": True,
-                        },
+                    pre_behavior=(
+                        Success()
+                        # ToggleCollisionObject(
+                        #     name="AllowTable",
+                        #     ns=name,
+                        #     inputs={
+                        #         "collision_object_ids": ["table"],
+                        #         "allow": True,
+                        #     },
+                        # )
                     ),
-                    post_behavior=ToggleCollisionObject(
-                        name="DisallowTable",
-                        ns=name,
-                        inputs={
-                            "collision_object_ids": ["table"],
-                            "allow": False,
-                        },
+                    post_behavior=(
+                        Success()
+                        # ToggleCollisionObject(
+                        #     name="DisallowTable",
+                        #     ns=name,
+                        #     inputs={
+                        #         "collision_object_ids": ["table"],
+                        #         "allow": False,
+                        #     },
+                        # )
                     ),
                     on_preempt_timeout=5.0,
                     # Starts a new Sequence w/ Memory internally
@@ -491,21 +500,49 @@ class AcquireFoodTree(MoveToTree):
                         scoped_behavior(
                             name="OctomapCollision",
                             # Set Approach F/T Thresh
-                            pre_behavior=ToggleCollisionObject(
-                                name="AllowOctomap",
-                                ns=name,
-                                inputs={
-                                    "collision_object_ids": ["<octomap>"],
-                                    "allow": True,
-                                },
+                            pre_behavior=py_trees.composites.Sequence(
+                                name="AllowOctomapAndTable",
+                                memory=True,
+                                children=[
+                                    ToggleCollisionObject(
+                                        name="AllowOctomap",
+                                        ns=name,
+                                        inputs={
+                                            "collision_object_ids": ["<octomap>"],
+                                            "allow": True,
+                                        },
+                                    ),
+                                    ToggleCollisionObject(
+                                        name="AllowTable",
+                                        ns=name,
+                                        inputs={
+                                            "collision_object_ids": ["table"],
+                                            "allow": True,
+                                        },
+                                    ),
+                                ],
                             ),
-                            post_behavior=ToggleCollisionObject(
-                                name="DisallowOctomap",
-                                ns=name,
-                                inputs={
-                                    "collision_object_ids": ["<octomap>"],
-                                    "allow": False,
-                                },
+                            post_behavior=py_trees.composites.Sequence(
+                                name="DisallowOctomapAndTable",
+                                memory=True,
+                                children=[
+                                    ToggleCollisionObject(
+                                        name="DisallowOctomap",
+                                        ns=name,
+                                        inputs={
+                                            "collision_object_ids": ["<octomap>"],
+                                            "allow": False,
+                                        },
+                                    ),
+                                    ToggleCollisionObject(
+                                        name="DisallowTable",
+                                        ns=name,
+                                        inputs={
+                                            "collision_object_ids": ["table"],
+                                            "allow": False,
+                                        },
+                                    ),
+                                ],
                             ),
                             on_preempt_timeout=5.0,
                             workers=[
@@ -522,8 +559,8 @@ class AcquireFoodTree(MoveToTree):
                                     name="BackupFlipFoodFrameSel",
                                     memory=True,
                                     children=[
-                                        move_above_plan(False),
-                                        move_above_plan(True, BlackboardKey("action")),
+                                        move_above_plan(True),
+                                        move_above_plan(False, BlackboardKey("action")),
                                     ],
                                 ),
                                 MoveIt2Execute(
@@ -849,7 +886,7 @@ class AcquireFoodTree(MoveToTree):
                         ),  # OctomapCollision
                     ]
                     + resting_position_behaviors,  # End TableCollision.workers
-                ),  # End TableCollision
+                ),  # End Success # TableCollision
             ],  # End root_seq.children
         )  # End root_seq
 
