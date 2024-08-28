@@ -52,9 +52,7 @@ class ReceiverCompressedImageNode(Node):
             self.__pub_camera_info = self.create_publisher(
                 msg_type=CameraInfo,
                 topic=self.__camera_info_pub_topic,
-                qos_profile=QoSProfile(
-                    depth=1, reliability=ReliabilityPolicy.BEST_EFFORT
-                ),
+                qos_profile=QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             )
 
         # Create the subscriber
