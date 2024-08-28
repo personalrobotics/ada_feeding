@@ -693,6 +693,7 @@ class FoodOnForkDetectionNode(Node):
 
             # Visualize the results
             if self.viz:
+                # self.model.visualize_img(depth_img_cv2, t[0])
                 self.visualize_result(food_on_fork_detection_msg, t[0])
 
             # Publish the FoodOnForkDetection message
