@@ -43,12 +43,6 @@ export const SERVO_CARTESIAN_TOPIC_MSG = 'geometry_msgs/msg/TwistStamped'
 export const SERVO_JOINT_TOPIC = '/web_app/servo_node/delta_joint_cmds'
 export const SERVO_JOINT_TOPIC_MSG = 'control_msgs/msg/JointJog'
 
-// States from which, if they fail, it is NOT okay for the user to retry the
-// same action.
-let NON_RETRYABLE_STATES = new Set()
-NON_RETRYABLE_STATES.add(MEAL_STATE.R_BiteAcquisition)
-export { NON_RETRYABLE_STATES }
-
 /**
  * For states that call ROS actions, this dictionary contains
  * the action name and the message type
