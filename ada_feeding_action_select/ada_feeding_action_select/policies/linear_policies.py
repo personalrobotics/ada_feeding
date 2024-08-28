@@ -207,7 +207,7 @@ class LinearPolicy(Policy):
             solve_out = self.checkpoint.linear_model[arm, :]
 
         # Solve for linear policy vector
-        solve_out[:] = np.linalge.solve(solve_a, solve_b)
+        solve_out[:] = np.linalg.solve(solve_a, solve_b)
 
     @override
     def get_checkpoint(self) -> Any:

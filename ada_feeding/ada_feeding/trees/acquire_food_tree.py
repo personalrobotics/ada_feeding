@@ -323,7 +323,7 @@ class AcquireFoodTree(MoveToTree):
         )  # End RecoverySequence
 
         def move_above_plan(
-            flip_food_frame: bool = False,
+            flip_food_frame: bool = False, action: Optional[BlackboardKey] = None, 
         ) -> py_trees.behaviour.Behaviour:
             return py_trees.composites.Sequence(
                 name="MoveAbovePlanningSeq",
@@ -380,7 +380,7 @@ class AcquireFoodTree(MoveToTree):
                             inputs={
                                 "action_select_response": BlackboardKey(
                                     "action_response"
-                                ),
+                                ), "action": action,
                                 # Default move_above_dist_m = 0.05
                                 # Default food_frame_id = "food"
                                 # Default approach_frame_id = "approach"
@@ -523,7 +523,7 @@ class AcquireFoodTree(MoveToTree):
                                     memory=True,
                                     children=[
                                         move_above_plan(False),
-                                        move_above_plan(True),
+                                        move_above_plan(True, BlackboardKey("action")),
                                     ],
                                 ),
                                 MoveIt2Execute(

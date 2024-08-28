@@ -12,15 +12,15 @@ ada_feeding_action_select:
 
     #### Context Adapters
 
-    #context_class: ada_feeding_action_select.adapters.SPANetContext
-    #context_kws:
-    #  - checkpoint # Relative to share data directory
-    #context_kwargs:
-    #  checkpoint: checkpoint/adapter/food_spanet_all_rgb_wall_ckpt_best.pth
+    context_class: ada_feeding_action_select.adapters.SPANetContext
+    context_kws:
+      - checkpoint # Relative to share data directory
+    context_kwargs:
+      checkpoint: checkpoint/adapter/food_spanet_all_rgb_wall_ckpt_best.pth
 
     #context_class: ada_feeding_action_select.adapters.ColorContext
 
-    context_class: ada_feeding_action_select.adapters.NoContext
+    #context_class: ada_feeding_action_select.adapters.NoContext
 
     #### Posthoc Adapters
 

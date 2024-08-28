@@ -349,6 +349,7 @@ class PolicyServices(Node):
             self.get_logger().info(
                 f"AcquisitionSelect Success! Sending Response with ID: '{response.id}'"
             )
+
         return response
 
     def report_callback(
@@ -381,6 +382,8 @@ class PolicyServices(Node):
             else 1.0,
             select.actions[request.action_index],
         )
+
+        self.get_logger().info(f"Executed Action: '{request.action_index}'")
 
         # Run the posthoc adapter
         posthoc = self.posthoc_adapter.get_posthoc(np.array(request.posthoc))
