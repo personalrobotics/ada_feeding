@@ -74,6 +74,7 @@ class ComputeActionConstraints(BlackboardBehavior):
         move_above_dist_m: how far from the food to start
         food_frame_id: food frame defined in AcquisitionSchema.msg
         approach_frame_id: approach frame defined in AcquisitionSchema.msg
+        action: which action has been chosen in the initial pi-symmetry break
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -156,7 +157,7 @@ class ComputeActionConstraints(BlackboardBehavior):
             if np.isclose(np.linalg.norm(position), 0.0):
                 self.logger.error(
                     f"Malformed action pre_transform: {action.pre_transform.position}"
-                )   
+                )
                 return py_trees.common.Status.FAILURE
             position = (
                 position

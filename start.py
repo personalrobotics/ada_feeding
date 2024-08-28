@@ -249,7 +249,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
                     "run_web_bridge:=false run_food_detection:=false run_face_detection:=false "
                     "run_food_on_fork_detection:=false run_table_detection:=false "
-                    "run_real_sense:=false " f"policy:={args.policy}"
+                    "run_real_sense:=false "
+                    f"policy:={args.policy}"
                 ),
             ],
             "browser": [
@@ -410,14 +411,24 @@ if __name__ == "__main__":
         raise ValueError(
             f"Unknown sim value {args.sim}. Must be one of ['real', 'mock', 'dummy']."
         )
-        
-    if args.policy not in ["constant", "color", "random", "random_noposthoc", "greedy", "greedy_noposthoc", "egreedy", "egreedy_noposthoc", "linucb", "linucb_noposthoc"]:
+
+    if args.policy not in [
+        "constant",
+        "color",
+        "random",
+        "random_noposthoc",
+        "greedy",
+        "greedy_noposthoc",
+        "egreedy",
+        "egreedy_noposthoc",
+        "linucb",
+        "linucb_noposthoc",
+    ]:
         raise ValueError(
             f"Unknown policy value {args.policy}. Must be one of ['constant', 'color', "
             "'random', 'random_noposthoc', 'greedy', 'greedy_noposthoc', 'egreedy', "
             "'egreedy_noposthoc', 'linucb', 'linucb_noposthoc']."
         )
-
 
     # Ensure the script is not being run as sudo. Sudo has a different screen
     # server and may have different versions of libraries installed.
