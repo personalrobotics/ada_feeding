@@ -225,6 +225,6 @@ ada_planning_scene:
       table_quat_dist_thresh: 0.349
       table_pos_dist_thresh: 0.5
     bedside:
-      table_origin_offset: [0.23, -0.71, -1.0067]
+      table_origin_offset: [-0.23, 0.71, -1.0067]
       table_quat_dist_thresh: 0.349
       table_pos_dist_thresh: 0.5
