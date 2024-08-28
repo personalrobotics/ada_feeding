@@ -583,15 +583,16 @@ class FaceDetectionNode(Node):
                     "No depth image message received.", throttle_duration_sec=1
                 )
                 return False, 0
-            if (
-                np.abs(closest_depth_msg.header.stamp.sec - rgb_msg.header.stamp.sec)
-                >= 1.0
-            ):
+            elapsed_time = np.abs(
+                closest_depth_msg.header.stamp.sec - rgb_msg.header.stamp.sec
+            )
+            if elapsed_time >= 1.0:
                 self.get_logger().warn(
-                    "Incosistent messages. Depth image message received at "
+                    "Inconsistent messages. Depth image message received at "
                     f"{closest_depth_msg.header.stamp}. RGB image message received "
                     f"at {rgb_msg.header.stamp}. Time difference: {min_time_diff} secs."
                 )
+                return False, 0
         image_depth = ros_msg_to_cv2_image(closest_depth_msg, self.bridge)
 
         # Compute the depth of the mouth. Use the first method that works.
