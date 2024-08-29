@@ -23,7 +23,7 @@ ada_planning_scene:
     namespaces:
       - seated
       - bedside
-    namespace_to_use: seated # bedside # 
+    namespace_to_use: bedside # seated # 
 
     ############################################################################
     # Parameters related to the PlanningSceneInitializer class
@@ -119,8 +119,8 @@ ada_planning_scene:
         filename: hospital_table.stl
         # Initial predicted position and orientation of the table; these values get
         # updated as the robot perceives the table.
-        position: [-0.68, 0.6, -1.04]
-        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+        position: [-0.6, -0.68, -1.04]
+        quat_xyzw: [0.0, 0.0, 0.7071068, 0.7071068]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
       head: # the head mesh
@@ -151,6 +151,11 @@ ada_planning_scene:
       disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
     bedside:
       disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
+      # disable_workspace_wall_y_max: True
+      # disable_workspace_wall_x_min: True
+      # disable_workspace_wall_x_max: True
+      # disable_workspace_wall_z_min: True
+      # disable_workspace_wall_z_max: True
 
     # Whether the workspace walls should contain the robot's current configuration
     # at time of recomputation.

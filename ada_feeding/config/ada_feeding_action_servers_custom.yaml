@@ -8,41 +8,41 @@ ada_feeding_action_servers:
     - hospital_table_mount_1
     hospital_table_mount_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
-      - -0.8326224011111689
+      - -2.40341872791
       - 3.9280238571740833
       - 1.2793723345038692
       - -1.2987086150725533
       - -1.7135562754510847
       - 0.77158428024418
       MoveAbovePlate.tree_kwargs.joint_positions:
-      - -0.19797034068
+      - -1.76876666747
       - 3.6562432079254257
       - 1.6497725020792509
       - -2.659056359891099
       - 4.916644381246061
       - 1.7380801275071338
       MoveFromMouth.tree_kwargs.staging_configuration_position:
+      - -0.3418209608339783
       - -0.19780925396905233
-      - 0.3418209608339783
       - 0.2413684489609259
       MoveFromMouth.tree_kwargs.staging_configuration_quat_xyzw:
-      - 0.34614374143000426
-      - 0.5525353940533169
-      - 0.7087174551977422
-      - 0.26946004766054077
+      - -0.14594094
+      - 0.63546216
+      - 0.691676
+      - -0.31060195
       MoveToMouth.tree_kwargs.plan_distance_from_mouth:
       - 0.1
       - 0.0
       - -0.01
       MoveToRestingPosition.tree_kwargs.goal_configuration:
-      - -0.8326224011111689
+      - -2.40341872791
       - 3.9280238571740833
       - 1.2793723345038692
       - -1.2987086150725533
       - -1.7135562754510847
       - 0.77158428024418
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
-      - 0.15120789510808308
+      - -1.41958843169
       - 4.259094195455066
       - 1.72927358641446
       - -0.6739427412487604
