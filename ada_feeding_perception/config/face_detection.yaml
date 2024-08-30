@@ -12,4 +12,20 @@ face_detection:
     # The desired length of the depth image buffer
     depth_buffer_size: 30
     # The rate at which to detect and publish detected faces
-    rate_hz: 3
+    face_detection_rate_hz: 3
+
+# NOTE: If using the combined perception node, be very careful to ensure no name clashes of parameters!
+ada_feeding_perception:
+  ros__parameters:
+    # The name of the face detection model checkpoint to use
+    face_model_name: haarcascade_frontalface_alt2.xml
+    # The URL to download the face detection model checkpoint from if it is not already downloaded
+    face_model_base_url: "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/"
+    # The name of the facial landmark detection model checkpoint to use
+    landmark_model_name: lbfmodel.yaml
+    # The URL to download the facial landmark detection model checkpoint from if it is not already downloaded
+    landmark_model_base_url: "https://raw.githubusercontent.com/kurnianggoro/GSOC2017/master/data/"
+    # The desired length of the depth image buffer
+    depth_buffer_size: 30
+    # The rate at which to detect and publish detected faces
+    face_detection_rate_hz: 3

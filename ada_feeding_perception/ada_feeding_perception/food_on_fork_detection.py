@@ -9,7 +9,7 @@ on the fork.
 import collections
 import os
 import threading
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, Tuple
 
 # Third-party imports
 from cv_bridge import CvBridge
@@ -20,7 +20,6 @@ from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
-from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from std_srvs.srv import SetBool
@@ -36,6 +35,7 @@ from ada_feeding_perception.helpers import (
     get_img_msg_type,
     ros_msg_to_cv2_image,
 )
+from ada_feeding_perception.ada_feeding_perception_node import ADAFeedingPerceptionNode
 from .depth_post_processors import (
     create_spatial_post_processor,
     create_temporal_post_processor,
@@ -43,7 +43,7 @@ from .depth_post_processors import (
 )
 
 
-class FoodOnForkDetectionNode(Node):
+class FoodOnForkDetectionNode:
     """
     A ROS2 node that takes in parameters specifying a FoodOnForkDetector class to use and
     kwargs for the class's constructor, exposes a ROS2 service to toggle the perception
@@ -55,11 +55,20 @@ class FoodOnForkDetectionNode(Node):
     # Much of the logic of this node mirrors FaceDetection. This is fine.
     # pylint: disable=too-many-instance-attributes
     # Needed for multiple publishers/subscribers, model parameters, etc.
-    def __init__(self):
+    def __init__(
+        self,
+        node: ADAFeedingPerceptionNode,
+    ):
         """
         Initializes the FoodOnForkDetection.
+
+        Parameters
+        ----------
+        node : ADAFeedingPerceptionNode
+            The node that contains all functionality to get camera images (RGB and depth)
+            and camera info.
         """
-        super().__init__("food_on_fork_detection")
+        self._node = node
 
         # Load the parameters
         (
@@ -107,13 +116,13 @@ class FoodOnForkDetectionNode(Node):
 
         # Create the TF buffer, in case the perception algorithm needs it
         self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_listener = TransformListener(self.tf_buffer, self._node)
         self.model.tf_buffer = self.tf_buffer
 
         # Create the service to toggle the perception algorithm on and off
         self.is_on = False
         self.is_on_lock = threading.Lock()
-        self.srv = self.create_service(
+        self.srv = self._node.create_service(
             SetBool,
             "~/toggle_food_on_fork_detection",
             self.toggle_food_on_fork_detection,
@@ -121,15 +130,15 @@ class FoodOnForkDetectionNode(Node):
         )
 
         # Create the publisher
-        self.pub = self.create_publisher(
+        self.pub = self._node.create_publisher(
             FoodOnForkDetection, "~/food_on_fork_detection", 1
         )
 
         # Create the CameraInfo subscribers
-        self.camera_info_sub = self.create_subscription(
+        self.camera_info_topic = "~/camera_info"
+        self._node.add_subscription(
             CameraInfo,
-            "~/camera_info",
-            self.camera_info_callback,
+            self.camera_info_topic,
             QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
@@ -137,20 +146,18 @@ class FoodOnForkDetectionNode(Node):
         # Create the depth image subscriber
         self.depth_img_cv2 = None
         self.depth_img_header = None
-        self.depth_img_lock = threading.Lock()
-        aligned_depth_topic = "~/aligned_depth"
+        self.aligned_depth_topic = "~/aligned_depth"
         try:
-            aligned_depth_type = get_img_msg_type(aligned_depth_topic, self)
+            aligned_depth_type = get_img_msg_type(self.aligned_depth_topic, self._node)
         except ValueError as err:
-            self.get_logger().error(
+            self._node.get_logger().error(
                 f"Error getting type of depth image topic. Defaulting to CompressedImage. {err}"
             )
             aligned_depth_type = CompressedImage
         # Subscribe to the depth image
-        self.depth_subscription = self.create_subscription(
+        self._node.add_subscription(
             aligned_depth_type,
-            aligned_depth_topic,
-            self.depth_callback,
+            self.aligned_depth_topic,
             QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
@@ -158,25 +165,23 @@ class FoodOnForkDetectionNode(Node):
         # If the visualization flag is set, create a subscriber to the RGB image
         # and publisher for the RGB visualization
         if self.viz:
-            self.rgb_pub = self.create_publisher(
+            self.rgb_pub = self._node.create_publisher(
                 Image, "~/food_on_fork_detection_img", 1
             )
-            self.img_buffer = collections.deque(maxlen=rgb_image_buffer)
-            self.img_buffer_lock = threading.Lock()
-            image_topic = "~/image"
+            self.rgb_image_topic = "~/image"
             try:
-                image_type = get_img_msg_type(image_topic, self)
+                image_type = get_img_msg_type(self.rgb_image_topic, self._node)
             except ValueError as err:
-                self.get_logger().error(
+                self._node.get_logger().error(
                     f"Error getting type of image topic. Defaulting to CompressedImage. {err}"
                 )
                 image_type = CompressedImage
-            self.img_subscription = self.create_subscription(
+            self._node.add_subscription(
                 image_type,
-                image_topic,
-                self.camera_callback,
+                self.rgb_image_topic,
                 QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
                 callback_group=MutuallyExclusiveCallbackGroup(),
+                num_msgs=rgb_image_buffer,
             )
 
     def read_params(
@@ -226,7 +231,7 @@ class FoodOnForkDetectionNode(Node):
         # There are many parameters to load.
 
         # Read the model_class
-        model_class = self.declare_parameter(
+        model_class = self._node.declare_parameter(
             "model_class",
             descriptor=ParameterDescriptor(
                 name="model_class",
@@ -240,7 +245,7 @@ class FoodOnForkDetectionNode(Node):
         model_class = model_class.value
 
         # Read the model_path
-        model_path = self.declare_parameter(
+        model_path = self._node.declare_parameter(
             "model_path",
             descriptor=ParameterDescriptor(
                 name="model_path",
@@ -255,10 +260,10 @@ class FoodOnForkDetectionNode(Node):
         model_path = model_path.value
 
         # Read the model_dir
-        model_dir = self.declare_parameter(
-            "model_dir",
+        model_dir = self._node.declare_parameter(
+            "food_on_fork_detection_model_dir",
             descriptor=ParameterDescriptor(
-                name="model_dir",
+                name="food_on_fork_detection_model_dir",
                 type=ParameterType.PARAMETER_STRING,
                 description=("The directory to load the model from."),
                 read_only=True,
@@ -268,7 +273,7 @@ class FoodOnForkDetectionNode(Node):
 
         # Read the model_kwargs
         model_kwargs = {}
-        model_kws = self.declare_parameter(
+        model_kws = self._node.declare_parameter(
             "model_kws",
             descriptor=ParameterDescriptor(
                 name="model_kws",
@@ -281,7 +286,7 @@ class FoodOnForkDetectionNode(Node):
         )
         for kw in model_kws.value:
             full_name = f"model_kwargs.{kw}"
-            arg = self.declare_parameter(
+            arg = self._node.declare_parameter(
                 full_name,
                 descriptor=ParameterDescriptor(
                     name=kw,
@@ -297,11 +302,11 @@ class FoodOnForkDetectionNode(Node):
             model_kwargs[kw] = arg
 
         # Get the rate at which to operate
-        rate_hz = self.declare_parameter(
-            "rate_hz",
+        rate_hz = self._node.declare_parameter(
+            "food_on_fork_detection_rate_hz",
             10.0,
             descriptor=ParameterDescriptor(
-                name="rate_hz",
+                name="food_on_fork_detection_rate_hz",
                 type=ParameterType.PARAMETER_DOUBLE,
                 description="The rate (Hz) at which to publish.",
                 read_only=True,
@@ -310,7 +315,7 @@ class FoodOnForkDetectionNode(Node):
         rate_hz = rate_hz.value
 
         # Get the crop box
-        crop_top_left = self.declare_parameter(
+        crop_top_left = self._node.declare_parameter(
             "crop_top_left",
             (0, 0),
             descriptor=ParameterDescriptor(
@@ -321,7 +326,7 @@ class FoodOnForkDetectionNode(Node):
             ),
         )
         crop_top_left = crop_top_left.value
-        crop_bottom_right = self.declare_parameter(
+        crop_bottom_right = self._node.declare_parameter(
             "crop_bottom_right",
             (0, 0),
             descriptor=ParameterDescriptor(
@@ -334,7 +339,7 @@ class FoodOnForkDetectionNode(Node):
         crop_bottom_right = crop_bottom_right.value
 
         # Get the depth range
-        depth_min_mm = self.declare_parameter(
+        depth_min_mm = self._node.declare_parameter(
             "depth_min_mm",
             0,
             descriptor=ParameterDescriptor(
@@ -345,7 +350,7 @@ class FoodOnForkDetectionNode(Node):
             ),
         )
         depth_min_mm = depth_min_mm.value
-        depth_max_mm = self.declare_parameter(
+        depth_max_mm = self._node.declare_parameter(
             "depth_max_mm",
             20000,
             descriptor=ParameterDescriptor(
@@ -358,7 +363,7 @@ class FoodOnForkDetectionNode(Node):
         depth_max_mm = depth_max_mm.value
 
         # Configure the post-processors
-        temporal_window_size = self.declare_parameter(
+        temporal_window_size = self._node.declare_parameter(
             "temporal_window_size",
             1,
             descriptor=ParameterDescriptor(
@@ -369,7 +374,7 @@ class FoodOnForkDetectionNode(Node):
             ),
         )
         temporal_window_size = temporal_window_size.value
-        spatial_num_pixels = self.declare_parameter(
+        spatial_num_pixels = self._node.declare_parameter(
             "spatial_num_pixels",
             1,
             descriptor=ParameterDescriptor(
@@ -382,18 +387,18 @@ class FoodOnForkDetectionNode(Node):
         spatial_num_pixels = spatial_num_pixels.value
 
         # Get the visualization parameters
-        viz = self.declare_parameter(
-            "viz",
+        viz = self._node.declare_parameter(
+            "food_on_fork_detection_viz",
             False,
             descriptor=ParameterDescriptor(
-                name="viz",
+                name="food_on_fork_detection_viz",
                 type=ParameterType.PARAMETER_BOOL,
                 description="Whether to publish a visualization of the result as an RGB image.",
                 read_only=True,
             ),
         )
         viz = viz.value
-        viz_upper_thresh = self.declare_parameter(
+        viz_upper_thresh = self._node.declare_parameter(
             "viz_upper_thresh",
             0.5,
             descriptor=ParameterDescriptor(
@@ -404,7 +409,7 @@ class FoodOnForkDetectionNode(Node):
             ),
         )
         viz_upper_thresh = viz_upper_thresh.value
-        viz_lower_thresh = self.declare_parameter(
+        viz_lower_thresh = self._node.declare_parameter(
             "viz_lower_thresh",
             0.5,
             descriptor=ParameterDescriptor(
@@ -415,7 +420,7 @@ class FoodOnForkDetectionNode(Node):
             ),
         )
         viz_lower_thresh = viz_lower_thresh.value
-        rgb_image_buffer = self.declare_parameter(
+        rgb_image_buffer = self._node.declare_parameter(
             "rgb_image_buffer",
             30,
             descriptor=ParameterDescriptor(
@@ -463,7 +468,7 @@ class FoodOnForkDetectionNode(Node):
         response: The response to toggle the perception algorithm on and off.
         """
 
-        self.get_logger().info(f"Incoming service request. data: {request.data}")
+        self._node.get_logger().info(f"Incoming service request. data: {request.data}")
         response.success = False
         response.message = f"Failed to set is_on to {request.data}"
         with self.is_on_lock:
@@ -471,42 +476,6 @@ class FoodOnForkDetectionNode(Node):
             response.success = True
             response.message = f"Successfully set is_on to {request.data}"
         return response
-
-    def camera_info_callback(self, msg: CameraInfo) -> None:
-        """
-        Callback for the camera info. Note that we assume CameraInfo never
-        changes, and therefore destroy the subscriber after the first message.
-
-        Parameters
-        ----------
-        msg: The camera info message.
-        """
-        if self.model.camera_info is None:
-            self.model.camera_info = msg
-        self.destroy_subscription(self.camera_info_sub)
-
-    def depth_callback(self, msg: Union[CompressedImage, Image]) -> None:
-        """
-        Callback for the depth image.
-
-        Parameters
-        ----------
-        msg: The depth image message.
-        """
-        msg = self.post_processor(msg)
-        with self.depth_img_lock:
-            self.depth_img_cv2, self.depth_img_header = msg
-
-    def camera_callback(self, msg: Image) -> None:
-        """
-        Callback for the camera image.
-
-        Parameters
-        ----------
-        msg: The camera image message.
-        """
-        with self.img_buffer_lock:
-            self.img_buffer.append(msg)
 
     def visualize_result(
         self, result: FoodOnForkDetection, t: npt.NDArray, debug: bool = True
@@ -522,23 +491,21 @@ class FoodOnForkDetectionNode(Node):
         debug: Whether to overlay additional debug information on the image.
         """
         # Get the RGB image with timestamp closest to the depth image
-        with self.img_buffer_lock:
-            img_msg = None
-            # At the end of this for loop, img_message will be the most
-            # recent image that is older than the depth image, or the
-            # oldest image if there are no images older than the depth
-            # image.
-            for i, img_msg in enumerate(self.img_buffer):
-                img_msg_stamp = (
-                    img_msg.header.stamp.sec + img_msg.header.stamp.nanosec * 1e-9
-                )
-                result_stamp = (
-                    result.header.stamp.sec + result.header.stamp.nanosec * 1e-9
-                )
-                if img_msg_stamp > result_stamp:
-                    if i > 0:
-                        img_msg = self.img_buffer[i - 1]
-                    break
+        img_buffer = self._node.get_all_msgs(self.rgb_image_topic)
+        img_msg = None
+        # At the end of this for loop, img_message will be the most
+        # recent image that is older than the depth image, or the
+        # oldest image if there are no images older than the depth
+        # image.
+        for i, img_msg in enumerate(img_buffer):
+            img_msg_stamp = (
+                img_msg.header.stamp.sec + img_msg.header.stamp.nanosec * 1e-9
+            )
+            result_stamp = result.header.stamp.sec + result.header.stamp.nanosec * 1e-9
+            if img_msg_stamp > result_stamp:
+                if i > 0:
+                    img_msg = img_buffer[i - 1]
+                break
         # If img_msg is None, that means we haven't received an RGB image yet
         if img_msg is None:
             return
@@ -609,7 +576,7 @@ class FoodOnForkDetectionNode(Node):
         """
         Runs the FoodOnForkDetection.
         """
-        rate = self.create_rate(self.rate_hz)
+        rate = self._node.create_rate(self.rate_hz)
         while rclpy.ok():
             # Loop at the specified rate
             rate.sleep()
@@ -623,12 +590,15 @@ class FoodOnForkDetectionNode(Node):
             # Create the FoodOnForkDetection message
             food_on_fork_detection_msg = FoodOnForkDetection()
 
+            # Get the latest camera info msg
+            if self.model.camera_info is None:
+                camera_info = self._node.get_latest_msg(self.camera_info_topic)
+                if camera_info is not None:
+                    self.model.camera_info = camera_info
+
             # Get the latest depth image
-            with self.depth_img_lock:
-                depth_img_cv2 = self.depth_img_cv2
-                depth_img_header = self.depth_img_header
-                self.depth_img_cv2 = None
-                self.depth_img_header = None
+            depth_msg = self._node.get_latest_msg(self.aligned_depth_topic)
+            depth_img_cv2, depth_img_header = self.post_processor(depth_msg)
             if depth_img_cv2 is None:
                 continue
             food_on_fork_detection_msg.header = depth_img_header
@@ -653,7 +623,7 @@ class FoodOnForkDetectionNode(Node):
                 self.tf_buffer,
             )
             if np.count_nonzero(transforms) == 0:
-                self.get_logger().warning(
+                self._node.get_logger().warning(
                     (
                         f"Failed to get transform {self.model.transform_frames}. "
                         "Food-on-fork detection model will not work."
@@ -686,7 +656,7 @@ class FoodOnForkDetectionNode(Node):
             # might raise.
             except Exception as err:
                 err_str = f"Error predicting food on fork: {err}"
-                self.get_logger().error(err_str)
+                self._node.get_logger().error(err_str)
                 food_on_fork_detection_msg.probability = np.nan
                 food_on_fork_detection_msg.status = FoodOnForkDetection.UNKNOWN_ERROR
                 food_on_fork_detection_msg.message = err_str
@@ -706,14 +676,15 @@ def main(args=None):
     """
     rclpy.init(args=args)
 
-    food_on_fork_detection = FoodOnForkDetectionNode()
+    node = ADAFeedingPerceptionNode("food_on_fork_detection")
+    food_on_fork_detection = FoodOnForkDetectionNode(node)
     executor = MultiThreadedExecutor(num_threads=4)
 
     # Spin in the background since detecting faces will block
     # the main thread
     spin_thread = threading.Thread(
         target=rclpy.spin,
-        args=(food_on_fork_detection,),
+        args=(node,),
         kwargs={"executor": executor},
         daemon=True,
     )
@@ -726,7 +697,7 @@ def main(args=None):
         pass
 
     # Terminate this node
-    food_on_fork_detection.destroy_node()
+    node.destroy_node()
     rclpy.shutdown()
     # Join the spin thread (so it is spinning in the main thread)
     spin_thread.join()

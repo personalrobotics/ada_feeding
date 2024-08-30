@@ -6,7 +6,6 @@ of the largest detected mouth with respect to camera_depth_optical_frame.
 """
 
 # Standard Imports
-import collections
 from enum import Enum
 import os
 import threading
@@ -20,7 +19,6 @@ import numpy as np
 import numpy.typing as npt
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.qos import QoSProfile, ReliabilityPolicy
@@ -38,6 +36,7 @@ from ada_feeding_perception.helpers import (
     cv2_image_to_ros_msg,
     ros_msg_to_cv2_image,
 )
+from ada_feeding_perception.ada_feeding_perception_node import ADAFeedingPerceptionNode
 
 
 class DepthComputationMethod(Enum):
@@ -49,7 +48,7 @@ class DepthComputationMethod(Enum):
     FACIAL_PLANE = "facial_plane"
 
 
-class FaceDetectionNode(Node):
+class FaceDetectionNode:
     """
     This node publishes a 3d PointStamped location
     of the largest detected face with respect to camera_depth_optical_frame.
@@ -64,14 +63,21 @@ class FaceDetectionNode(Node):
     # Needed for multiple model loads, publisher, subscribers, and shared variables
     def __init__(
         self,
+        node: ADAFeedingPerceptionNode,
     ):
         """
         Initializes the FaceDetection node. This node exposes a toggle_face_detection
         service that can be used to toggle the face detection on or off and
         publishes information about detected faces to the /face_detection
         topic when face detection is on.
+
+        Parameters
+        ----------
+        node : ADAFeedingPerceptionNode
+            The node that contains all functionality to get camera images (RGB and depth)
+            and camera info.
         """
-        super().__init__("face_detection")
+        self._node = node
 
         # Read the parameters
         # NOTE: These parameters are only read once. Any changes after the node
@@ -92,24 +98,24 @@ class FaceDetectionNode(Node):
         # Download the checkpoints if they don't exist
         self.face_model_path = os.path.join(model_dir.value, face_model_name)
         if not os.path.isfile(self.face_model_path):
-            self.get_logger().info(
+            self._node.get_logger().info(
                 "Face detection model checkpoint does not exist. Downloading..."
             )
             download_checkpoint(
                 face_model_name, model_dir.value, face_model_base_url.value
             )
-            self.get_logger().info(
+            self._node.get_logger().info(
                 f"Model checkpoint downloaded {self.face_model_path}."
             )
         self.landmark_model_path = os.path.join(model_dir.value, landmark_model_name)
         if not os.path.isfile(self.landmark_model_path):
-            self.get_logger().info(
+            self._node.get_logger().info(
                 "Facial landmark model checkpoint does not exist. Downloading..."
             )
             download_checkpoint(
                 landmark_model_name, model_dir.value, landmark_model_base_url.value
             )
-            self.get_logger().info(
+            self._node.get_logger().info(
                 f"Model checkpoint downloaded {self.landmark_model_path}."
             )
 
@@ -120,7 +126,7 @@ class FaceDetectionNode(Node):
         self.is_on_lock = threading.Lock()
 
         # Create the service
-        self.srv = self.create_service(
+        self.srv = self._node.create_service(
             SetBool,
             "~/toggle_face_detection",
             self.toggle_face_detection_callback,
@@ -128,13 +134,13 @@ class FaceDetectionNode(Node):
         )
 
         # Create the publishers
-        self.publisher_results = self.create_publisher(
+        self.publisher_results = self._node.create_publisher(
             FaceDetection, "~/face_detection", 1
         )
         # Currently, RVIZ2 doesn't support visualization of CompressedImage
         # (other than as part of a Camera). Hence, for vizualization purposes
         # this must be an Image. https://github.com/ros2/rviz/issues/738
-        self.publisher_image = self.create_publisher(
+        self.publisher_image = self._node.create_publisher(
             CompressedImage, "~/face_detection_img/compressed", 1
         )
 
@@ -146,53 +152,58 @@ class FaceDetectionNode(Node):
         self.landmark_detector.loadModel(self.landmark_model_path)
 
         # Subscribe to the camera feed
-        self.latest_img_msg = None
-        self.latest_img_msg_lock = threading.Lock()
-        image_topic = "~/image"
+        self.rgb_image_topic = "~/image"
         try:
-            image_type = get_img_msg_type(image_topic, self)
+            image_type = get_img_msg_type(self.rgb_image_topic, self._node)
         except ValueError as err:
-            self.get_logger().error(
+            self._node.get_logger().error(
                 f"Error getting type of image topic. Defaulting to CompressedImage. {err}"
             )
             image_type = CompressedImage
-        self.img_subscription = self.create_subscription(
+        self._node.add_subscription(
             image_type,
-            image_topic,
-            self.camera_callback,
+            self.rgb_image_topic,
             QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         depth_buffer_size = depth_buffer_size.value
-        self.depth_buffer = collections.deque(maxlen=depth_buffer_size)
-        self.depth_buffer_lock = threading.Lock()
-        aligned_depth_topic = "~/aligned_depth"
+        self.aligned_depth_topic = "~/aligned_depth_no_fork"
         try:
-            aligned_depth_type = get_img_msg_type(aligned_depth_topic, self)
+            aligned_depth_type = get_img_msg_type(self.aligned_depth_topic, self._node)
         except ValueError as err:
-            self.get_logger().error(
+            self._node.get_logger().error(
                 f"Error getting type of depth image topic. Defaulting to Image. {err}"
             )
             aligned_depth_type = Image
         # Subscribe to the depth image
-        self.depth_subscription = self.create_subscription(
+        self._node.add_subscription(
             aligned_depth_type,
-            aligned_depth_topic,
-            self.depth_callback,
+            self.aligned_depth_topic,
             QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
+            num_msgs=depth_buffer_size,
         )
 
         # Subscribe to the camera info
-        self.camera_info_lock = threading.Lock()
         # Approximate values of current camera intrinsics matrix
         # (updated with subscription)
-        self.camera_matrix = [614, 0, 312, 0, 614, 223, 0, 0, 1]
-        self.camera_info_subscription = self.create_subscription(
+        self.camera_matrix = [
+            614.5933227539062,
+            0,
+            312.1358947753906,
+            0,
+            614.6914672851562,
+            223.70831298828125,
+            0,
+            0,
+            1,
+        ]
+        self.camera_info_topic = "~/camera_info"
+        self.got_camera_info = False
+        self._node.add_subscription(
             CameraInfo,
-            "~/camera_info",
-            self.camera_info_callback,
+            self.camera_info_topic,
             QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
@@ -214,7 +225,7 @@ class FaceDetectionNode(Node):
         model_dir: The location of the directory where the model checkpoint is / should be stored
         depth_buffer_size: The desired length of the depth image buffer
         """
-        return self.declare_parameters(
+        return self._node.declare_parameters(
             "",
             [
                 (
@@ -264,10 +275,10 @@ class FaceDetectionNode(Node):
                     ),
                 ),
                 (
-                    "model_dir",
+                    "face_detection_model_dir",
                     None,
                     ParameterDescriptor(
-                        name="model_dir",
+                        name="face_detection_model_dir",
                         type=ParameterType.PARAMETER_STRING,
                         description=(
                             "The location of the directory where the model "
@@ -287,10 +298,10 @@ class FaceDetectionNode(Node):
                     ),
                 ),
                 (
-                    "rate_hz",
+                    "face_detection_rate_hz",
                     15,
                     ParameterDescriptor(
-                        name="rate_hz",
+                        name="face_detection_rate_hz",
                         type=ParameterType.PARAMETER_DOUBLE,
                         description=(
                             "The rate at which to run the face detection node"
@@ -309,7 +320,7 @@ class FaceDetectionNode(Node):
         the face detection on or off depending on the request.
         """
 
-        self.get_logger().info(f"Incoming service request. data: {request.data}")
+        self._node.get_logger().info(f"Incoming service request. data: {request.data}")
         response.success = False
         response.message = f"Failed to set is_on to {request.data}"
         with self.is_on_lock:
@@ -317,38 +328,6 @@ class FaceDetectionNode(Node):
             response.success = True
             response.message = f"Successfully set is_on to {request.data}"
         return response
-
-    def camera_info_callback(self, msg: CameraInfo):
-        """
-        Callback function for the toggle_face_detection service. Safely toggles
-        the face detection on or off depending on the request.
-
-        TODO: We technically only need to read one message from CameraInfo,
-        since the intrinsics don't change. If `rclpy` adds a `wait_for_message`
-        function, this subscription/callback should be replaced with that.
-        """
-        with self.camera_info_lock:
-            self.camera_matrix = msg.k
-
-    def depth_callback(self, msg: Image):
-        """
-        Callback function for depth images. If face_detection is on, this
-        function publishes the 3d location of the mouth on the /face_detection
-        topic in the camera_depth_optical_frame
-        """
-        # Collect a buffer of depth images (depth_buffer is a collections.deque
-        # of max length depth_buffer_size)
-        with self.depth_buffer_lock:
-            self.depth_buffer.append(msg)
-
-    def camera_callback(self, msg: Union[CompressedImage, Image]):
-        """
-        Callback function for the camera feed. If face detection is on, this
-        function will detect faces in the image and store the location of the
-        center of the mouth of the largest detected face.
-        """
-        with self.latest_img_msg_lock:
-            self.latest_img_msg = msg
 
     def detect_largest_face(
         self, image_bgr: npt.NDArray
@@ -449,7 +428,7 @@ class FaceDetectionNode(Node):
             depth_mm = np.percentile(depth_mms, 50)
             return True, depth_mm
 
-        self.get_logger().warn(
+        self._node.get_logger().warn(
             "The majority of mouth points were invalid (outside the frame or depth not detected). "
             "Unable to compute mouth depth with the median of mouth points."
         )
@@ -491,7 +470,7 @@ class FaceDetectionNode(Node):
                     z = image_depth[v][u]
                     face_points_3d.append([u, v, z])
         if len(face_points_3d) == 0:
-            self.get_logger().warn(
+            self._node.get_logger().warn(
                 "All internal face points are out of the depth FOV. Ignoring face."
             )
             return False, 0
@@ -509,7 +488,7 @@ class FaceDetectionNode(Node):
         )
         if np.sum(non_outliers) < face_points_3d.shape[0]:
             outlier_depths = face_points_3d[np.logical_not(non_outliers)][:, 2]
-            self.get_logger().debug(
+            self._node.get_logger().debug(
                 "Facial plane face detection method: removing outliers depths "
                 f"{outlier_depths}"
             )
@@ -526,7 +505,7 @@ class FaceDetectionNode(Node):
             # Calculate depth of stomion u,v from fit plane
             depth_mm = (d + (a * stomion_u) + (b * stomion_v)) / (-c)
             return True, depth_mm
-        self.get_logger().warn(
+        self._node.get_logger().warn(
             "The majority of internal face points were invalid (outside the frame or depth not detected). "
             "Unable to compute mouth depth from facial plane."
         )
@@ -564,35 +543,35 @@ class FaceDetectionNode(Node):
         mouth_points = face_points[48:68]
 
         # Find depth image closest in time to RGB image that face was in
-        with self.depth_buffer_lock:
-            min_time_diff = float("inf")
-            closest_depth_msg = None
-            for depth_msg in self.depth_buffer:
-                depth_time = depth_msg.header.stamp.sec + (
-                    depth_msg.header.stamp.nanosec / (10**9)
-                )
-                img_time = rgb_msg.header.stamp.sec + (
-                    rgb_msg.header.stamp.nanosec / (10**9)
-                )
-                time_diff = abs(depth_time - img_time)
-                if time_diff < min_time_diff:
-                    min_time_diff = time_diff
-                    closest_depth_msg = depth_msg
-            if closest_depth_msg is None:
-                self.get_logger().warn(
-                    "No depth image message received.", throttle_duration_sec=1
-                )
-                return False, 0
-            elapsed_time = np.abs(
-                closest_depth_msg.header.stamp.sec - rgb_msg.header.stamp.sec
+        depth_buffer = self._node.get_all_msgs(self.aligned_depth_topic)
+        min_time_diff = float("inf")
+        closest_depth_msg = None
+        for depth_msg in depth_buffer:
+            depth_time = depth_msg.header.stamp.sec + (
+                depth_msg.header.stamp.nanosec / (10**9)
             )
-            if elapsed_time >= 1.0:
-                self.get_logger().warn(
-                    "Inconsistent messages. Depth image message received at "
-                    f"{closest_depth_msg.header.stamp}. RGB image message received "
-                    f"at {rgb_msg.header.stamp}. Time difference: {min_time_diff} secs."
-                )
-                return False, 0
+            img_time = rgb_msg.header.stamp.sec + (
+                rgb_msg.header.stamp.nanosec / (10**9)
+            )
+            time_diff = abs(depth_time - img_time)
+            if time_diff < min_time_diff:
+                min_time_diff = time_diff
+                closest_depth_msg = depth_msg
+        if closest_depth_msg is None:
+            self._node.get_logger().warn(
+                "No depth image message received.", throttle_duration_sec=1
+            )
+            return False, 0
+        elapsed_time = np.abs(
+            closest_depth_msg.header.stamp.sec - rgb_msg.header.stamp.sec
+        )
+        if elapsed_time >= 1.0:
+            self._node.get_logger().warn(
+                "Inconsistent messages. Depth image message received at "
+                f"{closest_depth_msg.header.stamp}. RGB image message received "
+                f"at {rgb_msg.header.stamp}. Time difference: {min_time_diff} secs."
+            )
+            return False, 0
         image_depth = ros_msg_to_cv2_image(closest_depth_msg, self.bridge)
 
         # Compute the depth of the mouth. Use the first method that works.
@@ -601,18 +580,18 @@ class FaceDetectionNode(Node):
                 detected, depth_mm = self.depth_method_median_mouth_points(
                     mouth_points, image_depth
                 )
-                self.get_logger().debug(
+                self._node.get_logger().debug(
                     f"Face detection with MEDIAN_MOUTH_POINTS: {detected}. {depth_mm}."
                 )
             elif method == DepthComputationMethod.FACIAL_PLANE:
                 detected, depth_mm = self.depth_method_facial_plane(
                     face_points, image_depth
                 )
-                self.get_logger().debug(
+                self._node.get_logger().debug(
                     f"Face detection with FACIAL_PLANE: {detected}. {depth_mm}."
                 )
             else:
-                self.get_logger().warn(
+                self._node.get_logger().warn(
                     f"Invalid depth computation method: {method}. Skipping."
                 )
             if detected:
@@ -636,18 +615,14 @@ class FaceDetectionNode(Node):
         -------
         mouth_point: The 3d location of the mouth in the camera frame.
         """
-        # Get the camera matrix
-        with self.camera_info_lock:
-            camera_matrix = self.camera_matrix
-
         # Compute the point. See https://www.youtube.com/watch?v=qByYk6JggQU&t=443s
         # for the derivation of the formulae.
         mouth_point = Point()
-        mouth_point.x = (float(depth_mm) * (float(u) - camera_matrix[2])) / (
-            1000.0 * camera_matrix[0]
+        mouth_point.x = (float(depth_mm) * (float(u) - self.camera_matrix[2])) / (
+            1000.0 * self.camera_matrix[0]
         )
-        mouth_point.y = (float(depth_mm) * (float(v) - camera_matrix[5])) / (
-            1000.0 * camera_matrix[4]
+        mouth_point.y = (float(depth_mm) * (float(v) - self.camera_matrix[5])) / (
+            1000.0 * self.camera_matrix[4]
         )
         mouth_point.z = float(depth_mm) / 1000.0
 
@@ -660,7 +635,7 @@ class FaceDetectionNode(Node):
         to it in time, runs face detection on the RGB image, and then determines
         the depth of the detected face.
         """
-        rate = self.create_rate(self.rate_hz)
+        rate = self._node.create_rate(self.rate_hz)
         while rclpy.ok():
             # Loop at the specified rate
             rate.sleep()
@@ -674,11 +649,17 @@ class FaceDetectionNode(Node):
             # Create the FaceDetection message
             face_detection_msg = FaceDetection()
 
+            # Get the latest camera_info message
+            if not self.got_camera_info:
+                camera_info = self._node.get_latest_msg(self.camera_info_topic)
+                if camera_info is not None:
+                    self.camera_matrix = camera_info.k
+                    self.got_camera_info = True
+
             # Get the latest RGB image message
-            with self.latest_img_msg_lock:
-                rgb_msg = self.latest_img_msg
+            rgb_msg = self._node.get_latest_msg(self.rgb_image_topic)
             if rgb_msg is None:
-                self.get_logger().warn(
+                self._node.get_logger().warn(
                     "No RGB image message received.", throttle_duration_sec=1
                 )
                 continue
@@ -759,14 +740,15 @@ def main(args=None):
     """
     rclpy.init(args=args)
 
-    face_detection = FaceDetectionNode()
+    node = ADAFeedingPerceptionNode("face_detection")
+    face_detection = FaceDetectionNode(node)
     executor = MultiThreadedExecutor(num_threads=4)
 
     # Spin in the background since detecting faces will block
     # the main thread
     spin_thread = threading.Thread(
         target=rclpy.spin,
-        args=(face_detection,),
+        args=(node,),
         kwargs={"executor": executor},
         daemon=True,
     )
@@ -779,7 +761,7 @@ def main(args=None):
         pass
 
     # Terminate this node
-    face_detection.destroy_node()
+    node.destroy_node()
     rclpy.shutdown()
     # Join the spin thread (so it is spinning in the main thread)
     spin_thread.join()
