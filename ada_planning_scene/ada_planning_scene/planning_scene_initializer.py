@@ -442,6 +442,9 @@ class PlanningSceneInitializer:
         -------
         response: The response to modify the collision object.
         """
+        self.__node.get_logger().info(
+            f"Modifying collision object '{request.object_id}'..."
+        )
         object_id = request.object_id
         if object_id not in self.objects[self.__namespace_to_use]:
             success = False
