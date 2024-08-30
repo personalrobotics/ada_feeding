@@ -99,7 +99,7 @@ class SegmentFromPointNode(Node):
             CameraInfo,
             "~/camera_info",
             self.camera_info_callback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -119,7 +119,7 @@ class SegmentFromPointNode(Node):
             aligned_depth_type,
             aligned_depth_topic,
             self.depth_image_callback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -138,7 +138,7 @@ class SegmentFromPointNode(Node):
             image_type,
             image_topic,
             self.image_callback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 

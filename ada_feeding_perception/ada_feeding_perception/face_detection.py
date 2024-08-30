@@ -160,7 +160,7 @@ class FaceDetectionNode(Node):
             image_type,
             image_topic,
             self.camera_callback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -180,7 +180,7 @@ class FaceDetectionNode(Node):
             aligned_depth_type,
             aligned_depth_topic,
             self.depth_callback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -193,7 +193,7 @@ class FaceDetectionNode(Node):
             CameraInfo,
             "~/camera_info",
             self.camera_info_callback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 

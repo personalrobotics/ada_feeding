@@ -254,9 +254,7 @@ class ReceiverCompressedImageNode(Node):
             self.__pubs[topic_name] = self.create_publisher(
                 msg_type=CompressedImageOutput,
                 topic=repub_topic_name,
-                qos_profile=QoSProfile(
-                    depth=1, reliability=ReliabilityPolicy.BEST_EFFORT
-                ),
+                qos_profile=QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             )
             self.get_logger().info(f"Created publisher for {repub_topic_name}.")
 
