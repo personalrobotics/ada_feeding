@@ -86,6 +86,10 @@ class AcquireFoodTree(MoveToTree):
         max_velocity_scaling_to_resting_configuration: Optional[float] = 0.8,
         max_acceleration_scaling_to_resting_configuration: Optional[float] = 0.8,
         pickle_goal_path: Optional[str] = None,
+        allowed_planning_time_for_move_above: float = 2.0,
+        allowed_planning_time_for_move_into: float = 0.5,
+        allowed_planning_time_to_resting_configuration: float = 0.5,
+        allowed_planning_time_for_recovery: float = 0.5,
     ):
         """
         Initializes tree-specific parameters.
@@ -100,6 +104,10 @@ class AcquireFoodTree(MoveToTree):
         max_velocity_scaling_to_resting_configuration: Max velocity scaling for move to resting configuration
         max_acceleration_scaling_to_resting_configuration: Max acceleration scaling for move to resting configuration
         pickle_goal_path: Path to pickle goal for debugging
+        allowed_planning_time_for_move_above: Allowed planning time for move above
+        allowed_planning_time_for_move_into: Allowed planning time for move into
+        allowed_planning_time_to_resting_configuration: Allowed planning time for move to resting configuration
+        allowed_planning_time_for_recovery: Allowed planning time for recovery
         """
         # Initialize ActionServerBT
         super().__init__(node)
@@ -116,6 +124,12 @@ class AcquireFoodTree(MoveToTree):
             max_acceleration_scaling_to_resting_configuration
         )
         self.pickle_goal_path = pickle_goal_path
+        self.allowed_planning_time_for_move_above = allowed_planning_time_for_move_above
+        self.allowed_planning_time_for_move_into = allowed_planning_time_for_move_into
+        self.allowed_planning_time_to_resting_configuration = (
+            allowed_planning_time_to_resting_configuration
+        )
+        self.allowed_planning_time_for_recovery = allowed_planning_time_for_recovery
 
     @override
     def create_tree(
@@ -181,15 +195,24 @@ class AcquireFoodTree(MoveToTree):
                                 "constraints": BlackboardKey("goal_constraints"),
                             },
                         ),
-                        MoveIt2Plan(
-                            name="RestingPlan",
-                            ns=name,
-                            inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
-                                "max_velocity_scale": self.max_velocity_scaling_to_resting_configuration,
-                                "max_acceleration_scale": self.max_acceleration_scaling_to_resting_configuration,
-                            },
-                            outputs={"trajectory": BlackboardKey("trajectory")},
+                        py_trees.decorators.Timeout(
+                            name="RestingPlanTimeout",
+                            # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                            duration=10.0
+                            * self.allowed_planning_time_to_resting_configuration,
+                            child=MoveIt2Plan(
+                                name="RestingPlan",
+                                ns=name,
+                                inputs={
+                                    "goal_constraints": BlackboardKey(
+                                        "goal_constraints"
+                                    ),
+                                    "max_velocity_scale": self.max_velocity_scaling_to_resting_configuration,
+                                    "max_acceleration_scale": self.max_acceleration_scaling_to_resting_configuration,
+                                    "allowed_planning_time": self.allowed_planning_time_to_resting_configuration,
+                                },
+                                outputs={"trajectory": BlackboardKey("trajectory")},
+                            ),
                         ),
                         MoveIt2Execute(
                             name="Resting",
@@ -295,20 +318,29 @@ class AcquireFoodTree(MoveToTree):
                                         ),
                                     },
                                 ),
-                                MoveIt2Plan(
-                                    name="RecoveryOffsetPlan",
-                                    ns=name,
-                                    inputs={
-                                        "goal_constraints": BlackboardKey(
-                                            "goal_constraints"
-                                        ),
-                                        "max_velocity_scale": self.max_velocity_scaling_move_into,
-                                        "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                        "cartesian": True,
-                                        "cartesian_max_step": 0.001,
-                                        "cartesian_fraction_threshold": 0.92,
-                                    },
-                                    outputs={"trajectory": BlackboardKey("trajectory")},
+                                py_trees.decorators.Timeout(
+                                    name="RecoveryOffsetPlanTimeout",
+                                    # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                                    duration=10.0
+                                    * self.allowed_planning_time_for_recovery,
+                                    child=MoveIt2Plan(
+                                        name="RecoveryOffsetPlan",
+                                        ns=name,
+                                        inputs={
+                                            "goal_constraints": BlackboardKey(
+                                                "goal_constraints"
+                                            ),
+                                            "max_velocity_scale": self.max_velocity_scaling_move_into,
+                                            "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                                            "cartesian": True,
+                                            "cartesian_max_step": 0.001,
+                                            "cartesian_fraction_threshold": 0.92,
+                                            "allowed_planning_time": self.allowed_planning_time_for_recovery,
+                                        },
+                                        outputs={
+                                            "trajectory": BlackboardKey("trajectory")
+                                        },
+                                    ),
                                 ),
                                 MoveIt2Execute(
                                     name="RecoveryOffset",
@@ -418,20 +450,25 @@ class AcquireFoodTree(MoveToTree):
                             "constraints": BlackboardKey("goal_constraints"),
                         },
                     ),
-                    MoveIt2Plan(
-                        name="MoveAbovePlan",
-                        ns=name,
-                        inputs={
-                            "goal_constraints": BlackboardKey("goal_constraints"),
-                            "max_velocity_scale": self.max_velocity_scaling_move_above,
-                            "max_acceleration_scale": self.max_acceleration_scaling_move_above,
-                            "allowed_planning_time": 2.0,
-                            "max_path_len_joint": max_path_len_joint,
-                        },
-                        outputs={
-                            "trajectory": BlackboardKey("trajectory"),
-                            "end_joint_state": BlackboardKey("test_into_joints"),
-                        },
+                    py_trees.decorators.Timeout(
+                        name="MoveAbovePlanTimeout",
+                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                        duration=10.0 * self.allowed_planning_time_for_move_above,
+                        child=MoveIt2Plan(
+                            name="MoveAbovePlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("goal_constraints"),
+                                "max_velocity_scale": self.max_velocity_scaling_move_above,
+                                "max_acceleration_scale": self.max_acceleration_scaling_move_above,
+                                "allowed_planning_time": self.allowed_planning_time_for_move_above,
+                                "max_path_len_joint": max_path_len_joint,
+                            },
+                            outputs={
+                                "trajectory": BlackboardKey("trajectory"),
+                                "end_joint_state": BlackboardKey("test_into_joints"),
+                            },
+                        ),
                     ),
                     ### Test MoveIntoFood
                     MoveIt2PoseConstraint(
@@ -445,20 +482,28 @@ class AcquireFoodTree(MoveToTree):
                             "constraints": BlackboardKey("goal_constraints"),
                         },
                     ),
-                    MoveIt2Plan(
-                        name="MoveIntoPlan",
-                        ns=name,
-                        inputs={
-                            "goal_constraints": BlackboardKey("goal_constraints"),
-                            "max_velocity_scale": self.max_velocity_scaling_move_into,
-                            "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                            "cartesian": True,
-                            "cartesian_max_step": 0.001,
-                            "cartesian_fraction_threshold": 0.92,
-                            "start_joint_state": BlackboardKey("test_into_joints"),
-                            "max_path_len_joint": max_path_len_joint,
-                        },
-                        outputs={"trajectory": BlackboardKey("move_into_trajectory")},
+                    py_trees.decorators.Timeout(
+                        name="MoveIntoPlanTimeout",
+                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                        duration=10.0 * self.allowed_planning_time_for_move_into,
+                        child=MoveIt2Plan(
+                            name="MoveIntoPlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("goal_constraints"),
+                                "max_velocity_scale": self.max_velocity_scaling_move_into,
+                                "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                                "cartesian": True,
+                                "cartesian_max_step": 0.001,
+                                "cartesian_fraction_threshold": 0.92,
+                                "start_joint_state": BlackboardKey("test_into_joints"),
+                                "max_path_len_joint": max_path_len_joint,
+                                "allowed_planning_time": self.allowed_planning_time_for_move_into,
+                            },
+                            outputs={
+                                "trajectory": BlackboardKey("move_into_trajectory")
+                            },
+                        ),
                     ),
                 ],
             )
@@ -643,25 +688,32 @@ class AcquireFoodTree(MoveToTree):
                                         # From move_above_plan()
                                         py_trees.decorators.FailureIsSuccess(
                                             name="MoveIntoPlanFallbackPrecomputed",
-                                            child=MoveIt2Plan(
-                                                name="MoveIntoPlan",
-                                                ns=name,
-                                                inputs={
-                                                    "goal_constraints": BlackboardKey(
-                                                        "goal_constraints"
-                                                    ),
-                                                    "max_velocity_scale": self.max_velocity_scaling_move_into,
-                                                    "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                                    "cartesian": True,
-                                                    "cartesian_max_step": 0.001,
-                                                    "cartesian_fraction_threshold": 0.92,
-                                                    "max_path_len_joint": max_path_len_joint,
-                                                },
-                                                outputs={
-                                                    "trajectory": BlackboardKey(
-                                                        "move_into_trajectory"
-                                                    )
-                                                },
+                                            child=py_trees.decorators.Timeout(
+                                                name="MoveIntoPlanTimeout",
+                                                # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                                                duration=10.0
+                                                * self.allowed_planning_time_for_move_into,
+                                                child=MoveIt2Plan(
+                                                    name="MoveIntoPlan",
+                                                    ns=name,
+                                                    inputs={
+                                                        "goal_constraints": BlackboardKey(
+                                                            "goal_constraints"
+                                                        ),
+                                                        "max_velocity_scale": self.max_velocity_scaling_move_into,
+                                                        "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                                                        "cartesian": True,
+                                                        "cartesian_max_step": 0.001,
+                                                        "cartesian_fraction_threshold": 0.92,
+                                                        "max_path_len_joint": max_path_len_joint,
+                                                        "allowed_planning_time": self.allowed_planning_time_for_move_into,
+                                                    },
+                                                    outputs={
+                                                        "trajectory": BlackboardKey(
+                                                            "move_into_trajectory"
+                                                        )
+                                                    },
+                                                ),
                                             ),
                                         ),
                                         # MoveInto expect F/T failure
