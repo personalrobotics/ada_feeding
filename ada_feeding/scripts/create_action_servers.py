@@ -1028,11 +1028,12 @@ class CreateActionServers(Node):
                         if goal_handle.is_cancel_requested:
                             # Note that the body of this conditional may be called
                             # multiple times until the preemption is complete.
-                            self.get_logger().info("Goal canceled")
+                            self.get_logger().info("Waiting for tree to preempt")
                             tree_action_server.preempt_goal(
                                 tree
                             )  # blocks until the preempt succeeds
                             goal_handle.canceled()
+                            self.get_logger().info("Canceled goal.")
 
                             try:
                                 result = tree_action_server.get_result(

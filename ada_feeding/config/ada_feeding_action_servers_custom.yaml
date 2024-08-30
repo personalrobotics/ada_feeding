@@ -6,6 +6,7 @@ ada_feeding_action_servers:
     - side_staging_2
     - side_staging_3
     - hospital_table_mount_1
+    - seated_side_table_1
     hospital_table_mount_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -2.40341872791
@@ -49,7 +50,45 @@ ada_feeding_action_servers:
       - -3.0701456341812565
       - 1.8009590918986131
       planning_scene_namespace_to_use: bedside
-    namespace_to_use: hospital_table_mount_1
+    namespace_to_use: seated_side_table_1
+    seated_side_table_1:
+      AcquireFood.tree_kwargs.resting_joint_positions:
+      - -1.0417226246276128
+      - 4.404614643739175
+      - 5.699745834519425
+      - -6.704937345842203
+      - 4.10020174902156
+      - 5.1406561763380765
+      MoveAbovePlate.tree_kwargs.joint_positions:
+      - 0.02532932512774355
+      - 3.1431881533988597
+      - 1.732171105680466
+      - -2.3604859079728984
+      - 4.162401474177013
+      - 4.090987211649885
+      MoveFromMouth.tree_kwargs.staging_configuration_position:
+      - -0.011402569359730129
+      - 0.029461197720583806
+      - 0.6578790735619884
+      MoveFromMouth.tree_kwargs.staging_configuration_quat_xyzw:
+      - 0.3333477503344343
+      - 0.6602177768810074
+      - 0.5795891150204631
+      - 0.3421523376904928
+      MoveToRestingPosition.tree_kwargs.goal_configuration:
+      - -1.0417226246276128
+      - 4.404614643739175
+      - 5.699745834519425
+      - -6.704937345842203
+      - 4.10020174902156
+      - 5.1406561763380765
+      MoveToStagingConfiguration.tree_kwargs.goal_configuration:
+      - -0.6009865084504753
+      - 4.406308680508575
+      - 4.342634895689761
+      - -5.48339275809026
+      - 4.099009718117641
+      - 3.976385530989377
     side_staging_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.8849039817349507

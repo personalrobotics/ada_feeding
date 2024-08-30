@@ -23,7 +23,7 @@ ada_planning_scene:
     namespaces:
       - seated
       - bedside
-    namespace_to_use: bedside # seated # 
+    namespace_to_use: seated # bedside # 
 
     ############################################################################
     # Parameters related to the PlanningSceneInitializer class
@@ -71,8 +71,8 @@ ada_planning_scene:
         filename: table.stl
         # Initial predicted position and orientation of the table; these values get
         # updated as the robot perceives the table.
-        position: [0.08, -0.5, -0.56]
-        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+        position: [-0.5, -0.08, -0.56]
+        quat_xyzw: [0.0, 0.0, -0.7071068, 0.7071068]
         offsets: [-0.20, -0.25, -0.689] 
         frame_id: root # the frame_id that the pose is relative to
       # NOTE: If you change this you must also change the hardcoded initial pose in
@@ -88,8 +88,8 @@ ada_planning_scene:
       in_front_of_face_wall: # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
         primitive_type: 1 # shape_msgs/SolidPrimitive.BOX
         primitive_dims: [0.65, 0.01, 0.4]
-        position: [0.37, 0.17, 0.85]
-        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+        position: [0.17, -0.37, 0.85]
+        quat_xyzw: [0.0, 0.0, -0.7071068, 0.7071068]
         frame_id: root # the frame_id that the pose is relative to
         add_on_initialize: False # don't add this to the planning scene initially
 
@@ -119,6 +119,7 @@ ada_planning_scene:
         filename: hospital_table.stl
         # Initial predicted position and orientation of the table; these values get
         # updated as the robot perceives the table.
+        # TODO: Verify lateral position relative to face
         position: [-0.6, -0.68, -1.04]
         quat_xyzw: [0.0, 0.0, 0.7071068, 0.7071068]
         frame_id: root # the frame_id that the pose is relative to
@@ -134,6 +135,7 @@ ada_planning_scene:
       in_front_of_face_wall: # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
         primitive_type: 1 # shape_msgs/SolidPrimitive.BOX
         primitive_dims: [0.65, 0.01, 0.6]
+        # TODO: rotate!!!
         position: [-0.37, 0.11, 0.26]
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
@@ -226,10 +228,12 @@ ada_planning_scene:
     # - `table_pos_dist_thresh`: The threshold on the linear distance (in m) between the default table position
     #    and the latest table position to determine whether to reject or accept the latest table position.
     seated:
+      # TODO: rotate!!!
       table_origin_offset: [-0.20, -0.25, -0.79]
       table_quat_dist_thresh: 0.349
       table_pos_dist_thresh: 0.5
     bedside:
+      # TODO: rotate!!!
       table_origin_offset: [-0.23, 0.71, -1.0067]
       table_quat_dist_thresh: 0.349
       table_pos_dist_thresh: 0.5
