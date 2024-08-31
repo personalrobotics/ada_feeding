@@ -850,6 +850,9 @@ class WorkspaceWalls:
             return False, {}
 
         # Wait for the service to be ready
+        self.__node.get_logger().info(
+            "Waiting for the get robot configurations parameter service."
+        )
         while not self.__get_robot_configurations_parameter_service.service_is_ready():
             if not check_ok(self.__node, start_time, timeout):
                 self.__node.get_logger().error(
@@ -866,6 +869,9 @@ class WorkspaceWalls:
         request.names = [
             prefix + name for name in self.__robot_configurations_parameter_names
         ]
+        self.__node.get_logger().info(
+            f"Getting robot configurations from parameters: {request.names}"
+        )
         future = self.__get_robot_configurations_parameter_service.call_async(request)
         while not future.done():
             if not check_ok(self.__node, start_time, timeout):
@@ -893,6 +899,9 @@ class WorkspaceWalls:
             )
             if publish_feedback is not None:
                 publish_feedback()
+        if len(robot_configurations) == 0:
+            self.__node.get_logger().error("Failed to get robot configurations.")
+            return False, {}
 
         # Add the current joint state
         if (
@@ -985,7 +994,7 @@ class WorkspaceWalls:
         rate_hz: float = 10.0,
         timeout: Duration = Duration(seconds=5),
         publish_feedback: Optional[Callable[[], None]] = None,
-    ):
+    ) -> bool:
         """
         Recomputes workspace walls and adds them to the planning scene.
 
