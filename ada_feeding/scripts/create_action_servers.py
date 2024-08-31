@@ -1080,7 +1080,21 @@ class CreateActionServers(Node):
                                 py_trees.common.Status.INVALID,
                             )
                         ):
-                            self.get_logger().info("Tree failed")
+                            # Get the name of the behavior that the tree failed on
+                            names_of_failed_behavior = []
+                            for node in tree.root.iterate():
+                                if node.status in set(
+                                    (
+                                        py_trees.common.Status.FAILURE,
+                                        py_trees.common.Status.INVALID,
+                                    )
+                                ):
+                                    names_of_failed_behavior.append(node.name)
+                                    if node.status == py_trees.common.Status.FAILURE:
+                                        break
+                            self.get_logger().info(
+                                f"Tree failed at behavior {names_of_failed_behavior}"
+                            )
                             goal_handle.abort()
                             try:
                                 result = tree_action_server.get_result(
