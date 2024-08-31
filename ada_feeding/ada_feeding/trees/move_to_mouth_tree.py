@@ -37,8 +37,8 @@ from ada_feeding.behaviors.ros import (
     GetTransform,
     SetStaticTransform,
     ApplyTransform,
-    CreatePoseStamped,
 )
+from ada_feeding.behaviors.transfer import ComputeMouthFrame
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
     pre_moveto_config,
@@ -494,6 +494,7 @@ class MoveToMouthTree(MoveToTree):
                             ignore_orientation=True,
                             subscribe_to_servo_status=False,
                             pub_topic="~/cartesian_twist_cmds",
+                            viz=True,
                         )
                     ],
                 ),

@@ -184,6 +184,24 @@ class UpdateFromFaceDetection:
             update_face_hz = self.__node.get_parameter("update_face_hz")
         self.__update_face_hz = update_face_hz.value
 
+        # Whether to publish the detected mouth pose as a static tf transform
+        try:
+            publish_mouth_tf = self.__node.declare_parameter(
+                "publish_mouth_tf",
+                False,
+                descriptor=ParameterDescriptor(
+                    name="publish_mouth_tf",
+                    type=ParameterType.PARAMETER_BOOL,
+                    description=(
+                        "Whether to publish the detected mouth pose as a static TF transform."
+                    ),
+                    read_only=True,
+                ),
+            )
+        except ParameterAlreadyDeclaredException:
+            publish_mouth_tf = self.__node.get_parameter("publish_mouth_tf")
+        self.__publish_mouth_tf = publish_mouth_tf.value
+
         # Load the parameters within each namespace
         self.__namespace_to_params = {}
         for namespace in self.__namespaces:
@@ -389,20 +407,25 @@ class UpdateFromFaceDetection:
         )
 
         # Add the static mouth pose to TF.
-        self.__tf_broadcaster.sendTransform(
-            TransformStamped(
-                header=detected_mouth_pose.header,
-                child_frame_id=mouth_frame_id,
-                transform=Transform(
-                    translation=Vector3(
-                        x=detected_mouth_pose.pose.position.x,
-                        y=detected_mouth_pose.pose.position.y,
-                        z=detected_mouth_pose.pose.position.z,
+        # NOTE: Although in theory, publishing the mouth TF here can allow for visual servoing
+        # to the mouth, in practice we have to make some assumptions about the mouth orientation
+        # (e.g., the mouth is facing the fork). Those assumptions are made in the MoveToMouth tree,
+        # and would be overrided here if we published the mouth TF.
+        if self.__publish_mouth_tf:
+            self.__tf_broadcaster.sendTransform(
+                TransformStamped(
+                    header=detected_mouth_pose.header,
+                    child_frame_id=mouth_frame_id,
+                    transform=Transform(
+                        translation=Vector3(
+                            x=detected_mouth_pose.pose.position.x,
+                            y=detected_mouth_pose.pose.position.y,
+                            z=detected_mouth_pose.pose.position.z,
+                        ),
+                        rotation=detected_mouth_pose.pose.orientation,
                     ),
-                    rotation=detected_mouth_pose.pose.orientation,
-                ),
+                )
             )
-        )
 
         # Scale the body object based on the user's head pose.
         if update_body:

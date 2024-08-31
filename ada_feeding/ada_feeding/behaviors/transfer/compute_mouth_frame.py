@@ -14,6 +14,7 @@ from geometry_msgs.msg import PointStamped, PoseStamped, Vector3
 from overrides import override
 import py_trees
 import rclpy
+import tf2_ros
 
 # Local imports
 from ada_feeding.helpers import (
@@ -105,7 +106,12 @@ class ComputeMouthFrame(BlackboardBehavior):
 
         # Validate inputs
         if not self.blackboard_exists(
-            ["detected_mouth_center", "timestamp", "world_frame", "frame_to_orient_towards"]
+            [
+                "detected_mouth_center",
+                "timestamp",
+                "world_frame",
+                "frame_to_orient_towards",
+            ]
         ):
             self.logger.error(
                 "Missing detected_mouth_center, timestamp, world_frame, or frame_to_orient_towards."
@@ -132,11 +138,15 @@ class ComputeMouthFrame(BlackboardBehavior):
                 # Use a Timeout decorator to determine failure.
                 self.logger.warning("ComputeMouthFrame waiting on world/camera TF...")
                 return py_trees.common.Status.RUNNING
-            mouth_transform = self.tf_buffer.lookup_transform(
+            camera_transform = self.tf_buffer.lookup_transform(
                 world_frame,
                 detected_mouth_center.header.frame_id,
                 timestamp,
             )
+            mouth_point = tf2_ros.TransformRegistration().get(PointStamped)(
+                detected_mouth_center, camera_transform
+            )
+            self.logger.info(f"Computed mouth point: {mouth_point.point}")
 
             # Transform frame_to_orient_towards to world_frame
             if not self.tf_buffer.can_transform(
@@ -153,21 +163,28 @@ class ComputeMouthFrame(BlackboardBehavior):
                 frame_to_orient_towards,
                 timestamp,
             )
+            self.logger.info(
+                f"Computed orientation target transform: {orientation_target_transform.transform}"
+            )
 
         # Get the yaw of the face frame
-        x_unit = Vector3(x=1, y=0, z=0)
+        x_unit = Vector3(x=1.0, y=0.0, z=0.0)
         x_pos = Vector3(
-            x=mouth_transform.transform.translation.x - orientation_target_transform.transform.translation.x,
-            y=mouth_transform.transform.translation.y - orientation_target_transform.transform.translation.y,
-            z=0,
+            x=orientation_target_transform.transform.translation.x
+            - mouth_point.point.x,
+            y=orientation_target_transform.transform.translation.y
+            - mouth_point.point.y,
+            z=0.0,
         )
+        self.logger.info(f"Computed x_pos: {x_pos}")
         quat = quat_between_vectors(x_unit, x_pos)
+        self.logger.info(f"Computed orientation: {quat}")
 
         # Create return object
         mouth_pose = PoseStamped()
-        mouth_pose.header.frame_id = world_frame
-        mouth_pose.header.stamp = detected_mouth_center.header.stamp
-        mouth_pose.pose.position = detected_mouth_center.point
+        mouth_pose.header.frame_id = mouth_point.header.frame_id
+        mouth_pose.header.stamp = mouth_point.header.stamp
+        mouth_pose.pose.position = mouth_point.point
         mouth_pose.pose.orientation = quat
 
         # Write to blackboard outputs
