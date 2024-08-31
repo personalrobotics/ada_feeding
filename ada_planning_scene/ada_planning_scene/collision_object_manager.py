@@ -312,7 +312,13 @@ class CollisionObjectManager:
                         quat_xyzw=params.quat_xyzw,
                         frame_id=params.frame_id,
                     )
+                self.__node.get_logger().info(
+                    f"Added collision object {object_id}. About to sleep.",
+                )
                 rate.sleep()
+                self.__node.get_logger().info(
+                    "Woke up from sleep after adding collision object.",
+                )
             if not retry_until_added:
                 break
 

@@ -87,7 +87,6 @@ ada_feeding_action_servers:
     - bed_side_table_1
     - bed_front_table_1
     - wheelchair_side_table_1
-    # TODO: For deployment, remove the below 3!
     - side_staging_1
     - side_staging_2
     - side_staging_3
