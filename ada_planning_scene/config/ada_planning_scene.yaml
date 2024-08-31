@@ -228,8 +228,7 @@ ada_planning_scene:
     # - `table_pos_dist_thresh`: The threshold on the linear distance (in m) between the default table position
     #    and the latest table position to determine whether to reject or accept the latest table position.
     seated:
-      # TODO: rotate!!!
-      table_origin_offset: [-0.20, -0.25, -0.79]
+      table_origin_offset: [-0.10, -0.25, -0.79]
       table_quat_dist_thresh: 0.349
       table_pos_dist_thresh: 0.5
     bedside:
