@@ -64,7 +64,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--policy",
-    default="constant",
+    default="linucb_noposthoc",
     help=(
         "`constant`, `color`, `random`, `random_noposthoc`, `greedy`, `greedy_noposthoc`, "
         "`egreedy`, `egreedy_noposthoc`, `linucb`, or `linucb_noposthoc` (default `constant`). "
