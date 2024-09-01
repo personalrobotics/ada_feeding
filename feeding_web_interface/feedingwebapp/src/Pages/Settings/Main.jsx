@@ -20,7 +20,8 @@ import {
   MOVING_STATE_ICON_DICT,
   REGULAR_CONTAINER_ID,
   SET_PARAMETERS_SERVICE_NAME,
-  SET_PARAMETERS_SERVICE_TYPE
+  SET_PARAMETERS_SERVICE_TYPE,
+  TABLE_ICON
 } from '../Constants'
 
 /**
@@ -163,9 +164,9 @@ const Main = () => {
   // Configure the different options in the settings menu
   let settingsConfig = [
     {
-      title: 'Distance to Mouth',
+      title: 'Motion to/from Mouth',
       icon: moveToMouthConfigurationImage,
-      onClick: () => onClickSettingsPage(SETTINGS_STATE.DISTANCE_TO_MOUTH)
+      onClick: () => onClickSettingsPage(SETTINGS_STATE.BITE_TRANSFER)
     },
     {
       title: 'Above Plate',
@@ -186,6 +187,11 @@ const Main = () => {
       title: 'Stow Position',
       icon: moveToStowConfigurationImage,
       onClick: () => onClickSettingsPage(SETTINGS_STATE.STOW_CONFIGURATION)
+    },
+    {
+      title: 'Planning Scene',
+      icon: TABLE_ICON,
+      onClick: () => onClickSettingsPage(SETTINGS_STATE.PLANNING_SCENE)
     }
   ]
 

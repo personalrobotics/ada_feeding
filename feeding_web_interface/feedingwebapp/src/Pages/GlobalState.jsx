@@ -76,8 +76,8 @@ export { NON_MOVING_STATES }
 /**
  * SETTINGS_STATE controls which settings page to display.
  *  - MAIN: The main page, with options to navigate to the other pages.
- *  - DISTANCE_TO_MOUTH: Allow the user to customize how close the robot gets
- *    to their mouth.
+ *  - BITE_TRANSFER: Allow the user to customize how close the robot gets
+ *    to their mouth and the speed of approach/departure.
  *  - ABOVE_PLATE: Allow the user to customize how high the fixed above plate
  *    arm configuration.
  *  - RESTING_CONFIGURATION: Allow the user to customize the fixed resting
@@ -89,11 +89,12 @@ export { NON_MOVING_STATES }
  */
 export const SETTINGS_STATE = {
   MAIN: 'MAIN',
-  DISTANCE_TO_MOUTH: 'DISTANCE_TO_MOUTH',
+  BITE_TRANSFER: 'BITE_TRANSFER',
   ABOVE_PLATE: 'ABOVE_PLATE',
   RESTING_CONFIGURATION: 'RESTING_CONFIGURATION',
   STAGING_CONFIGURATION: 'STAGING_CONFIGURATION',
-  STOW_CONFIGURATION: 'STOW_CONFIGURATION'
+  STOW_CONFIGURATION: 'STOW_CONFIGURATION',
+  PLANNING_SCENE: 'PLANNING_SCENE'
 }
 
 // The name of the default parameter namespace

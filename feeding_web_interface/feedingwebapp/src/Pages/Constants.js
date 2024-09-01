@@ -29,6 +29,7 @@ MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingFromMouth] = '/robot_state_imgs/move_t
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth] = '/robot_state_imgs/move_to_mouth_position.svg'
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_StowingArm] = '/robot_state_imgs/stowing_arm_position.svg'
 export { MOVING_STATE_ICON_DICT }
+export const TABLE_ICON = '/robot_state_imgs/table.svg'
 
 // The names of the ROS topic(s)
 export const CAMERA_FEED_TOPIC = '/local/camera/color/image_raw/compressed'
@@ -122,14 +123,21 @@ export const GET_PARAMETERS_SERVICE_NAME = 'ada_feeding_action_servers/get_param
 export const GET_PARAMETERS_SERVICE_TYPE = 'rcl_interfaces/srv/GetParameters'
 export const SET_PARAMETERS_SERVICE_NAME = 'ada_feeding_action_servers/set_parameters_atomically'
 export const SET_PARAMETERS_SERVICE_TYPE = 'rcl_interfaces/srv/SetParametersAtomically'
+export const PLANNING_SCENE_GET_PARAMETERS_SERVICE_NAME = 'ada_planning_scene/get_parameters'
+export const PLANNING_SCENE_GET_PARAMETERS_SERVICE_TYPE = 'rcl_interfaces/srv/GetParameters'
 
 // The names of parameters users can change in the settings menu
 export const DISTANCE_TO_MOUTH_PARAM = 'MoveToMouth.tree_kwargs.plan_distance_from_mouth'
+export const MOVE_TO_MOUTH_SPEED_PARAM = 'MoveToMouth.tree_kwargs.max_linear_speed'
+export const MOVE_TO_MOUTH_SPEED_NEAR_MOUTH_PARAM = 'MoveToMouth.tree_kwargs.linear_speed_near_mouth'
+export const MOVE_FROM_MOUTH_SPEED_PARAM = 'MoveFromMouth.tree_kwargs.max_linear_speed_to_staging_configuration'
+export const MOVE_FROM_MOUTH_SPEED_NEAR_MOUTH_PARAM = 'MoveFromMouth.tree_kwargs.linear_speed_near_mouth'
+export const PLANNING_SCENE_PARAM = 'planning_scene_namespace_to_use'
 export const ABOVE_PLATE_PARAM_JOINTS = 'MoveAbovePlate.tree_kwargs.joint_positions'
 export const STAGING_PARAM_JOINTS = 'MoveToStagingConfiguration.tree_kwargs.goal_configuration'
 export const STAGING_PARAM_POSITION = 'MoveFromMouth.tree_kwargs.staging_configuration_position'
 export const STAGING_PARAM_ORIENTATION = 'MoveFromMouth.tree_kwargs.staging_configuration_quat_xyzw'
-// TODO: Eventually, we should break AcquireFood into two actionss to avoid these
+// TODO: Eventually, we should break AcquireFood into two actions to avoid these
 // two different resting parameters.
 export const RESTING_PARAM_JOINTS_1 = 'AcquireFood.tree_kwargs.resting_joint_positions'
 // TODO: We may need to remove the orientation constraint from the below action.

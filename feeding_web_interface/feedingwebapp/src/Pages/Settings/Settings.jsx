@@ -22,6 +22,7 @@ import {
   STAGING_PARAM_POSITION,
   STOW_PARAM_JOINTS
 } from '../Constants'
+import PlanningScene from './PlanningScene'
 
 /**
  * The Settings components displays the appropriate settings page based on the
@@ -42,7 +43,7 @@ const Settings = (props) => {
     switch (settingsState) {
       case SETTINGS_STATE.MAIN:
         return <Main />
-      case SETTINGS_STATE.DISTANCE_TO_MOUTH:
+      case SETTINGS_STATE.BITE_TRANSFER:
         return <BiteTransfer webrtcURL={props.webrtcURL} />
       case SETTINGS_STATE.ABOVE_PLATE:
         return (
@@ -138,6 +139,8 @@ const Settings = (props) => {
             webrtcURL={props.webrtcURL}
           />
         )
+      case SETTINGS_STATE.PLANNING_SCENE:
+        return <PlanningScene />
       default:
         console.log('Invalid settings state', settingsState)
         return <Main />

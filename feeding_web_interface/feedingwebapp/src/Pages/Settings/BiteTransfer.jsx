@@ -7,7 +7,14 @@ import Button from 'react-bootstrap/Button'
 import { View } from 'react-native'
 
 // Local imports
-import { getRobotMotionText, DISTANCE_TO_MOUTH_PARAM } from '../Constants'
+import {
+  getRobotMotionText,
+  DISTANCE_TO_MOUTH_PARAM,
+  MOVE_TO_MOUTH_SPEED_PARAM,
+  MOVE_TO_MOUTH_SPEED_NEAR_MOUTH_PARAM,
+  MOVE_FROM_MOUTH_SPEED_PARAM,
+  MOVE_FROM_MOUTH_SPEED_NEAR_MOUTH_PARAM
+} from '../Constants'
 import { useGlobalState, MEAL_STATE, SETTINGS_STATE } from '../GlobalState'
 import RobotMotion from '../Home/MealStates/RobotMotion'
 import DetectingFaceSubcomponent from '../Home/MealStates/DetectingFaceSubcomponent'
@@ -28,8 +35,17 @@ const BiteTransfer = (props) => {
 
   // Create relevant local state variables
   // Configure the parameters for SettingsPageParent
-  const paramNames = useMemo(() => [DISTANCE_TO_MOUTH_PARAM], [])
-  const [currentDistanceToMouth, setCurrentDistanceToMouth] = useState([null])
+  const paramNames = useMemo(
+    () => [
+      DISTANCE_TO_MOUTH_PARAM,
+      MOVE_TO_MOUTH_SPEED_PARAM,
+      MOVE_TO_MOUTH_SPEED_NEAR_MOUTH_PARAM,
+      MOVE_FROM_MOUTH_SPEED_PARAM,
+      MOVE_FROM_MOUTH_SPEED_NEAR_MOUTH_PARAM
+    ],
+    []
+  )
+  const [currentParams, setCurrentParams] = useState([null, null, null, null, null])
   const [localCurrAndNextMealState, setLocalCurrAndNextMealState] = useState(
     globalMealState === MEAL_STATE.U_BiteDone || globalMealState === MEAL_STATE.R_DetectingFace || settingsPageAtMouth
       ? [MEAL_STATE.R_MovingFromMouth, null]
@@ -53,6 +69,8 @@ const BiteTransfer = (props) => {
   // Get min and max distance to mouth
   const minDistanceToMouth = 1 // cm
   const maxDistanceToMouth = 10 // cm
+  const minLinearSpeed = 2 // cm/s
+  const maxLinearSpeed = 15 // cm/s
 
   // When we set local meal state, also update bite transfer page at face
   const setLocalCurrMealStateWrapper = useCallback(
@@ -166,16 +184,57 @@ const BiteTransfer = (props) => {
       if (value > maxDistanceToMouth) {
         value = maxDistanceToMouth
       }
-      let fullDistanceToMouth = [value / 100.0, currentDistanceToMouth[0][1], currentDistanceToMouth[0][2]]
-      setCurrentDistanceToMouth([fullDistanceToMouth])
+      let distance_m = value / 100.0
+      setCurrentParams((currentParams) => [
+        [distance_m, currentParams[0][1], currentParams[0][2]],
+        currentParams[1],
+        currentParams[2],
+        currentParams[3],
+        currentParams[4]
+      ])
     },
-    [currentDistanceToMouth, minDistanceToMouth, maxDistanceToMouth]
+    [minDistanceToMouth, maxDistanceToMouth]
+  )
+
+  // Callback for when the user changes the speed to the mouth
+  const onSpeedChange = useCallback(
+    (_ev, data, index) => {
+      let value = data.value !== null ? data.value : parseFloat(data.displayValue)
+      if (value < minLinearSpeed) {
+        value = minLinearSpeed
+      }
+      if (value > maxLinearSpeed) {
+        value = maxLinearSpeed
+      }
+      let speed_mps = value / 100.0
+      setCurrentParams((currentParams) => [
+        currentParams[0],
+        index === 1 ? speed_mps : currentParams[1],
+        index === 2 ? speed_mps : currentParams[2],
+        index === 3 ? speed_mps : currentParams[3],
+        index === 4 ? speed_mps : currentParams[4]
+      ])
+    },
+    [minLinearSpeed, maxLinearSpeed]
   )
 
   // Callback to render the main contents of the page
   const distanceToMouthId = useId()
+  const moveToMouthSpeedId = useId()
+  const moveToMouthSpeedNearMouthId = useId()
+  const moveFromMouthSpeedId = useId()
+  const moveFromMouthSpeedNearMouthId = useId()
+  const speedParameterIdsAndDescriptions = useMemo(
+    () => [
+      [moveToMouthSpeedId, 'Approach Speed (cm/s)'],
+      [moveToMouthSpeedNearMouthId, 'Approach Speed Near Mouth (cm/s)'],
+      [moveFromMouthSpeedId, 'Retreat Speed (cm/s)'],
+      [moveFromMouthSpeedNearMouthId, 'Retreat Speed Near Mouth (cm/s)']
+    ],
+    [moveToMouthSpeedId, moveToMouthSpeedNearMouthId, moveFromMouthSpeedId, moveFromMouthSpeedNearMouthId]
+  )
   const renderBiteTransferSettings = useCallback(() => {
-    if (currentDistanceToMouth[0] === null) {
+    if (currentParams.some((param) => param === null)) {
       return (
         <>
           <View
@@ -225,7 +284,7 @@ const BiteTransfer = (props) => {
               Distance To Mouth (cm)
             </Label>
             <SpinButton
-              value={currentDistanceToMouth[0][0] * 100}
+              value={currentParams[0][0] * 100}
               id={distanceToMouthId}
               step={0.5}
               onChange={onDistanceToMouthChange}
@@ -241,6 +300,38 @@ const BiteTransfer = (props) => {
                 size: 'large'
               }}
             />
+            {speedParameterIdsAndDescriptions.map(([id, description], index) => (
+              <>
+                <Label
+                  htmlFor={id}
+                  style={{
+                    fontSize: textFontSize,
+                    width: '90%',
+                    color: 'black',
+                    textAlign: 'center'
+                  }}
+                >
+                  {description}
+                </Label>
+                <SpinButton
+                  value={currentParams[index + 1] * 100}
+                  id={id}
+                  step={1.0}
+                  onChange={(_ev, data) => onSpeedChange(_ev, data, index + 1)}
+                  appearance='filled-lighter'
+                  style={{
+                    fontSize: textFontSize,
+                    width: '90%',
+                    color: 'black'
+                  }}
+                  incrementButton={{
+                    'aria-label': 'Increase value by 1.0',
+                    'aria-roledescription': 'spinner',
+                    size: 'large'
+                  }}
+                />
+              </>
+            ))}
           </View>
           <View
             style={{
@@ -321,9 +412,11 @@ const BiteTransfer = (props) => {
   }, [
     dimension,
     textFontSize,
-    currentDistanceToMouth,
+    currentParams,
     onDistanceToMouthChange,
+    onSpeedChange,
     distanceToMouthId,
+    speedParameterIdsAndDescriptions,
     moveToMouthButtonClicked,
     moveAwayFromMouthButtonClicked
   ])
@@ -368,8 +461,8 @@ const BiteTransfer = (props) => {
       modalOnHide={() => setLocalCurrMealStateWrapper(null)}
       modalChildren={renderModalBody()}
       paramNames={paramNames}
-      localParamValues={currentDistanceToMouth}
-      setLocalParamValues={setCurrentDistanceToMouth}
+      localParamValues={currentParams}
+      setLocalParamValues={setCurrentParams}
     >
       {renderBiteTransferSettings()}
     </SettingsPageParent>
