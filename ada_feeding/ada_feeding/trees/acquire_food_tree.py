@@ -177,14 +177,14 @@ class AcquireFoodTree(MoveToTree):
                         name + "RemoveWheelchairWall",
                     ),
                     workers=[
-                        # py_trees_ros.service_clients.FromConstant(
-                        #     name="ClearOctomap",
-                        #     service_name="/clear_octomap",
-                        #     service_type=Empty,
-                        #     service_request=Empty.Request(),
-                        #     # Default fail if service is down
-                        #     wait_for_server_timeout_sec=0.0,
-                        # ),
+                        py_trees_ros.service_clients.FromConstant(
+                            name="ClearOctomap",
+                            service_name="/clear_octomap",
+                            service_type=Empty,
+                            service_request=Empty.Request(),
+                            # Default fail if service is down
+                            wait_for_server_timeout_sec=0.0,
+                        ),
                         MoveIt2JointConstraint(
                             name="RestingConstraint",
                             ns=name,
@@ -211,13 +211,15 @@ class AcquireFoodTree(MoveToTree):
                                     "max_acceleration_scale": self.max_acceleration_scaling_to_resting_configuration,
                                     "allowed_planning_time": self.allowed_planning_time_to_resting_configuration,
                                 },
-                                outputs={"trajectory": BlackboardKey("trajectory")},
+                                outputs={
+                                    "trajectory": BlackboardKey("resting_trajectory")
+                                },
                             ),
                         ),
                         MoveIt2Execute(
                             name="Resting",
                             ns=name,
-                            inputs={"trajectory": BlackboardKey("trajectory")},
+                            inputs={"trajectory": BlackboardKey("resting_trajectory")},
                             outputs={},
                         ),
                     ],
@@ -338,14 +340,20 @@ class AcquireFoodTree(MoveToTree):
                                             "allowed_planning_time": self.allowed_planning_time_for_recovery,
                                         },
                                         outputs={
-                                            "trajectory": BlackboardKey("trajectory")
+                                            "trajectory": BlackboardKey(
+                                                "recovery_trajectory"
+                                            )
                                         },
                                     ),
                                 ),
                                 MoveIt2Execute(
                                     name="RecoveryOffset",
                                     ns=name,
-                                    inputs={"trajectory": BlackboardKey("trajectory")},
+                                    inputs={
+                                        "trajectory": BlackboardKey(
+                                            "recovery_trajectory"
+                                        )
+                                    },
                                     outputs={},
                                 ),
                             ],
@@ -427,6 +435,7 @@ class AcquireFoodTree(MoveToTree):
                                 "grasp_thresh": BlackboardKey("grasp_thresh"),
                                 "ext_thresh": BlackboardKey("ext_thresh"),
                                 "action": BlackboardKey("action"),
+                                "action_index": BlackboardKey("action_index"),
                             },
                         ),
                     ),
@@ -465,7 +474,7 @@ class AcquireFoodTree(MoveToTree):
                                 "max_path_len_joint": max_path_len_joint,
                             },
                             outputs={
-                                "trajectory": BlackboardKey("trajectory"),
+                                "trajectory": BlackboardKey("move_above_trajectory"),
                                 "end_joint_state": BlackboardKey("test_into_joints"),
                             },
                         ),
@@ -515,7 +524,7 @@ class AcquireFoodTree(MoveToTree):
             memory=True,
             children=[
                 scoped_behavior(
-                    name="TableCollision",
+                    name="Success",
                     # Set Approach F/T Thresh
                     pre_behavior=(
                         Success()
@@ -543,7 +552,7 @@ class AcquireFoodTree(MoveToTree):
                     # Starts a new Sequence w/ Memory internally
                     workers=[
                         scoped_behavior(
-                            name="OctomapCollision",
+                            name="OctomapAndTableCollision",
                             # Set Approach F/T Thresh
                             pre_behavior=py_trees.composites.Sequence(
                                 name="AllowOctomapAndTable",
@@ -611,7 +620,11 @@ class AcquireFoodTree(MoveToTree):
                                 MoveIt2Execute(
                                     name="MoveAbove",
                                     ns=name,
-                                    inputs={"trajectory": BlackboardKey("trajectory")},
+                                    inputs={
+                                        "trajectory": BlackboardKey(
+                                            "move_above_trajectory"
+                                        )
+                                    },
                                     outputs={},
                                 ),
                                 # If Anything goes wrong, reset FT to safe levels
@@ -934,10 +947,10 @@ class AcquireFoodTree(MoveToTree):
                                         ),  # End MoveIt2Servo
                                     ],  # End SafeFTPreempt.workers
                                 ),  # End SafeFTPreempt
-                            ],  # End OctomapCollision.workers
-                        ),  # OctomapCollision
+                            ],  # End OctomapAndTableCollision.workers
+                        ),  # OctomapAndTableCollision
                     ]
-                    + resting_position_behaviors,  # End TableCollision.workers
+                    + resting_position_behaviors,  # End Success.workers
                 ),  # End Success # TableCollision
             ],  # End root_seq.children
         )  # End root_seq
@@ -984,7 +997,27 @@ class AcquireFoodTree(MoveToTree):
         if action_type is not AcquireFood:
             return None
 
-        return super().get_feedback(tree, action_type)
+        # Get MoveTo Params
+        feedback_msg = super().get_feedback(tree, action_type)
+
+        name = tree.root.name
+        blackboard = py_trees.blackboard.Client(name=name, namespace=name)
+        blackboard.register_key(
+            key="action_response", access=py_trees.common.Access.READ
+        )
+        blackboard.register_key(key="action_index", access=py_trees.common.Access.READ)
+
+        feedback_msg.action_info_populated = True
+        try:
+            # TODO: add posthoc
+            feedback_msg.selection_id = blackboard.action_response.id
+            feedback_msg.action_index = int(blackboard.action_index)
+        except KeyError as e:
+            self._node.get_logger().debug(
+                f"Failed to populate action_info in AcquireFoodTree: {e}"
+            )
+            feedback_msg.action_info_populated = False
+        return feedback_msg
 
     # Override result to add other elements to result msg
     @override
@@ -997,21 +1030,4 @@ class AcquireFoodTree(MoveToTree):
             return None
         # Get MoveTo Params
         response = super().get_result(tree, action_type)
-
-        name = tree.root.name
-        blackboard = py_trees.blackboard.Client(name=name, namespace=name)
-        blackboard.register_key(
-            key="action_response", access=py_trees.common.Access.READ
-        )
-        blackboard.register_key(key="action", access=py_trees.common.Access.READ)
-
-        # TODO: add posthoc
-        response.selection_id = blackboard.action_response.id
-        try:
-            response.action_index = blackboard.action_response.actions.index(
-                blackboard.action
-            )
-        except ValueError:
-            response.status = response.STATUS_ACTION_NOT_TAKEN
-
         return response
