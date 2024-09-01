@@ -341,8 +341,11 @@ class LinUCBPolicy(LinearPolicy):
         lcb = self.checkpoint.linear_model @ context - (
             self.alpha * np.sqrt(context.T @ self.covariance @ context)
         )
+        action_i = np.argmin(lcb)
 
-        return [(1.0, self.library[np.argmin(lcb)])]
+        return [
+            (1.0 if i == action_i else 0.0, self.library[i]) for i in range(self.n_actions)
+        ]
 
     @override
     def update(

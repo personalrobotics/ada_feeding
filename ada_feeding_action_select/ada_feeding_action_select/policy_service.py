@@ -358,7 +358,9 @@ class PolicyServices(Node):
         """
         Implement AcquisitionReport.srv
         """
-        self.get_logger().info(f"AcquisitionReport Request with ID: '{request.id}'")
+        self.get_logger().info(
+            f"AcquisitionReport Request with ID: '{request.id}' and loss '{request.loss}'"
+        )
 
         # Collect cached context
         if request.id not in self.cache:
