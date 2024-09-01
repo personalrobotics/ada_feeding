@@ -280,7 +280,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "ros2 launch rosbridge_server rosbridge_websocket_launch.xml",
             ],
             "perception": [
-                "ros2 launch ada_feeding_perception ada_feeding_perception.launch.py",
+                "ros2 launch ada_feeding_perception ada_feeding_perception.launch.py combine_perception_nodes:=true",
             ],
             "moveit": [
                 "Xvfb :5 -screen 0 800x600x24 &" if not args.dev else "",

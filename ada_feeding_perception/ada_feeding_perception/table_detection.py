@@ -6,7 +6,7 @@ location of the table with respect to camera_depth_optical_frame.
 # Standard imports
 import math
 import threading
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 # Third-party imports
 import cv2
@@ -15,7 +15,6 @@ import numpy as np
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
-from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
@@ -36,9 +35,10 @@ from ada_feeding_perception.helpers import (
     get_img_msg_type,
     ros_msg_to_cv2_image,
 )
+from ada_feeding_perception.ada_feeding_perception_node import ADAFeedingPerceptionNode
 
 
-class TableDetectionNode(Node):
+class TableDetectionNode:
     """
     This node subscribes to the camera info, depth image, and RGB image topics and exposes a
     service to toggle table detection on and off. When on, the node publishes
@@ -51,12 +51,20 @@ class TableDetectionNode(Node):
 
     # pylint: disable=too-many-instance-attributes
     # Needed for multiple publishers/subscribers, services, and parameters
-    def __init__(self):
+    def __init__(
+        self,
+        node: ADAFeedingPerceptionNode,
+    ):
         """
         Initialize the TableDetectionNode.
-        """
 
-        super().__init__("table_detection")
+        Parameters
+        ----------
+        node : ADAFeedingPerceptionNode
+            The node that contains all functionality to get camera images (RGB and depth)
+            and camera info.
+        """
+        self._node = node
 
         # Load the parameters
         self.read_params()
@@ -69,7 +77,7 @@ class TableDetectionNode(Node):
         self.bridge = CvBridge()
 
         # Create the toggle service
-        self.srv = self.create_service(
+        self.srv = self._node.create_service(
             SetBool,
             "~/toggle_table_detection",
             self.toggle_table_detection_callback,
@@ -77,61 +85,57 @@ class TableDetectionNode(Node):
         )
 
         # Create the publisher
-        self.publisher = self.create_publisher(PoseStamped, "~/table_detection", 1)
+        self.publisher = self._node.create_publisher(
+            PoseStamped, "~/table_detection", 1
+        )
 
         # Subscribe to the camera info topic, to get the camera intrinsics
+        self.camera_info_topic = "~/camera_info"
         self.camera_info = None
-        self.camera_info_lock = threading.Lock()
-        self.camera_info_subscriber = self.create_subscription(
+        self._node.add_subscription(
             CameraInfo,
-            "~/camera_info",
-            self.camera_info_callback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+            self.camera_info_topic,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # Subscribe to the aligned depth image topic, to store the latest depth image
-        self.latest_depth_img_msg = None
-        self.latest_depth_img_msg_lock = threading.Lock()
-        aligned_depth_topic = "~/aligned_depth"
+        self.aligned_depth_topic = "~/aligned_depth"
         try:
-            aligned_depth_type = get_img_msg_type(aligned_depth_topic, self)
+            aligned_depth_type = get_img_msg_type(self.aligned_depth_topic, self._node)
         except ValueError as err:
-            self.get_logger().warn(
+            self._node.get_logger().error(
                 f"Error getting type of depth image topic. Defaulting to Image. {err}"
             )
-            aligned_depth_type = CompressedImage
-        self.depth_image_subscriber = self.create_subscription(
+            aligned_depth_type = Image
+        # Subscribe to the depth image
+        self._node.add_subscription(
             aligned_depth_type,
-            aligned_depth_topic,
-            self.depth_image_callback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+            self.aligned_depth_topic,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # Subscribe to the RGB image topic, to store the latest image
-        self.latest_img_msg = None
-        self.latest_img_msg_lock = threading.Lock()
-        image_topic = "~/image"
+        self.rgb_image_topic = "~/image"
         try:
-            image_type = get_img_msg_type(image_topic, self)
+            image_type = get_img_msg_type(self.rgb_image_topic, self._node)
         except ValueError as err:
-            self.get_logger().warn(
+            self._node.get_logger().error(
                 f"Error getting type of image topic. Defaulting to CompressedImage. {err}"
             )
             image_type = CompressedImage
-        self.image_subscriber = self.create_subscription(
+        self._node.add_subscription(
             image_type,
-            image_topic,
-            self.image_callback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+            self.rgb_image_topic,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # If the visualization flag is set, create a publisher for the visualized
         # results of plate detection - a process required to fit a plane on the table
         if self.viz:
-            self.viz_plate_pub = self.create_publisher(
+            self.viz_plate_pub = self._node.create_publisher(
                 Image, "~/plate_detection_img", 1
             )
 
@@ -145,11 +149,11 @@ class TableDetectionNode(Node):
         viz: Whether to publish a visualization of the plate detection results as an RGB image.
         """
         # The rate (Hz) at which to publish the pose information of the detected table
-        rate_hz = self.declare_parameter(
-            "rate_hz",
+        rate_hz = self._node.declare_parameter(
+            "table_detection_rate_hz",
             3.0,  # default value
             ParameterDescriptor(
-                name="rate_hz",
+                name="table_detection_rate_hz",
                 type=ParameterType.PARAMETER_DOUBLE,
                 description=(
                     "The rate (Hz) at which to publish the pose "
@@ -162,11 +166,11 @@ class TableDetectionNode(Node):
 
         # A boolean to determine whether to publish the visualization of the
         # plate detection results as an RGB image.
-        viz = self.declare_parameter(
-            "viz",
+        viz = self._node.declare_parameter(
+            "table_detection_viz",
             False,  # default value
             ParameterDescriptor(
-                name="viz",
+                name="table_detection_viz",
                 type=ParameterType.PARAMETER_BOOL,
                 description=(
                     "Whether to publish a visualization of the plate "
@@ -193,7 +197,7 @@ class TableDetectionNode(Node):
         ----------
         response: The updated response message based on the request.
         """
-        self.get_logger().info(f"Incoming service request. data: {request.data}")
+        self._node.get_logger().info(f"Incoming service request. data: {request.data}")
 
         response.success = False
         response.message = f"Failed to set is_on to {request.data}"
@@ -202,39 +206,6 @@ class TableDetectionNode(Node):
             response.success = True
             response.message = f"Successfully set is_on to {request.data}"
         return response
-
-    def camera_info_callback(self, msg: CameraInfo) -> None:
-        """
-        Store the latest camera info message.
-
-        Parameters
-        ----------
-        msg: The camera info message.
-        """
-        with self.camera_info_lock:
-            self.camera_info = msg
-
-    def depth_image_callback(self, msg: Union[Image, CompressedImage]) -> None:
-        """
-        Store the latest depth image message.
-
-        Parameters
-        ----------
-        msg: The depth image message.
-        """
-        with self.latest_depth_img_msg_lock:
-            self.latest_depth_img_msg = msg
-
-    def image_callback(self, msg: Union[Image, CompressedImage]) -> None:
-        """
-        Store the latest image message.
-
-        Parameters
-        ----------
-        msg: The image message.
-        """
-        with self.latest_img_msg_lock:
-            self.latest_img_msg = msg
 
     def visualize_plate_detection(
         self, img_cv2: Image, center: List[float], radius: float, table_buffer: int
@@ -498,7 +469,7 @@ class TableDetectionNode(Node):
         continues to run.
         """
         # Create a fixed rate to run the loop on
-        rate = self.create_rate(self.rate_hz)
+        rate = self._node.create_rate(self.rate_hz)
 
         # Run while the context is not shut down
         while rclpy.ok():
@@ -513,24 +484,28 @@ class TableDetectionNode(Node):
                 continue
 
             # Get the latest RGB image message
-            rgb_msg = None
-            with self.latest_img_msg_lock:
-                rgb_msg = self.latest_img_msg
+            rgb_msg = self._node.get_latest_msg(self.rgb_image_topic)
+            if rgb_msg is None:
+                self._node.get_logger().warn(
+                    "RGB image not received, not detecting table."
+                )
+                continue
 
             # Get the latest depth image
-            depth_img_msg = None
-            with self.latest_depth_img_msg_lock:
-                depth_img_msg = self.latest_depth_img_msg
+            depth_img_msg = self._node.get_latest_msg(self.aligned_depth_topic)
+            if depth_img_msg is None:
+                self._node.get_logger().warn(
+                    "Depth image not received, not detecting table."
+                )
+                continue
 
             # Get the camera information
-            cam_info = None
-            with self.camera_info_lock:
-                if self.camera_info is not None:
-                    cam_info = self.camera_info
-                else:
-                    self.get_logger().warn(
-                        "Camera info not received, not including in result message"
-                    )
+            cam_info = self._node.get_latest_msg(self.camera_info_topic)
+            if cam_info is None:
+                self._node.get_logger().warn(
+                    "Camera info not received, not detecting table."
+                )
+                continue
 
             # Fit a plane to the table given the camera image and get the coefficients
             # and constant terms of the table plane equation
@@ -538,9 +513,7 @@ class TableDetectionNode(Node):
 
             # If no plate is detected, warn and reiterate
             if a is None or b is None or c is None:
-                self.get_logger().warn(
-                    "Plate not detected, returning to default table pose."
-                )
+                self._node.get_logger().warn("Plate not detected, not detecting table.")
                 continue
 
             # Get the center and quaternion of the table in the camera frame
@@ -574,14 +547,15 @@ def main(args=None):
     """
     rclpy.init(args=args)
 
-    table_detection = TableDetectionNode()
+    node = ADAFeedingPerceptionNode("table_detection")
+    table_detection = TableDetectionNode(node)
     executor = MultiThreadedExecutor(num_threads=2)
 
     # Spin in the background since detecting the table will block
     # the main thread
     spin_thread = threading.Thread(
         target=rclpy.spin,
-        args=(table_detection,),
+        args=(node,),
         kwargs={"executor": executor},
         daemon=True,
     )
@@ -594,7 +568,7 @@ def main(args=None):
         pass
 
     # Terminate this node and safely shut down
-    table_detection.destroy_node()
+    node.destroy_node()
     rclpy.shutdown()
 
     # Join the spin thread (so it is spinning in the main thread)

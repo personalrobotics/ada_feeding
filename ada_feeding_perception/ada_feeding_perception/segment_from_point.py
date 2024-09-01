@@ -7,7 +7,7 @@ point using Segment Anything, and returns the top n contender masks.
 # Standard imports
 import os
 import threading
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 # Third-party imports
 import cv2
@@ -21,7 +21,6 @@ from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.action.server import ServerGoalHandle
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
-from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from segment_anything import sam_model_registry, SamPredictor
@@ -41,9 +40,10 @@ from ada_feeding_perception.helpers import (
     get_img_msg_type,
     ros_msg_to_cv2_image,
 )
+from ada_feeding_perception.ada_feeding_perception_node import ADAFeedingPerceptionNode
 
 
-class SegmentFromPointNode(Node):
+class SegmentFromPointNode:
     """
     The SegmentFromPointNode launches an action server that takes in a seed point,
     segments the latest image with that seed point using Segment Anything, and
@@ -55,16 +55,24 @@ class SegmentFromPointNode(Node):
     # every subscription we need to store the subscription, mutex, and data,
     # and we have 3 subscriptions.
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        node: ADAFeedingPerceptionNode,
+    ) -> None:
         """
         Initialize the SegmentFromPointNode.
-        """
 
-        super().__init__("segment_from_point")
+        Parameters
+        ----------
+        node : ADAFeedingPerceptionNode
+            The node that contains all functionality to get camera images (RGB and depth)
+            and camera info.
+        """
+        self._node = node
 
         # Check if cuda is available
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.get_logger().info(f"Using device {self.device}")
+        self._node.get_logger().info(f"Using device {self.device}")
 
         # Read the parameters
         # NOTE: These parameters are only read once. Any changes after the node
@@ -83,9 +91,11 @@ class SegmentFromPointNode(Node):
         # Download the checkpoint if it doesn't exist
         model_path = os.path.join(model_dir, model_name)
         if not os.path.isfile(model_path):
-            self.get_logger().info("Model checkpoint does not exist. Downloading...")
+            self._node.get_logger().info(
+                "Model checkpoint does not exist. Downloading..."
+            )
             download_checkpoint(model_name, model_dir, model_base_url)
-            self.get_logger().info(f"Model checkpoint downloaded {model_path}.")
+            self._node.get_logger().info(f"Model checkpoint downloaded {model_path}.")
 
         # Create the shared resource to ensure that the action server rejects all
         # goals while a goal is currently active.
@@ -93,52 +103,47 @@ class SegmentFromPointNode(Node):
         self.active_goal_request = None
 
         # Subscribe to the camera info topic, to get the camera intrinsics
+        self.camera_info_topic = "~/camera_info"
         self.camera_info = None
-        self.camera_info_lock = threading.Lock()
-        self.camera_info_subscriber = self.create_subscription(
+        self.got_camera_info = False
+        self._node.add_subscription(
             CameraInfo,
-            "~/camera_info",
-            self.camera_info_callback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+            self.camera_info_topic,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # Subscribe to the aligned depth image topic, to store the latest depth image
         # NOTE: We assume this is in the same frame as the RGB image
-        self.latest_depth_img_msg = None
-        self.latest_depth_img_msg_lock = threading.Lock()
-        aligned_depth_topic = "~/aligned_depth"
+        self.aligned_depth_topic = "~/aligned_depth"
         try:
-            aligned_depth_type = get_img_msg_type(aligned_depth_topic, self)
+            aligned_depth_type = get_img_msg_type(self.aligned_depth_topic, self._node)
         except ValueError as err:
-            self.get_logger().error(
-                f"Error getting type of depth image topic. Defaulting to CompressedImage. {err}"
+            self._node.get_logger().error(
+                f"Error getting type of depth image topic. Defaulting to Image. {err}"
             )
-            aligned_depth_type = CompressedImage
-        self.depth_image_subscriber = self.create_subscription(
+            aligned_depth_type = Image
+        # Subscribe to the depth image
+        self._node.add_subscription(
             aligned_depth_type,
-            aligned_depth_topic,
-            self.depth_image_callback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+            self.aligned_depth_topic,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # Subscribe to the RGB image topic, to store the latest image
-        self.latest_img_msg = None
-        self.latest_img_msg_lock = threading.Lock()
-        image_topic = "~/image"
+        self.rgb_image_topic = "~/image"
         try:
-            image_type = get_img_msg_type(image_topic, self)
+            image_type = get_img_msg_type(self.rgb_image_topic, self._node)
         except ValueError as err:
-            self.get_logger().error(
+            self._node.get_logger().error(
                 f"Error getting type of image topic. Defaulting to CompressedImage. {err}"
             )
             image_type = CompressedImage
-        self.image_subscriber = self.create_subscription(
+        self._node.add_subscription(
             image_type,
-            image_topic,
-            self.image_callback,
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+            self.rgb_image_topic,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -154,7 +159,7 @@ class SegmentFromPointNode(Node):
         # Create the Action Server.
         # Note: remapping action names does not work: https://github.com/ros2/ros2/issues/1312
         self._action_server = ActionServer(
-            self,
+            self._node,
             SegmentFromPoint,
             "SegmentFromPoint",
             self.execute_callback,
@@ -192,7 +197,7 @@ class SegmentFromPointNode(Node):
             rate_hz,
             min_depth_mm,
             max_depth_mm,
-        ) = self.declare_parameters(
+        ) = self._node.declare_parameters(
             "",
             [
                 (
@@ -242,10 +247,10 @@ class SegmentFromPointNode(Node):
                     ),
                 ),
                 (
-                    "model_dir",
+                    "segment_from_point_model_dir",
                     None,
                     ParameterDescriptor(
-                        name="model_dir",
+                        name="segment_from_point_model_dir",
                         type=ParameterType.PARAMETER_STRING,
                         description=(
                             "The location of the directory where the model "
@@ -275,10 +280,10 @@ class SegmentFromPointNode(Node):
                     ),
                 ),
                 (
-                    "rate_hz",
+                    "segment_from_point_rate_hz",
                     10.0,
                     ParameterDescriptor(
-                        name="rate_hz",
+                        name="segment_from_point_rate_hz",
                         type=ParameterType.PARAMETER_DOUBLE,
                         description="The rate at which to return feedback.",
                         read_only=True,
@@ -342,7 +347,7 @@ class SegmentFromPointNode(Node):
         ------
         ValueError if the model name does not contain vit_h, vit_l, or vit_b
         """
-        self.get_logger().info("Initializing SAM...")
+        self._node.get_logger().info("Initializing SAM...")
         # Load the model and move it to the specified device
         if "vit_b" in model_name:  # base model
             model_type = "vit_b"
@@ -360,7 +365,7 @@ class SegmentFromPointNode(Node):
         # a lock.
         self.predictor = SamPredictor(sam)
 
-        self.get_logger().info("...Done!")
+        self._node.get_logger().info("...Done!")
 
     def initialize_efficient_sam(self, model_name: str, model_path: str) -> None:
         """
@@ -379,7 +384,7 @@ class SegmentFromPointNode(Node):
         ------
         ValueError if the model name does not contain efficient_sam
         """
-        self.get_logger().info("Initializing EfficientSAM...")
+        self._node.get_logger().info("Initializing EfficientSAM...")
         # Hardcoded from https://github.com/yformer/EfficientSAM/blob/main/efficient_sam/build_efficient_sam.py
         if "vits" in model_name:
             encoder_patch_embed_dim = 384
@@ -396,40 +401,7 @@ class SegmentFromPointNode(Node):
         ).eval()
         self.efficient_sam.to(device=self.device)
 
-        self.get_logger().info("...Done!")
-
-    def camera_info_callback(self, msg: CameraInfo) -> None:
-        """
-        Store the latest camera info message.
-
-        Parameters
-        ----------
-        msg: The camera info message.
-        """
-        with self.camera_info_lock:
-            self.camera_info = msg
-
-    def depth_image_callback(self, msg: Union[Image, CompressedImage]) -> None:
-        """
-        Store the latest depth image message.
-
-        Parameters
-        ----------
-        msg: The depth image message.
-        """
-        with self.latest_depth_img_msg_lock:
-            self.latest_depth_img_msg = msg
-
-    def image_callback(self, msg: Union[Image, CompressedImage]) -> None:
-        """
-        Store the latest image message.
-
-        Parameters
-        ----------
-        msg: The image message.
-        """
-        with self.latest_img_msg_lock:
-            self.latest_img_msg = msg
+        self._node.get_logger().info("...Done!")
 
     def goal_callback(self, goal_request: SegmentFromPoint.Goal) -> GoalResponse:
         """
@@ -444,25 +416,25 @@ class SegmentFromPointNode(Node):
         ----------
         goal_request: The goal request message.
         """
-        self.get_logger().info("Received goal request")
-        with self.latest_img_msg_lock:
-            if self.latest_img_msg is None:
-                self.get_logger().info(
-                    "Rejecting goal request since no color image received"
-                )
-                return GoalResponse.REJECT
-        with self.latest_depth_img_msg_lock:
-            if self.latest_depth_img_msg is None:
-                self.get_logger().info(
-                    "Rejecting goal request since no depth image received"
-                )
-                return GoalResponse.REJECT
+        self._node.get_logger().info("Received goal request")
+        latest_rgb_img_msg = self._node.get_latest_msg(self.rgb_image_topic)
+        if latest_rgb_img_msg is None:
+            self._node.get_logger().info(
+                "Rejecting goal request since no color image received"
+            )
+            return GoalResponse.REJECT
+        latest_depth_img_msg = self._node.get_latest_msg(self.aligned_depth_topic)
+        if latest_depth_img_msg is None:
+            self._node.get_logger().info(
+                "Rejecting goal request since no depth image received"
+            )
+            return GoalResponse.REJECT
         with self.active_goal_request_lock:
             if self.active_goal_request is None:
-                self.get_logger().info("Accepting goal request")
+                self._node.get_logger().info("Accepting goal request")
                 self.active_goal_request = goal_request
                 return GoalResponse.ACCEPT
-            self.get_logger().info(
+            self._node.get_logger().info(
                 "Rejecting goal request since there is already an active one"
             )
             return GoalResponse.REJECT
@@ -477,7 +449,7 @@ class SegmentFromPointNode(Node):
         ----------
         goal_handle: The goal handle.
         """
-        self.get_logger().info("Received cancel request, accepting")
+        self._node.get_logger().info("Received cancel request, accepting")
         return CancelResponse.ACCEPT
 
     def run_sam(
@@ -496,7 +468,7 @@ class SegmentFromPointNode(Node):
         masks: The masks outputted by the model.
         scores: The scores outputted by the model.
         """
-        self.get_logger().info("Segmenting image with SAM...")
+        self._node.get_logger().info("Segmenting image with SAM...")
         # Convert image from BGR to RGB
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
@@ -527,7 +499,7 @@ class SegmentFromPointNode(Node):
         masks: The masks outputted by the model.
         scores: The scores outputted by the model.
         """
-        self.get_logger().info("Segmenting image with EfficientSAM...")
+        self._node.get_logger().info("Segmenting image with EfficientSAM...")
         # Convert image from BGR to RGB
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
@@ -575,21 +547,21 @@ class SegmentFromPointNode(Node):
         # pylint: disable=too-many-locals
         # All are necessary.
 
-        self.get_logger().info("Segmenting image...")
+        self._node.get_logger().info("Segmenting image...")
         # Create the result
         result = SegmentFromPoint.Result()
         result.header = image_msg.header
-        with self.camera_info_lock:
-            if self.camera_info is not None:
-                result.camera_info = self.camera_info
-            else:
-                self.get_logger().warn(
-                    "Camera info not received, not including in result message"
-                )
+        if self.camera_info is None:
+            self.camera_info = self._node.get_latest_msg(self.camera_info_topic)
+        if self.camera_info is not None:
+            result.camera_info = self.camera_info
+        else:
+            self._node.get_logger().warn(
+                "Camera info not received, not including in result message"
+            )
 
         # Get the latest depth image
-        with self.latest_depth_img_msg_lock:
-            depth_img_msg = self.latest_depth_img_msg
+        depth_img_msg = self._node.get_latest_msg(self.aligned_depth_topic)
 
         # Convert the image to OpenCV format
         image = ros_msg_to_cv2_image(image_msg, self.bridge)
@@ -599,13 +571,13 @@ class SegmentFromPointNode(Node):
         depth_img = ros_msg_to_cv2_image(depth_img_msg, self.bridge)
 
         # Segment the image
-        start_time = self.get_clock().now()
+        start_time = self._node.get_clock().now()
         if self.use_efficient_sam:
             masks, scores = self.run_efficient_sam(image, seed_point)
         else:
             masks, scores = self.run_sam(image, seed_point)
-        elpased_time = self.get_clock().now() - start_time
-        self.get_logger().info(
+        elpased_time = self._node.get_clock().now() - start_time
+        self._node.get_logger().info(
             f"Elapsed time Model: {elpased_time.nanoseconds / 10.0**9} secs"
         )
 
@@ -667,7 +639,7 @@ class SegmentFromPointNode(Node):
             ]
         )
         if np.isnan(average_depth_mm):
-            self.get_logger().warn(
+            self._node.get_logger().warn(
                 f"No depth points within [{self.min_depth_mm}, {self.max_depth_mm}] mm range "
                 f"for mask {item_id}. Skipping mask."
             )
@@ -722,21 +694,19 @@ class SegmentFromPointNode(Node):
         -------
         result: The result message containing the contender masks.
         """
-        self.get_logger().info(f"Executing goal...{goal_handle}")
-        start_time = self.get_clock().now()
+        self._node.get_logger().info(f"Executing goal...{goal_handle}")
+        start_time = self._node.get_clock().now()
 
         # Get the latest image
-        latest_img_msg = None
-        with self.latest_img_msg_lock:
-            latest_img_msg = self.latest_img_msg
+        latest_img_msg = self._node.get_latest_msg(self.rgb_image_topic)
 
         # Start image segmentation as a co-routine
         seed_point = (
             int(goal_handle.request.seed_point.point.x),
             int(goal_handle.request.seed_point.point.y),
         )
-        rate = self.create_rate(self.rate_hz)
-        segment_image_task = self.executor.create_task(
+        rate = self._node.create_rate(self.rate_hz)
+        segment_image_task = self._node.executor.create_task(
             self.segment_image, seed_point, latest_img_msg
         )
 
@@ -747,32 +717,32 @@ class SegmentFromPointNode(Node):
             and not goal_handle.is_cancel_requested
             and not segment_image_task.done()
         ):
-            feedback.elapsed_time = (self.get_clock().now() - start_time).to_msg()
+            feedback.elapsed_time = (self._node.get_clock().now() - start_time).to_msg()
             goal_handle.publish_feedback(feedback)
             rate.sleep()
 
         # Check if there was a cancel request
         if goal_handle.is_cancel_requested or not rclpy.ok():
-            self.get_logger().info("Goal canceled")
+            self._node.get_logger().info("Goal canceled")
             goal_handle.canceled()
             result = SegmentFromPoint.Result()
             result.status = result.STATUS_CANCELED
             with self.active_goal_request_lock:
                 self.active_goal_request = None  # Clear the active goal
             return result
-        self.get_logger().info("Goal not canceled")
+        self._node.get_logger().info("Goal not canceled")
 
         # Task must be done, given that we broke out of the while loop and
         # did not land in the above conditional
         result = segment_image_task.result()
 
         # Return the result
-        self.get_logger().info("Segmentation succeeded, returning")
+        self._node.get_logger().info("Segmentation succeeded, returning")
         goal_handle.succeed()
         result.status = result.STATUS_SUCCEEDED
         with self.active_goal_request_lock:
             self.active_goal_request = None  # Clear the active goal
-        self.get_logger().info(
+        self._node.get_logger().info(
             "...Done. Got masks with average depth "
             f"{[m.average_depth for m in result.detected_items]} m."
         )
@@ -785,12 +755,17 @@ def main(args=None):
     """
     rclpy.init(args=args)
 
-    segment_from_point = SegmentFromPointNode()
+    node = ADAFeedingPerceptionNode("segment_from_point")
+    segment_from_point = SegmentFromPointNode(node)  # pylint: disable=unused-variable
 
     # Use a MultiThreadedExecutor to enable processing goals concurrently
     executor = MultiThreadedExecutor(num_threads=5)
 
-    rclpy.spin(segment_from_point, executor=executor)
+    rclpy.spin(node, executor=executor)
+
+    # Terminate this node
+    node.destroy_node()
+    rclpy.shutdown()
 
 
 if __name__ == "__main__":

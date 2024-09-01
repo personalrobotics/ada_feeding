@@ -10,7 +10,7 @@ from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import AnyLaunchDescriptionSource
 from launch.substitutions import (
     LaunchConfiguration,
@@ -29,6 +29,15 @@ def generate_launch_description():
     ada_feeding_perception_share_dir = get_package_share_directory(
         "ada_feeding_perception"
     )
+
+    # Whether to combine all perception nodes into one
+    combine_perception_nodes_da = DeclareLaunchArgument(
+        "combine_perception_nodes",
+        default_value="false",
+        description="Whether to combine all perception nodes into one",
+    )
+    combine_perception_nodes = LaunchConfiguration("combine_perception_nodes")
+    launch_description.add_action(combine_perception_nodes_da)
 
     # Declare launch arguments
     use_republisher_da = DeclareLaunchArgument(
@@ -100,7 +109,7 @@ def generate_launch_description():
         ada_feeding_perception_share_dir, "config", "segment_from_point.yaml"
     )
     segment_from_point_params = {}
-    segment_from_point_params["model_dir"] = ParameterValue(
+    segment_from_point_params["segment_from_point_model_dir"] = ParameterValue(
         os.path.join(ada_feeding_perception_share_dir, "model"), value_type=str
     )
     segment_from_point = Node(
@@ -109,6 +118,7 @@ def generate_launch_description():
         executable="segment_from_point",
         parameters=[segment_from_point_config, segment_from_point_params],
         remappings=realsense_remappings + aligned_depth_remapping,
+        condition=UnlessCondition(combine_perception_nodes),
     )
     launch_description.add_action(segment_from_point)
 
@@ -117,7 +127,7 @@ def generate_launch_description():
         ada_feeding_perception_share_dir, "config", "face_detection.yaml"
     )
     face_detection_params = {}
-    face_detection_params["model_dir"] = ParameterValue(
+    face_detection_params["face_detection_model_dir"] = ParameterValue(
         os.path.join(ada_feeding_perception_share_dir, "model"), value_type=str
     )
     # To avoid incorrect depth estimates from the food on the fork, face detection
@@ -128,7 +138,7 @@ def generate_launch_description():
         ("~/face_detection_img/compressed", "/face_detection_img/compressed"),
         ("~/toggle_face_detection", "/toggle_face_detection"),
         (
-            "~/aligned_depth",
+            "~/aligned_depth_no_fork",
             PythonExpression(
                 expression=[
                     "'",
@@ -144,6 +154,7 @@ def generate_launch_description():
         executable="face_detection",
         parameters=[face_detection_config, face_detection_params],
         remappings=realsense_remappings + face_detection_remappings,
+        condition=UnlessCondition(combine_perception_nodes),
     )
     launch_description.add_action(face_detection)
 
@@ -164,6 +175,7 @@ def generate_launch_description():
         remappings=realsense_remappings
         + aligned_depth_remapping
         + table_detection_remappings,
+        condition=UnlessCondition(combine_perception_nodes),
     )
     launch_description.add_action(table_detection)
 
@@ -172,31 +184,47 @@ def generate_launch_description():
         ada_feeding_perception_share_dir, "config", "food_on_fork_detection.yaml"
     )
     food_on_fork_detection_params = {}
-    food_on_fork_detection_params["model_dir"] = ParameterValue(
+    food_on_fork_detection_params["food_on_fork_detection_model_dir"] = ParameterValue(
         os.path.join(ada_feeding_perception_share_dir, "model"), value_type=str
     )
     food_on_fork_detection_remappings = [
         ("~/food_on_fork_detection", "/food_on_fork_detection"),
         ("~/food_on_fork_detection_img", "/food_on_fork_detection_img"),
         ("~/toggle_food_on_fork_detection", "/toggle_food_on_fork_detection"),
-        (
-            "~/aligned_depth",
-            PythonExpression(
-                expression=[
-                    "'",
-                    prefix,
-                    "/camera/aligned_depth_to_color/image_raw/compressedDepth'",
-                ]
-            ),
-        ),
     ]
     food_on_fork_detection = Node(
         package="ada_feeding_perception",
         name="food_on_fork_detection",
         executable="food_on_fork_detection",
         parameters=[food_on_fork_detection_config, food_on_fork_detection_params],
-        remappings=realsense_remappings + food_on_fork_detection_remappings,
+        remappings=realsense_remappings
+        + aligned_depth_remapping
+        + food_on_fork_detection_remappings,
+        condition=UnlessCondition(combine_perception_nodes),
     )
     launch_description.add_action(food_on_fork_detection)
+
+    # Load the combined perception node
+    ada_feeding_perception = Node(
+        package="ada_feeding_perception",
+        name="ada_feeding_perception",
+        executable="ada_feeding_perception_node",
+        parameters=[
+            segment_from_point_config,
+            segment_from_point_params,
+            face_detection_config,
+            face_detection_params,
+            table_detection_config,
+            food_on_fork_detection_config,
+            food_on_fork_detection_params,
+        ],
+        remappings=realsense_remappings
+        + aligned_depth_remapping
+        + face_detection_remappings
+        + table_detection_remappings
+        + food_on_fork_detection_remappings,
+        condition=IfCondition(combine_perception_nodes),
+    )
+    launch_description.add_action(ada_feeding_perception)
 
     return launch_description
