@@ -165,6 +165,8 @@ class CollisionObjectManager:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+        def cleanup():
+            self.__node.destroy_rate(rate)
 
         # Get the planning scene
         while self.moveit2.planning_scene is None:
@@ -173,6 +175,7 @@ class CollisionObjectManager:
                 self.__node.get_logger().error(
                     "Timed out while getting the planning scene."
                 )
+                cleanup()
                 return False
 
             # Attempt to get the planning scene
@@ -192,6 +195,7 @@ class CollisionObjectManager:
             batch_id_to_update=self.__GLOBAL_BATCH_ID,
         )
 
+        cleanup()
         return True
 
     def add_collision_objects(
@@ -229,6 +233,8 @@ class CollisionObjectManager:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+        def cleanup():
+            self.__node.destroy_rate(rate)
 
         # Check if the objects are a single object
         if isinstance(objects, CollisionObjectParams):
@@ -265,6 +271,7 @@ class CollisionObjectManager:
                     "Timed out while adding collision objects. "
                     f"May not have added {collision_object_ids}."
                 )
+                cleanup()
                 return False
 
             # Remove any collision objects that have already been added
@@ -335,6 +342,7 @@ class CollisionObjectManager:
                     "Timed out while attaching collision objects. "
                     f"May not have attached {attached_collision_object_ids}."
                 )
+                cleanup()
                 return False
 
             # Remove any attached collision objects that have already been attached
@@ -376,6 +384,7 @@ class CollisionObjectManager:
                 self.__collision_objects_per_batch.pop(batch_id)
                 self.__attached_collision_objects_per_batch.pop(batch_id)
 
+        cleanup()
         return True
 
     def move_collision_objects(
@@ -401,6 +410,8 @@ class CollisionObjectManager:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+        def cleanup():
+            self.__node.destroy_rate(rate)
 
         # Check if the objects are a single object
         if isinstance(objects, CollisionObjectParams):
@@ -469,6 +480,7 @@ class CollisionObjectManager:
             self.__collision_objects_per_batch.pop(batch_id)
             self.__attached_collision_objects_per_batch.pop(batch_id)
 
+        cleanup()
         return success
 
     def clear_all_collision_objects(
@@ -489,6 +501,8 @@ class CollisionObjectManager:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+        def cleanup():
+            self.__node.destroy_rate(rate)
 
         # Clear the planning scene
         future = self.moveit2.clear_all_collision_objects()
@@ -496,6 +510,7 @@ class CollisionObjectManager:
             self.__node.get_logger().error(
                 "Could not clear planning scene; service is not ready"
             )
+            cleanup()
             return False
 
         while not future.done():
@@ -504,11 +519,13 @@ class CollisionObjectManager:
                     "Timed out while clearing the planning scene."
                 )
                 self.moveit2.cancel_clear_all_collision_objects_future(future)
+                cleanup()
                 return False
 
             # Sleep
             rate.sleep()
 
+        cleanup()
         return self.moveit2.process_clear_all_collision_objects_future(future)
 
     def remove_collision_object(

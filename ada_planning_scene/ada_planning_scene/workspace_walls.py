@@ -693,6 +693,8 @@ class WorkspaceWalls:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+        def cleanup():
+            self.__node.destroy_rate(rate)
 
         # Wait until the service is ready
         while not self.__get_urdf_parameter_service.service_is_ready():
@@ -700,6 +702,7 @@ class WorkspaceWalls:
                 self.__node.get_logger().error(
                     "Timeout while waiting for the get URDF parameter service."
                 )
+                cleanup()
                 return False
             rate.sleep()
 
@@ -712,6 +715,7 @@ class WorkspaceWalls:
                 self.__node.get_logger().error(
                     "Timeout while getting the robot's URDF."
                 )
+                cleanup()
                 return False
             rate.sleep()
 
@@ -720,11 +724,13 @@ class WorkspaceWalls:
             response = future.result()
         except Exception as error:  # pylint: disable=broad-except
             self.__node.get_logger().error(f"Failed to get the robot's URDF: {error}")
+            cleanup()
             return False
         if (
             len(response.values) == 0
             or response.values[0].type != ParameterType.PARAMETER_STRING
         ):
+            cleanup()
             return False
         robot_urdf = response.values[0].string_value
         robot_urdf = WorkspaceWalls.urdf_replace_package_paths(robot_urdf)
@@ -737,6 +743,7 @@ class WorkspaceWalls:
         # `yourdfpy` only allows loading URDF from file, so we bypass its default load.
         self.__robot_model = URDF(robot=URDF._parse_robot(xml_element=xml_root))
 
+        cleanup()
         return True
 
     def __get_parameter_prefix(
@@ -758,6 +765,8 @@ class WorkspaceWalls:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+        def cleanup():
+            self.__node.destroy_rate(rate)
 
         # Wait for the service to be ready
         while not self.__get_robot_configurations_parameter_service.service_is_ready():
@@ -765,6 +774,7 @@ class WorkspaceWalls:
                 self.__node.get_logger().error(
                     "Timeout while waiting for the get robot configurations parameter service."
                 )
+                cleanup()
                 return False, ""
             rate.sleep()
 
@@ -777,6 +787,7 @@ class WorkspaceWalls:
                 self.__node.get_logger().error(
                     "Timeout while getting the namespace to use."
                 )
+                cleanup()
                 return False, ""
             rate.sleep()
 
@@ -787,6 +798,7 @@ class WorkspaceWalls:
             self.__node.get_logger().error(
                 f"Failed to get the namespace to use: {error}"
             )
+            cleanup()
             return False, ""
         if (
             len(response.values) == 0
@@ -796,6 +808,7 @@ class WorkspaceWalls:
         else:
             prefix = response.values[0].string_value + "."
 
+        cleanup()
         return True, prefix
 
     def __joint_states_callback(self, msg: JointState) -> None:
@@ -840,6 +853,8 @@ class WorkspaceWalls:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+        def cleanup():
+            self.__node.destroy_rate(rate)
 
         # Get the prefix
         success, prefix = self.__get_parameter_prefix(
@@ -847,6 +862,7 @@ class WorkspaceWalls:
         )
         if not success:
             self.__node.get_logger().error("Failed to get the parameter prefix.")
+            cleanup()
             return False, {}
 
         # Wait for the service to be ready
@@ -858,6 +874,7 @@ class WorkspaceWalls:
                 self.__node.get_logger().error(
                     "Timeout while waiting for the get robot configurations parameter service."
                 )
+                cleanup()
                 return False, {}
             if publish_feedback is not None:
                 publish_feedback()
@@ -878,6 +895,7 @@ class WorkspaceWalls:
                 self.__node.get_logger().error(
                     "Timeout while getting the robot configurations."
                 )
+                cleanup()
                 return False, {}
             if publish_feedback is not None:
                 publish_feedback()
@@ -890,6 +908,7 @@ class WorkspaceWalls:
             self.__node.get_logger().error(
                 f"Failed to get robot configurations: {error}"
             )
+            cleanup()
             return False, {}
         for i, param in enumerate(response.values):
             if param.type != ParameterType.PARAMETER_DOUBLE_ARRAY:
@@ -901,6 +920,7 @@ class WorkspaceWalls:
                 publish_feedback()
         if len(robot_configurations) == 0:
             self.__node.get_logger().error("Failed to get robot configurations.")
+            cleanup()
             return False, {}
 
         # Add the current joint state
@@ -916,6 +936,7 @@ class WorkspaceWalls:
             if len(current_config) == len(self.__articulated_joint_names):
                 robot_configurations["current_joint_states"] = current_config
 
+        cleanup()
         return True, robot_configurations
 
     def __update_robot_configuration_bounds(

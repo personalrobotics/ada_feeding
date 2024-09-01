@@ -440,6 +440,8 @@ class CreateActionServers(Node):
         start_time = self.get_clock().now()
         timeout = rclpy.time.Duration(seconds=timeout_secs)
         rate = self.create_rate(rate_hz)
+        def cleanup():
+            self.destroy_rate(rate)
 
         if not reinit_same_namespace:
             # Wait for the service to be ready
@@ -469,10 +471,12 @@ class CreateActionServers(Node):
                 self.get_logger().warn(
                     "Failed to get parameters from ada_planning_scene."
                 )
+                cleanup()
                 return False
 
             # If the parameter is the same, return
             if curr_planning_scene_namespace_to_use == planning_scene_namespace_to_use:
+                cleanup()
                 return True
 
         # Wait for the service to be ready
@@ -504,11 +508,13 @@ class CreateActionServers(Node):
                 self.get_logger().info(
                     f"Successfully set planning scene namespace to {planning_scene_namespace_to_use}"
                 )
+                cleanup()
                 return True
         self.get_logger().warn(
             f"Failed to set planning scene namespace to {planning_scene_namespace_to_use}. "
             f"Elapsed time: {(self.get_clock().now() - start_time).nanoseconds / 1.0e9} seconds."
         )
+        cleanup()
         return False
 
     def declare_parameter_in_namespace(
@@ -1126,6 +1132,7 @@ class CreateActionServers(Node):
             # Unset the goal and return the result
             with self.active_goal_request_lock:
                 self.active_goal_request = None
+            self.destroy_rate(rate)
             return result
 
         return execute_callback
