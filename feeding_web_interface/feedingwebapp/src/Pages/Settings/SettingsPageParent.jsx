@@ -76,6 +76,11 @@ const SettingsPageParent = (props) => {
    */
   const setLocalParametersToGlobalValues = useCallback(
     (preset) => {
+      if (props.paramNames.length === 0) {
+        console.log('Skipping setLocalParametersToGlobalValues because there are no parameters to get.')
+        return
+      }
+
       let service = getParametersService.current
       let setLocalParamValues = props.setLocalParamValues
 
@@ -134,6 +139,10 @@ const SettingsPageParent = (props) => {
    * Save the current parameter values to the current namespace.
    */
   const setGlobalParameter = useCallback(() => {
+    if (props.paramNames.length === 0) {
+      console.log('Skipping setGlobalParameter because there are no parameters to set.')
+      return
+    }
     if (props.localParamValues.every((element) => element === null)) {
       console.log('Skipping setGlobalParameter because all values are null.')
       return
@@ -240,42 +249,46 @@ const SettingsPageParent = (props) => {
           height: '100%'
         }}
       >
-        <View
-          style={{
-            flex: 4,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            height: '100%',
-            zIndex: 1
-          }}
-        >
-          <p style={{ textAlign: 'center', fontSize: textFontSize.toString() + sizeSuffix, margin: 0 }} className='txt-huge'>
-            {props.title}
-          </p>
-          <SplitButton
-            variant='secondary'
-            className='mx-2 mb-2 btn-huge'
-            size='lg'
+        {props.paramNames.length === 0 ? (
+          <></>
+        ) : (
+          <View
             style={{
-              fontSize: textFontSize.toString() + sizeSuffix,
-              marginLeft: '1rem'
+              flex: 4,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
+              zIndex: 1
             }}
-            title={settingsPresets.current}
           >
-            <Dropdown.Item key={DEFAULT_NAMESPACE} onClick={() => resetToPreset(DEFAULT_NAMESPACE)}>
-              Reset parameter to {DEFAULT_NAMESPACE}
-            </Dropdown.Item>
-            {settingsPresets.customNames
-              .filter((preset) => preset !== settingsPresets.current)
-              .map((preset) => (
-                <Dropdown.Item key={preset} onClick={() => resetToPreset(preset)}>
-                  Reset parameter to {preset}
-                </Dropdown.Item>
-              ))}
-          </SplitButton>
-        </View>
+            <p style={{ textAlign: 'center', fontSize: textFontSize.toString() + sizeSuffix, margin: 0 }} className='txt-huge'>
+              {props.title}
+            </p>
+            <SplitButton
+              variant='secondary'
+              className='mx-2 mb-2 btn-huge'
+              size='lg'
+              style={{
+                fontSize: textFontSize.toString() + sizeSuffix,
+                marginLeft: '1rem'
+              }}
+              title={settingsPresets.current}
+            >
+              <Dropdown.Item key={DEFAULT_NAMESPACE} onClick={() => resetToPreset(DEFAULT_NAMESPACE)}>
+                Reset parameter to {DEFAULT_NAMESPACE}
+              </Dropdown.Item>
+              {settingsPresets.customNames
+                .filter((preset) => preset !== settingsPresets.current)
+                .map((preset) => (
+                  <Dropdown.Item key={preset} onClick={() => resetToPreset(preset)}>
+                    Reset parameter to {preset}
+                  </Dropdown.Item>
+                ))}
+            </SplitButton>
+          </View>
+        )}
         <View
           style={{
             flex: 32,

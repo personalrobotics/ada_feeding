@@ -94,7 +94,8 @@ export const SETTINGS_STATE = {
   RESTING_CONFIGURATION: 'RESTING_CONFIGURATION',
   STAGING_CONFIGURATION: 'STAGING_CONFIGURATION',
   STOW_CONFIGURATION: 'STOW_CONFIGURATION',
-  PLANNING_SCENE: 'PLANNING_SCENE'
+  PLANNING_SCENE: 'PLANNING_SCENE',
+  AUTO_CONTINUE: 'AUTO_CONTINUE'
 }
 
 // The name of the default parameter namespace
@@ -140,7 +141,7 @@ export const useGlobalState = create(
       teleopAngularSpeed: 0.15, // rad/s
       teleopJointSpeed: 0.2, // rad/s
       // Flag to indicate whether to auto-continue after face detection
-      faceDetectionAutoContinue: true,
+      faceDetectionAutoContinue: false,
       // Flag to indicate whether to auto-continue in bite done after food-on-fork detection
       biteDoneAutoContinue: false,
       biteDoneAutoContinueSecs: 3.0,

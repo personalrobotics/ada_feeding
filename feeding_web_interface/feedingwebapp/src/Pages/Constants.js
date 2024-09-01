@@ -30,6 +30,7 @@ MOVING_STATE_ICON_DICT[MEAL_STATE.R_MovingToMouth] = '/robot_state_imgs/move_to_
 MOVING_STATE_ICON_DICT[MEAL_STATE.R_StowingArm] = '/robot_state_imgs/stowing_arm_position.svg'
 export { MOVING_STATE_ICON_DICT }
 export const TABLE_ICON = '/robot_state_imgs/table.svg'
+export const FORWARD_ICON = '/robot_state_imgs/forward.svg'
 
 // The names of the ROS topic(s)
 export const CAMERA_FEED_TOPIC = '/local/camera/color/image_raw/compressed'

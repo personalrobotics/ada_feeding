@@ -23,6 +23,7 @@ import {
   STOW_PARAM_JOINTS
 } from '../Constants'
 import PlanningScene from './PlanningScene'
+import AutoContinue from './AutoContinue'
 
 /**
  * The Settings components displays the appropriate settings page based on the
@@ -141,6 +142,8 @@ const Settings = (props) => {
         )
       case SETTINGS_STATE.PLANNING_SCENE:
         return <PlanningScene />
+      case SETTINGS_STATE.AUTO_CONTINUE:
+        return <AutoContinue />
       default:
         console.log('Invalid settings state', settingsState)
         return <Main />

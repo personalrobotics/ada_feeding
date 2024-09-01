@@ -21,7 +21,8 @@ import {
   REGULAR_CONTAINER_ID,
   SET_PARAMETERS_SERVICE_NAME,
   SET_PARAMETERS_SERVICE_TYPE,
-  TABLE_ICON
+  TABLE_ICON,
+  FORWARD_ICON
 } from '../Constants'
 
 /**
@@ -192,6 +193,11 @@ const Main = () => {
       title: 'Planning Scene',
       icon: TABLE_ICON,
       onClick: () => onClickSettingsPage(SETTINGS_STATE.PLANNING_SCENE)
+    },
+    {
+      title: 'Auto-Continue',
+      icon: FORWARD_ICON,
+      onClick: () => onClickSettingsPage(SETTINGS_STATE.AUTO_CONTINUE)
     }
   ]
 
@@ -271,7 +277,7 @@ const Main = () => {
                   display: 'flex'
                 }}
                 alt={config.title}
-                className='center'
+                className='settingsImage'
               />
               <p
                 style={{
