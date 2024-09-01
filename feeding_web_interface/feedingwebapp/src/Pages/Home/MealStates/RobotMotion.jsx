@@ -62,8 +62,8 @@ const RobotMotion = (props) => {
   const paused = useGlobalState((state) => state.paused)
   const setPaused = useGlobalState((state) => state.setPaused)
 
-  // Setter for last motion action response
-  const setLastMotionActionResponse = useGlobalState((state) => state.setLastMotionActionResponse)
+  // Setter for last motion action feedback msg
+  const setLastMotionActionFeedback = useGlobalState((state) => state.setLastMotionActionFeedback)
 
   /**
    * Connect to ROS, if not already connected. Put this in useRef to avoid
@@ -115,23 +115,27 @@ const RobotMotion = (props) => {
   const feedbackCallback = useCallback(
     (feedbackMsg) => {
       console.log('Got feedback message', feedbackMsg)
+      setLastMotionActionFeedback(feedbackMsg.values.feedback)
       setActionStatus({
         actionStatus: ROS_ACTION_STATUS_EXECUTE,
         feedback: feedbackMsg.values.feedback
       })
     },
-    [setActionStatus]
+    [setActionStatus, setLastMotionActionFeedback]
   )
 
   /**
    * Callback function to change the meal state.
    */
   const changeMealState = useCallback(
-    (nextMealState, msg = null) => {
+    (nextMealState, msg = null, callback = null) => {
       if (msg) {
         console.log(msg)
       }
       setPaused(false)
+      if (callback) {
+        callback()
+      }
       let setMealState = props.setMealState
       setMealState(nextMealState)
     },
@@ -164,7 +168,6 @@ const RobotMotion = (props) => {
         setActionStatus({
           actionStatus: ROS_ACTION_STATUS_SUCCEED
         })
-        setLastMotionActionResponse(response.values)
         robotMotionDone()
       } else {
         if (
@@ -185,7 +188,7 @@ const RobotMotion = (props) => {
         }
       }
     },
-    [setLastMotionActionResponse, setActionStatus, setPaused, robotMotionDone]
+    [setActionStatus, setPaused, robotMotionDone]
   )
 
   /**
@@ -327,7 +330,7 @@ const RobotMotion = (props) => {
                       variant='warning'
                       className='mx-2 btn-huge'
                       size='lg'
-                      onClick={() => changeMealState(props.errorMealState, 'errorMealState')}
+                      onClick={() => changeMealState(props.errorMealState, 'errorMealState', props.errorCallback)}
                       style={{
                         width: '90%',
                         height: '20%'
@@ -363,6 +366,7 @@ const RobotMotion = (props) => {
       props.waitingText,
       props.allowRetry,
       props.errorMealState,
+      props.errorCallback,
       props.errorMealStateDescription,
       motionTextFontSize,
       waitingTextFontSize,
@@ -501,6 +505,7 @@ RobotMotion.propTypes = {
   allowRetry: PropTypes.bool,
   // If error, show the user the option to transition to this meal state
   errorMealState: PropTypes.string,
+  errorCallback: PropTypes.func,
   errorMealStateDescription: PropTypes.string
 }
 

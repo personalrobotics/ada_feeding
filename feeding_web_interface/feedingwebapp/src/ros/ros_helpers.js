@@ -157,6 +157,7 @@ export function callROSAction(actionClient, goal, feedbackCallback, resultCallba
   // server's callback list to prevent multiple callbacks from being executed in
   // further calls.
   actionClient.createClient(goal, resultCallback, feedbackCallback)
+  console.log('Called ROS Action')
 }
 
 /**

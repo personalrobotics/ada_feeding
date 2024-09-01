@@ -2,28 +2,22 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react'
 import Button from 'react-bootstrap/Button'
 import { useMediaQuery } from 'react-responsive'
-import { toast } from 'react-toastify'
 import { View } from 'react-native'
+// PropTypes is used to validate that the used props are in fact passed to this Component
+import PropTypes from 'prop-types'
 
 // Local Imports
 import '../Home.css'
 import { useGlobalState, MEAL_STATE } from '../../GlobalState'
 import { MOVING_STATE_ICON_DICT } from '../../Constants'
 import { useROS, createROSService, createROSServiceRequest, subscribeToROSTopic, unsubscribeFromROSTopic } from '../../../ros/ros_helpers'
-import {
-  ACQUISITION_REPORT_SERVICE_NAME,
-  ACQUISITION_REPORT_SERVICE_TYPE,
-  FOOD_ON_FORK_DETECTION_TOPIC,
-  FOOD_ON_FORK_DETECTION_TOPIC_MSG,
-  REGULAR_CONTAINER_ID,
-  ROS_SERVICE_NAMES
-} from '../../Constants'
+import { FOOD_ON_FORK_DETECTION_TOPIC, FOOD_ON_FORK_DETECTION_TOPIC_MSG, ROS_SERVICE_NAMES } from '../../Constants'
 
 /**
  * The BiteAcquisitionCheck component appears after the robot has attempted to
  * acquire a bite, and asks the user whether it succeeded at acquiring the bite.
  */
-const BiteAcquisitionCheck = () => {
+const BiteAcquisitionCheck = (props) => {
   // Store the remining time before auto-continuing
   const [remainingSeconds, setRemainingSeconds] = useState(null)
   // Get the relevant global variables
@@ -50,17 +44,11 @@ const BiteAcquisitionCheck = () => {
   let iconWidth = isPortrait ? '28vh' : '28vw'
   let iconHeight = isPortrait ? '18vh' : '18vw'
 
-  // Configure AcquisitionReport service
-  const lastMotionActionResponse = useGlobalState((state) => state.lastMotionActionResponse)
   /**
    * Connect to ROS, if not already connected. Put this in useRef to avoid
    * re-connecting upon re-renders.
    */
   const ros = useRef(useROS().ros)
-  /**
-   * Create the ROS Service Client for reporting success/failure
-   */
-  let acquisitionReportService = useRef(createROSService(ros.current, ACQUISITION_REPORT_SERVICE_NAME, ACQUISITION_REPORT_SERVICE_TYPE))
   /**
    * Create the ROS Service. This is created in local state to avoid re-creating
    * it upon every re-render.
@@ -73,48 +61,20 @@ const BiteAcquisitionCheck = () => {
    * succeeded.
    */
   const acquisitionSuccess = useCallback(() => {
-    console.log('acquisitionSuccess')
-    // NOTE: This uses the ToastContainer in Header
-    toast.info('Reporting Food Acquisition Success!', {
-      containerId: REGULAR_CONTAINER_ID,
-      toastId: 'foodAcquisitionSuccess'
-    })
-    // Create a service request
-    let request = createROSServiceRequest({
-      loss: 0.0,
-      action_index: lastMotionActionResponse.action_index,
-      posthoc: lastMotionActionResponse.posthoc,
-      id: lastMotionActionResponse.selection_id
-    })
-    // Call the service
-    let service = acquisitionReportService.current
-    service.callService(request, (response) => console.log('Got acquisition report response', response))
+    let acquisitionResponse = props.acquisitionResponse
+    acquisitionResponse(true)
     setMealState(MEAL_STATE.R_MovingToStagingConfiguration)
-  }, [lastMotionActionResponse, setMealState])
+  }, [props.acquisitionResponse, setMealState])
 
   /**
    * Callback function for when the user indicates that the bite acquisition
    * failed.
    */
   const acquisitionFailure = useCallback(() => {
-    console.log('acquisitionFailure')
-    // NOTE: This uses the ToastContainer in Header
-    toast.info('Reporting Food Acquisition Failure.', {
-      containerId: REGULAR_CONTAINER_ID,
-      toastId: 'foodAcquisitionFailure'
-    })
-    // Create a service request
-    let request = createROSServiceRequest({
-      loss: 1.0,
-      action_index: lastMotionActionResponse.action_index,
-      posthoc: lastMotionActionResponse.posthoc,
-      id: lastMotionActionResponse.selection_id
-    })
-    // Call the service
-    let service = acquisitionReportService.current
-    service.callService(request, (response) => console.log('Got acquisition report response', response))
+    let acquisitionResponse = props.acquisitionResponse
+    acquisitionResponse(false)
     setMealState(MEAL_STATE.R_MovingAbovePlate)
-  }, [lastMotionActionResponse, setMealState])
+  }, [props.acquisitionResponse, setMealState])
 
   /*
    * Create refs to store the interval for the food-on-fork detection timers.
@@ -427,6 +387,13 @@ const BiteAcquisitionCheck = () => {
 
   // Render the component
   return <>{fullPageView()}</>
+}
+
+BiteAcquisitionCheck.propTypes = {
+  debug: PropTypes.bool,
+  // A function that takes a boolean indicating whether the robot succeeded at acquiring the bite,
+  // and processes the response. Note that it does not transition to the next state.
+  acquisitionResponse: PropTypes.func.isRequired
 }
 
 export default BiteAcquisitionCheck

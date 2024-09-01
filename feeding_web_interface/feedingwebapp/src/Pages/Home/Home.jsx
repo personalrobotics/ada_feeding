@@ -1,10 +1,12 @@
 // React imports
-import React, { useCallback, useEffect, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import PropTypes from 'prop-types'
+import { toast } from 'react-toastify'
 import { View } from 'react-native'
 
 // Local imports
 import './Home.css'
+import { createROSService, createROSServiceRequest, useROS } from '../../ros/ros_helpers'
 import { useGlobalState, MEAL_STATE } from '../GlobalState'
 import BiteAcquisitionCheck from './MealStates/BiteAcquisitionCheck'
 import BiteDone from './MealStates/BiteDone'
@@ -13,7 +15,13 @@ import DetectingFace from './MealStates/DetectingFace'
 import PostMeal from './MealStates/PostMeal'
 import PreMeal from './MealStates/PreMeal'
 import RobotMotion from './MealStates/RobotMotion'
-import { getRobotMotionText, TIME_TO_RESET_MS } from '../Constants'
+import {
+  ACQUISITION_REPORT_SERVICE_NAME,
+  ACQUISITION_REPORT_SERVICE_TYPE,
+  getRobotMotionText,
+  REGULAR_CONTAINER_ID,
+  TIME_TO_RESET_MS
+} from '../Constants'
 
 /**
  * The Home component displays the state of the meal, solicits user input as
@@ -79,6 +87,47 @@ function Home(props) {
   const moveToStowPositionActionInput = useMemo(() => ({}), [])
 
   /**
+   * Create callbacks for acquisition success and failure. This is done here because these
+   * callbacks can be called during BiteAcquisition or the BiteAcquisitionCheck.
+   */
+  const lastMotionActionFeedback = useGlobalState((state) => state.lastMotionActionFeedback)
+  const ros = useRef(useROS().ros)
+  let acquisitionReportService = useRef(createROSService(ros.current, ACQUISITION_REPORT_SERVICE_NAME, ACQUISITION_REPORT_SERVICE_TYPE))
+  let acquisitionResponse = useCallback(
+    (success) => {
+      if (!lastMotionActionFeedback.action_info_populated) {
+        console.info('Cannot report acquisition success or failure without action_info_populated.')
+        return
+      }
+      let msg, loss
+      if (success) {
+        msg = 'Reporting Food Acquisition Success!'
+        loss = 0.0
+      } else {
+        msg = 'Reporting Food Acquisition Failure.'
+        loss = 1.0
+      }
+      // NOTE: This uses the ToastContainer in Header
+      console.log(msg)
+      toast.info(msg, {
+        containerId: REGULAR_CONTAINER_ID,
+        toastId: msg
+      })
+      // Create a service request
+      let request = createROSServiceRequest({
+        loss: loss,
+        action_index: lastMotionActionFeedback.action_index,
+        posthoc: lastMotionActionFeedback.posthoc,
+        id: lastMotionActionFeedback.selection_id
+      })
+      // Call the service
+      let service = acquisitionReportService.current
+      service.callService(request, (response) => console.log('Got acquisition report response', response))
+    },
+    [lastMotionActionFeedback]
+  )
+
+  /**
    * Determines what screen to render based on the meal state.
    */
   const getComponentByMealState = useCallback(() => {
@@ -119,7 +168,8 @@ function Home(props) {
         let nextMealState = MEAL_STATE.U_BiteAcquisitionCheck
         let backMealState = MEAL_STATE.R_MovingAbovePlate
         // TODO: Add an icon for this errorMealState!
-        let errorMealState = MEAL_STATE.R_MovingToRestingPosition
+        let errorMealState = MEAL_STATE.R_MovingToStagingConfiguration
+        let errorCallback = () => acquisitionResponse(true) // Success if the user skips acquisition
         let errorMealStateDescription = 'Skip Acquisition'
         return (
           <RobotMotion
@@ -132,6 +182,7 @@ function Home(props) {
             waitingText={getRobotMotionText(currentMealState)}
             allowRetry={false} // Don't allow retrying bite acquisition
             errorMealState={errorMealState}
+            errorCallback={errorCallback}
             errorMealStateDescription={errorMealStateDescription}
           />
         )
@@ -153,7 +204,7 @@ function Home(props) {
         )
       }
       case MEAL_STATE.U_BiteAcquisitionCheck: {
-        return <BiteAcquisitionCheck debug={props.debug} />
+        return <BiteAcquisitionCheck debug={props.debug} acquisitionResponse={acquisitionResponse} />
       }
       case MEAL_STATE.R_MovingToStagingConfiguration: {
         /**
@@ -257,6 +308,7 @@ function Home(props) {
     props.debug,
     props.webrtcURL,
     biteAcquisitionActionInput,
+    acquisitionResponse,
     mostRecentBiteDoneResponse,
     moveAbovePlateActionInput,
     moveToMouthActionInput,

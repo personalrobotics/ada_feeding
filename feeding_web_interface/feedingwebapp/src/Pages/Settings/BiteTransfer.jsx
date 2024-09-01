@@ -64,7 +64,7 @@ const BiteTransfer = (props) => {
   // Indicator of how to arrange screen elements based on orientation
   let dimension = isPortrait ? 'column' : 'row'
   // Rendering variables
-  let textFontSize = '3.5vh'
+  let textFontSize = '3.0vh'
 
   // Get min and max distance to mouth
   const minDistanceToMouth = 1 // cm
@@ -227,9 +227,9 @@ const BiteTransfer = (props) => {
   const speedParameterIdsAndDescriptions = useMemo(
     () => [
       [moveToMouthSpeedId, 'Approach Speed (cm/s)'],
-      [moveToMouthSpeedNearMouthId, 'Approach Speed Near Mouth (cm/s)'],
+      [moveToMouthSpeedNearMouthId, 'Approach Near Mouth (cm/s)'],
       [moveFromMouthSpeedId, 'Retreat Speed (cm/s)'],
-      [moveFromMouthSpeedNearMouthId, 'Retreat Speed Near Mouth (cm/s)']
+      [moveFromMouthSpeedNearMouthId, 'Retreat Near Mouth (cm/s)']
     ],
     [moveToMouthSpeedId, moveToMouthSpeedNearMouthId, moveFromMouthSpeedId, moveFromMouthSpeedNearMouthId]
   )
@@ -264,7 +264,7 @@ const BiteTransfer = (props) => {
         >
           <View
             style={{
-              flex: 8,
+              flex: 16,
               flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
@@ -335,7 +335,7 @@ const BiteTransfer = (props) => {
           </View>
           <View
             style={{
-              flex: 8,
+              flex: 5,
               flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
@@ -366,14 +366,14 @@ const BiteTransfer = (props) => {
                 Move To Mouth
               </Button>
             </View>
-            <View
+            {/* <View
               style={{
                 flex: 1,
                 justifyContent: 'center',
                 alignItems: 'center',
                 width: '100%'
               }}
-            />
+            /> */}
             <View
               style={{
                 flex: 1,
@@ -397,14 +397,14 @@ const BiteTransfer = (props) => {
                 Move From Mouth
               </Button>
             </View>
-            <View
+            {/* <View
               style={{
                 flex: 1,
                 justifyContent: 'center',
                 alignItems: 'center',
                 width: '100%'
               }}
-            />
+            /> */}
           </View>
         </View>
       )
