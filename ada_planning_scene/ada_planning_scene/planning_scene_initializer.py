@@ -306,6 +306,7 @@ class PlanningSceneInitializer:
         # Get the start time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(self.__wait_for_moveit_hz)
+
         def cleanup():
             self.__node.destroy_rate(rate)
 

@@ -165,6 +165,7 @@ class CollisionObjectManager:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+
         def cleanup():
             self.__node.destroy_rate(rate)
 
@@ -233,6 +234,7 @@ class CollisionObjectManager:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+
         def cleanup():
             self.__node.destroy_rate(rate)
 
@@ -410,6 +412,7 @@ class CollisionObjectManager:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+
         def cleanup():
             self.__node.destroy_rate(rate)
 
@@ -501,6 +504,7 @@ class CollisionObjectManager:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+
         def cleanup():
             self.__node.destroy_rate(rate)
 

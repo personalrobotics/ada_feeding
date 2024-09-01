@@ -706,8 +706,10 @@ class SegmentFromPointNode:
             int(goal_handle.request.seed_point.point.y),
         )
         rate = self._node.create_rate(self.rate_hz)
+
         def cleanup():
             self._node.destroy_rate(rate)
+
         segment_image_task = self._node.executor.create_task(
             self.segment_image, seed_point, latest_img_msg
         )

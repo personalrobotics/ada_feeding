@@ -440,6 +440,7 @@ class CreateActionServers(Node):
         start_time = self.get_clock().now()
         timeout = rclpy.time.Duration(seconds=timeout_secs)
         rate = self.create_rate(rate_hz)
+
         def cleanup():
             self.destroy_rate(rate)
 

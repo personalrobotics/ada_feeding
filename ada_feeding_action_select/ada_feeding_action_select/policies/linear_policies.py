@@ -344,7 +344,8 @@ class LinUCBPolicy(LinearPolicy):
         action_i = np.argmin(lcb)
 
         return [
-            (1.0 if i == action_i else 0.0, self.library[i]) for i in range(self.n_actions)
+            (1.0 if i == action_i else 0.0, self.library[i])
+            for i in range(self.n_actions)
         ]
 
     @override
