@@ -320,7 +320,7 @@ class UpdateFromTableDetection:
             self.__namespace_to_use
         ]
         self.__node.get_logger().debug(
-            f"Detected table position: {default_table_position}"
+            f"Detected table position: {detected_table_pose.pose.position}"
         )
 
         # Translate detected position of table into table's origin
