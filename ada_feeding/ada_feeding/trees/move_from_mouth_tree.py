@@ -302,29 +302,35 @@ class MoveFromMouthTree(MoveToTree):
                     ),
                     get_staging_path_constraints(),
                     # Plan
-                    MoveIt2Plan(
-                        name="MoveToStagingPosePlan" + suffix,
-                        ns=name,
-                        inputs={
-                            "goal_constraints": BlackboardKey("goal_constraints"),
-                            "path_constraints": BlackboardKey("path_constraints"),
-                            "planner_id": self.planner_id,
-                            "allowed_planning_time": (
-                                self.allowed_planning_time_to_staging_configuration
-                            ),
-                            "max_velocity_scale": (
-                                self.max_velocity_scaling_factor_to_staging_configuration
-                            ),
-                            "cartesian": cartesian,
-                            "cartesian_jump_threshold": (
-                                self.cartesian_jump_threshold_to_staging_configuration
-                            ),
-                            "cartesian_fraction_threshold": 0.20,  # Fine if its low since the user can retry
-                            "cartesian_max_step": (
-                                self.cartesian_max_step_to_staging_configuration
-                            ),
-                        },
-                        outputs={"trajectory": BlackboardKey("trajectory")},
+                    py_trees.decorators.Timeout(
+                        name="MoveToStagingPosePlanTimeout",
+                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                        duration=10.0
+                        * self.allowed_planning_time_to_staging_configuration,
+                        child=MoveIt2Plan(
+                            name="MoveToStagingPosePlan" + suffix,
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("goal_constraints"),
+                                "path_constraints": BlackboardKey("path_constraints"),
+                                "planner_id": self.planner_id,
+                                "allowed_planning_time": (
+                                    self.allowed_planning_time_to_staging_configuration
+                                ),
+                                "max_velocity_scale": (
+                                    self.max_velocity_scaling_factor_to_staging_configuration
+                                ),
+                                "cartesian": cartesian,
+                                "cartesian_jump_threshold": (
+                                    self.cartesian_jump_threshold_to_staging_configuration
+                                ),
+                                "cartesian_fraction_threshold": 0.20,  # Fine if its low since the user can retry
+                                "cartesian_max_step": (
+                                    self.cartesian_max_step_to_staging_configuration
+                                ),
+                            },
+                            outputs={"trajectory": BlackboardKey("trajectory")},
+                        ),
                     ),
                     # Execute
                     MoveIt2Execute(
@@ -503,21 +509,31 @@ class MoveFromMouthTree(MoveToTree):
                         ),
                         end_path_constraints,
                         # Plan
-                        MoveIt2Plan(
-                            name="MoveToEndingConfigurationPlan",
-                            ns=name,
-                            inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
-                                "path_constraints": BlackboardKey("path_constraints"),
-                                "planner_id": self.planner_id,
-                                "allowed_planning_time": (
-                                    self.allowed_planning_time_to_end_configuration
-                                ),
-                                "max_velocity_scale": (
-                                    self.max_velocity_scaling_factor_to_end_configuration
-                                ),
-                            },
-                            outputs={"trajectory": BlackboardKey("trajectory")},
+                        py_trees.decorators.Timeout(
+                            name="MoveToEndingConfigurationPlanTimeout",
+                            # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                            duration=10.0
+                            * self.allowed_planning_time_to_end_configuration,
+                            child=MoveIt2Plan(
+                                name="MoveToEndingConfigurationPlan",
+                                ns=name,
+                                inputs={
+                                    "goal_constraints": BlackboardKey(
+                                        "goal_constraints"
+                                    ),
+                                    "path_constraints": BlackboardKey(
+                                        "path_constraints"
+                                    ),
+                                    "planner_id": self.planner_id,
+                                    "allowed_planning_time": (
+                                        self.allowed_planning_time_to_end_configuration
+                                    ),
+                                    "max_velocity_scale": (
+                                        self.max_velocity_scaling_factor_to_end_configuration
+                                    ),
+                                },
+                                outputs={"trajectory": BlackboardKey("trajectory")},
+                            ),
                         ),
                         # Execute
                         MoveIt2Execute(

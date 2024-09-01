@@ -307,15 +307,20 @@ class PlanningSceneInitializer:
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(self.__wait_for_moveit_hz)
 
+        def cleanup():
+            self.__node.destroy_rate(rate)
+
         while check_ok(self.__node, start_time, timeout):
             # pylint: disable=protected-access
             # This is necessary. Ideally, the service would not be protected.
             if (
                 self.__collision_object_manager.moveit2._get_planning_scene_service.service_is_ready()
             ):
+                cleanup()
                 return True
             rate.sleep()
 
+        cleanup()
         return False
 
     def initialize(
@@ -442,6 +447,9 @@ class PlanningSceneInitializer:
         -------
         response: The response to modify the collision object.
         """
+        self.__node.get_logger().info(
+            f"Modifying collision object '{request.object_id}'..."
+        )
         object_id = request.object_id
         if object_id not in self.objects[self.__namespace_to_use]:
             success = False

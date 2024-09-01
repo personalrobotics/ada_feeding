@@ -433,6 +433,7 @@ class ApplyTransform(BlackboardBehavior):
                 return py_trees.common.Status.FAILURE
 
         # Write the transformed_msg
+        self.logger.debug(f"Transformed message: {transformed_msg}")
         self.blackboard_set("transformed_msg", transformed_msg)
 
         return py_trees.common.Status.SUCCESS

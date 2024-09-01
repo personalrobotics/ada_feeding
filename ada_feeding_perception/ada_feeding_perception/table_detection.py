@@ -197,7 +197,9 @@ class TableDetectionNode:
         ----------
         response: The updated response message based on the request.
         """
-        self._node.get_logger().info(f"Incoming service request. data: {request.data}")
+        self._node.get_logger().info(
+            f"Incoming service request for table detection. data: {request.data}"
+        )
 
         response.success = False
         response.message = f"Failed to set is_on to {request.data}"

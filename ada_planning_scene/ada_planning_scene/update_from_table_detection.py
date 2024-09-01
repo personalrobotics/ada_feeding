@@ -137,7 +137,7 @@ class UpdateFromTableDetection:
             # How often to update the planning scene based on table detection
             update_table_hz = self.__node.declare_parameter(
                 "update_table_hz",
-                3.0,  # default value
+                2.0,  # default value
                 descriptor=ParameterDescriptor(
                     name="update_table_hz",
                     type=ParameterType.PARAMETER_DOUBLE,
@@ -320,7 +320,7 @@ class UpdateFromTableDetection:
             self.__namespace_to_use
         ]
         self.__node.get_logger().debug(
-            f"Detected table position: {default_table_position}"
+            f"Detected table position: {detected_table_pose.pose.position}"
         )
 
         # Translate detected position of table into table's origin

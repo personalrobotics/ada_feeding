@@ -90,6 +90,7 @@ class ComputeActionConstraints(BlackboardBehavior):
         grasp_thresh: Optional[BlackboardKey],  # SetParameters.Request
         ext_thresh: Optional[BlackboardKey],  # SetParameters.Request
         action: Optional[BlackboardKey],  # AcquisitionSchema.msg
+        action_index: Optional[BlackboardKey],  # int
     ) -> None:
         """
         Blackboard Outputs
@@ -135,6 +136,7 @@ class ComputeActionConstraints(BlackboardBehavior):
             self.logger.error(f"Bad Action Select Response: {response.status}")
             return py_trees.common.Status.FAILURE
         prob = np.array(response.probabilities)
+        self.logger.debug(f"Action Probabilities: {prob} (size {prob.size})")
         if (
             len(response.actions) == 0
             or len(response.actions) != len(response.probabilities)
@@ -204,6 +206,7 @@ class ComputeActionConstraints(BlackboardBehavior):
 
             ### Final write to Blackboard
             self.blackboard_set("action", action)
+            self.blackboard_set("action_index", index)
         return py_trees.common.Status.SUCCESS
 
 

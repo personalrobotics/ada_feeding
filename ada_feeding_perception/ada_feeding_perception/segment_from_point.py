@@ -706,6 +706,10 @@ class SegmentFromPointNode:
             int(goal_handle.request.seed_point.point.y),
         )
         rate = self._node.create_rate(self.rate_hz)
+
+        def cleanup():
+            self._node.destroy_rate(rate)
+
         segment_image_task = self._node.executor.create_task(
             self.segment_image, seed_point, latest_img_msg
         )
@@ -729,6 +733,7 @@ class SegmentFromPointNode:
             result.status = result.STATUS_CANCELED
             with self.active_goal_request_lock:
                 self.active_goal_request = None  # Clear the active goal
+            cleanup()
             return result
         self._node.get_logger().info("Goal not canceled")
 
@@ -746,6 +751,7 @@ class SegmentFromPointNode:
             "...Done. Got masks with average depth "
             f"{[m.average_depth for m in result.detected_items]} m."
         )
+        cleanup()
         return result
 
 

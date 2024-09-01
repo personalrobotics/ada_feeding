@@ -166,6 +166,9 @@ class CollisionObjectManager:
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
 
+        def cleanup():
+            self.__node.destroy_rate(rate)
+
         # Get the planning scene
         while self.moveit2.planning_scene is None:
             # Check if the node is still OK and if the timeout has been reached
@@ -173,6 +176,7 @@ class CollisionObjectManager:
                 self.__node.get_logger().error(
                     "Timed out while getting the planning scene."
                 )
+                cleanup()
                 return False
 
             # Attempt to get the planning scene
@@ -192,6 +196,7 @@ class CollisionObjectManager:
             batch_id_to_update=self.__GLOBAL_BATCH_ID,
         )
 
+        cleanup()
         return True
 
     def add_collision_objects(
@@ -222,31 +227,40 @@ class CollisionObjectManager:
         # pylint: disable=too-many-arguments, too-many-branches, too-many-statements
         # This is the main bread and butter of adding to the planning scene,
         # so is expected to be complex.
+        self.__node.get_logger().info(
+            "Adding collision objects to the planning scene..."
+        )
 
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+
+        def cleanup():
+            self.__node.destroy_rate(rate)
 
         # Check if the objects are a single object
         if isinstance(objects, CollisionObjectParams):
             objects = {objects.object_id: objects}
 
         # Create a new batch for this add_collision_objects operation
-        with self.__collision_objects_lock:
-            batch_id = self.__BATCH_ID_FORMAT.format(self.__n_batches)
-            if ignore_existing:
-                self.__collision_objects_per_batch[batch_id] = set()
-                self.__attached_collision_objects_per_batch[batch_id] = set()
-            else:
-                self.__collision_objects_per_batch[
-                    batch_id
-                ] = self.__collision_objects_per_batch[self.__GLOBAL_BATCH_ID].copy()
-                self.__attached_collision_objects_per_batch[
-                    batch_id
-                ] = self.__attached_collision_objects_per_batch[
-                    self.__GLOBAL_BATCH_ID
-                ].copy()
-            self.__n_batches += 1
+        if retry_until_added:
+            with self.__collision_objects_lock:
+                batch_id = self.__BATCH_ID_FORMAT.format(self.__n_batches)
+                if ignore_existing:
+                    self.__collision_objects_per_batch[batch_id] = set()
+                    self.__attached_collision_objects_per_batch[batch_id] = set()
+                else:
+                    self.__collision_objects_per_batch[
+                        batch_id
+                    ] = self.__collision_objects_per_batch[
+                        self.__GLOBAL_BATCH_ID
+                    ].copy()
+                    self.__attached_collision_objects_per_batch[
+                        batch_id
+                    ] = self.__attached_collision_objects_per_batch[
+                        self.__GLOBAL_BATCH_ID
+                    ].copy()
+                self.__n_batches += 1
 
         # First, try to add all the collision objects
         collision_object_ids = set(objects.keys())
@@ -259,14 +273,18 @@ class CollisionObjectManager:
                     "Timed out while adding collision objects. "
                     f"May not have added {collision_object_ids}."
                 )
+                cleanup()
                 return False
 
             # Remove any collision objects that have already been added
-            with self.__collision_objects_lock:
-                if ignore_existing or i > 0:
-                    collision_object_ids -= self.__collision_objects_per_batch[batch_id]
-            if len(collision_object_ids) == 0:
-                break
+            if retry_until_added:
+                with self.__collision_objects_lock:
+                    if ignore_existing or i > 0:
+                        collision_object_ids -= self.__collision_objects_per_batch[
+                            batch_id
+                        ]
+                if len(collision_object_ids) == 0:
+                    break
 
             # Add the collision objects
             self.__node.get_logger().info(
@@ -303,7 +321,13 @@ class CollisionObjectManager:
                         quat_xyzw=params.quat_xyzw,
                         frame_id=params.frame_id,
                     )
+                self.__node.get_logger().debug(
+                    f"Added collision object {object_id}. About to sleep.",
+                )
                 rate.sleep()
+                self.__node.get_logger().debug(
+                    "Woke up from sleep after adding collision object.",
+                )
             if not retry_until_added:
                 break
 
@@ -312,7 +336,7 @@ class CollisionObjectManager:
             object_id for object_id, params in objects.items() if params.attached
         }
         i = -1
-        while len(collision_object_ids) > 0:
+        while len(attached_collision_object_ids) > 0:
             i += 1
             # Check if the node is still OK and if the timeout has been reached
             if not check_ok(self.__node, start_time, timeout):
@@ -320,16 +344,18 @@ class CollisionObjectManager:
                     "Timed out while attaching collision objects. "
                     f"May not have attached {attached_collision_object_ids}."
                 )
+                cleanup()
                 return False
 
             # Remove any attached collision objects that have already been attached
-            with self.__collision_objects_lock:
-                if ignore_existing or i > 0:
-                    attached_collision_object_ids -= (
-                        self.__attached_collision_objects_per_batch[batch_id]
-                    )
-            if len(attached_collision_object_ids) == 0:
-                break
+            if retry_until_added:
+                with self.__collision_objects_lock:
+                    if ignore_existing or i > 0:
+                        attached_collision_object_ids -= (
+                            self.__attached_collision_objects_per_batch[batch_id]
+                        )
+                if len(attached_collision_object_ids) == 0:
+                    break
 
             # Attach the collision objects
             self.__node.get_logger().info(
@@ -355,10 +381,12 @@ class CollisionObjectManager:
 
         # Remove the batch that corresponds to this add_collision_objects
         # operation
-        with self.__collision_objects_lock:
-            self.__collision_objects_per_batch.pop(batch_id)
-            self.__attached_collision_objects_per_batch.pop(batch_id)
+        if retry_until_added:
+            with self.__collision_objects_lock:
+                self.__collision_objects_per_batch.pop(batch_id)
+                self.__attached_collision_objects_per_batch.pop(batch_id)
 
+        cleanup()
         return True
 
     def move_collision_objects(
@@ -384,6 +412,9 @@ class CollisionObjectManager:
         # Start the time
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
+
+        def cleanup():
+            self.__node.destroy_rate(rate)
 
         # Check if the objects are a single object
         if isinstance(objects, CollisionObjectParams):
@@ -452,6 +483,7 @@ class CollisionObjectManager:
             self.__collision_objects_per_batch.pop(batch_id)
             self.__attached_collision_objects_per_batch.pop(batch_id)
 
+        cleanup()
         return success
 
     def clear_all_collision_objects(
@@ -473,12 +505,16 @@ class CollisionObjectManager:
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
 
+        def cleanup():
+            self.__node.destroy_rate(rate)
+
         # Clear the planning scene
         future = self.moveit2.clear_all_collision_objects()
         if future is None:
             self.__node.get_logger().error(
                 "Could not clear planning scene; service is not ready"
             )
+            cleanup()
             return False
 
         while not future.done():
@@ -487,11 +523,13 @@ class CollisionObjectManager:
                     "Timed out while clearing the planning scene."
                 )
                 self.moveit2.cancel_clear_all_collision_objects_future(future)
+                cleanup()
                 return False
 
             # Sleep
             rate.sleep()
 
+        cleanup()
         return self.moveit2.process_clear_all_collision_objects_future(future)
 
     def remove_collision_object(

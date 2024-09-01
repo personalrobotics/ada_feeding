@@ -264,6 +264,9 @@ class ADAPlanningScene(Node):
         timeout = rclpy.time.Duration(seconds=timeout_secs)
         rate = self.create_rate(rate_hz)
 
+        def cleanup():
+            self.destroy_rate(rate)
+
         # Create the client to get parameters
         ada_feeding_get_parameters_client = self.create_client(
             GetParameters,
@@ -307,6 +310,7 @@ class ADAPlanningScene(Node):
                 "`ada_feeding_action_servers`. Perhaps it is not running yet? Using the default namespace "
                 "in the `ada_planning_scene` YAML file."
             )
+            cleanup()
             return
 
         # Second, get `planning_scene_namespace_to_use` within the `namespace_to_use` namespace.
@@ -327,14 +331,17 @@ class ADAPlanningScene(Node):
                 # If the parameter is set, that is the namespace to use
                 if response.values[0].type == ParameterType.PARAMETER_STRING:
                     self.__namespace_to_use = response.values[0].string_value
+                    cleanup()
                     return
                 # If the parameter is not set, use the default namespace in `ada_feeding`
                 self.__namespace_to_use = ada_feeding_default_planning_scene_namespace
+                cleanup()
                 return
         self.get_logger().warn(
             f"Failed to get `{request.names[0]}` from `ada_feeding_action_servers`. Using the default namespace "
             "in the `ada_planning_scene` YAML file."
         )
+        cleanup()
         return
 
     def parameter_callback(self, params: List[Parameter]) -> SetParametersResult:

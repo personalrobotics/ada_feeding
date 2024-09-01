@@ -441,6 +441,9 @@ class CreateActionServers(Node):
         timeout = rclpy.time.Duration(seconds=timeout_secs)
         rate = self.create_rate(rate_hz)
 
+        def cleanup():
+            self.destroy_rate(rate)
+
         if not reinit_same_namespace:
             # Wait for the service to be ready
             self.planning_scene_set_parameters_client.wait_for_service(
@@ -469,10 +472,12 @@ class CreateActionServers(Node):
                 self.get_logger().warn(
                     "Failed to get parameters from ada_planning_scene."
                 )
+                cleanup()
                 return False
 
             # If the parameter is the same, return
             if curr_planning_scene_namespace_to_use == planning_scene_namespace_to_use:
+                cleanup()
                 return True
 
         # Wait for the service to be ready
@@ -504,11 +509,13 @@ class CreateActionServers(Node):
                 self.get_logger().info(
                     f"Successfully set planning scene namespace to {planning_scene_namespace_to_use}"
                 )
+                cleanup()
                 return True
         self.get_logger().warn(
             f"Failed to set planning scene namespace to {planning_scene_namespace_to_use}. "
             f"Elapsed time: {(self.get_clock().now() - start_time).nanoseconds / 1.0e9} seconds."
         )
+        cleanup()
         return False
 
     def declare_parameter_in_namespace(
@@ -1028,11 +1035,12 @@ class CreateActionServers(Node):
                         if goal_handle.is_cancel_requested:
                             # Note that the body of this conditional may be called
                             # multiple times until the preemption is complete.
-                            self.get_logger().info("Goal canceled")
+                            self.get_logger().info("Waiting for tree to preempt")
                             tree_action_server.preempt_goal(
                                 tree
                             )  # blocks until the preempt succeeds
                             goal_handle.canceled()
+                            self.get_logger().info("Canceled goal.")
 
                             try:
                                 result = tree_action_server.get_result(
@@ -1079,7 +1087,21 @@ class CreateActionServers(Node):
                                 py_trees.common.Status.INVALID,
                             )
                         ):
-                            self.get_logger().info("Tree failed")
+                            # Get the name of the behavior that the tree failed on
+                            names_of_failed_behavior = []
+                            for node in tree.root.iterate():
+                                if node.status in set(
+                                    (
+                                        py_trees.common.Status.FAILURE,
+                                        py_trees.common.Status.INVALID,
+                                    )
+                                ):
+                                    names_of_failed_behavior.append(node.name)
+                                    if node.status == py_trees.common.Status.FAILURE:
+                                        break
+                            self.get_logger().info(
+                                f"Tree failed at behavior {names_of_failed_behavior}"
+                            )
                             goal_handle.abort()
                             try:
                                 result = tree_action_server.get_result(
@@ -1111,6 +1133,7 @@ class CreateActionServers(Node):
             # Unset the goal and return the result
             with self.active_goal_request_lock:
                 self.active_goal_request = None
+            self.destroy_rate(rate)
             return result
 
         return execute_callback
