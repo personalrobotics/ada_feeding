@@ -55,6 +55,8 @@ ada_feeding_action_servers:
       - -2.659056359891099
       - 4.916644381246061
       - 1.7380801275071338
+      MoveFromMouth.tree_kwargs.linear_speed_near_mouth: 0.08
+      MoveFromMouth.tree_kwargs.max_linear_speed_to_staging_configuration: 0.15
       MoveFromMouth.tree_kwargs.staging_configuration_position:
       - -0.3418209608339783
       - -0.19780925396905233
@@ -64,8 +66,10 @@ ada_feeding_action_servers:
       - 0.63546216
       - 0.691676
       - -0.31060195
+      MoveToMouth.tree_kwargs.linear_speed_near_mouth: 0.06
+      MoveToMouth.tree_kwargs.max_linear_speed: 0.14
       MoveToMouth.tree_kwargs.plan_distance_from_mouth:
-      - 0.1
+      - 0.025
       - 0.0
       - -0.01
       MoveToRestingPosition.tree_kwargs.goal_configuration:

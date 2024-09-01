@@ -468,7 +468,9 @@ class FoodOnForkDetectionNode:
         response: The response to toggle the perception algorithm on and off.
         """
 
-        self._node.get_logger().info(f"Incoming service request. data: {request.data}")
+        self._node.get_logger().info(
+            f"Incoming service request for food-on-fork detection. data: {request.data}"
+        )
         response.success = False
         response.message = f"Failed to set is_on to {request.data}"
         with self.is_on_lock:
