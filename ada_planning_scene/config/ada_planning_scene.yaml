@@ -217,13 +217,13 @@ ada_planning_scene:
         - in_front_of_face_wall # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
       bed: # the wheelchair mesh
         filename: bed_with_back.stl
-        position: [-0.68, 0.4, -1.24]
+        position: [-0.58, 0.25, -1.09]
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: False # whether to add workspace walls around the wheelchair
       body: 
         filename: body_collision_in_bed.stl
-        position: [-0.68, 0.4, -1.24] # should match the wheelchair position
+        position: [-0.58, 0.25, -1.09] # should match the wheelchair position
         quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
@@ -231,7 +231,6 @@ ada_planning_scene:
         filename: hospital_table.stl
         # Initial predicted position and orientation of the table; these values get
         # updated as the robot perceives the table.
-        # TODO: Verify lateral position relative to face
         position: [-0.6, -0.68, -1.04]
         quat_xyzw: [0.0, 0.0, 0.7071068, 0.7071068]
         frame_id: root # the frame_id that the pose is relative to
@@ -240,16 +239,15 @@ ada_planning_scene:
         filename: tom.stl
         # This is an initial guess of head position; it will be updated as the
         # robot perceives the face.
-        position: [-0.68, 0.22, 0.08]
+        position: [-0.58, 0.07, 0.23]
         quat_xyzw: [0.0010617, -0.0010994, -0.6946612, 0.7193354]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
       in_front_of_face_wall: # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
         primitive_type: 1 # shape_msgs/SolidPrimitive.BOX
         primitive_dims: [0.65, 0.01, 0.6]
-        # TODO: rotate!!!
-        position: [-0.37, 0.11, 0.26]
-        quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+        position: [-0.27, 0.01, 0.30]
+        quat_xyzw: [0.0, 0.0, 0.3826834, 0.9238795]
         frame_id: root # the frame_id that the pose is relative to
         add_on_initialize: False # don't add this to the planning scene initially
 
@@ -365,7 +363,6 @@ ada_planning_scene:
       table_quat_dist_thresh: 0.349
       table_pos_dist_thresh: 0.5
     bedside_90:
-      # TODO: rotate!!!
-      table_origin_offset: [-0.23, 0.71, -1.0067]
+      table_origin_offset: [-0.71, -0.23, -1.0067]
       table_quat_dist_thresh: 0.349
       table_pos_dist_thresh: 0.5
