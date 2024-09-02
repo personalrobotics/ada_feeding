@@ -153,9 +153,9 @@ ada_planning_scene:
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
       in_front_of_face_wall: # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
         primitive_type: 1 # shape_msgs/SolidPrimitive.BOX
-        primitive_dims: [0.65, 0.01, 0.4]
-        position: [0.17, -0.37, 0.85]
-        quat_xyzw: [0.0, 0.0, -0.7071068, 0.7071068]
+        primitive_dims: [0.65, 0.01, 0.8]
+        position: [0.07, 0.17, 0.65]
+        quat_xyzw: [0.0, 0.0, -0.3826834, 0.9238795]
         frame_id: root # the frame_id that the pose is relative to
         add_on_initialize: False # don't add this to the planning scene initially
 
