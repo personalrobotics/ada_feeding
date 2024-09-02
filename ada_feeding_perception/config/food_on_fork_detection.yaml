@@ -9,10 +9,12 @@ food_on_fork_detection:
     # Keywords to pass to the FoodOnFork class's constructor
     model_kws:
       - camera_matrix
+      - min_points
     # Keyword arguments to pass to the FoodOnFork class's constructor
     model_kwargs:
       camera_matrix: [614.5933227539062, 0.0, 312.1358947753906, 0.0, 614.6914672851562, 223.70831298828125, 0.0, 0.0, 1.0]
-    
+      min_points: 100
+
     # The rate at which to detect and publish the confidence that there is food on the fork
     food_on_fork_detection_rate_hz: 10.0
     # The top-left  and bottom-right corners to crop the depth image to
@@ -50,10 +52,12 @@ ada_feeding_perception:
     # Keywords to pass to the FoodOnFork class's constructor
     model_kws:
       - camera_matrix
+      - min_points
     # Keyword arguments to pass to the FoodOnFork class's constructor
     model_kwargs:
       camera_matrix: [614.5933227539062, 0.0, 312.1358947753906, 0.0, 614.6914672851562, 223.70831298828125, 0.0, 0.0, 1.0]
-    
+      min_points: 100
+
     # The rate at which to detect and publish the confidence that there is food on the fork
     food_on_fork_detection_rate_hz: 10.0
     # The top-left  and bottom-right corners to crop the depth image to

@@ -834,6 +834,9 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
             )
 
             # If there are too few points, set the proba to nan
+            # rclpy.logging.get_logger("FoodOnForkDistanceToNoFOFDetector").info(
+            #     f"Pointcloud {i} has {len(pointcloud)} points, threshold is {self.min_points}"
+            # )
             if len(pointcloud) < self.min_points:
                 probas.append(np.nan)
                 statuses.append(FoodOnForkDetection.ERROR_TOO_FEW_POINTS)
