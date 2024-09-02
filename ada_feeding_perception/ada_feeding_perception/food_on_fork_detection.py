@@ -87,6 +87,7 @@ class FoodOnForkDetectionNode:
             self.viz_upper_thresh,
             self.viz_lower_thresh,
             rgb_image_buffer,
+            no_fof_points_offset,
         ) = self.read_params()
 
         # Create the post-processors
@@ -112,7 +113,10 @@ class FoodOnForkDetectionNode:
         self.model.crop_top_left = self.crop_top_left
         self.model.crop_bottom_right = self.crop_bottom_right
         if len(model_path) > 0:
-            self.model.load(os.path.join(model_dir, model_path))
+            self.model.load(
+                os.path.join(model_dir, model_path),
+                no_fof_points_offset=no_fof_points_offset,
+            )
 
         # Create the TF buffer, in case the perception algorithm needs it
         self.tf_buffer = Buffer()
@@ -202,6 +206,7 @@ class FoodOnForkDetectionNode:
         float,
         float,
         int,
+        Tuple[float, float, float],
     ]:
         """
         Reads the parameters for the FoodOnForkDetection.
@@ -226,6 +231,8 @@ class FoodOnForkDetectionNode:
         viz_upper_thresh: The upper threshold for declaring FoF in the viz.
         viz_lower_thresh: The lower threshold for declaring FoF in the viz.
         rgb_image_buffer: The number of RGB images to store at a time for visualization.
+        no_fof_points_offset: The offset to add to the "no food-on-fork" points. Only used
+            in the FoodOnForkDistanceToNoFOFDetector model_class.
         """
         # pylint: disable=too-many-locals
         # There are many parameters to load.
@@ -434,6 +441,22 @@ class FoodOnForkDetectionNode:
         )
         rgb_image_buffer = rgb_image_buffer.value
 
+        # Get the no_fof_points_offset
+        no_fof_points_offset = self._node.declare_parameter(
+            "no_fof_points_offset",
+            [0.0, 0.0, 0.0],
+            descriptor=ParameterDescriptor(
+                name="no_fof_points_offset",
+                type=ParameterType.PARAMETER_INTEGER_ARRAY,
+                description=(
+                    "The offset to add to the 'no food-on-fork' points. Only used in the "
+                    "FoodOnForkDistanceToNoFOFDetector model_class."
+                ),
+                read_only=True,
+            ),
+        )
+        no_fof_points_offset = tuple(no_fof_points_offset.value)
+
         return (
             model_class,
             model_path,
@@ -450,6 +473,7 @@ class FoodOnForkDetectionNode:
             viz_upper_thresh,
             viz_lower_thresh,
             rgb_image_buffer,
+            no_fof_points_offset,
         )
 
     def toggle_food_on_fork_detection(
@@ -665,6 +689,8 @@ class FoodOnForkDetectionNode:
 
             # Visualize the results
             if self.viz:
+                # # NOTE: This is commented by default since it can block the main thread.
+                # # However, the 3D plot it shows is incredibly useful for adjusting `no_fof_points_offset`.
                 # self.model.visualize_img(depth_img_cv2, t[0])
                 self.visualize_result(food_on_fork_detection_msg, t[0])
 

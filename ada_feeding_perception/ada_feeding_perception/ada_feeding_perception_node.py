@@ -212,19 +212,19 @@ def main(args=None):
 
     face_detection_thread = Thread(target=face_detection_run, daemon=True)
     face_detection_thread.start()
-    food_on_fork_detection_thread = Thread(
-        target=food_on_fork_detection_run, daemon=True
-    )
-    food_on_fork_detection_thread.start()
     table_detection_thread = Thread(target=table_detection_run, daemon=True)
     table_detection_thread.start()
 
-    # Spin in the foreground
-    spin_thread.join()
+    # For debugging purposes, it helps to have food-on-fork running in the main thread.
+    # (If we uncomment `self.model.visualize_img` which opens a Matplotlib plot).
+    food_on_fork_detection_run()
 
     # Terminate this node
     node.destroy_node()
     rclpy.shutdown()
+
+    # Join the spin thread (so it is spinning in the main thread)
+    spin_thread.join()
 
 
 if __name__ == "__main__":
