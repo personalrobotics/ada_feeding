@@ -10,6 +10,7 @@ import argparse
 import copy
 import errno
 import os
+import threading
 import time
 from typing import Dict
 import uuid
@@ -289,12 +290,14 @@ class PolicyServices(Node):
 
         # Create AcquisitionSelect cache
         # UUID -> {context, request, response}
+        self.cache_lock = threading.Lock()
         self.cache = {}
 
         # Init Checkpoints / Data Record
         self._init_checkpoints_record(context_cls, posthoc_cls)
 
         # Start ROS services
+        self.acquisition_report_threads = []
         self.ros_objs = []
         self.ros_objs.append(
             self.create_service(
@@ -336,11 +339,12 @@ class PolicyServices(Node):
             response.probabilities = list(res[0])
             response.actions = list(res[1])
             select_id = str(uuid.uuid4())
-            self.cache[select_id] = {
-                "context": np.copy(context),
-                "request": copy.deepcopy(request),
-                "response": copy.deepcopy(response),
-            }
+            with self.cache_lock:
+                self.cache[select_id] = {
+                    "context": np.copy(context),
+                    "request": copy.deepcopy(request),
+                    "response": copy.deepcopy(response),
+                }
             response.id = select_id
 
         if response.status != "Success":
@@ -362,13 +366,50 @@ class PolicyServices(Node):
             f"AcquisitionReport Request with ID: '{request.id}' and loss '{request.loss}'"
         )
 
-        # Collect cached context
-        if request.id not in self.cache:
-            response.status = "id does not map to previous select call"
-            self.get_logger().error(f"AcquistionReport: {response.status}")
-            response.success = False
-            return response
-        cache = self.cache[request.id]
+        # Remove any completed threads
+        i = 0
+        while i < len(self.acquisition_report_threads):
+            if not self.acquisition_report_threads[i].is_alive():
+                self.get_logger().info("Removing completed acquisition report thread")
+                self.acquisition_report_threads.pop(i)
+            else:
+                i += 1
+
+        # Start the asynch thread
+        request_copy = copy.deepcopy(request)
+        response_copy = copy.deepcopy(response)
+        # self.report_callback_work(request_copy, response_copy)
+        thread = threading.Thread(
+            target=self.report_callback_work, args=(request_copy, response_copy)
+        )
+        self.acquisition_report_threads.append(thread)
+        self.get_logger().info("Starting new acquisition report thread")
+        thread.start()
+
+        # Return success immediately
+        response.status = "Success"
+        response.success = True
+        return response
+
+    # pylint: disable=too-many-statements
+    # One over is fine for this function.
+    def report_callback_work(
+        self, request: AcquisitionReport.Request, response: AcquisitionReport.Response
+    ) -> AcquisitionReport.Response:
+        """
+        Perform the work of updating the policy based on the acquisition. This is a workaround
+        to the fact that either ROSLib or rosbridge (likely the latter) cannot process a service
+        and action at the same time, so in practice the next motion waits until after the policy
+        has been updated, which adds a few seconds of unnecessary latency.
+        """
+        with self.cache_lock:
+            # Collect cached context
+            if request.id not in self.cache:
+                response.status = "id does not map to previous select call"
+                self.get_logger().error(f"AcquistionReport: {response.status}")
+                response.success = False
+                return response
+            cache = copy.deepcopy(self.cache[request.id])
         context = cache["context"]
 
         # Collect executed action
@@ -406,7 +447,9 @@ class PolicyServices(Node):
 
         # Report completed
         self.n_successful_reports += 1
-        del self.cache[request.id]
+        with self.cache_lock:
+            if request.id in self.cache:
+                del self.cache[request.id]
 
         # Save checkpoint if requested
         if (
