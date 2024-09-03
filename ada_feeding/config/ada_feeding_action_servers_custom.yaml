@@ -54,40 +54,40 @@ ada_feeding_action_servers:
     namespace_to_use: wheelchair_side_table_1
     wheelchair_side_table_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
-      - -1.0417226246276128
-      - 4.404614643739175
-      - 5.699745834519425
-      - -6.704937345842203
-      - 4.10020174902156
-      - 5.1406561763380765
-      MoveAbovePlate.tree_kwargs.joint_positions:
-      - 0.02532932512774355
-      - 3.1431881533988597
-      - 1.732171105680466
-      - -2.3604859079728984
-      - 4.162401474177013
-      - 4.090987211649885
-      MoveFromMouth.tree_kwargs.staging_configuration_position:
-      - -0.011402569359730129
-      - 0.029461197720583806
-      - 0.6578790735619884
-      MoveFromMouth.tree_kwargs.staging_configuration_quat_xyzw:
-      - 0.3333477503344343
-      - 0.6602177768810074
-      - 0.5795891150204631
-      - 0.3421523376904928
-      MoveToRestingPosition.tree_kwargs.goal_configuration:
-      - -1.0417226246276128
-      - 4.404614643739175
-      - 5.699745834519425
-      - -6.704937345842203
-      - 4.10020174902156
-      - 5.1406561763380765
-      MoveToStagingConfiguration.tree_kwargs.goal_configuration:
       - -0.6009865084504753
       - 4.406308680508575
       - 4.342634895689761
       - -5.48339275809026
       - 4.099009718117641
       - 3.976385530989377
+      MoveAbovePlate.tree_kwargs.joint_positions:
+      - -0.5770869679329681
+      - 3.171525785293957
+      - 1.6737963456406377
+      - -8.70344133844546
+      - 4.307685700072433
+      - 4.030485518005465
+      MoveFromMouth.tree_kwargs.staging_configuration_position:
+      - -0.03253809815928135
+      - 0.003391738416497574
+      - 0.6737637286360625
+      MoveFromMouth.tree_kwargs.staging_configuration_quat_xyzw:
+      - 0.24354785741083615
+      - 0.6469348048158075
+      - 0.6556294915485885
+      - 0.30382522818269014
+      MoveToRestingPosition.tree_kwargs.goal_configuration:
+      - -0.6009865084504753
+      - 4.406308680508575
+      - 4.342634895689761
+      - -5.48339275809026
+      - 4.099009718117641
+      - 3.976385530989377
+      MoveToStagingConfiguration.tree_kwargs.goal_configuration:
+      - -0.8280291806000825
+      - 4.496595700416659
+      - 4.380693065563648
+      - -5.540779085891504
+      - -2.0505759824492493
+      - -2.372504753972425
       planning_scene_namespace_to_use: seated_90
