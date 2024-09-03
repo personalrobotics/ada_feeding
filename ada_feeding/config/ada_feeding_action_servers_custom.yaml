@@ -51,15 +51,15 @@ ada_feeding_action_servers:
     custom_namespaces:
     - bed_side_table_1
     - wheelchair_side_table_1
-    namespace_to_use: wheelchair_side_table_1
+    namespace_to_use: bed_side_table_1
     wheelchair_side_table_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
-      - -0.6009865084504753
-      - 4.406308680508575
-      - 4.342634895689761
-      - -5.48339275809026
-      - 4.099009718117641
-      - 3.976385530989377
+      - -0.8280291806000825
+      - 4.496595700416659
+      - 4.380693065563648
+      - -5.540779085891504
+      - -2.0505759824492493
+      - -2.372504753972425
       MoveAbovePlate.tree_kwargs.joint_positions:
       - -0.5770869679329681
       - 3.171525785293957
@@ -77,12 +77,12 @@ ada_feeding_action_servers:
       - 0.6556294915485885
       - 0.30382522818269014
       MoveToRestingPosition.tree_kwargs.goal_configuration:
-      - -0.6009865084504753
-      - 4.406308680508575
-      - 4.342634895689761
-      - -5.48339275809026
-      - 4.099009718117641
-      - 3.976385530989377
+      - -0.8280291806000825
+      - 4.496595700416659
+      - 4.380693065563648
+      - -5.540779085891504
+      - -2.0505759824492493
+      - -2.372504753972425
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
       - -0.8280291806000825
       - 4.496595700416659
