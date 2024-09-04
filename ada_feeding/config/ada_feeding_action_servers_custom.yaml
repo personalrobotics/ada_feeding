@@ -3,30 +3,30 @@ ada_feeding_action_servers:
   ros__parameters:
     bed_side_table_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
-      - -2.40341872791
-      - 3.9280238571740833
-      - 1.2793723345038692
-      - -1.2987086150725533
-      - -1.7135562754510847
-      - 0.77158428024418
+      - -2.3098698682948524
+      - 3.8010784248610583
+      - 1.0663586623445815
+      - -1.065310242402444
+      - -1.617327609992979
+      - 0.6628209810624257
       MoveAbovePlate.tree_kwargs.joint_positions:
-      - -1.76876666747
-      - 3.6562432079254257
-      - 1.6497725020792509
-      - -2.659056359891099
-      - 4.916644381246061
-      - 1.7380801275071338
+      - -1.7699565678587286
+      - 3.7596148709012875
+      - 1.6383170478083295
+      - -2.693377848439495
+      - -1.2328692808133417
+      - 7.957433724415264
       MoveFromMouth.tree_kwargs.linear_speed_near_mouth: 0.08
       MoveFromMouth.tree_kwargs.max_linear_speed_to_staging_configuration: 0.15
       MoveFromMouth.tree_kwargs.staging_configuration_position:
-      - -0.3418209608339783
-      - -0.19780925396905233
-      - 0.2413684489609259
+      - -0.4367114020802131
+      - -0.1523456553338336
+      - 0.14724472769505167
       MoveFromMouth.tree_kwargs.staging_configuration_quat_xyzw:
-      - -0.14594094
-      - 0.63546216
-      - 0.691676
-      - -0.31060195
+      - 0.15372897764638055
+      - -0.5708623692737814
+      - -0.7370779464074988
+      - 0.327413588139875
       MoveToMouth.tree_kwargs.linear_speed_near_mouth: 0.06
       MoveToMouth.tree_kwargs.max_linear_speed: 0.14
       MoveToMouth.tree_kwargs.plan_distance_from_mouth:
@@ -34,19 +34,19 @@ ada_feeding_action_servers:
       - 0.0
       - -0.01
       MoveToRestingPosition.tree_kwargs.goal_configuration:
-      - -2.40341872791
-      - 3.9280238571740833
-      - 1.2793723345038692
-      - -1.2987086150725533
-      - -1.7135562754510847
-      - 0.77158428024418
+      - -2.3098698682948524
+      - 3.8010784248610583
+      - 1.0663586623445815
+      - -1.065310242402444
+      - -1.617327609992979
+      - 0.6628209810624257
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
-      - -1.41958843169
-      - 4.259094195455066
-      - 1.72927358641446
-      - -0.6739427412487604
-      - -3.0701456341812565
-      - 1.8009590918986131
+      - -1.1911872144861295
+      - 4.582556148817801
+      - 1.839602624580099
+      - -0.7605173145972737
+      - -2.7302897937802113
+      - 1.4082625402029247
       planning_scene_namespace_to_use: bedside_90
     custom_namespaces:
     - bed_side_table_1
