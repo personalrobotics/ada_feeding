@@ -19,14 +19,14 @@ ada_feeding_action_servers:
       MoveFromMouth.tree_kwargs.linear_speed_near_mouth: 0.08
       MoveFromMouth.tree_kwargs.max_linear_speed_to_staging_configuration: 0.15
       MoveFromMouth.tree_kwargs.staging_configuration_position:
-      - -0.4367114020802131
-      - -0.1523456553338336
-      - 0.14724472769505167
+      - -0.22162120639069535
+      - -0.35776899361246467
+      - 0.31226426005095975
       MoveFromMouth.tree_kwargs.staging_configuration_quat_xyzw:
-      - 0.15372897764638055
-      - -0.5708623692737814
-      - -0.7370779464074988
-      - 0.327413588139875
+      - 0.4113854220321883
+      - -0.5506965295805886
+      - -0.61615652377103
+      - 0.38450813393437333
       MoveToMouth.tree_kwargs.linear_speed_near_mouth: 0.06
       MoveToMouth.tree_kwargs.max_linear_speed: 0.14
       MoveToMouth.tree_kwargs.plan_distance_from_mouth:
@@ -41,17 +41,17 @@ ada_feeding_action_servers:
       - -1.617327609992979
       - 0.6628209810624257
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
-      - -1.1911872144861295
-      - 4.582556148817801
-      - 1.839602624580099
-      - -0.7605173145972737
-      - -2.7302897937802113
-      - 1.4082625402029247
+      - -1.905103471064761
+      - 4.043667100136921
+      - 1.7112971158983705
+      - -0.6656051162450218
+      - 3.2963638582364023
+      - 8.464224225109637
       planning_scene_namespace_to_use: bedside_90
     custom_namespaces:
     - bed_side_table_1
     - wheelchair_side_table_1
-    namespace_to_use: bed_side_table_1
+    namespace_to_use: wheelchair_side_table_1
     wheelchair_side_table_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.8280291806000825

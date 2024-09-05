@@ -22,7 +22,7 @@ actions:
   - 0.0
   - 0.0
   grasp_torque: 4.0
-  pre_force: 20.0
+  pre_force: 30.0
   pre_offset:
   - 0.0
   - 0.0
@@ -59,7 +59,7 @@ actions:
   - 0.0
   - 0.0
   grasp_torque: 4.0
-  pre_force: 20.0
+  pre_force: 30.0
   pre_offset:
   - 0.0
   - 0.0
@@ -96,7 +96,7 @@ actions:
   - 0.0
   - 0.0
   grasp_torque: 4.0
-  pre_force: 15.0
+  pre_force: 30.0
   pre_offset:
   - -0.01
   - 0.0
@@ -133,7 +133,7 @@ actions:
   - 0.0
   - 0.0
   grasp_torque: 4.0
-  pre_force: 20.0
+  pre_force: 30.0
   pre_offset:
   - 0.0
   - 0.0
@@ -170,7 +170,7 @@ actions:
   - 0.0
   - 0.0
   grasp_torque: 4.0
-  pre_force: 20.0
+  pre_force: 30.0
   pre_offset:
   - 0.0
   - 0.0
@@ -207,7 +207,7 @@ actions:
   - 0.0
   - 0.0
   grasp_torque: 4.0
-  pre_force: 15.0
+  pre_force: 30.0
   pre_offset:
   - -0.01
   - 0.0

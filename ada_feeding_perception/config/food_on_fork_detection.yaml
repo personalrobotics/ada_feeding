@@ -39,7 +39,7 @@ food_on_fork_detection:
     # the fork gets bent or the camera extrinsics changes slightly.
     # NOTE: The fact that food-on-fork detection is sensitive to such small offsets is, in itself,
     # an indication that it needs to be improved.
-    no_fof_points_offset: [0.0, 0.0025, -0.005]
+    no_fof_points_offset: [-0.005, 0.01, -0.0025]
 
 # NOTE: If using the combined perception node, be very careful to ensure no name clashes of parameters!
 ada_feeding_perception:
@@ -82,4 +82,4 @@ ada_feeding_perception:
     # the fork gets bent or the camera extrinsics changes slightly.
     # NOTE: The fact that food-on-fork detection is sensitive to such small offsets is, in itself,
     # an indication that it needs to be improved.
-    no_fof_points_offset: [0.0, 0.0025, -0.005]
+    no_fof_points_offset: [-0.005, 0.01, -0.0025]
