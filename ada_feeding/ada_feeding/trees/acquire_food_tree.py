@@ -56,6 +56,8 @@ from ada_feeding.idioms.ft_thresh_utils import ft_thresh_satisfied
 from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_success
 from ada_feeding.trees import MoveToTree, StartServoTree, StopServoTree
 
+# pylint: disable=too-many-lines
+# A few lines above 1000 is fine.
 
 class AcquireFoodTree(MoveToTree):
     """
@@ -363,6 +365,48 @@ class AcquireFoodTree(MoveToTree):
             ],  # End RecoverySequence.children
         )  # End RecoverySequence
 
+        def move_into_plan():
+            return py_trees.composites.Sequence(
+                name="MoveIntoPlanningSeq",
+                memory=True,
+                children=[
+                    MoveIt2PoseConstraint(
+                        name="MoveIntoPose",
+                        ns=name,
+                        inputs={
+                            "pose": BlackboardKey("move_into_pose"),
+                            "frame_id": "food",
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("goal_constraints"),
+                        },
+                    ),
+                    py_trees.decorators.Timeout(
+                        name="MoveIntoPlanTimeout",
+                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                        duration=10.0 * self.allowed_planning_time_for_move_into,
+                        child=MoveIt2Plan(
+                            name="MoveIntoPlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("goal_constraints"),
+                                "max_velocity_scale": self.max_velocity_scaling_move_into,
+                                "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                                "cartesian": True,
+                                "cartesian_max_step": 0.001,
+                                "cartesian_fraction_threshold": 0.92,
+                                "start_joint_state": BlackboardKey("test_into_joints"),
+                                "max_path_len_joint": max_path_len_joint,
+                                "allowed_planning_time": self.allowed_planning_time_for_move_into,
+                            },
+                            outputs={
+                                "trajectory": BlackboardKey("move_into_trajectory")
+                            },
+                        ),
+                    ),
+                ],
+            )
+
         def move_above_plan(
             flip_food_frame: bool = False,
             action: Optional[BlackboardKey] = None,
@@ -480,40 +524,7 @@ class AcquireFoodTree(MoveToTree):
                         ),
                     ),
                     ### Test MoveIntoFood
-                    MoveIt2PoseConstraint(
-                        name="MoveIntoPose",
-                        ns=name,
-                        inputs={
-                            "pose": BlackboardKey("move_into_pose"),
-                            "frame_id": "food",
-                        },
-                        outputs={
-                            "constraints": BlackboardKey("goal_constraints"),
-                        },
-                    ),
-                    py_trees.decorators.Timeout(
-                        name="MoveIntoPlanTimeout",
-                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                        duration=10.0 * self.allowed_planning_time_for_move_into,
-                        child=MoveIt2Plan(
-                            name="MoveIntoPlan",
-                            ns=name,
-                            inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
-                                "max_velocity_scale": self.max_velocity_scaling_move_into,
-                                "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                "cartesian": True,
-                                "cartesian_max_step": 0.001,
-                                "cartesian_fraction_threshold": 0.92,
-                                "start_joint_state": BlackboardKey("test_into_joints"),
-                                "max_path_len_joint": max_path_len_joint,
-                                "allowed_planning_time": self.allowed_planning_time_for_move_into,
-                            },
-                            outputs={
-                                "trajectory": BlackboardKey("move_into_trajectory")
-                            },
-                        ),
-                    ),
+                    move_into_plan(),
                 ],
             )
 
@@ -683,51 +694,12 @@ class AcquireFoodTree(MoveToTree):
                                     # Starts a new Sequence w/ Memory internally
                                     workers=[
                                         ### Move Into Food
-                                        MoveIt2PoseConstraint(
-                                            name="MoveIntoPose",
-                                            ns=name,
-                                            inputs={
-                                                "pose": BlackboardKey("move_into_pose"),
-                                                "frame_id": "food",
-                                            },
-                                            outputs={
-                                                "constraints": BlackboardKey(
-                                                    "goal_constraints"
-                                                ),
-                                            },
-                                        ),
                                         # If this fails
                                         # Auto-fallback to precomputed MoveInto
                                         # From move_above_plan()
                                         py_trees.decorators.FailureIsSuccess(
                                             name="MoveIntoPlanFallbackPrecomputed",
-                                            child=py_trees.decorators.Timeout(
-                                                name="MoveIntoPlanTimeout",
-                                                # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                                                duration=10.0
-                                                * self.allowed_planning_time_for_move_into,
-                                                child=MoveIt2Plan(
-                                                    name="MoveIntoPlan",
-                                                    ns=name,
-                                                    inputs={
-                                                        "goal_constraints": BlackboardKey(
-                                                            "goal_constraints"
-                                                        ),
-                                                        "max_velocity_scale": self.max_velocity_scaling_move_into,
-                                                        "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                                        "cartesian": True,
-                                                        "cartesian_max_step": 0.001,
-                                                        "cartesian_fraction_threshold": 0.92,
-                                                        "max_path_len_joint": max_path_len_joint,
-                                                        "allowed_planning_time": self.allowed_planning_time_for_move_into,
-                                                    },
-                                                    outputs={
-                                                        "trajectory": BlackboardKey(
-                                                            "move_into_trajectory"
-                                                        )
-                                                    },
-                                                ),
-                                            ),
+                                            child=move_into_plan(),
                                         ),
                                         # MoveInto expect F/T failure
                                         py_trees.decorators.FailureIsSuccess(
