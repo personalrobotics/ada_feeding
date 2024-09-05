@@ -10,27 +10,27 @@ ada_feeding_action_servers:
       - -1.617327609992979
       - 0.6628209810624257
       MoveAbovePlate.tree_kwargs.joint_positions:
-      - -1.7699565678587286
-      - 3.7596148709012875
-      - 1.6383170478083295
-      - -2.693377848439495
-      - -1.2328692808133417
-      - 7.957433724415264
+      - -1.7328340996338412
+      - 3.736167069083685
+      - 1.584764074080144
+      - -2.8533653867132425
+      - -1.1693061503378208
+      - 8.030768126088342
       MoveFromMouth.tree_kwargs.linear_speed_near_mouth: 0.08
       MoveFromMouth.tree_kwargs.max_linear_speed_to_staging_configuration: 0.15
       MoveFromMouth.tree_kwargs.staging_configuration_position:
-      - -0.22162120639069535
-      - -0.35776899361246467
-      - 0.31226426005095975
+      - -0.47929521732544705
+      - -0.26231768456047105
+      - 0.1742878774263848
       MoveFromMouth.tree_kwargs.staging_configuration_quat_xyzw:
-      - 0.4113854220321883
-      - -0.5506965295805886
-      - -0.61615652377103
-      - 0.38450813393437333
+      - 0.184862034899018
+      - -0.7378718130938825
+      - -0.5805804120742961
+      - 0.2903404908210032
       MoveToMouth.tree_kwargs.linear_speed_near_mouth: 0.06
       MoveToMouth.tree_kwargs.max_linear_speed: 0.14
       MoveToMouth.tree_kwargs.plan_distance_from_mouth:
-      - 0.025
+      - 0.03
       - 0.0
       - -0.01
       MoveToRestingPosition.tree_kwargs.goal_configuration:
@@ -41,17 +41,17 @@ ada_feeding_action_servers:
       - -1.617327609992979
       - 0.6628209810624257
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
-      - -1.905103471064761
-      - 4.043667100136921
-      - 1.7112971158983705
-      - -0.6656051162450218
-      - 3.2963638582364023
-      - 8.464224225109637
+      - -1.183331421902614
+      - 4.2885399686797445
+      - 2.1657695506620276
+      - -1.104379348226125
+      - -2.363773314022492
+      - 1.5785932635183215
       planning_scene_namespace_to_use: bedside_90
     custom_namespaces:
     - bed_side_table_1
     - wheelchair_side_table_1
-    namespace_to_use: wheelchair_side_table_1
+    namespace_to_use: bed_side_table_1
     wheelchair_side_table_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.8280291806000825

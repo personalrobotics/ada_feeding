@@ -64,7 +64,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--policy",
-    default="constant",
+    default="linucb_noposthoc",
     help=(
         "`constant`, `color`, `random`, `random_noposthoc`, `greedy`, `greedy_noposthoc`, "
         "`egreedy`, `egreedy_noposthoc`, `linucb`, or `linucb_noposthoc` (default `constant`). "
@@ -291,7 +291,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "sudo ./src/ada_feeding/configure_lovelace.sh",
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml "
-                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy} action:=1"
+                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy} action:=0"
                 ),
             ],
             "browser": [
