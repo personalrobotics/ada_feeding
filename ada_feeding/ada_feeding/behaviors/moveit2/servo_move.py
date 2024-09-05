@@ -30,11 +30,6 @@ class ServoMove(BlackboardBehavior):
     status code.
     """
 
-    # TODO: Consider having this node fail if the F/T threshold is exceeded.
-    # This would involve having the controller publish a status when the F/T
-    # threshold is exceeded, and then having this node subscribe to that status
-    # and fail if it is exceeded.
-
     # See here for servo status codes:
     # https://github.com/ros-planning/moveit2/blob/3144e6eb555d6265ecd1240d9932122a8f78290a/moveit_ros/moveit_servo/include/moveit_servo/status_codes.h#L46
     class ServoStatus(Enum):
@@ -165,6 +160,7 @@ class ServoMove(BlackboardBehavior):
         # defined in the setup / initialise functions.
 
         # Record start time
+        self.logger.info("ServoMove: setting start_time")
         self.start_time = self.node.get_clock().now()
 
     def servo_status_callback(self, msg: Int8) -> None:
@@ -208,13 +204,13 @@ class ServoMove(BlackboardBehavior):
             twist.header.frame_id = self.blackboard_get("default_frame_id")
             twist.twist = self.blackboard_get("twist")
         twist.header.stamp = self.node.get_clock().now().to_msg()
-        self.logger.debug(f"ServoMove publishing twist {twist}")
+        self.logger.info(f"ServoMove publishing twist {twist}")
         self.pub.publish(twist)
 
         # Write the remaining distance
         duration = self.blackboard_get("duration")
 
-        # Return success if duration is exceeded. If duration is negative, then
+        # Return status_on_timeout if duration is exceeded. If duration is negative, then
         # run forever
         if isinstance(duration, float):
             duration = float_to_duration(duration)
@@ -222,11 +218,13 @@ class ServoMove(BlackboardBehavior):
             self.start_time + duration
         ):
             status = self.blackboard_get("status_on_timeout")
+            self.logger.info(f"ServoMove timed out, {status}.")
             if status == py_trees.common.Status.FAILURE:
                 self.logger.error("ServoMove timed out.")
             return status
 
         # Servo is still executing
+        self.logger.info("ServoMove still executing.")
         return py_trees.common.Status.RUNNING
 
     @override
@@ -242,4 +240,5 @@ class ServoMove(BlackboardBehavior):
         )
         zero_twist.header.stamp = self.node.get_clock().now().to_msg()
 
+        self.logger.info("ServoMove publishing zero twist")
         self.pub.publish(zero_twist)

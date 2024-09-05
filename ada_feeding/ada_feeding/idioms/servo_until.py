@@ -43,6 +43,7 @@ from ada_feeding.behaviors.ros import (
     UpdateTimestamp,
 )
 from ada_feeding.helpers import BlackboardKey
+from ada_feeding.idioms.ft_thresh_utils import ft_thresh_satisfied
 
 
 # Hardcoded parts of the behavior names that compute the distance for Servoing.
@@ -58,6 +59,8 @@ def servo_until(
     check: py_trees.behaviour.Behaviour,
     compute_twist: py_trees.behaviour.Behaviour,
     servo_inputs: Dict[str, Union[BlackboardKey, Any]],
+    f_mag_threshold: Optional[Union[BlackboardKey, float]] = None,
+    t_mag_threshold: Optional[Union[BlackboardKey, float]] = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     An idiom to implement servoing until a condition is met. Sepcifically, this
@@ -77,6 +80,10 @@ def servo_until(
         controller, based on the blackboard output of the `sense` behavior.
     servo_inputs: Additional keyword arguments to pass as inputs to the servo
         controller.
+    f_mag_threshold: If not None, then subscribe to the FT sensor and fail if the
+        threshold is exceeded. If None, then do not subscribe to the FT sensor.
+    t_mag_threshold: If not None, then subscribe to the FT sensor and fail if the
+        threshold is exceeded. If None, then do not subscribe to the FT sensor.
 
     Returns
     -------
@@ -85,6 +92,24 @@ def servo_until(
 
     # pylint: disable=too-many-arguments
     # This is intended to be a flexible idiom.
+
+    # Get the children of the servo sequence
+    servo_children = []
+    if f_mag_threshold is not None or t_mag_threshold is not None:
+        # Check the F/T threshold.
+        kwargs = {
+            "name": f"{name} CheckFT",
+            "ns": ns,
+        }
+        if f_mag_threshold is not None:
+            kwargs["f_mag"] = f_mag_threshold
+        if t_mag_threshold is not None:
+            kwargs["t_mag"] = t_mag_threshold
+        # NOTE: Using `ft_thresh_satisfied` might be inefficient if the tree this
+        # idiom is used in has other behaviors that subscribe to the F/T threshold.
+        servo_children.append(ft_thresh_satisfied(**kwargs))
+    servo_children.append(compute_twist)
+    servo_children.append(ServoMove(name=f"{name} Servo", ns=ns, inputs=servo_inputs))
 
     return py_trees.composites.Sequence(
         name=name,
@@ -99,14 +124,7 @@ def servo_until(
                     py_trees.composites.Sequence(
                         name=f"{name} Sequence",
                         memory=False,
-                        children=[
-                            compute_twist,
-                            ServoMove(
-                                name=f"{name} Servo",
-                                ns=ns,
-                                inputs=servo_inputs,
-                            ),
-                        ],
+                        children=servo_children,
                     ),
                 ],
             ),
@@ -187,8 +205,10 @@ def servo_until_pose(
     round_decimals: Optional[int] = 3,
     base_link: str = "j2n6s200_link_base",
     ignore_orientation: bool = False,
-    subscribe_to_servo_status: bool = True,
+    subscribe_to_servo_status: bool = False,
     pub_topic: str = "~/servo_twist_cmds",
+    f_mag_threshold: Optional[Union[BlackboardKey, float]] = None,
+    t_mag_threshold: Optional[Union[BlackboardKey, float]] = None,
     viz: bool = False,
 ) -> py_trees.behaviour.Behaviour:
     """
@@ -231,6 +251,10 @@ def servo_until_pose(
     subscribe_to_servo_status: if True, subscribe to the servo status topic and
         fail on failure statuses. If False, ignore that topic.
     pub_topic: The topic to publish twist commands to.
+    f_mag_threshold: If not None, then subscribe to the FT sensor and fail if the
+        threshold is exceeded. If None, then do not subscribe to the FT sensor.
+    t_mag_threshold: If not None, then subscribe to the FT sensor and fail if the
+        threshold is exceeded. If None, then do not subscribe to the FT sensor.
     viz: if True, publish the target pose as a static TF transform.
 
     Returns
@@ -405,6 +429,8 @@ def servo_until_pose(
                         check=check_behavior,
                         compute_twist=compute_twist_behavior,
                         servo_inputs=servo_inputs,
+                        f_mag_threshold=f_mag_threshold,
+                        t_mag_threshold=t_mag_threshold,
                     ),
                 ],
             ),

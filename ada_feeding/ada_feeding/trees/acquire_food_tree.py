@@ -42,6 +42,7 @@ from ada_feeding.behaviors.moveit2 import (
     ServoMove,
     ToggleCollisionObject,
 )
+from ada_feeding.behaviors.ros import CreatePoseStamped
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
     pre_moveto_config,
@@ -54,10 +55,12 @@ from ada_feeding.idioms.bite_transfer import (
 )
 from ada_feeding.idioms.ft_thresh_utils import ft_thresh_satisfied
 from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_success
+from ada_feeding.idioms.servo_until import servo_until_pose
 from ada_feeding.trees import MoveToTree, StartServoTree, StopServoTree
 
 # pylint: disable=too-many-lines
 # A few lines above 1000 is fine.
+
 
 class AcquireFoodTree(MoveToTree):
     """
@@ -92,6 +95,7 @@ class AcquireFoodTree(MoveToTree):
         allowed_planning_time_for_move_into: float = 0.5,
         allowed_planning_time_to_resting_configuration: float = 0.5,
         allowed_planning_time_for_recovery: float = 0.5,
+        cartesian_move_into: bool = False,
     ):
         """
         Initializes tree-specific parameters.
@@ -110,6 +114,7 @@ class AcquireFoodTree(MoveToTree):
         allowed_planning_time_for_move_into: Allowed planning time for move into
         allowed_planning_time_to_resting_configuration: Allowed planning time for move to resting configuration
         allowed_planning_time_for_recovery: Allowed planning time for recovery
+        cartesian_move_into: If true, use MoveIt2's cartesian planner for MoveInto. If False, use servo_until_pose.
         """
         # Initialize ActionServerBT
         super().__init__(node)
@@ -132,6 +137,7 @@ class AcquireFoodTree(MoveToTree):
             allowed_planning_time_to_resting_configuration
         )
         self.allowed_planning_time_for_recovery = allowed_planning_time_for_recovery
+        self.cartesian_move_into = cartesian_move_into
 
     @override
     def create_tree(
@@ -273,7 +279,9 @@ class AcquireFoodTree(MoveToTree):
                                             "servo_status_sub_topic": None,
                                         },
                                     ),  # Auto Zero-Twist on terminate()
-                                    ft_thresh_satisfied(name="FTThreshSatisfied"),
+                                    ft_thresh_satisfied(
+                                        name="FTThreshSatisfied", ns=name
+                                    ),
                                 ],
                             ),
                         ),  # End Attempt 1: RecoveryServoRetry
@@ -366,43 +374,89 @@ class AcquireFoodTree(MoveToTree):
         )  # End RecoverySequence
 
         def move_into_plan():
+            if self.cartesian_move_into:
+                return py_trees.composites.Sequence(
+                    name="MoveIntoPlanningSeq",
+                    memory=True,
+                    children=[
+                        MoveIt2PoseConstraint(
+                            name="MoveIntoPose",
+                            ns=name,
+                            inputs={
+                                "pose": BlackboardKey("move_into_pose"),
+                                "frame_id": "food",
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                        ),
+                        py_trees.decorators.Timeout(
+                            name="MoveIntoPlanTimeout",
+                            # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                            duration=10.0 * self.allowed_planning_time_for_move_into,
+                            child=MoveIt2Plan(
+                                name="MoveIntoPlan",
+                                ns=name,
+                                inputs={
+                                    "goal_constraints": BlackboardKey(
+                                        "goal_constraints"
+                                    ),
+                                    "max_velocity_scale": self.max_velocity_scaling_move_into,
+                                    "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                                    "cartesian": True,
+                                    "cartesian_max_step": 0.001,
+                                    "cartesian_fraction_threshold": 0.92,
+                                    "start_joint_state": BlackboardKey(
+                                        "test_into_joints"
+                                    ),
+                                    "max_path_len_joint": max_path_len_joint,
+                                    "allowed_planning_time": self.allowed_planning_time_for_move_into,
+                                },
+                                outputs={
+                                    "trajectory": BlackboardKey("move_into_trajectory")
+                                },
+                            ),
+                        ),
+                    ],
+                )
+            # If using `servo_until_pose`, we don't need to plan
+            return Success()
+
+        def move_into_execute():
+            if self.cartesian_move_into:
+                return MoveIt2Execute(
+                    name="MoveInto",
+                    ns=name,
+                    inputs={
+                        "trajectory": BlackboardKey("move_into_trajectory"),
+                    },
+                    outputs={},
+                )
             return py_trees.composites.Sequence(
-                name="MoveIntoPlanningSeq",
+                name="MoveIntoServoSeq",
                 memory=True,
                 children=[
-                    MoveIt2PoseConstraint(
-                        name="MoveIntoPose",
+                    CreatePoseStamped(
+                        name="MoveIntoCreatePoseStamped",
                         ns=name,
                         inputs={
-                            "pose": BlackboardKey("move_into_pose"),
+                            "position": BlackboardKey("move_into_pose.position"),
+                            "quaternion": BlackboardKey("move_into_pose.orientation"),
                             "frame_id": "food",
                         },
                         outputs={
-                            "constraints": BlackboardKey("goal_constraints"),
+                            "pose_stamped": BlackboardKey("move_into_pose_stamped"),
                         },
                     ),
-                    py_trees.decorators.Timeout(
-                        name="MoveIntoPlanTimeout",
-                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                        duration=10.0 * self.allowed_planning_time_for_move_into,
-                        child=MoveIt2Plan(
-                            name="MoveIntoPlan",
-                            ns=name,
-                            inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
-                                "max_velocity_scale": self.max_velocity_scaling_move_into,
-                                "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                "cartesian": True,
-                                "cartesian_max_step": 0.001,
-                                "cartesian_fraction_threshold": 0.92,
-                                "start_joint_state": BlackboardKey("test_into_joints"),
-                                "max_path_len_joint": max_path_len_joint,
-                                "allowed_planning_time": self.allowed_planning_time_for_move_into,
-                            },
-                            outputs={
-                                "trajectory": BlackboardKey("move_into_trajectory")
-                            },
-                        ),
+                    servo_until_pose(
+                        name="MoveIntoServo",
+                        ns=name,
+                        target_pose_stamped_key=BlackboardKey("move_into_pose_stamped"),
+                        ignore_orientation=True,
+                        f_mag_threshold=BlackboardKey("action.pre_force"),
+                        t_mag_threshold=BlackboardKey("action.pre_torque"),
+                        pub_topic="~/cartesian_twist_cmds",
+                        round_decimals=3,
                     ),
                 ],
             )
@@ -703,17 +757,8 @@ class AcquireFoodTree(MoveToTree):
                                         ),
                                         # MoveInto expect F/T failure
                                         py_trees.decorators.FailureIsSuccess(
-                                            name="MoveIntoExecuteSucceed",
-                                            child=MoveIt2Execute(
-                                                name="MoveInto",
-                                                ns=name,
-                                                inputs={
-                                                    "trajectory": BlackboardKey(
-                                                        "move_into_trajectory"
-                                                    )
-                                                },
-                                                outputs={},
-                                            ),
+                                            name="MoveIntoPlanAndExecuteSucceed",
+                                            child=move_into_execute(),
                                         ),
                                         ### Scoped Behavior for Moveit2_Servo
                                         scoped_behavior(
@@ -908,7 +953,8 @@ class AcquireFoodTree(MoveToTree):
                                                                     },
                                                                 ),  # Auto Zero-Twist on terminate()
                                                                 ft_thresh_satisfied(
-                                                                    name="CheckFTForkOffPlate"
+                                                                    name="CheckFTForkOffPlate",
+                                                                    ns=name,
                                                                 ),
                                                             ],  # End InFoodGraspExtract.children
                                                         ),  # End InFoodGraspExtract
