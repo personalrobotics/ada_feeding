@@ -193,15 +193,21 @@ class ComputeActionConstraints(BlackboardBehavior):
             ### Calculate F/T Thresholds
             self.blackboard_set(
                 "approach_thresh",
-                create_ft_thresh_request(action.pre_force, action.pre_torque),
+                create_ft_thresh_request(
+                    f_mag=action.pre_force, t_mag=action.pre_torque
+                ),
             )
             self.blackboard_set(
                 "grasp_thresh",
-                create_ft_thresh_request(action.grasp_force, action.grasp_torque),
+                create_ft_thresh_request(
+                    f_mag=action.grasp_force, t_mag=action.grasp_torque
+                ),
             )
             self.blackboard_set(
                 "ext_thresh",
-                create_ft_thresh_request(action.ext_force, action.ext_torque),
+                create_ft_thresh_request(
+                    f_mag=action.ext_force, t_mag=action.ext_torque
+                ),
             )
 
             ### Final write to Blackboard
