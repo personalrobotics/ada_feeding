@@ -95,19 +95,19 @@ def servo_until(
 
     # Get the children of the servo sequence
     servo_children = []
-    if f_mag_threshold is not None or t_mag_threshold is not None:
-        # Check the F/T threshold.
-        kwargs = {
-            "name": f"{name} CheckFT",
-            "ns": ns,
-        }
-        if f_mag_threshold is not None:
-            kwargs["f_mag"] = f_mag_threshold
-        if t_mag_threshold is not None:
-            kwargs["t_mag"] = t_mag_threshold
-        # NOTE: Using `ft_thresh_satisfied` might be inefficient if the tree this
-        # idiom is used in has other behaviors that subscribe to the F/T threshold.
-        servo_children.append(ft_thresh_satisfied(**kwargs))
+    # if f_mag_threshold is not None or t_mag_threshold is not None:
+    #     # Check the F/T threshold.
+    #     kwargs = {
+    #         "name": f"{name} CheckFT",
+    #         "ns": ns,
+    #     }
+    #     if f_mag_threshold is not None:
+    #         kwargs["f_mag"] = f_mag_threshold
+    #     if t_mag_threshold is not None:
+    #         kwargs["t_mag"] = t_mag_threshold
+    #     # NOTE: Using `ft_thresh_satisfied` might be inefficient if the tree this
+    #     # idiom is used in has other behaviors that subscribe to the F/T threshold.
+    #     servo_children.append(ft_thresh_satisfied(**kwargs))
     servo_children.append(compute_twist)
     servo_children.append(ServoMove(name=f"{name} Servo", ns=ns, inputs=servo_inputs))
 
@@ -326,30 +326,57 @@ def servo_until_pose(
             ),
         )
 
+    check_children = []
+    # if f_mag_threshold is not None or t_mag_threshold is not None:
+    #     # Check the F/T threshold.
+    #     kwargs = {
+    #         "name": f"{name} CheckFT",
+    #         "ns": ns,
+    #     }
+    #     if f_mag_threshold is not None:
+    #         kwargs["f_mag"] = f_mag_threshold
+    #     if t_mag_threshold is not None:
+    #         kwargs["t_mag"] = t_mag_threshold
+    #     # NOTE: Using `ft_thresh_satisfied` might be inefficient if the tree this
+    #     # idiom is used in has other behaviors that subscribe to the F/T threshold.
+    #     check_children.append(
+    #         py_trees.decorators.Inverter(
+    #             name=f"{name} ServoUntilPose CheckFT Inverter",
+    #             child=ft_thresh_satisfied(**kwargs),
+    #         )
+    #     )
+
     # Check whether the ee_to_target_pose_stamped is within the tolerances.
     # Note that this behavior can technically return FAILURE for a reason
     # other than the condition not being met, specifically if the blackboard
     # variable doens't exist or the permissions are not correctly set.
     # Therefore, it is crucial to be vigilant when testing this idiom.
-    check_behavior = py_trees.behaviours.CheckBlackboardVariableValue(
-        name=f"{name} ServoUntilPose CheckTolerances",
-        check=py_trees.common.ComparisonExpression(
-            variable=ee_to_target_pose_stamped_absolute_key,
-            value=PoseStamped(
-                header=Header(frame_id=end_effector_frame),
-                pose=Pose(
-                    position=Point(x=0.0, y=0.0, z=0.0),
-                    orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0),
+    check_children.append(
+        py_trees.behaviours.CheckBlackboardVariableValue(
+            name=f"{name} ServoUntilPose CheckTolerances",
+            check=py_trees.common.ComparisonExpression(
+                variable=ee_to_target_pose_stamped_absolute_key,
+                value=PoseStamped(
+                    header=Header(frame_id=end_effector_frame),
+                    pose=Pose(
+                        position=Point(x=0.0, y=0.0, z=0.0),
+                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0),
+                    ),
+                ),
+                operator=partial(
+                    pose_within_tolerances,
+                    tolerance_position=tolerance_position,
+                    tolerance_orientation=np.inf
+                    if ignore_orientation
+                    else tolerance_orientation,
                 ),
             ),
-            operator=partial(
-                pose_within_tolerances,
-                tolerance_position=tolerance_position,
-                tolerance_orientation=np.inf
-                if ignore_orientation
-                else tolerance_orientation,
-            ),
-        ),
+        )
+    )
+    check_behavior = py_trees.composites.Sequence(
+        name=f"{name} ServoUntilPose CheckSequence",
+        memory=True,
+        children=check_children,
     )
 
     # Compute the twist based on the ee_to_target_pose_stamped

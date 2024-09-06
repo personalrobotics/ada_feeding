@@ -95,7 +95,7 @@ class AcquireFoodTree(MoveToTree):
         allowed_planning_time_for_move_into: float = 0.5,
         allowed_planning_time_to_resting_configuration: float = 0.5,
         allowed_planning_time_for_recovery: float = 0.5,
-        cartesian_move_into: bool = False,
+        cartesian_move_into: bool = True,
     ):
         """
         Initializes tree-specific parameters.
