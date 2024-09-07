@@ -3,12 +3,12 @@ ada_feeding_action_servers:
   ros__parameters:
     bed_side_table_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
-      - -2.3098698682948524
-      - 3.8010784248610583
-      - 1.0663586623445815
-      - -1.065310242402444
-      - -1.617327609992979
-      - 0.6628209810624257
+      - -1.9742708245801905
+      - 4.351335975603268
+      - 2.402486621524538
+      - -1.4118327739602847
+      - -1.3491792461550807
+      - 1.540612458474102
       MoveAbovePlate.tree_kwargs.joint_positions:
       - -1.7328340996338412
       - 3.736167069083685
@@ -19,14 +19,14 @@ ada_feeding_action_servers:
       MoveFromMouth.tree_kwargs.linear_speed_near_mouth: 0.08
       MoveFromMouth.tree_kwargs.max_linear_speed_to_staging_configuration: 0.15
       MoveFromMouth.tree_kwargs.staging_configuration_position:
-      - -0.47929521732544705
-      - -0.26231768456047105
-      - 0.1742878774263848
+      - -0.6109420738668799
+      - -0.24799759167785157
+      - 0.0942584547149716
       MoveFromMouth.tree_kwargs.staging_configuration_quat_xyzw:
-      - 0.184862034899018
-      - -0.7378718130938825
-      - -0.5805804120742961
-      - 0.2903404908210032
+      - 0.2621832250631512
+      - -0.6907568951627083
+      - -0.5983303390024652
+      - 0.31002527914648387
       MoveToMouth.tree_kwargs.linear_speed_near_mouth: 0.06
       MoveToMouth.tree_kwargs.max_linear_speed: 0.14
       MoveToMouth.tree_kwargs.plan_distance_from_mouth:
@@ -34,24 +34,24 @@ ada_feeding_action_servers:
       - 0.0
       - -0.01
       MoveToRestingPosition.tree_kwargs.goal_configuration:
-      - -2.3098698682948524
-      - 3.8010784248610583
-      - 1.0663586623445815
-      - -1.065310242402444
-      - -1.617327609992979
-      - 0.6628209810624257
+      - -1.9742708245801905
+      - 4.351335975603268
+      - 2.402486621524538
+      - -1.4118327739602847
+      - -1.3491792461550807
+      - 1.540612458474102
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
-      - -1.183331421902614
-      - 4.2885399686797445
-      - 2.1657695506620276
-      - -1.104379348226125
-      - -2.363773314022492
-      - 1.5785932635183215
+      - -1.0047984287458824
+      - 4.508188973273992
+      - 2.2923571872826005
+      - -1.1029737318027815
+      - -1.9923925705337435
+      - 1.4542831622619845
       planning_scene_namespace_to_use: bedside_90
     custom_namespaces:
     - bed_side_table_1
     - wheelchair_side_table_1
-    namespace_to_use: bed_side_table_1
+    namespace_to_use: wheelchair_side_table_1
     wheelchair_side_table_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.8280291806000825
@@ -61,21 +61,21 @@ ada_feeding_action_servers:
       - -2.0505759824492493
       - -2.372504753972425
       MoveAbovePlate.tree_kwargs.joint_positions:
-      - -0.5770869679329681
-      - 3.171525785293957
-      - 1.6737963456406377
-      - -8.70344133844546
-      - 4.307685700072433
-      - 4.030485518005465
+      - 6.287224789921019
+      - 3.2078419814988224
+      - 1.7965574192489302
+      - -2.434146813195618
+      - -2.044120213650788
+      - -3.4778364486043634
       MoveFromMouth.tree_kwargs.staging_configuration_position:
-      - -0.03253809815928135
-      - 0.003391738416497574
-      - 0.6737637286360625
+      - -0.04176333829204201
+      - -0.013361840990676293
+      - 0.6550329967835355
       MoveFromMouth.tree_kwargs.staging_configuration_quat_xyzw:
-      - 0.24354785741083615
-      - 0.6469348048158075
-      - 0.6556294915485885
-      - 0.30382522818269014
+      - 0.20371659964371583
+      - 0.5466933816006899
+      - 0.7438886692841525
+      - 0.32596862004533184
       MoveToRestingPosition.tree_kwargs.goal_configuration:
       - -0.8280291806000825
       - 4.496595700416659
@@ -84,10 +84,10 @@ ada_feeding_action_servers:
       - -2.0505759824492493
       - -2.372504753972425
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
-      - -0.8280291806000825
-      - 4.496595700416659
-      - 4.380693065563648
-      - -5.540779085891504
-      - -2.0505759824492493
-      - -2.372504753972425
+      - -0.8868827104248798
+      - 4.783664758535134
+      - 4.740997722078757
+      - -5.73581635411373
+      - -1.5646135320081687
+      - -2.6207236181088254
       planning_scene_namespace_to_use: seated_90
