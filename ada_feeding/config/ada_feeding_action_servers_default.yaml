@@ -6,7 +6,7 @@ ada_feeding_action_servers:
 
     default:
       # TODO: Post-deployment, change this back!
-      planning_scene_namespace_to_use: seated_90
+      planning_scene_namespace_to_use: seated
 
       # A list of the names of the action servers to create. Each one must have
       # it's own parameters (below) specifying action_type and tree_class.
@@ -59,12 +59,13 @@ ada_feeding_action_servers:
           - max_velocity_scaling_to_resting_configuration
         tree_kwargs:
           resting_joint_positions: # required
-            - -1.94672 # j2n6s200_joint_1
-            -  2.51268 # j2n6s200_joint_2
-            -  0.35653 # j2n6s200_joint_3
-            - -4.76501 # j2n6s200_joint_4
-            -  5.99991 # j2n6s200_joint_5
-            -  4.99555 # j2n6s200_joint_6
+            # Front-staging configuration -- Shorter
+            - -2.32526
+            - 4.456298
+            - 4.16769
+            - 1.53262
+            - -2.18359
+            - -2.19525
           max_velocity_scaling_move_above: 1.0 # m/s
           max_velocity_scaling_move_into: 1.0 # m/s
           max_velocity_scaling_to_resting_configuration: 1.0 # m/s
@@ -84,12 +85,13 @@ ada_feeding_action_servers:
           - max_velocity_scaling_factor
         tree_kwargs: # optional
           goal_configuration: # required
-            - -1.94672 # j2n6s200_joint_1
-            -  2.51268 # j2n6s200_joint_2
-            -  0.35653 # j2n6s200_joint_3
-            - -4.76501 # j2n6s200_joint_4
-            -  5.99991 # j2n6s200_joint_5
-            -  4.99555 # j2n6s200_joint_6
+            # Front-staging configuration -- Shorter
+            - -2.32526
+            - 4.456298
+            - 4.16769
+            - 1.53262
+            - -2.18359
+            - -2.19525
           orientation_constraint_quaternion: # perpendicular to the base link
             - 0.707168 # x
             - 0.0 # y

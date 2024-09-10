@@ -12,15 +12,15 @@ actions:
   - 0.08
   ext_torque: 4.0
   grasp_angular:
+  - -0.4
   - 0.0
   - 0.0
-  - 0.0
-  grasp_duration: 0.0
+  grasp_duration: 1.5
   grasp_force: 15.0
   grasp_linear:
   - 0.0
   - 0.0
-  - 0.0
+  - 0.02
   grasp_torque: 4.0
   pre_force: 30.0
   pre_offset:
