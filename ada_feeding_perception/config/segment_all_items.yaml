@@ -12,9 +12,9 @@ segment_all_items:
     efficient_sam_model_base_url: "https://raw.githubusercontent.com/yformer/EfficientSAM/main/weights/"
 
     # The path to the configuration file for GroundingDINO
-    groundingdino_config_path: config/GroundingDINO_SwinT_OGC.py
+    groundingdino_config_name: GroundingDINO_SwinT_OGC.py
     # The name of the GroundingDINO model checkpoint to use
-    groundingdino_model_path: groundingdino_checkpoint.pth
+    groundingdino_model_name: groundingdino_checkpoint.pth
 
     # Whether to use SAM or EfficientSAM
     use_efficient_sam: true

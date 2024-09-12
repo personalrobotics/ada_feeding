@@ -26,10 +26,12 @@ from rclpy.parameter import Parameter
 from segment_anything import sam_model_registry, SamPredictor
 from groundingdino.models import build_model
 from groundingdino.util.slconfig import SLConfig
+import groundingdino.datasets.transforms as T
 from groundingdino.util.utils import get_phrases_from_posmap, clean_state_dict
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image, RegionOfInterest
 import torch
 from torchvision import transforms
+from PIL import Image as ImagePIL
 
 # Local imports
 from ada_feeding_msgs.action import SegmentAllItems
@@ -65,8 +67,8 @@ class SegmentAllItemsNode(Node):
         (
             seg_model_name,
             seg_model_base_url,
-            groundingdino_config_path,
-            groundingdino_model_path,
+            groundingdino_config_name,
+            groundingdino_model_name,
             model_dir,
             self.use_efficient_sam,
             self.rate_hz,
@@ -82,6 +84,10 @@ class SegmentAllItemsNode(Node):
             self.get_logger().info("Model checkpoint does not exist. Downloading...")
             download_checkpoint(seg_model_name, model_dir, seg_model_base_url)
             self.get_logger().info(f"Model checkpoint downloaded {seg_model_path}.")
+
+        # Set the path to GroundingDINO and its config file in the model directory 
+        groundingdino_model_path = os.path.join(model_dir, groundingdino_model_name)
+        groundingdino_config_path = os.path.join(model_dir, groundingdino_config_name)
 
         # Subscribe to the camera info topic, to get the camera intrinsics
         self.camera_info = None
@@ -145,6 +151,11 @@ class SegmentAllItemsNode(Node):
         # Convert between ROS and CV images
         self.bridge = CvBridge()
 
+        # Create the shared resource to ensure that the action server rejects all
+        # goals while a goal is currently active.
+        self.active_goal_request_lock = threading.Lock()
+        self.active_goal_request = None
+
         # Create the Action Server.
         # Note: remapping action names does not work: https://github.com/ros2/ros2/issues/1312
         self._action_server = ActionServer(
@@ -171,8 +182,8 @@ class SegmentAllItemsNode(Node):
             sam_model_base_url,
             efficient_sam_model_name,
             efficient_sam_model_base_url,
-            groundingdino_config_path,
-            groundingdino_model_path,
+            groundingdino_config_name,
+            groundingdino_model_name,
             model_dir,
             use_efficient_sam,
             rate_hz,
@@ -230,20 +241,20 @@ class SegmentAllItemsNode(Node):
                     ),
                 ),
                 (
-                    "groundingdino_config_path",
+                    "groundingdino_config_name",
                     None,
                     ParameterDescriptor(
-                        name="groundingdino_config_path",
+                        name="groundingdino_config_name",
                         type=ParameterType.PARAMETER_STRING,
                         description="The name of the configuration file to use for Open-GroundingDINO",
                         read_only=True,
                     ),
                 ),
                 (
-                    "groundingdino_model_path",
+                    "groundingdino_model_name",
                     None,
                     ParameterDescriptor(
-                        name="groundingdino_model_path",
+                        name="groundingdino_model_name",
                         type=ParameterType.PARAMETER_STRING,
                         description="The name of the model checkpoint to use for Open-GroundingDINO",
                         read_only=True,
@@ -337,8 +348,8 @@ class SegmentAllItemsNode(Node):
         return (
             seg_model_name,
             seg_model_base_url,
-            groundingdino_config_path.value,
-            groundingdino_model_path.value,
+            groundingdino_config_name.value,
+            groundingdino_model_name.value,
             model_dir.value,
             use_efficient_sam.value,
             rate_hz.value,
@@ -374,6 +385,9 @@ class SegmentAllItemsNode(Node):
         self.get_logger().info(f"Loaded model checkpoint: {load_log}")
         _ = groundingdino.eval()
         self.groundingdino = groundingdino
+        self.groundingdino.to(device=self.device)
+
+        self.get_logger().info("...Done!")
 
     # Move bottom two functions to helpers file and import them for 
     # both segment_all_items.py and segment_from_point.py    
@@ -654,10 +668,11 @@ class SegmentAllItemsNode(Node):
         caption = caption.lower().strip()
 
         # Run Open-GroundingDINO on the image using the input caption
+        image.to(device=self.device)
         with torch.no_grad():
             outputs = self.groundingdino(
                 image[None],
-                caption=[caption],
+                captions=[caption],
             )
             logits = outputs["pred_logits"].sigmoid()[0]
             boxes = outputs["pred_boxes"][0]
@@ -682,6 +697,20 @@ class SegmentAllItemsNode(Node):
                 bbox_predictions[phrase].append(box.cpu().numpy())
 
         return bbox_predictions
+
+    def load_image(image_array: npt.NDArray):
+        # Convert image to image pillow to apply transformation
+        image_pil = ImagePIL.fromarray(image_array) 
+
+        transform = T.Compose(
+            [
+                T.RandomResize([800], max_size=1333),
+                T.ToTensor(),
+                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            ]
+        )
+        image, _ = transform(image_pil, None)  # 3, h, w
+        return image_pil, image
     
     def generate_mask_msg(
         self, 
@@ -790,8 +819,9 @@ class SegmentAllItemsNode(Node):
 
         # Convert the input label list from goal request to a single string caption
         # for GroundingDINO
-        caption = '. '.join(goal_handle.request.input_labels.lower().strip())
+        caption = '. '.join(goal_handle.request.input_labels).lower().strip()
         caption += '.'
+        self.get_logger().info(f"caption: {caption}")
 
         # Start running the vision pipeline as a separate thread
         rate = self.create_rate(self.rate_hz)
