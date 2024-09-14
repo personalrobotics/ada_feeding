@@ -76,6 +76,7 @@ class SegmentAllItemsNode(Node):
             self.text_threshold,
             self.min_depth_mm,
             self.max_depth_mm,
+            self.viz_groundingdino,
         ) = self.read_params()
 
         # Download the checkpoint for SAM/EfficientSAM if it doesn't exist
@@ -168,6 +169,13 @@ class SegmentAllItemsNode(Node):
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
+        # If the GroundingDINO results visualization flage is set, then a publisher
+        # is created to visualize the bounding box predictions of GroundingDINO
+        if self.viz_groundingdino:
+            self.viz_groundingdino_pub = self.create_publisher(
+                Image, "~/plate_detection_img", 1
+            )
+
     def read_params(
         self,
     ) -> Tuple[Parameter, Parameter, Parameter, Parameter, Parameter]:
@@ -191,6 +199,7 @@ class SegmentAllItemsNode(Node):
             text_threshold,
             min_depth_mm,
             max_depth_mm,
+            viz_groundingdino,
         ) = self.declare_parameters(
             "",
             [
@@ -335,6 +344,17 @@ class SegmentAllItemsNode(Node):
                         read_only=True,
                     ),
                 ),
+                (
+                    "viz_groundingdino",
+                    True,
+                    ParameterDescriptor(
+                        name="viz_groundingdino",
+                        type=ParameterType.PARAMETER_BOOL,
+                        description="Whether to visualize the bounding box" 
+                                    + "predictions of GroundingDINO.",
+                        read_only=True,
+                    ),
+                )
             ],
         )
 
@@ -357,6 +377,7 @@ class SegmentAllItemsNode(Node):
             text_threshold.value,
             min_depth_mm.value,
             max_depth_mm.value,
+            viz_groundingdino.value,
         )
     
     def initialize_grounding_dino(
@@ -661,8 +682,8 @@ class SegmentAllItemsNode(Node):
         """
         self.get_logger().info("Running Open-GroundingDINO...")
 
-        # Convert image from BGR to RGB for Open-GroundingDINO
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        # Convert image to Image pillow
+        image_pil = self.load_image(image)
 
         # Lowercase and strip the caption
         caption = caption.lower().strip()
@@ -671,7 +692,7 @@ class SegmentAllItemsNode(Node):
         image.to(device=self.device)
         with torch.no_grad():
             outputs = self.groundingdino(
-                image[None],
+                image_pil[None],
                 captions=[caption],
             )
             logits = outputs["pred_logits"].sigmoid()[0]
@@ -723,9 +744,37 @@ class SegmentAllItemsNode(Node):
     ) -> Optional[Mask]:
         """
         """
-
+        
         mask_msg = Mask()
         return mask_msg
+    
+    def visualize_groundingdino_results(self, image: Image, predictions: dict):
+        """
+        Visualizes the bounding box predictions of GroundingDINO and then 
+        publishes the image as a ROS message.
+
+        Parameters
+        ----------
+        image: The image to visualize.
+        predictions: The bounding box predictions of GroundingDINO.
+        """
+        
+        for phrase, boxes in predictions.items():
+            for box in boxes:
+                # Visualize bounding box
+                x0, y0, x1, y1 = box
+                color = (0, 255, 0)
+                thickness = 6
+                cv2.rectangle(image, (x0, y0), (x1, y1), color, thickness)
+
+                # Display text label below bounding box
+                height, _, _ = image.shape()
+                cv2.putText(image, phrase, (x0, y0 - 12), 0, 1e-3 * height, color, thickness // 3)
+
+        # Publish the image
+        self.viz_groundingdino_pub.publish(
+            cv2_image_to_ros_msg(image, compress=False, bridge=self.bridge)
+        )
     
     async def run_vision_pipeline(self, image_msg: Image, caption: str):
         """
@@ -763,7 +812,7 @@ class SegmentAllItemsNode(Node):
             depth_img_msg = self.latest_depth_img_msg
         depth_img = ros_msg_to_cv2_image(depth_img_msg, self.bridge)
         
-        # Convert the image to OpenCV format
+        # Convert the image to OpenCV format 
         image = ros_msg_to_cv2_image(image_msg, self.bridge)
 
         # Run Open-GroundingDINO on the image

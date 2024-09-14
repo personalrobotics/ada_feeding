@@ -26,3 +26,7 @@ segment_all_items:
     box_threshold: 0.30
     # The threshold for text detections by GroundingDINO
     text_threshold: 0.25
+
+    # A boolean to determine whether to visualize the bounding box predictions 
+    # made by GroundingDINO
+    viz_groundingdino: true
