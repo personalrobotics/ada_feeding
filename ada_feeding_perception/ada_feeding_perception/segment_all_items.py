@@ -680,23 +680,24 @@ class SegmentAllItemsNode(Node):
         bbox_predictions: A dictionary containing the bounding boxes for each food item label 
                         detected from the image.
         """
-        self.get_logger().info("Running Open-GroundingDINO...")
+        self.get_logger().info("Running GroundingDINO...")
 
         # Convert image to Image pillow
-        image_pil = self.load_image(image)
+        image_pil, image_transformed = self.load_image(image)
 
         # Lowercase and strip the caption
         caption = caption.lower().strip()
 
         # Run Open-GroundingDINO on the image using the input caption
-        image.to(device=self.device)
+        image_transformed.to(device=self.device)
         with torch.no_grad():
             outputs = self.groundingdino(
-                image_pil[None],
+                image_transformed[None],
                 captions=[caption],
             )
             logits = outputs["pred_logits"].sigmoid()[0]
             boxes = outputs["pred_boxes"][0]
+        self.get_logger().info("... Done")
         
         # Filter the output based on the box and text thresholds
         bbox_predictions = {}
@@ -715,11 +716,15 @@ class SegmentAllItemsNode(Node):
             # Predict phrases based on the bounding boxes and the text threshold
             phrase = get_phrases_from_posmap(logit > text_threshold, caption_tokens, tokenizer)
             if logit.max() > text_threshold:
+                if phrase not in bbox_predictions:
+                    bbox_predictions[phrase] = []
                 bbox_predictions[phrase].append(box.cpu().numpy())
+
+        self.get_logger().info(f"Predictions: {bbox_predictions}")
 
         return bbox_predictions
 
-    def load_image(image_array: npt.NDArray):
+    def load_image(self, image_array: npt.NDArray):
         # Convert image to image pillow to apply transformation
         image_pil = ImagePIL.fromarray(image_array) 
 
@@ -765,12 +770,15 @@ class SegmentAllItemsNode(Node):
                 x0, y0, x1, y1 = box
                 color = (0, 255, 0)
                 thickness = 6
-                cv2.rectangle(image, (x0, y0), (x1, y1), color, thickness)
+                image = cv2.rectangle(image, (x0, y0), (x1, y1), color, thickness)
 
                 # Display text label below bounding box
                 height, _, _ = image.shape()
-                cv2.putText(image, phrase, (x0, y0 - 12), 0, 1e-3 * height, color, thickness // 3)
+                image = cv2.putText(image, phrase, (x0, y0 - 12), 0, 1e-3 * height, color, thickness // 3)
 
+        cv2.imshow('image', image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
         # Publish the image
         self.viz_groundingdino_pub.publish(
             cv2_image_to_ros_msg(image, compress=False, bridge=self.bridge)
@@ -787,7 +795,7 @@ class SegmentAllItemsNode(Node):
 
         Parameters
         ----------
-        image: The image to segment, in BGR.
+        image: The image to segment, as a ROS image message.
         caption: The caption to use for GroundingDINO containing all the food items 
                  detected in the image.
 

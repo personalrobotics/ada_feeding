@@ -2,7 +2,7 @@
 # the masks of all segmented items within that image.
 
 # The list of input semantic labels for the food items on the plate
-string[] input_labels
+string[] input_labels   
 ---
 # Possible return statuses
 uint8 STATUS_SUCCEEDED=0
