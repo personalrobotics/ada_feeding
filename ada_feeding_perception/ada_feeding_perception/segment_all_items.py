@@ -173,7 +173,7 @@ class SegmentAllItemsNode(Node):
         # is created to visualize the bounding box predictions of GroundingDINO
         if self.viz_groundingdino:
             self.viz_groundingdino_pub = self.create_publisher(
-                Image, "~/plate_detection_img", 1
+                Image, "~/groundingdino_detection", 1
             )
 
     def read_params(
@@ -818,9 +818,15 @@ class SegmentAllItemsNode(Node):
         # Run Open-GroundingDINO on the image
         bbox_predictions = self.run_grounding_dino(image, caption, self.box_threshold, self.text_threshold)
 
+        # Publish a visualization of the GroundingDINO predictions, if the visualization
+        # flag is set to true 
+        if self.viz_groundingdino:
+            self.visualize_groundingdino_results(image, bbox_predictions)
+
         # Collect the top contender mask for each food item label detected by 
         # GroundingDINO using EfficientSAM and create dictionary of mask 
-        # predictions from the pipeline 
+        # predictions from the pipeline
+        """
         detected_items = []
         item_labels = []
         for phrase, boxes in bbox_predictions.items():
@@ -834,7 +840,9 @@ class SegmentAllItemsNode(Node):
                     item_labels.append(phrase)
                 break
         result.detected_items = detected_items
-        result.item_labels = item_labels    
+        result.item_labels = item_labels
+        """ 
+            
         return result 
 
     async def execute_callback(
