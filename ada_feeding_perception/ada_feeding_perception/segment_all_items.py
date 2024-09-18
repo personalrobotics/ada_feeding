@@ -11,6 +11,7 @@ from typing import Optional, Tuple, Union
 
 # Third-party imports
 import cv2
+import time 
 from cv_bridge import CvBridge
 from efficient_sam.efficient_sam import build_efficient_sam
 import numpy as np
@@ -399,14 +400,13 @@ class SegmentAllItemsNode(Node):
         groundingdino = build_model(config_args)
 
         # Load the GroundingDINO model checkpoint
-        checkpoint = torch.load(groundingdino_model_path, map_location="cpu")
+        checkpoint = torch.load(groundingdino_model_path, map_location=self.device)
         load_log = groundingdino.load_state_dict(
             clean_state_dict(checkpoint["model"]), strict=False
         )
         self.get_logger().info(f"Loaded model checkpoint: {load_log}")
         _ = groundingdino.eval()
-        self.groundingdino = groundingdino
-        self.groundingdino.to(device=self.device)
+        self.groundingdino = groundingdino.to(device=self.device)
 
         self.get_logger().info("...Done!")
 
@@ -662,8 +662,8 @@ class SegmentAllItemsNode(Node):
         self, 
         image: npt.NDArray, 
         caption: str, 
-        box_threshold: int, 
-        text_threshold: int, 
+        box_threshold: float, 
+        text_threshold: float, 
     ):
         """
         Run Open-GroundingDINO on the image.
@@ -681,6 +681,7 @@ class SegmentAllItemsNode(Node):
                         detected from the image.
         """
         self.get_logger().info("Running GroundingDINO...")
+        inference_time = time.time()
 
         # Convert image to Image pillow
         image_pil, image_transformed = self.load_image(image)
@@ -689,14 +690,15 @@ class SegmentAllItemsNode(Node):
         caption = caption.lower().strip()
 
         # Run Open-GroundingDINO on the image using the input caption
-        image_transformed.to(device=self.device)
+        image_transformed = image_transformed.to(device=self.device)
+        self.get_logger().info(f"device: {self.device}")
         with torch.no_grad():
             outputs = self.groundingdino(
                 image_transformed[None],
                 captions=[caption],
             )
-            logits = outputs["pred_logits"].sigmoid()[0]
-            boxes = outputs["pred_boxes"][0]
+        logits = outputs["pred_logits"].sigmoid()[0]
+        boxes = outputs["pred_boxes"][0]
         self.get_logger().info("... Done")
         
         # Filter the output based on the box and text thresholds
@@ -707,6 +709,10 @@ class SegmentAllItemsNode(Node):
         logits_filt = logits_filt[filt_thresh_mask]
         boxes_filt = boxes_filt[filt_thresh_mask]
 
+        self.get_logger().info(f"Caption: {caption}")
+        self.get_logger().info(f"Boxes: {boxes_filt}")
+        self.get_logger().info(f"Logits: {logits_filt}")
+
         # Tokenize the caption
         tokenizer = self.groundingdino.tokenizer
         caption_tokens = tokenizer(caption)
@@ -715,12 +721,16 @@ class SegmentAllItemsNode(Node):
         for logit, box in zip(logits_filt, boxes_filt):
             # Predict phrases based on the bounding boxes and the text threshold
             phrase = get_phrases_from_posmap(logit > text_threshold, caption_tokens, tokenizer)
-            if logit.max() > text_threshold:
-                if phrase not in bbox_predictions:
-                    bbox_predictions[phrase] = []
-                bbox_predictions[phrase].append(box.cpu().numpy())
+            self.get_logger().info(f"logit: {logit}, box: {box}")
+            self.get_logger().info(f"{phrase}")
+            if phrase not in bbox_predictions:
+                bbox_predictions[phrase] = []
+            bbox_predictions[phrase].append(box.cpu().numpy())
 
         self.get_logger().info(f"Predictions: {bbox_predictions}")
+
+        inference_time = int(round((time.time() - inference_time) * 1000))
+        self.get_logger().info(f"Approx. Inference Time: {inference_time}")
 
         return bbox_predictions
 
@@ -763,17 +773,27 @@ class SegmentAllItemsNode(Node):
         image: The image to visualize.
         predictions: The bounding box predictions of GroundingDINO.
         """
+        # Define height and width of image
+        height, width, _ = image.shape
+        self.get_logger().info(f"height, width: {height}, {width}")
         
         for phrase, boxes in predictions.items():
             for box in boxes:
-                # Visualize bounding box
-                x0, y0, x1, y1 = box
+                # Scale the box from percentage values to pixel values
+                box = np.multiply(box, np.array([width, height, width, height]))
+                center_x, center_y, w, h = box
+                # Get the bottom left and top right coordinates of the box
+                x0 = center_x - (w / 2)
+                y0 = center_y - (h / 2)
+                x1 = x0 + w
+                y1 = y0 + h
+                x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+                self.get_logger().info(f"box: {x0}, {y0}, {x1}, {y1}")
                 color = (0, 255, 0)
                 thickness = 6
                 image = cv2.rectangle(image, (x0, y0), (x1, y1), color, thickness)
 
                 # Display text label below bounding box
-                height, _, _ = image.shape()
                 image = cv2.putText(image, phrase, (x0, y0 - 12), 0, 1e-3 * height, color, thickness // 3)
 
         cv2.imshow('image', image)
@@ -884,7 +904,7 @@ class SegmentAllItemsNode(Node):
 
         # Convert the input label list from goal request to a single string caption
         # for GroundingDINO
-        caption = '. '.join(goal_handle.request.input_labels).lower().strip()
+        caption = ' . '.join(goal_handle.request.input_labels).lower().strip()
         caption += '.'
         self.get_logger().info(f"caption: {caption}")
 

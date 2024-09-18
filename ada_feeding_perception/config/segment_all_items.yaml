@@ -14,7 +14,7 @@ segment_all_items:
     # The path to the configuration file for GroundingDINO
     groundingdino_config_name: GroundingDINO_SwinT_OGC.py
     # The name of the GroundingDINO model checkpoint to use
-    groundingdino_model_name: groundingdino_checkpoint.pth
+    groundingdino_model_name: groundingdino_swint_ogc.pth
 
     # Whether to use SAM or EfficientSAM
     use_efficient_sam: true
