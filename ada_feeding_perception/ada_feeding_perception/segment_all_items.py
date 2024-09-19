@@ -670,7 +670,7 @@ class SegmentAllItemsNode(Node):
 
         Parameters
         ----------
-        image: The image to retrieve semantically labeled bounding boxes from, in BGR.
+        image: The CV2 image to retrieve semantically labeled bounding boxes from.
         caption: The caption to use for Open-GroundingDINO.
         box_threshold: The threshold for the bounding box.
         text_threshold: The threshold for the text.
@@ -736,7 +736,7 @@ class SegmentAllItemsNode(Node):
 
     def load_image(self, image_array: npt.NDArray):
         # Convert image to image pillow to apply transformation
-        image_pil = ImagePIL.fromarray(image_array) 
+        image_pil = ImagePIL.fromarray(image_array, mode="RGB")
 
         transform = T.Compose(
             [
