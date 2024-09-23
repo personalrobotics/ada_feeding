@@ -12,6 +12,7 @@ from typing import Optional, Tuple, Union
 # Third-party imports
 import cv2
 import time 
+import random
 from cv_bridge import CvBridge
 from efficient_sam.efficient_sam import build_efficient_sam
 import numpy as np
@@ -33,6 +34,7 @@ from sensor_msgs.msg import CameraInfo, CompressedImage, Image, RegionOfInterest
 import torch
 from torchvision import transforms
 from PIL import Image as ImagePIL
+from copy import deepcopy
 
 # Local imports
 from ada_feeding_msgs.action import SegmentAllItems
@@ -767,7 +769,7 @@ class SegmentAllItemsNode(Node):
 
         # Convert image to image pillow to apply transformation
         image_pil = ImagePIL.fromarray(image_array, mode="RGB")
-        image_pil.show()
+        #image_pil.show()
         transform = T.Compose(
             [
                 T.RandomResize([800], max_size=1333),
@@ -804,8 +806,11 @@ class SegmentAllItemsNode(Node):
         image: The image to visualize.
         predictions: The bounding box predictions of GroundingDINO.
         """
+        # Create a deep copy of the image to visualize
+        image_copy = deepcopy(image)
+
         # Define height of image
-        height, _, _ = image.shape
+        height, _, _ = image_copy.shape
         
         for phrase, boxes in predictions.items():
             for box in boxes:
@@ -813,18 +818,50 @@ class SegmentAllItemsNode(Node):
                 #self.get_logger().info(f"box: {x0}, {y0}, {x1}, {y1}")
                 color = (0, 255, 0)
                 thickness = 6
-                image = cv2.rectangle(image, (x0, y0), (x1, y1), color, thickness)
+                image_copy = cv2.rectangle(image_copy, (x0, y0), (x1, y1), color, thickness)
 
                 # Display text label below bounding box
-                image = cv2.putText(image, phrase, (x0, y0 - 12), 0, 1e-3 * height, color, thickness // 3)
+                image_copy = cv2.putText(image_copy, phrase, (x0, y0 - 12), 0, 1e-3 * height, color, thickness // 3)
 
-        cv2.imshow('image', image)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        #cv2.imshow('image', image_copy)
+        #cv2.waitKey(0)
+        #cv2.destroyAllWindows()
         # Publish the image
         self.viz_groundingdino_pub.publish(
-            cv2_image_to_ros_msg(image, compress=False, bridge=self.bridge)
+            cv2_image_to_ros_msg(image_copy, compress=False, bridge=self.bridge)
         )
+
+    def display_masks(self, image: npt.NDArray, masks: list[npt.NDArray], item_labels: list[str]):
+        """
+        Display the masks on the image.
+
+        Parameters
+        ----------
+        image: The image to display the masks on.
+        masks: The masks to display on the image.
+        """
+        self.get_logger().info("Displaying masks...")
+
+        # Create a deep copy of the image to visualize
+        image_copy = deepcopy(image)
+
+        # Display the masks on the image
+        for mask, label in zip(masks, item_labels):
+            mask = mask.astype(np.uint8)
+            mask = cv2.resize(mask, (image.shape[1], image.shape[0]))
+            color_dims = 3
+            mask = np.stack([mask] * color_dims, axis=-1)
+            color_scalar = random.randint(80, 255)
+            mask = np.multiply(mask, color_scalar)
+            cv2.imshow(label, mask)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+            #self.get_logger().info(f"Mask max: {np.max(mask)}")
+            #image_copy = cv2.addWeighted(image, 1.0, mask, 0.3, 0)
+
+        #cv2.imshow("Masks", image)
+        #cv2.waitKey(0)
+        #cv2.destroyAllWindows()
     
     async def run_vision_pipeline(self, image_msg: Image, caption: str):
         """
@@ -878,17 +915,20 @@ class SegmentAllItemsNode(Node):
         # predictions from the pipeline
         detected_items = []
         item_labels = []
+        masks_list = []
         for phrase, boxes in bbox_predictions.items():
             for box in boxes:
                 masks, scores = self.run_efficient_sam(image, None, box, 1)
-                self.get_logger().info(f"Mask: {masks[0]}")
                 if len(masks) > 0:
+                    self.get_logger().info(f"Mask: {masks[0]}")
+                    masks_list.append(masks[0])
                     mask_msg = self.generate_mask_msg(
                         phrase, scores[0], masks[0], image, depth_img, box
                     )
                     detected_items.append(mask_msg)
                     item_labels.append(phrase)
-                break
+                    
+        self.display_masks(image, masks_list, item_labels)
         #self.get_logger().info(f"Detected items: {detected_items}")
         self.get_logger().info(f"Item_labels: {item_labels}")
         result.detected_items = detected_items
