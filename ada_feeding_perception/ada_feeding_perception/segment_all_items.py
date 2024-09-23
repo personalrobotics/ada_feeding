@@ -549,9 +549,10 @@ class SegmentAllItemsNode(Node):
             )
             return GoalResponse.REJECT
     
-    def cancel_callback(self) -> CancelResponse:
+    def cancel_callback(self_: ServerGoalHandle) -> CancelResponse:
         """
         """
+        self.get_logger().info("Cancelling the goal request...")
         return CancelResponse.ACCEPT
 
     def run_sam(
@@ -681,6 +682,9 @@ class SegmentAllItemsNode(Node):
                         detected from the image.
         """
         self.get_logger().info("Running GroundingDINO...")
+        
+        # Set the initial time to measure the elapsed time running GroundingDINO on the 
+        # desired image and text prompts.
         inference_time = time.time()
 
         # Convert image to Image pillow
@@ -702,7 +706,7 @@ class SegmentAllItemsNode(Node):
         self.get_logger().info("... Done")
         
         # Filter the output based on the box and text thresholds
-        bbox_predictions = {}
+        boxes_cxcywh = {}
         logits_filt = logits.cpu().clone()
         boxes_filt = boxes.cpu().clone()
         filt_thresh_mask = logits_filt.max(dim=1)[0] > box_threshold
@@ -723,21 +727,47 @@ class SegmentAllItemsNode(Node):
             phrase = get_phrases_from_posmap(logit > text_threshold, caption_tokens, tokenizer)
             self.get_logger().info(f"logit: {logit}, box: {box}")
             self.get_logger().info(f"{phrase}")
-            if phrase not in bbox_predictions:
-                bbox_predictions[phrase] = []
-            bbox_predictions[phrase].append(box.cpu().numpy())
+            if phrase not in boxes_cxcywh:
+                boxes_cxcywh[phrase] = []
+            boxes_cxcywh[phrase].append(box.cpu().numpy())
+        
 
-        self.get_logger().info(f"Predictions: {bbox_predictions}")
+        # Define height and width of image
+        height, width, _ = image.shape
+        self.get_logger().info(f"height, width: {height}, {width}")
 
+        # Convert the bounding boxes outputted by GroundingDINO to the following format
+        # [top left x-value, top left y-value, bottom right x-value, bottom right y-value]
+        # and unnormalize the bounding box coordinate values 
+        boxes_xyxy = {}
+        for phrase, boxes in boxes_cxcywh.items():
+            boxes_xyxy[phrase] = []
+            for box in boxes:
+                # Scale the box from percentage values to pixel values
+                box = np.multiply(box, np.array([width, height, width, height]))
+                center_x, center_y, w, h = box
+                # Get the bottom left and top right coordinates of the box
+                x0 = center_x - (w / 2)
+                y0 = center_y - (h / 2)
+                x1 = x0 + w
+                y1 = y0 + h
+                boxes_xyxy[phrase].append([x0, y0, x1, y1])
+                
+        self.get_logger().info(f"Predictions: {boxes_xyxy}")
+        
+        # Measure the elapsed time running GroundingDINO on the image prompt
         inference_time = int(round((time.time() - inference_time) * 1000))
         self.get_logger().info(f"Approx. Inference Time: {inference_time}")
 
-        return bbox_predictions
+        return boxes_xyxy
 
     def load_image(self, image_array: npt.NDArray):
+        # Convert image from BGR to RGB to convert CV2 image to image pillow
+        image_array = cv2.cvtColor(image_array, cv2.COLOR_BGR2RGB)
+
         # Convert image to image pillow to apply transformation
         image_pil = ImagePIL.fromarray(image_array, mode="RGB")
-
+        image_pil.show()
         transform = T.Compose(
             [
                 T.RandomResize([800], max_size=1333),
@@ -746,6 +776,7 @@ class SegmentAllItemsNode(Node):
             ]
         )
         image, _ = transform(image_pil, None)  # 3, h, w
+        
         return image_pil, image
     
     def generate_mask_msg(
@@ -773,22 +804,13 @@ class SegmentAllItemsNode(Node):
         image: The image to visualize.
         predictions: The bounding box predictions of GroundingDINO.
         """
-        # Define height and width of image
-        height, width, _ = image.shape
-        self.get_logger().info(f"height, width: {height}, {width}")
+        # Define height of image
+        height, _, _ = image.shape
         
         for phrase, boxes in predictions.items():
             for box in boxes:
-                # Scale the box from percentage values to pixel values
-                box = np.multiply(box, np.array([width, height, width, height]))
-                center_x, center_y, w, h = box
-                # Get the bottom left and top right coordinates of the box
-                x0 = center_x - (w / 2)
-                y0 = center_y - (h / 2)
-                x1 = x0 + w
-                y1 = y0 + h
-                x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
-                self.get_logger().info(f"box: {x0}, {y0}, {x1}, {y1}")
+                x0, y0, x1, y1 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+                #self.get_logger().info(f"box: {x0}, {y0}, {x1}, {y1}")
                 color = (0, 255, 0)
                 thickness = 6
                 image = cv2.rectangle(image, (x0, y0), (x1, y1), color, thickness)
@@ -854,12 +876,12 @@ class SegmentAllItemsNode(Node):
         # Collect the top contender mask for each food item label detected by 
         # GroundingDINO using EfficientSAM and create dictionary of mask 
         # predictions from the pipeline
-        """
         detected_items = []
         item_labels = []
         for phrase, boxes in bbox_predictions.items():
             for box in boxes:
                 masks, scores = self.run_efficient_sam(image, None, box, 1)
+                self.get_logger().info(f"Mask: {masks[0]}")
                 if len(masks) > 0:
                     mask_msg = self.generate_mask_msg(
                         phrase, scores[0], masks[0], image, depth_img, box
@@ -867,10 +889,11 @@ class SegmentAllItemsNode(Node):
                     detected_items.append(mask_msg)
                     item_labels.append(phrase)
                 break
+        #self.get_logger().info(f"Detected items: {detected_items}")
+        self.get_logger().info(f"Item_labels: {item_labels}")
         result.detected_items = detected_items
         result.item_labels = item_labels
-        """ 
-            
+
         return result 
 
     async def execute_callback(
