@@ -883,6 +883,11 @@ class SegmentAllItemsNode(Node):
         
         """
         self.get_logger().info("Running the vision pipeline...")
+
+        # Set the initial time to measure the elapsed time running GroundingDINO on the 
+        # desired image and text prompts.
+        inference_time = time.time()
+
         # Define the result and create result message header
         result = SegmentAllItems.Result()
         result.header = image_msg.header
@@ -933,6 +938,10 @@ class SegmentAllItemsNode(Node):
         self.get_logger().info(f"Item_labels: {item_labels}")
         result.detected_items = detected_items
         result.item_labels = item_labels
+
+        # Measure the elapsed time running GroundingDINO on the image prompt
+        inference_time = int(round((time.time() - inference_time) * 1000))
+        self.get_logger().info(f"VISION PIPELINE - Approx. Inference Time: {inference_time}")
 
         return result 
 
