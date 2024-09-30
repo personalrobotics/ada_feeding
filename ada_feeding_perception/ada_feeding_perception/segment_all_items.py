@@ -40,6 +40,7 @@ from copy import deepcopy
 from ada_feeding_msgs.action import SegmentAllItems
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_perception.helpers import (
+    BoundingBox,
     bbox_from_mask,
     crop_image_mask_and_point,
     cv2_image_to_ros_msg,
@@ -751,7 +752,7 @@ class SegmentAllItemsNode(Node):
         for logit, box in zip(logits_filt, boxes_filt):
             # Predict phrases based on the bounding boxes and the text threshold
             phrase = get_phrases_from_posmap(logit > text_threshold, caption_tokens, tokenizer)
-            self.get_logger().info(f"logit: {logit}, box: {box}")
+            #self.get_logger().info(f"logit: {logit}, box: {box}")
             self.get_logger().info(f"{phrase}")
             if phrase not in boxes_cxcywh:
                 boxes_cxcywh[phrase] = []
@@ -821,6 +822,8 @@ class SegmentAllItemsNode(Node):
         # getting the connected component of the mask
         center_x = (bbox[0] + bbox[2]) // 2
         center_y = (bbox[1] + bbox[3]) // 2
+        center_x = int(center_x)
+        center_y = int(center_y)
         seed_point = (center_x, center_y)
 
         # Use the mask to get a connected component containing the seed point 
@@ -843,12 +846,16 @@ class SegmentAllItemsNode(Node):
             )
             return None
 
+        # Convert the bounding box from a Python Tuple into the BoundingBox class
+        # from helpers.py to call the crop_image_mask_and_point 
+        bbox_converted = BoundingBox(int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+
         # Crop the image and the mask
-        cropped_image, cropped_mask = crop_image_mask_and_point(
-            image, cleaned_mask, seed_point, bbox
+        cropped_image, cropped_mask, _ = crop_image_mask_and_point(
+            image, cleaned_mask, seed_point, bbox_converted
         )
         cropped_depth, _, _ = crop_image_mask_and_point(
-            depth_img, cleaned_mask, seed_point, bbox
+            depth_img, cleaned_mask, seed_point, bbox_converted
         )
 
         # Convert the mask to an image
@@ -857,8 +864,8 @@ class SegmentAllItemsNode(Node):
         # Create the ROS mask message
         mask_msg = Mask()
         mask_msg.roi = RegionOfInterest(
-            x_offset=bbox[0],
-            y_offset=bbox[1],
+            x_offset=int(bbox[0]),
+            y_offset=int(bbox[1]),
             height=int(bbox[3] - bbox[1]),
             width=int(bbox[2] - bbox[0]),
             do_rectify=False,
@@ -869,7 +876,7 @@ class SegmentAllItemsNode(Node):
         mask_msg.average_depth = median_depth_mm / 1000.0
         mask_msg.item_id = item_id
         mask_msg.object_id = object_id
-        mask_msg.score = score
+        mask_msg.confidence = float(score)
 
         return mask_msg
     
@@ -1003,7 +1010,7 @@ class SegmentAllItemsNode(Node):
             for box in boxes:
                 masks, scores = self.run_efficient_sam(image, None, box, 1)
                 if len(masks) > 0:
-                    self.get_logger().info(f"Mask: {masks[0]}")
+                    #self.get_logger().info(f"Mask: {masks[0]}")
                     masks_list.append(masks[0])
                     item_id = f"food_id_{mask_num:d}"
                     mask_num += 1
@@ -1013,7 +1020,7 @@ class SegmentAllItemsNode(Node):
                     detected_items.append(mask_msg)
                     item_labels.append(phrase)
                     
-        self.display_masks(image, masks_list, item_labels)
+        #self.display_masks(image, masks_list, item_labels)
         #self.get_logger().info(f"Detected items: {detected_items}")
         self.get_logger().info(f"Item_labels: {item_labels}")
         result.detected_items = detected_items
