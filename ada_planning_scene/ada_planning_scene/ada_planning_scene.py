@@ -5,6 +5,7 @@ This module contains the main node for populating and maintaining ADA's planning
 
 # Standard imports
 import threading
+import traceback
 from typing import List
 
 # Third-party imports
@@ -379,6 +380,23 @@ class ADAPlanningScene(Node):
                 self.initialize()
 
         return SetParametersResult(successful=True)
+
+
+def spin(node: Node, executor: MultiThreadedExecutor) -> None:
+    """
+    Spin the node in the executor.
+    """
+    try:
+        rclpy.spin(node, executor=executor)
+    except rclpy._rclpy_pybind11.InvalidHandle:
+        # There is a known issue in rclpy where it doesn't properly handle destruction of
+        # elements in the executor.
+        # - https://github.com/ros2/rclpy/issues/1355
+        # - https://github.com/ros2/rclpy/issues/1206
+        # - https://github.com/ros2/rclpy/issues/1142
+        # This is a **very hacky** workaround to prevent the node from crashing.
+        traceback.print_exc()
+        spin(node, executor)
 
 
 def main(args: List = None) -> None:

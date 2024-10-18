@@ -94,7 +94,18 @@ ada_feeding_action_servers:
     - side_staging_1
     - side_staging_2
     - side_staging_3
-    namespace_to_use: wheelchair_side_table_1
+    - demo
+    demo:
+      MoveFromMouth.tree_kwargs.linear_speed_near_mouth: 0.08
+      MoveFromMouth.tree_kwargs.max_linear_speed_to_staging_configuration: 0.15
+      MoveToMouth.tree_kwargs.linear_speed_near_mouth: 0.06
+      MoveToMouth.tree_kwargs.max_linear_speed: 0.15
+      MoveToMouth.tree_kwargs.plan_distance_from_mouth:
+      - 0.05
+      - 0.0
+      - -0.01
+      planning_scene_namespace_to_use: seated
+    namespace_to_use: demo
     side_staging_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.8849039817349507
