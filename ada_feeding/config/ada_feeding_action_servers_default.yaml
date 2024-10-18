@@ -5,8 +5,7 @@ ada_feeding_action_servers:
     watchdog_timeout_sec: 0.5 # sec
 
     default:
-      # TODO: Post-deployment, change this back!
-      planning_scene_namespace_to_use: seated_90
+      planning_scene_namespace_to_use: seated
 
       # A list of the names of the action servers to create. Each one must have
       # it's own parameters (below) specifying action_type and tree_class.
