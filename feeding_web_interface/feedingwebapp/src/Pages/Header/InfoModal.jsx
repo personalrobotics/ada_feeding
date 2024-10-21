@@ -124,7 +124,45 @@ function InfoModal(props) {
           {mode === VIDEO_MODE ? (
             <VideoFeed topic={CAMERA_FEED_TOPIC} updateRateHz={10} webrtcURL={props.webrtcURL} />
           ) : mode === TELEOP_MODE ? (
-            <TeleopSubcomponent allowIncreasingForceThreshold={true} allowRetaringFTSensor={true} />
+            <View
+              style={{
+                flex: 1,
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                width: '100%',
+                height: '100%'
+              }}
+            >
+              {props.showVideoFeedDuringTeleop ? (
+                <View
+                  style={{
+                    flex: 5,
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    width: '100%',
+                    height: '100%'
+                  }}
+                >
+                  <VideoFeed topic={CAMERA_FEED_TOPIC} updateRateHz={10} webrtcURL={props.webrtcURL} />
+                </View>
+              ) : (
+                <></>
+              )}
+              <View
+                style={{
+                  flex: 7,
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  width: '100%',
+                  height: '100%'
+                }}
+              >
+                <TeleopSubcomponent allowIncreasingForceThreshold={true} allowRetaringFTSensor={true} />
+              </View>
+            </View>
           ) : mode === SYSTEM_STATUS_MODE ? (
             <div>System Status</div>
           ) : (
@@ -141,7 +179,12 @@ InfoModal.propTypes = {
   // Callback function for when the modal is hidden
   onHide: PropTypes.func.isRequired,
   // The URL of the webrtc signalling server
-  webrtcURL: PropTypes.string.isRequired
+  webrtcURL: PropTypes.string.isRequired,
+  // Whether to show the video feed when teleoperating the robot
+  showVideoFeedDuringTeleop: PropTypes.bool.isRequired
+}
+InfoModal.defaultProps = {
+  showVideoFeedDuringTeleop: false
 }
 
 export default InfoModal
