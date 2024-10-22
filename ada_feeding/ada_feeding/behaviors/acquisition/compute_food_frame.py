@@ -336,6 +336,30 @@ class ComputeFoodFrame(BlackboardBehavior):
             x_unit.vector, x_pos.vector
         )
 
+        # # If you need to send a fixed food frame to the robot arm, e.g., to 
+        # # debug off-centering issues, uncomment this and modify the translation.
+        # deg = 90  # fork roll
+        # world_to_food_transform.transform.translation.x = 0.26262263022586224
+        # world_to_food_transform.transform.translation.y = -0.2783553055166875
+        # world_to_food_transform.transform.translation.z = 0.17773121634396466
+        # world_to_food_transform.transform.rotation.x = 0.0
+        # world_to_food_transform.transform.rotation.y = 0.0
+        # if deg == 0:
+        #     world_to_food_transform.transform.rotation.z = 0.0
+        #     world_to_food_transform.transform.rotation.w = 1.0
+        # elif deg == 90:
+        #     world_to_food_transform.transform.rotation.z = 0.7071068
+        #     world_to_food_transform.transform.rotation.w = 0.7071068
+        # elif deg == -90:
+        #     world_to_food_transform.transform.rotation.z = -0.7071068
+        #     world_to_food_transform.transform.rotation.w = 0.7071068
+        # elif deg == 180:
+        #     world_to_food_transform.transform.rotation.z = 1.0
+        #     world_to_food_transform.transform.rotation.w = 0.0
+        # else:
+        #     self.logger.error(f"Invalid deg: {deg}")
+        #     return py_trees.common.Status.FAILURE
+
         # Write to blackboard outputs
         if len(self.blackboard_get("food_frame_id")) > 0:
             set_static_tf(world_to_food_transform, self.blackboard, self.node)
