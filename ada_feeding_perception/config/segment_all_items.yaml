@@ -29,4 +29,4 @@ segment_all_items:
 
     # A boolean to determine whether to visualize the bounding box predictions 
     # made by GroundingDINO
-    viz_groundingdino: true
+    viz_groundingdino: false
