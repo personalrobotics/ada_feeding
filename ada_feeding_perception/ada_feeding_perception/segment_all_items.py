@@ -1231,10 +1231,8 @@ class SegmentAllItemsNode(Node):
             self.get_logger().error("Image or camera info not available.")
             return SegmentAllItems.Result()
 
-        # Convert the input label list from goal request to a single string caption
-        # for GroundingDINO
-        caption = ' . '.join(goal_handle.request.input_labels).lower().strip()
-        caption += '.'
+        # Get the caption from the goal request
+        caption = goal_handle.request.caption
         self.get_logger().info(f"caption: {caption}")
 
         # Start running the vision pipeline as a separate thread
