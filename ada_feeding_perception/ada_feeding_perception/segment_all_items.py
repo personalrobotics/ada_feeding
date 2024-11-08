@@ -92,8 +92,14 @@ class SegmentAllItemsNode(Node):
             download_checkpoint(seg_model_name, model_dir, seg_model_base_url)
             self.get_logger().info(f"Model checkpoint downloaded {seg_model_path}.")
 
-        # Set the path to GroundingDINO and its config file in the model directory 
+        # Download the checkpoint for GroundingDINO if it doesn't exist
         groundingdino_model_path = os.path.join(model_dir, groundingdino_model_name)
+        if not os.path.isfile(groundingdino_model_path):
+            self.get_logger().info("Model checkpoint does not exist. Downloading...")
+            download_checkpoint(groundingdino_model_name, model_dir)
+            self.get_logger().info(f"Model checkpoint downloaded {groundingdino_model_path}.")
+
+        # Set the path to the GroundingDINO configurations file in the model directory 
         groundingdino_config_path = os.path.join(model_dir, groundingdino_config_name)
 
         # Subscribe to the camera info topic, to get the camera intrinsics
@@ -265,7 +271,7 @@ class SegmentAllItemsNode(Node):
                     ParameterDescriptor(
                         name="groundingdino_config_name",
                         type=ParameterType.PARAMETER_STRING,
-                        description="The name of the configuration file to use for Open-GroundingDINO",
+                        description="The name of the configuration file to use for GroundingDINO",
                         read_only=True,
                     ),
                 ),
@@ -275,7 +281,20 @@ class SegmentAllItemsNode(Node):
                     ParameterDescriptor(
                         name="groundingdino_model_name",
                         type=ParameterType.PARAMETER_STRING,
-                        description="The name of the model checkpoint to use for Open-GroundingDINO",
+                        description="The name of the model checkpoint to use for GroundingDINO",
+                        read_only=True,
+                    ),
+                ),
+                (
+                    "groundingdino_model_base_url",
+                    None,
+                    ParameterDescriptor(
+                        name="groundingdino_model_base_url",
+                        type=ParameterType.PARAMETER_STRING,
+                        description=(
+                            "The URL to download the model checkpoint from if "
+                            "it is not already downloaded for GroundingDINO"
+                        ),
                         read_only=True,
                     ),
                 ),
@@ -419,8 +438,6 @@ class SegmentAllItemsNode(Node):
 
         self.get_logger().info("...Done!")
 
-    # Move bottom two functions to helpers file and import them for 
-    # both segment_all_items.py and segment_from_point.py    
     def initialize_sam(self, model_name: str, model_path: str) -> None:
         """
         Initialize all attributes needed for food segmentation with SAM.
@@ -558,7 +575,7 @@ class SegmentAllItemsNode(Node):
             )
             return GoalResponse.REJECT
     
-    def cancel_callback(self_: ServerGoalHandle) -> CancelResponse:
+    def cancel_callback(self, _: ServerGoalHandle) -> CancelResponse:
         """
         """
         self.get_logger().info("Cancelling the goal request...")
