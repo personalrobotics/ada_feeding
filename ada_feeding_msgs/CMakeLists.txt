@@ -36,6 +36,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/AcquisitionSelect.srv"
   "srv/GetRobotState.srv"
   "srv/ToggleFaceDetection.srv"
+  "srv/GenerateCaption.srv"
 
   DEPENDENCIES geometry_msgs sensor_msgs std_msgs
 )
