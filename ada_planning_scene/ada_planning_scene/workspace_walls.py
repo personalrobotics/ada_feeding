@@ -694,12 +694,16 @@ class WorkspaceWalls:
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
 
+        def cleanup():
+            self.__node.destroy_rate(rate)
+
         # Wait until the service is ready
         while not self.__get_urdf_parameter_service.service_is_ready():
             if not check_ok(self.__node, start_time, timeout):
                 self.__node.get_logger().error(
                     "Timeout while waiting for the get URDF parameter service."
                 )
+                cleanup()
                 return False
             rate.sleep()
 
@@ -712,6 +716,7 @@ class WorkspaceWalls:
                 self.__node.get_logger().error(
                     "Timeout while getting the robot's URDF."
                 )
+                cleanup()
                 return False
             rate.sleep()
 
@@ -720,11 +725,13 @@ class WorkspaceWalls:
             response = future.result()
         except Exception as error:  # pylint: disable=broad-except
             self.__node.get_logger().error(f"Failed to get the robot's URDF: {error}")
+            cleanup()
             return False
         if (
             len(response.values) == 0
             or response.values[0].type != ParameterType.PARAMETER_STRING
         ):
+            cleanup()
             return False
         robot_urdf = response.values[0].string_value
         robot_urdf = WorkspaceWalls.urdf_replace_package_paths(robot_urdf)
@@ -737,6 +744,7 @@ class WorkspaceWalls:
         # `yourdfpy` only allows loading URDF from file, so we bypass its default load.
         self.__robot_model = URDF(robot=URDF._parse_robot(xml_element=xml_root))
 
+        cleanup()
         return True
 
     def __get_parameter_prefix(
@@ -759,12 +767,16 @@ class WorkspaceWalls:
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
 
+        def cleanup():
+            self.__node.destroy_rate(rate)
+
         # Wait for the service to be ready
         while not self.__get_robot_configurations_parameter_service.service_is_ready():
             if not check_ok(self.__node, start_time, timeout):
                 self.__node.get_logger().error(
                     "Timeout while waiting for the get robot configurations parameter service."
                 )
+                cleanup()
                 return False, ""
             rate.sleep()
 
@@ -777,6 +789,7 @@ class WorkspaceWalls:
                 self.__node.get_logger().error(
                     "Timeout while getting the namespace to use."
                 )
+                cleanup()
                 return False, ""
             rate.sleep()
 
@@ -787,6 +800,7 @@ class WorkspaceWalls:
             self.__node.get_logger().error(
                 f"Failed to get the namespace to use: {error}"
             )
+            cleanup()
             return False, ""
         if (
             len(response.values) == 0
@@ -794,8 +808,9 @@ class WorkspaceWalls:
         ):
             prefix = ""
         else:
-            prefix = response.values[0].string_value + "."
+            prefix = response.values[0].string_value
 
+        cleanup()
         return True, prefix
 
     def __joint_states_callback(self, msg: JointState) -> None:
@@ -810,6 +825,87 @@ class WorkspaceWalls:
             for i, name in enumerate(msg.name):
                 if name in self.__articulated_joint_names:
                     self.__joint_states[name] = msg.position[i]
+
+    def __get_robot_configurations_within_prefix(
+        self,
+        prefix: str,
+        configurations_parameter_names: List[str],
+        rate_hz: float = 10.0,
+        timeout: Duration = Duration(seconds=5),
+        publish_feedback: Optional[Callable[[], None]] = None,
+    ) -> Tuple[bool, Dict[str, List[float]]]:
+        """
+        Get the robot's configurations within a prefix.
+
+        Parameters
+        ----------
+        prefix: The prefix to add to the parameter name.
+        configurations_parameter_names: The names of the parameters that contain robot
+            joint configurations that should be contained within the workspace walls.
+        rate_hz: The rate at which to call the service.
+        timeout: The timeout for the service.
+        publish_feedback: If not None, call this function periodically to publish feedback.
+
+        Returns
+        -------
+        success: True if successful, False otherwise.
+        robot_configurations: A map from the parameter name to the configuration.
+        """
+        # pylint: disable=too-many-locals, too-many-arguments
+        # One over is fine.
+
+        # Start the time
+        start_time = self.__node.get_clock().now()
+        rate = self.__node.create_rate(rate_hz)
+
+        def cleanup():
+            self.__node.destroy_rate(rate)
+
+        # Get the robot configurations
+        robot_configurations = {}
+        request = GetParameters.Request()
+        request.names = [
+            ".".join([prefix, name]) for name in configurations_parameter_names
+        ]
+        self.__node.get_logger().info(
+            f"Getting robot configurations from parameters: {request.names}"
+        )
+        future = self.__get_robot_configurations_parameter_service.call_async(request)
+        while not future.done():
+            if not check_ok(self.__node, start_time, timeout):
+                self.__node.get_logger().error(
+                    "Timeout while getting the robot configurations."
+                )
+                cleanup()
+                return False, {}
+            if publish_feedback is not None:
+                publish_feedback()
+            rate.sleep()
+
+        # Get the response
+        try:
+            response = future.result()
+        except Exception as error:  # pylint: disable=broad-except
+            self.__node.get_logger().error(
+                f"Failed to get robot configurations: {error}"
+            )
+            cleanup()
+            return False, {}
+        for i, param in enumerate(response.values):
+            if param.type != ParameterType.PARAMETER_DOUBLE_ARRAY:
+                continue
+            robot_configurations[configurations_parameter_names[i]] = list(
+                param.double_array_value
+            )
+            if publish_feedback is not None:
+                publish_feedback()
+        if len(robot_configurations) == 0:
+            self.__node.get_logger().error("Failed to get robot configurations.")
+            cleanup()
+            return False, {}
+
+        cleanup()
+        return True, robot_configurations
 
     def __get_robot_configurations(
         self,
@@ -841,58 +937,62 @@ class WorkspaceWalls:
         start_time = self.__node.get_clock().now()
         rate = self.__node.create_rate(rate_hz)
 
+        def cleanup():
+            self.__node.destroy_rate(rate)
+
         # Get the prefix
         success, prefix = self.__get_parameter_prefix(
             rate_hz, get_remaining_time(self.__node, start_time, timeout)
         )
         if not success:
             self.__node.get_logger().error("Failed to get the parameter prefix.")
+            cleanup()
             return False, {}
 
         # Wait for the service to be ready
+        self.__node.get_logger().info(
+            "Waiting for the get robot configurations parameter service."
+        )
         while not self.__get_robot_configurations_parameter_service.service_is_ready():
             if not check_ok(self.__node, start_time, timeout):
                 self.__node.get_logger().error(
                     "Timeout while waiting for the get robot configurations parameter service."
                 )
+                cleanup()
                 return False, {}
             if publish_feedback is not None:
                 publish_feedback()
             rate.sleep()
 
         # Get the robot configurations
-        robot_configurations = {}
-        request = GetParameters.Request()
-        request.names = [
-            prefix + name for name in self.__robot_configurations_parameter_names
+        _, robot_configurations = self.__get_robot_configurations_within_prefix(
+            prefix,
+            self.__robot_configurations_parameter_names,
+            rate_hz,
+            get_remaining_time(self.__node, start_time, timeout),
+            publish_feedback=publish_feedback,
+        )
+        remaining_configurations_parameter_names = [
+            name
+            for name in self.__robot_configurations_parameter_names
+            if name not in robot_configurations
         ]
-        future = self.__get_robot_configurations_parameter_service.call_async(request)
-        while not future.done():
-            if not check_ok(self.__node, start_time, timeout):
-                self.__node.get_logger().error(
-                    "Timeout while getting the robot configurations."
-                )
-                return False, {}
-            if publish_feedback is not None:
-                publish_feedback()
-            rate.sleep()
-
-        # Get the response
-        try:
-            response = future.result()
-        except Exception as error:  # pylint: disable=broad-except
-            self.__node.get_logger().error(
-                f"Failed to get robot configurations: {error}"
-            )
+        _, default_robot_configurations = self.__get_robot_configurations_within_prefix(
+            "default",
+            remaining_configurations_parameter_names,
+            rate_hz,
+            get_remaining_time(self.__node, start_time, timeout),
+            publish_feedback=publish_feedback,
+        )
+        robot_configurations.update(default_robot_configurations)
+        # If we got some but not all of them, raise an error but continue
+        if len(robot_configurations) != len(
+            self.__robot_configurations_parameter_names
+        ):
+            self.__node.get_logger().error("Failed to get robot configurations.")
+        if len(robot_configurations) == 0:
+            cleanup()
             return False, {}
-        for i, param in enumerate(response.values):
-            if param.type != ParameterType.PARAMETER_DOUBLE_ARRAY:
-                continue
-            robot_configurations[self.__robot_configurations_parameter_names[i]] = list(
-                param.double_array_value
-            )
-            if publish_feedback is not None:
-                publish_feedback()
 
         # Add the current joint state
         if (
@@ -907,6 +1007,7 @@ class WorkspaceWalls:
             if len(current_config) == len(self.__articulated_joint_names):
                 robot_configurations["current_joint_states"] = current_config
 
+        cleanup()
         return True, robot_configurations
 
     def __update_robot_configuration_bounds(
@@ -985,7 +1086,7 @@ class WorkspaceWalls:
         rate_hz: float = 10.0,
         timeout: Duration = Duration(seconds=5),
         publish_feedback: Optional[Callable[[], None]] = None,
-    ):
+    ) -> bool:
         """
         Recomputes workspace walls and adds them to the planning scene.
 
@@ -1057,10 +1158,9 @@ class WorkspaceWalls:
             success = self.__update_robot_configuration_bounds(
                 rate_hz=rate_hz,
                 timeout=get_remaining_time(self.__node, start_time, timeout),
-                # For repeatability, during initialization we don't account for the
-                # current robot config, but during every other update, we do if
-                # the parameter is set.
-                include_current_robot_config=False,
+                # Although accounting for the current configuration during initialization
+                # harms repeatability, it does ensure the robot will always be able to move.
+                include_current_robot_config=True,
             )
             if not success:
                 self.__node.get_logger().info(

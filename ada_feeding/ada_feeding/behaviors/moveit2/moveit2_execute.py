@@ -219,3 +219,4 @@ class MoveIt2Execute(BlackboardBehavior):
                     break
 
                 rate.sleep()
+        self.node.destroy_rate(rate)

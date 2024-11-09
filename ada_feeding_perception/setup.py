@@ -46,6 +46,7 @@ setup(
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
+            "ada_feeding_perception_node = ada_feeding_perception.ada_feeding_perception_node:main",
             "food_on_fork_detection = ada_feeding_perception.food_on_fork_detection:main",
             "republisher = ada_feeding_perception.republisher:main",
             "segment_from_point = ada_feeding_perception.segment_from_point:main",

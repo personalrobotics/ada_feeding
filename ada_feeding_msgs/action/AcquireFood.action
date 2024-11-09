@@ -21,18 +21,6 @@ uint8 STATUS_UNKNOWN=99
 
 # Whether the planning and motion succeeded and if not, why
 uint8 status
-
-## Information to send to AcquisitionSelect service
-# Action Taken
-uint8 action_index
-
-# Posthoc context
-float64[] posthoc
-
-# AcquisitionSelect call id
-# Used in AcquisitionReport
-string selection_id
-
 ---
 # Whether the robot is currently planning or moving (required)
 bool is_planning
@@ -44,3 +32,18 @@ builtin_interfaces/Duration motion_time
 float64 motion_initial_distance
 # How far the robot currently is from the goal (required if `is_planning == false`)
 float64 motion_curr_distance
+
+## Information to send to AcquisitionSelect service
+## NOTE: Although the below is info one might expect in the result as opposed to feedback,
+## we include it in feedback because ROSLibJS doesn't give us access to the result in error cases,
+## even though we still want to know the action index.
+bool action_info_populated
+# Action Taken
+uint8 action_index
+
+# Posthoc context
+float64[] posthoc
+
+# AcquisitionSelect call id
+# Used in AcquisitionReport
+string selection_id

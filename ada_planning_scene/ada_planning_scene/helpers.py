@@ -44,6 +44,8 @@ class CollisionObjectParams:
         # Optional parameters for attaching the collision object
         attached: bool = False,
         touch_links: Optional[List[str]] = None,
+        # Whether to add the collision object on initialization
+        add_on_initialize: bool = True,
     ):
         """
         Initialize the CollisionObjectParams.
@@ -62,6 +64,7 @@ class CollisionObjectParams:
         within_workspace_walls: Whether the collision object is within the workspace walls.
         attached: Whether the collision object is attached to the robot.
         touch_links: The touch links of the collision object.
+        add_on_initialize: Whether to add the collision object on initialization.
         """
         # Store the parameters
         self.object_id = object_id
@@ -76,6 +79,7 @@ class CollisionObjectParams:
         self.within_workspace_walls = within_workspace_walls
         self.attached = attached
         self.touch_links = [] if touch_links is None else touch_links
+        self.add_on_initialize = add_on_initialize
 
 
 def duration_minus(

@@ -18,7 +18,7 @@
   </node>
 
   <!-- Launch the action servers necessary to move the robot -->
-  <node pkg="ada_feeding" exec="create_action_servers.py" name="ada_feeding_action_servers" respawn="true" args="--ros-args --log-level $(var log_level) --log-level rcl:=INFO --log-level rmw_fastrtps_cpp:=INFO">
+  <node pkg="ada_feeding" exec="create_action_servers.py" name="ada_feeding_action_servers" respawn="true" args="--ros-args --log-level $(var log_level) --log-level rcl:=INFO --log-level rmw_cyclonedds_cpp:=INFO">
     <param from="$(find-pkg-share ada_feeding)/config/ada_feeding_action_servers_default.yaml"/>
     <param from="$(find-pkg-share ada_feeding)/config/ada_feeding_action_servers_custom.yaml"/>
     <remap from="~/watchdog" to="/ada_watchdog/watchdog" />
@@ -41,6 +41,7 @@
     <remap from="~/stop_servo" to="/servo_node/stop_servo" />
     <remap from="~/action_select" to="/ada_feeding_action_select/action_select" />
     <remap from="~/action_report" to="/ada_feeding_action_select/action_report" />
+    <remap from="~/modify_collision_object" to="/ada_planning_scene/modify_collision_object" />
   </node>
 
   <!-- Launch a republisher to pass web app servo commands to the servo node -->

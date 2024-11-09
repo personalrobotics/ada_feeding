@@ -2,7 +2,16 @@
 table_detection:
   ros__parameters:
     # The rate at which to publish the pose of the detected table
-    rate_hz: 3.0
+    table_detection_rate_hz: 3.0
 
     # A boolean to determine whether to visualize plate detection 
-    viz: True
+    table_detection_viz: True
+
+# NOTE: If using the combined perception node, be very careful to ensure no name clashes of parameters!
+ada_feeding_perception:
+  ros__parameters:
+    # The rate at which to publish the pose of the detected table
+    table_detection_rate_hz: 3.0
+
+    # A boolean to determine whether to visualize plate detection 
+    table_detection_viz: True

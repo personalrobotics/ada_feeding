@@ -62,6 +62,15 @@ parser.add_argument(
         "every screen session. (default: 42)"
     ),
 )
+parser.add_argument(
+    "--policy",
+    default="constant",
+    help=(
+        "`constant`, `color`, `random`, `random_noposthoc`, `greedy`, `greedy_noposthoc`, "
+        "`egreedy`, `egreedy_noposthoc`, `linucb`, or `linucb_noposthoc` (default `constant`). "
+        "These options are all named learning policies for ada_feeding_action_select."
+    ),
+)
 
 
 async def get_existing_screens():
@@ -171,6 +180,12 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "run_food_on_fork_detection:=false run_table_detection:=false "
                 ),
             ],
+            "nano_bridge_sender": [
+                "ros2 launch nano_bridge sender.launch.xml",
+            ],
+            "nano_bridge_receiver": [
+                "ros2 launch nano_bridge receiver.launch.xml",
+            ],
             "perception": [
                 (
                     "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
@@ -187,7 +202,10 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "ros2 launch rosbridge_server rosbridge_websocket_launch.xml"
             ],
             "feeding": [
-                "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false"
+                (
+                    "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false "
+                    f"policy:={args.policy}"
+                ),
             ],
             "moveit": [
                 "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock"
@@ -231,7 +249,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
                     "run_web_bridge:=false run_food_detection:=false run_face_detection:=false "
                     "run_food_on_fork_detection:=false run_table_detection:=false "
-                    "run_real_sense:=false"
+                    "run_real_sense:=false "
+                    f"policy:={args.policy}"
                 ),
             ],
             "browser": [
@@ -261,7 +280,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "ros2 launch rosbridge_server rosbridge_websocket_launch.xml",
             ],
             "perception": [
-                "ros2 launch ada_feeding_perception ada_feeding_perception.launch.py",
+                "ros2 launch ada_feeding_perception ada_feeding_perception.launch.py combine_perception_nodes:=true",
             ],
             "moveit": [
                 "Xvfb :5 -screen 0 800x600x24 &" if not args.dev else "",
@@ -269,9 +288,10 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 f"ros2 launch ada_planning_scene ada_moveit_launch.xml use_rviz:={'true' if args.dev else 'false'}",
             ],
             "feeding": [
+                "sudo ./src/ada_feeding/configure_lovelace.sh",
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml "
-                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false"
+                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy}"
                 ),
             ],
             "browser": [
@@ -390,6 +410,24 @@ if __name__ == "__main__":
     if args.sim not in ["real", "mock", "dummy"]:
         raise ValueError(
             f"Unknown sim value {args.sim}. Must be one of ['real', 'mock', 'dummy']."
+        )
+
+    if args.policy not in [
+        "constant",
+        "color",
+        "random",
+        "random_noposthoc",
+        "greedy",
+        "greedy_noposthoc",
+        "egreedy",
+        "egreedy_noposthoc",
+        "linucb",
+        "linucb_noposthoc",
+    ]:
+        raise ValueError(
+            f"Unknown policy value {args.policy}. Must be one of ['constant', 'color', "
+            "'random', 'random_noposthoc', 'greedy', 'greedy_noposthoc', 'egreedy', "
+            "'egreedy_noposthoc', 'linucb', 'linucb_noposthoc']."
         )
 
     # Ensure the script is not being run as sudo. Sudo has a different screen

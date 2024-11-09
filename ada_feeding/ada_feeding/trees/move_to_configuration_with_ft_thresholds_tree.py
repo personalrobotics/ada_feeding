@@ -172,18 +172,23 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                         "constraints": BlackboardKey("goal_constraints"),
                     },
                 ),
-                MoveIt2Plan(
-                    name="MoveToConfigurationPlan",
-                    ns=name,
-                    inputs={
-                        "goal_constraints": BlackboardKey("goal_constraints"),
-                        "pipeline_id": self.pipeline_id,
-                        "planner_id": self.planner_id,
-                        "allowed_planning_time": self.allowed_planning_time,
-                        "max_velocity_scale": self.max_velocity_scaling_factor,
-                        "max_acceleration_scale": self.max_acceleration_scaling_factor,
-                    },
-                    outputs={"trajectory": BlackboardKey("trajectory")},
+                py_trees.decorators.Timeout(
+                    name="MoveIt2PlanTimeout",
+                    # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                    duration=10.0 * self.allowed_planning_time,
+                    child=MoveIt2Plan(
+                        name="MoveToConfigurationPlan",
+                        ns=name,
+                        inputs={
+                            "goal_constraints": BlackboardKey("goal_constraints"),
+                            "pipeline_id": self.pipeline_id,
+                            "planner_id": self.planner_id,
+                            "allowed_planning_time": self.allowed_planning_time,
+                            "max_velocity_scale": self.max_velocity_scaling_factor,
+                            "max_acceleration_scale": self.max_acceleration_scaling_factor,
+                        },
+                        outputs={"trajectory": BlackboardKey("trajectory")},
+                    ),
                 ),
                 MoveIt2Execute(
                     name="MoveToConfigurationExecute",

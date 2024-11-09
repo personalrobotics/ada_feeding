@@ -207,7 +207,7 @@ class LinearPolicy(Policy):
             solve_out = self.checkpoint.linear_model[arm, :]
 
         # Solve for linear policy vector
-        solve_out[:] = np.linalge.solve(solve_a, solve_b)
+        solve_out[:] = np.linalg.solve(solve_a, solve_b)
 
     @override
     def get_checkpoint(self) -> Any:
@@ -341,8 +341,12 @@ class LinUCBPolicy(LinearPolicy):
         lcb = self.checkpoint.linear_model @ context - (
             self.alpha * np.sqrt(context.T @ self.covariance @ context)
         )
+        action_i = np.argmin(lcb)
 
-        return [(1.0, self.library[np.argmin(lcb)])]
+        return [
+            (1.0 if i == action_i else 0.0, self.library[i])
+            for i in range(self.n_actions)
+        ]
 
     @override
     def update(

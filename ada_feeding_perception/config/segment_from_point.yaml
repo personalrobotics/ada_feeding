@@ -18,4 +18,26 @@ segment_from_point:
     n_contender_masks: 3
 
     # The rate (hz) at which to return feedback
-    rate_hz: 10.0
+    segment_from_point_rate_hz: 10.0
+
+# NOTE: If using the combined perception node, be very careful to ensure no name clashes of parameters!
+ada_feeding_perception:
+  ros__parameters:
+    # The name of the Segment Anything model checkpoint to use
+    sam_model_name: sam_vit_b_01ec64.pth
+    # The URL to download the model checkpoint from if it is not already downloaded
+    sam_model_base_url: "https://dl.fbaipublicfiles.com/segment_anything/"
+
+    # The name of the Efficient Segment Anything model checkpoint to use
+    efficient_sam_model_name: efficient_sam_vitt.pt
+    # The URL to download the model checkpoint from if it is not already downloaded
+    efficient_sam_model_base_url: "https://raw.githubusercontent.com/yformer/EfficientSAM/main/weights/"
+
+    # Whether to use SAM or EfficientSAM
+    use_efficient_sam: true
+
+    # The number of contender masks to return
+    n_contender_masks: 3
+
+    # The rate (hz) at which to return feedback
+    segment_from_point_rate_hz: 10.0

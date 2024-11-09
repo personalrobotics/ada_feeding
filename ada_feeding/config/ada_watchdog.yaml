@@ -119,7 +119,7 @@ ada_watchdog:
       amixer_mic_control_names:
         - "'Mic',0"
       amixer_mic_control_percentages:
-        - 100
+        - 40
       is_usb: true
       udev_id: 'usb-Plugable_Plugable_USB_Audio_Device_000000000000-00'
       device_name: 'Plugable USB Audio Device'

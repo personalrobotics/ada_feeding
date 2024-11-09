@@ -499,13 +499,20 @@ class MoveIt2Plan(BlackboardBehavior):
             self.moveit2.clear_path_constraints()
 
     @staticmethod
-    def get_path_len(path: JointTrajectory) -> Tuple[float, Dict[str, float]]:
+    def get_path_len(
+        path: JointTrajectory, exclude_j6: bool = True
+    ) -> Tuple[float, Dict[str, float]]:
         """
         Get the integrated path length of a trajectory in trajectory units.
 
         Uses only the position component of waypoints.
 
         Note: assumes joint values are in R1 (i.e. no wrap-around)
+
+        Parameters
+        ----------
+        exclude_j6: If True, exclude the last joint from the path length calculation. This is
+            because the last joint doesn't cause swivels, which is what we want to avoid.
 
         Returns:
         * length of the path in joint config space
@@ -521,11 +528,21 @@ class MoveIt2Plan(BlackboardBehavior):
         if len(path.points) == 0:
             return total_len, joint_lens
 
+        j6_i = None
+        if exclude_j6 and "j2n6s200_joint_6" in path.joint_names:
+            j6_i = path.joint_names.index("j2n6s200_joint_6")
+
         prev_pos = np.array(path.points[0].positions)
         for point in path.points:
             curr_pos = np.array(point.positions)
             seg_len = np.abs(curr_pos - prev_pos)
-            total_len += np.linalg.norm(seg_len)
+            if j6_i is not None:
+                j6_len = seg_len[j6_i]
+                seg_len[j6_i] = 0.0
+                total_len += np.linalg.norm(seg_len)
+                seg_len[j6_i] = j6_len
+            else:
+                total_len += np.linalg.norm(seg_len)
             for index, name in enumerate(path.joint_names):
                 joint_lens[name] += seg_len[index]
             prev_pos = curr_pos

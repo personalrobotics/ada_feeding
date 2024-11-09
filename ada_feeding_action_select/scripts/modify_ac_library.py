@@ -94,5 +94,5 @@ if __name__ == "__main__":
         print(f"File Not Found: {sys.argv[1]}")
         sys.exit(1)
     if os.path.isfile(sys.argv[2]):
-        print(f"Warning, overwritting: {sys.argv[2]}")
+        print(f"Warning, overwriting: {sys.argv[2]}")
     main(sys.argv[1], sys.argv[2])

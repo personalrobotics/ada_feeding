@@ -25,6 +25,7 @@ def retry_call_ros_service(
     response_checks: Optional[List[py_trees.common.ComparisonExpression]] = None,
     max_retries: int = 3,
     wait_for_server_timeout_sec: float = 0.0,
+    server_execution_timeout_sec: float = 10.0,
 ) -> py_trees.behaviour.Behaviour:
     """
     Creates a behavior that calls a ROS service and optionally checkes the response.
@@ -51,6 +52,8 @@ def retry_call_ros_service(
     max_retries: The maximum number of retries.
     wait_for_server_timeout_sec: The timeout for waiting for the server to be
         available.
+    server_execution_timeout_sec: The timeout for the server to execute the request. If
+        <= 0.0, no timeout is set.
     """
 
     # pylint: disable=too-many-arguments, too-many-locals
@@ -90,10 +93,20 @@ def retry_call_ros_service(
             key_request=key_request,
         )
 
+    # Add a timeout
+    if server_execution_timeout_sec > 0.0:
+        call_ros_service_wrapper = py_trees.decorators.Timeout(
+            name=call_ros_service_behavior_name + "_timeout",
+            child=call_ros_service_behavior,
+            duration=server_execution_timeout_sec,
+        )
+    else:
+        call_ros_service_wrapper = call_ros_service_behavior
+
     # Create the check response behavior
     if response_checks is not None:
         # Add all the response checks
-        children = [call_ros_service_behavior]
+        children = [call_ros_service_wrapper]
         for i, response_check in enumerate(response_checks):
             check_response_behavior_name = Blackboard.separator.join(
                 [name, check_response_namespace_prefix + str(i)]
@@ -111,7 +124,7 @@ def retry_call_ros_service(
             children=children,
         )
     else:
-        child = call_ros_service_behavior
+        child = call_ros_service_wrapper
 
     # Add a retry decorator on top of the child
     retry_behavior = py_trees.decorators.Retry(

@@ -181,22 +181,27 @@ class MoveToPoseTree(MoveToTree):
 
         # Add the planning behavior
         root_seq.add_child(
-            MoveIt2Plan(
-                name="MoveToPosePlan",
-                ns=name,
-                inputs={
-                    "goal_constraints": goal_constraints_key,
-                    "pipeline_id": self.pipeline_id,
-                    "planner_id": self.planner_id,
-                    "allowed_planning_time": self.allowed_planning_time,
-                    "max_velocity_scale": self.max_velocity_scaling_factor,
-                    "max_acceleration_scale": self.max_acceleration_scaling_factor,
-                    "cartesian": self.cartesian,
-                    "cartesian_jump_threshold": self.cartesian_jump_threshold,
-                    "cartesian_max_step": self.cartesian_max_step,
-                    "cartesian_fraction_threshold": self.cartesian_fraction_threshold,
-                },
-                outputs={"trajectory": BlackboardKey("trajectory")},
+            py_trees.decorators.Timeout(
+                name="MoveToPosePlanTimeout",
+                # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                duration=10.0 * self.allowed_planning_time,
+                child=MoveIt2Plan(
+                    name="MoveToPosePlan",
+                    ns=name,
+                    inputs={
+                        "goal_constraints": goal_constraints_key,
+                        "pipeline_id": self.pipeline_id,
+                        "planner_id": self.planner_id,
+                        "allowed_planning_time": self.allowed_planning_time,
+                        "max_velocity_scale": self.max_velocity_scaling_factor,
+                        "max_acceleration_scale": self.max_acceleration_scaling_factor,
+                        "cartesian": self.cartesian,
+                        "cartesian_jump_threshold": self.cartesian_jump_threshold,
+                        "cartesian_max_step": self.cartesian_max_step,
+                        "cartesian_fraction_threshold": self.cartesian_fraction_threshold,
+                    },
+                    outputs={"trajectory": BlackboardKey("trajectory")},
+                ),
             ),
         )
 

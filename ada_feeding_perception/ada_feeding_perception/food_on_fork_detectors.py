@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import os
 import time
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 # Third-party imports
 import cv2
@@ -261,7 +261,7 @@ class FoodOnForkDetector(ABC):
         """
 
     @abstractmethod
-    def load(self, path: str) -> None:
+    def load(self, path: str, **kwargs: Any) -> None:
         """
         Loads the model a file.
 
@@ -415,7 +415,7 @@ class FoodOnForkDummyDetector(FoodOnForkDetector):
         return ""
 
     @override
-    def load(self, path: str) -> None:
+    def load(self, path: str, **kwargs: Any) -> None:
         pass
 
     @override
@@ -768,13 +768,29 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
         )
         return path + ".npz"
 
-    @override
-    def load(self, path: str) -> None:
+    def load(
+        self,
+        path: str,
+        no_fof_points_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+        **kwargs: Any,
+    ) -> None:
+        """
+        Loads the model a file.
+
+        Parameters
+        ----------
+        path: The path to load the perception algorithm from. If the path does
+            not have an extension, this function will add the appropriate
+            extension.
+        no_fof_points_offset: The offset to apply to the no_fof_points. This is
+            useful to account for things like the fork getting bent, or the camera's
+            extrinsics changing.
+        """
         ext = os.path.splitext(path)[1]
         if len(ext) == 0:
             path = path + ".npz"
         params = np.load(path, allow_pickle=True)
-        self.no_fof_points = params["no_fof_points"]
+        self.no_fof_points = params["no_fof_points"] + no_fof_points_offset
         self.clf = params["clf"][0]
         self.best_aggregator_name = str(params["best_aggregator_name"])
         if self.verbose:

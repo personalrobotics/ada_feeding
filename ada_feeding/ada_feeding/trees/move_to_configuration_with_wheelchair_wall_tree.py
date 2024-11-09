@@ -28,8 +28,8 @@ from ada_feeding.behaviors.moveit2 import (
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import (
-    get_add_in_front_of_wheelchair_wall_behavior,
-    get_remove_in_front_of_wheelchair_wall_behavior,
+    get_add_in_front_of_face_wall_behavior,
+    get_remove_in_front_of_face_wall_behavior,
 )
 from ada_feeding.trees import (
     MoveToTree,
@@ -112,8 +112,6 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
 
         ### Define Tree Logic
 
-        in_front_of_wheelchair_wall_id = "in_front_of_wheelchair_wall"
-
         constraints = [
             # Goal configuration: staging configuration
             MoveIt2JointConstraint(
@@ -161,31 +159,38 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                 # from moving unnecessarily close to the user.
                 scoped_behavior(
                     name=name + " InFrontOfWheelchairWallScope",
-                    pre_behavior=get_add_in_front_of_wheelchair_wall_behavior(
+                    pre_behavior=get_add_in_front_of_face_wall_behavior(
                         name + "AddWheelchairWall",
-                        in_front_of_wheelchair_wall_id,
                     ),
                     # Remove the wall in front of the wheelchair
-                    post_behavior=get_remove_in_front_of_wheelchair_wall_behavior(
+                    post_behavior=get_remove_in_front_of_face_wall_behavior(
                         name + "RemoveWheelchairWall",
-                        in_front_of_wheelchair_wall_id,
                     ),
                     # Move to the staging configuration
                     workers=constraints
                     + [
                         # Plan
-                        MoveIt2Plan(
-                            name="MoveToStagingConfigurationPlan",
-                            ns=name,
-                            inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
-                                "path_constraints": BlackboardKey("path_constraints"),
-                                "planner_id": self.planner_id,
-                                "allowed_planning_time": self.allowed_planning_time,
-                                "max_velocity_scale": self.max_velocity_scaling_factor,
-                                "ignore_violated_path_constraints": True,
-                            },
-                            outputs={"trajectory": BlackboardKey("trajectory")},
+                        py_trees.decorators.Timeout(
+                            name="MoveToStagingConfigurationPlanTimeout",
+                            # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                            duration=10.0 * self.allowed_planning_time,
+                            child=MoveIt2Plan(
+                                name="MoveToStagingConfigurationPlan",
+                                ns=name,
+                                inputs={
+                                    "goal_constraints": BlackboardKey(
+                                        "goal_constraints"
+                                    ),
+                                    "path_constraints": BlackboardKey(
+                                        "path_constraints"
+                                    ),
+                                    "planner_id": self.planner_id,
+                                    "allowed_planning_time": self.allowed_planning_time,
+                                    "max_velocity_scale": self.max_velocity_scaling_factor,
+                                    "ignore_violated_path_constraints": True,
+                                },
+                                outputs={"trajectory": BlackboardKey("trajectory")},
+                            ),
                         ),
                         # Execute
                         MoveIt2Execute(

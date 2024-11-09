@@ -37,8 +37,8 @@ from ada_feeding.behaviors.ros import (
     GetTransform,
     SetStaticTransform,
     ApplyTransform,
-    CreatePoseStamped,
 )
+from ada_feeding.behaviors.transfer import ComputeMouthFrame
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
     pre_moveto_config,
@@ -84,7 +84,7 @@ class MoveToMouthTree(MoveToTree):
         max_angular_speed: float = 0.15,
         linear_speed_near_mouth: float = 0.025,
         angular_speed_near_mouth: float = 0.075,
-        wheelchair_collision_object_id: str = "wheelchair_collision",
+        wheelchair_collision_object_id: str = "body",
         force_threshold: float = 1.0,
         torque_threshold: float = 1.0,
         allowed_face_distance: Tuple[float, float] = (0.4, 1.25),
@@ -339,42 +339,17 @@ class MoveToMouthTree(MoveToTree):
                                         ),
                                     ],
                                 ),
-                                # Convert `face_detection` to `mouth_position` in the
-                                # base frame.
-                                ApplyTransform(
-                                    name=name + " ConvertFaceDetectionToBaseFrame",
+                                ComputeMouthFrame(
+                                    name=name + " ComputeMouthFrame",
                                     ns=name,
                                     inputs={
-                                        "stamped_msg": BlackboardKey(
+                                        "detected_mouth_center": BlackboardKey(
                                             self.face_detection_relative_blackboard_key
                                             + ".detected_mouth_center"
                                         ),
-                                        "target_frame": "j2n6s200_link_base",
                                     },
                                     outputs={
-                                        "transformed_msg": BlackboardKey(
-                                            "mouth_position"
-                                        ),  # PointStamped
-                                    },
-                                ),
-                                # Convert `mouth_position` into a mouth pose using
-                                # a fixed quaternion
-                                CreatePoseStamped(
-                                    name=name + " FaceDetectionToPose",
-                                    ns=name,
-                                    inputs={
-                                        "position": BlackboardKey("mouth_position"),
-                                        "quaternion": [
-                                            0.0,
-                                            0.0,
-                                            -0.7071068,
-                                            0.7071068,
-                                        ],  # Facing away from wheelchair backrest
-                                    },
-                                    outputs={
-                                        "pose_stamped": BlackboardKey(
-                                            "mouth_pose"
-                                        ),  # PostStamped
+                                        "mouth_pose": BlackboardKey("mouth_pose"),
                                     },
                                 ),
                                 # Cache the mouth pose on the static TF tree
@@ -519,6 +494,7 @@ class MoveToMouthTree(MoveToTree):
                             ignore_orientation=True,
                             subscribe_to_servo_status=False,
                             pub_topic="~/cartesian_twist_cmds",
+                            viz=True,
                         )
                     ],
                 ),
