@@ -229,6 +229,8 @@ def generate_launch_description():
         parameters=[
             segment_from_point_config,
             segment_from_point_params,
+            segment_all_items_config,
+            segment_all_items_params,
             face_detection_config,
             face_detection_params,
             table_detection_config,

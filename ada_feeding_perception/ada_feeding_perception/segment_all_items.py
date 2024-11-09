@@ -26,6 +26,7 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from segment_anything import sam_model_registry, SamPredictor
 from groundingdino.models import build_model
 from groundingdino.util.slconfig import SLConfig
@@ -54,7 +55,7 @@ from ada_feeding_perception.helpers import (
     get_img_msg_type,
     ros_msg_to_cv2_image,
 )
-
+from ada_feeding_perception.ada_feeding_perception_node import ADAFeedingPerceptionNode
 
 class SegmentAllItemsNode(Node):
     """
@@ -63,11 +64,17 @@ class SegmentAllItemsNode(Node):
     label using GPT-4o, GroundingDINO, and SegmentAnything.
     """
 
-    def __init__(self):
+    def __init__(self, node: ADAFeedingPerceptionNode):
         """
         Initialize the SegmentAllItemsNode.
-        """
 
+        Parameters
+        ----------
+        node: The ADAFeedingPerceptionNode.
+              The node that contains all functionality to get camera images (RGB and depth)
+              and camera info.
+        """
+        self._node = node
         super().__init__("segment_all_items")
 
         # Check if cuda is available
@@ -96,18 +103,18 @@ class SegmentAllItemsNode(Node):
         # Download the checkpoint for SAM/EfficientSAM if it doesn't exist
         seg_model_path = os.path.join(model_dir, seg_model_name)
         if not os.path.isfile(seg_model_path):
-            self.get_logger().info("Model checkpoint does not exist. Downloading...")
+            self._node.get_logger().info("Model checkpoint does not exist. Downloading...")
             download_checkpoint(seg_model_name, model_dir, seg_model_base_url)
-            self.get_logger().info(f"Model checkpoint downloaded {seg_model_path}.")
+            self._node.get_logger().info(f"Model checkpoint downloaded {seg_model_path}.")
 
         # Download the checkpoint for GroundingDINO if it doesn't exist
         groundingdino_model_path = os.path.join(model_dir, groundingdino_model_name)
         if not os.path.isfile(groundingdino_model_path):
-            self.get_logger().info("Model checkpoint does not exist. Downloading...")
+            self._node.get_logger().info("Model checkpoint does not exist. Downloading...")
             download_checkpoint(
                 groundingdino_model_name, model_dir, groundingdino_model_base_url
             )
-            self.get_logger().info(
+            self._node.get_logger().info(
                 f"Model checkpoint downloaded {groundingdino_model_path}."
             )
 
@@ -115,52 +122,46 @@ class SegmentAllItemsNode(Node):
         groundingdino_config_path = os.path.join(model_dir, groundingdino_config_name)
 
         # Subscribe to the camera info topic, to get the camera intrinsics
+        self.camera_info_topic = "~/camera_info"
         self.camera_info = None
-        self.camera_info_lock = threading.Lock()
-        self.camera_info_subscriber = self.create_subscription(
+        self._node.add_subscription(
             CameraInfo,
-            "~/camera_info",
-            self.camera_info_callback,
-            1,
+            self.camera_info_topic,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # Subscribe to the aligned depth image topic, to store the latest depth image
         # NOTE: We assume this is in the same frame as the RGB image
-        self.latest_depth_img_msg = None
-        self.latest_depth_img_msg_lock = threading.Lock()
-        aligned_depth_topic = "~/aligned_depth"
+        self.aligned_depth_topic = "~/aligned_depth"
         try:
-            aligned_depth_type = get_img_msg_type(aligned_depth_topic, self)
+            aligned_depth_type = get_img_msg_type(self.aligned_depth_topic, self._node)
         except ValueError as err:
-            self.get_logger().error(
-                f"Error getting type of depth image topic. Defaulting to CompressedImage. {err}"
+            self._node.get_logger().error(
+                f"Error getting type of depth image topic. Defaulting to Image. {err}"
             )
-            aligned_depth_type = CompressedImage
-        self.depth_image_subscriber = self.create_subscription(
+            aligned_depth_type = Image
+        # Subscribe to the depth image
+        self._node.add_subscription(
             aligned_depth_type,
-            aligned_depth_topic,
-            self.depth_image_callback,
-            1,
+            self.aligned_depth_topic,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # Subscribe to the RGB image topic, to store the latest image
-        self.latest_img_msg = None
-        self.latest_img_msg_lock = threading.Lock()
-        image_topic = "~/image"
+        self.rgb_image_topic = "~/image"
         try:
-            image_type = get_img_msg_type(image_topic, self)
+            image_type = get_img_msg_type(self.rgb_image_topic, self._node)
         except ValueError as err:
-            self.get_logger().error(
+            self._node.get_logger().error(
                 f"Error getting type of image topic. Defaulting to CompressedImage. {err}"
             )
             image_type = CompressedImage
-        self.image_subscriber = self.create_subscription(
+        self._node.add_subscription(
             image_type,
-            image_topic,
-            self.image_callback,
-            1,
+            self.rgb_image_topic,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
@@ -444,7 +445,7 @@ class SegmentAllItemsNode(Node):
         groundingdino_config_path: The path to the GroundingDINO configuration file.
         groundingdino_model_path: The path to the GroundingDINO model checkpoint.
         """
-        self.get_logger().info("Initializing GroundingDINO...")
+        self._node.get_logger().info("Initializing GroundingDINO...")
 
         # Get model configuration arguments from the configuration file
         config_args = SLConfig.fromfile(groundingdino_config_path)
@@ -456,11 +457,11 @@ class SegmentAllItemsNode(Node):
         load_log = groundingdino.load_state_dict(
             clean_state_dict(checkpoint["model"]), strict=False
         )
-        self.get_logger().info(f"Loaded model checkpoint: {load_log}")
+        self._node.get_logger().info(f"Loaded model checkpoint: {load_log}")
         _ = groundingdino.eval()
         self.groundingdino = groundingdino.to(device=self.device)
 
-        self.get_logger().info("...Done!")
+        self._node.get_logger().info("...Done!")
 
     def initialize_sam(self, model_name: str, model_path: str) -> None:
         """
@@ -479,7 +480,7 @@ class SegmentAllItemsNode(Node):
         ------
         ValueError if the model name does not contain vit_h, vit_l, or vit_b
         """
-        self.get_logger().info("Initializing SAM...")
+        self._node.get_logger().info("Initializing SAM...")
         # Load the model and move it to the specified device
         if "vit_b" in model_name:  # base model
             model_type = "vit_b"
@@ -497,7 +498,7 @@ class SegmentAllItemsNode(Node):
         # a lock.
         self.sam = SamPredictor(sam)
 
-        self.get_logger().info("...Done!")
+        self._node.get_logger().info("...Done!")
 
     def initialize_efficient_sam(self, model_name: str, model_path: str) -> None:
         """
@@ -516,7 +517,7 @@ class SegmentAllItemsNode(Node):
         ------
         ValueError if the model name does not contain efficient_sam
         """
-        self.get_logger().info("Initializing EfficientSAM...")
+        self._node.get_logger().info("Initializing EfficientSAM...")
         # Hardcoded from https://github.com/yformer/EfficientSAM/blob/main/efficient_sam/build_efficient_sam.py
         if "vits" in model_name:
             encoder_patch_embed_dim = 384
@@ -533,7 +534,7 @@ class SegmentAllItemsNode(Node):
         ).eval()
         self.efficient_sam.to(device=self.device)
 
-        self.get_logger().info("...Done!")
+        self._node.get_logger().info("...Done!")
 
     def camera_info_callback(self, msg: CameraInfo) -> None:
         """
@@ -578,29 +579,30 @@ class SegmentAllItemsNode(Node):
         goal_request: The goal request.
         """
         # If no RGB image is received, reject the goal request
-        with self.latest_img_msg_lock:
-            if self.latest_img_msg is None:
-                self.get_logger().info(
-                    "Rejecting goal request because no color image was received"
-                )
-                return GoalResponse.REJECT
+        self._node.get_logger().info("Received goal request...")
+        latest_rgb_img_msg = None
+        if latest_rgb_img_msg is None:
+            self._node.get_logger().info(
+                "Rejecting goal request because no color image was received"
+            )
+            return GoalResponse.REJECT
 
         # If no depth image is received, reject the goal request
-        with self.latest_depth_img_msg_lock:
-            if self.latest_depth_img_msg is None:
-                self.get_logger().info(
-                    "Rejecting goal request because no depth image was received"
-                )
-                return GoalResponse.REJECT
+        latest_depth_img_msg = self._node.get_latest_msg(self.aligned_depth_topic)
+        if latest_depth_img_msg is None:
+            self._node.get_logger().info(
+                "Rejecting goal request because no depth image was received"
+            )
+            return GoalResponse.REJECT
 
         # Accept the goal request is there isn't already an active one,
         # otherwise reject it
         with self.active_goal_request_lock:
             if self.active_goal_request is None:
-                self.get_logger().info("Accepting goal request")
+                self._node.get_logger().info("Accepting goal request")
                 self.active_goal_request = goal_request
                 return GoalResponse.ACCEPT
-            self.get_logger().info(
+            self._node.get_logger().info(
                 "Rejecting goal request because there is already an active one"
             )
             return GoalResponse.REJECT
@@ -615,7 +617,7 @@ class SegmentAllItemsNode(Node):
         ----------
         goal_handle: The goal handle.
         """
-        self.get_logger().info("Cancelling the goal request...")
+        self._node.get_logger().info("Cancelling the goal request...")
         return CancelResponse.ACCEPT
 
     def invoke_gpt4o_callback(
@@ -637,14 +639,17 @@ class SegmentAllItemsNode(Node):
         response: The updated response message based on the request.
         """
         # Get the latest image and camera info
-        with self.latest_img_msg_lock:
-            latest_img_msg = self.latest_img_msg
-        with self.camera_info_lock:
+        latest_img_msg = self._node.get_latest_msg(self.rgb_image_topic)
+        if self.camera_info is None:
+            self.camera_info = self._node.get_latest_msg(self.camera_info_topic)
+        if self.camera_info is not None:
             camera_info = self.camera_info
+        else:
+            camera_info = None
 
         # Check if the image and camera info are available
         if latest_img_msg is None or camera_info is None:
-            self.get_logger().error("Image or camera info not available.")
+            self._node.get_logger().error("Image or camera info not available.")
             return response
 
         # Convert the image message to a CV2 image
@@ -652,7 +657,7 @@ class SegmentAllItemsNode(Node):
 
         # Run GPT-4o to generate a caption for the image
         vlm_query = self.run_gpt4o(image, request.input_labels)
-        self.get_logger().info(f"GPT-4o Query: {vlm_query}")
+        self._node.get_logger().info(f"GPT-4o Query: {vlm_query}")
 
         # Set the response message to the caption generated by GPT-4o
         response.caption = vlm_query
@@ -674,7 +679,7 @@ class SegmentAllItemsNode(Node):
         vlm_query: The caption generated by GPT-4o that is used as text input for
                    GroundingDINO.
         """
-        self.get_logger().info("Running GPT-4o...")
+        self._node.get_logger().info("Running GPT-4o...")
 
         # Encode the image to JPEG format
         _, buffer = cv2.imencode(".jpg", image)
@@ -763,7 +768,7 @@ class SegmentAllItemsNode(Node):
         masks: The masks for each segmentation.
         scores: The confidence scores for each segmentation.
         """
-        self.get_logger().info("Segmenting image with SAM...")
+        self._node.get_logger().info("Segmenting image with SAM...")
 
         # Convert image from BGR to RGB for Segment Anything
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -807,7 +812,7 @@ class SegmentAllItemsNode(Node):
         masks: The masks for each segmentation.
         scores: The confidence scores for each segmentation.
         """
-        self.get_logger().info("Segmenting image with EfficientSAM...")
+        self._node.get_logger().info("Segmenting image with EfficientSAM...")
 
         # Convert image from BGR to RGB for Segment Anything
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -872,7 +877,7 @@ class SegmentAllItemsNode(Node):
         bbox_predictions: A dictionary containing the bounding boxes for each food item label
                         detected from the image.
         """
-        self.get_logger().info("Running GroundingDINO...")
+        self._node.get_logger().info("Running GroundingDINO...")
 
         # Set the initial time to measure the elapsed time running GroundingDINO on the
         # desired image and text prompts.
@@ -886,7 +891,7 @@ class SegmentAllItemsNode(Node):
 
         # Run GroundingDINO on the image using the input caption
         image_transformed = image_transformed.to(device=self.device)
-        # self.get_logger().info(f"device: {self.device}")
+        # self._node.get_logger().info(f"device: {self.device}")
         with torch.no_grad():
             outputs = self.groundingdino(
                 image_transformed[None],
@@ -894,7 +899,7 @@ class SegmentAllItemsNode(Node):
             )
         logits = outputs["pred_logits"].sigmoid()[0]
         boxes = outputs["pred_boxes"][0]
-        self.get_logger().info("... Done")
+        self._node.get_logger().info("... Done")
 
         # Filter the output based on the box and text thresholds
         boxes_cxcywh = {}
@@ -904,9 +909,9 @@ class SegmentAllItemsNode(Node):
         logits_filt = logits_filt[filt_thresh_mask]
         boxes_filt = boxes_filt[filt_thresh_mask]
 
-        # self.get_logger().info(f"Caption: {caption}")
-        # self.get_logger().info(f"Boxes: {boxes_filt}")
-        # self.get_logger().info(f"Logits: {logits_filt}")
+        # self._node.get_logger().info(f"Caption: {caption}")
+        # self._node.get_logger().info(f"Boxes: {boxes_filt}")
+        # self._node.get_logger().info(f"Logits: {logits_filt}")
 
         # Tokenize the caption
         tokenizer = self.groundingdino.tokenizer
@@ -918,15 +923,15 @@ class SegmentAllItemsNode(Node):
             phrase = get_phrases_from_posmap(
                 logit > text_threshold, caption_tokens, tokenizer
             )
-            # self.get_logger().info(f"logit: {logit}, box: {box}")
-            # self.get_logger().info(f"{phrase}")
+            # self._node.get_logger().info(f"logit: {logit}, box: {box}")
+            # self._node.get_logger().info(f"{phrase}")
             if phrase not in boxes_cxcywh:
                 boxes_cxcywh[phrase] = []
             boxes_cxcywh[phrase].append(box.cpu().numpy())
 
         # Define height and width of image
         height, width, _ = image.shape
-        # self.get_logger().info(f"height, width: {height}, {width}")
+        # self._node.get_logger().info(f"height, width: {height}, {width}")
 
         # Convert the bounding boxes outputted by GroundingDINO to the following format
         # [top left x-value, top left y-value, bottom right x-value, bottom right y-value]
@@ -945,11 +950,11 @@ class SegmentAllItemsNode(Node):
                 y1 = y0 + h
                 boxes_xyxy[phrase].append([x0, y0, x1, y1])
 
-        # self.get_logger().info(f"Predictions: {boxes_xyxy}")
+        # self._node.get_logger().info(f"Predictions: {boxes_xyxy}")
 
         # Measure the elapsed time running GroundingDINO on the image prompt
         inference_time = int(round((time.time() - inference_time) * 1000))
-        # self.get_logger().info(f"Approx. Inference Time: {inference_time}")
+        # self._node.get_logger().info(f"Approx. Inference Time: {inference_time}")
 
         return boxes_xyxy
 
@@ -993,7 +998,19 @@ class SegmentAllItemsNode(Node):
         depth_img: npt.NDArray,
         bbox: Tuple[int, int, int, int],
     ) -> Optional[Mask]:
-        """ """
+        """ 
+        Convert a mask detected by EfficientSAM or SAM into a ROS Mask message.
+
+        Parameters
+        ----------
+        item_id: The item ID of the mask.
+        object_id: The object ID of the mask.
+        score: The confidence score outputed by the segmentation model for the mask.
+        mask: The pixel-wise mask detected.
+        image: The image the mask was detected on.
+        depth_img: The most recent depth image.
+        bbox: The bounding box from GroundingDINO.
+        """
         # Calculate center of the bounding box and use it as the seed point for
         # getting the connected component of the mask
         center_x = (bbox[0] + bbox[2]) // 2
@@ -1016,7 +1033,7 @@ class SegmentAllItemsNode(Node):
         )
         # If the depth is invalid, skip this mask and return None
         if np.isnan(median_depth_mm):
-            self.get_logger().warn(
+            self._node.get_logger().warn(
                 f"No depth points within [{self.min_depth_mm}, {self.max_depth_mm}] mm range "
                 f"for mask {item_id}. Skipping mask."
             )
@@ -1077,7 +1094,7 @@ class SegmentAllItemsNode(Node):
         for phrase, boxes in predictions.items():
             for box in boxes:
                 x0, y0, x1, y1 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
-                # self.get_logger().info(f"box: {x0}, {y0}, {x1}, {y1}")
+                # self._node.get_logger().info(f"box: {x0}, {y0}, {x1}, {y1}")
                 color = (0, 255, 0)
                 thickness = 6
                 image_copy = cv2.rectangle(
@@ -1114,7 +1131,7 @@ class SegmentAllItemsNode(Node):
         image: The image to display the masks on.
         masks: The masks to display on the image.
         """
-        self.get_logger().info("Displaying masks...")
+        self._node.get_logger().info("Displaying masks...")
 
         # Create a deep copy of the image to visualize
         image_copy = deepcopy(image)
@@ -1130,7 +1147,7 @@ class SegmentAllItemsNode(Node):
             cv2.imshow(label, mask)
             cv2.waitKey(0)
             cv2.destroyAllWindows()
-            # self.get_logger().info(f"Mask max: {np.max(mask)}")
+            # self._node.get_logger().info(f"Mask max: {np.max(mask)}")
             # image_copy = cv2.addWeighted(image, 1.0, mask, 0.3, 0)
 
         # cv2.imshow("Masks", image)
@@ -1170,7 +1187,7 @@ class SegmentAllItemsNode(Node):
         result: The result message containing masks for all food items detected in the image
                 paired with semantic labels.
         """
-        self.get_logger().info("Running the vision pipeline...")
+        self._node.get_logger().info("Running the vision pipeline...")
 
         # Set the initial time to measure the elapsed time running GroundingDINO on the
         # desired image and text prompts.
@@ -1179,17 +1196,17 @@ class SegmentAllItemsNode(Node):
         # Define the result and create result message header
         result = SegmentAllItems.Result()
         result.header = image_msg.header
-        with self.camera_info_lock:
-            if self.camera_info is not None:
-                result.camera_info = self.camera_info
-            else:
-                self.get_logger().warn(
-                    "Camera info not received, not including in result message"
-                )
+        if self.camera_info is None:
+            self.camera_info = self._node.get_latest_msg(self.camera_info_topic)
+        if self.camera_info is not None:
+            result.camera_info = self.camera_info
+        else:
+            self._node.get_logger().warn(
+                "Camera info not received, not including in result message"
+            )
 
         # Get the latest depth image and convert the depth image to OpenCV format
-        with self.latest_depth_img_msg_lock:
-            depth_img_msg = self.latest_depth_img_msg
+        depth_img_msg = self._node.get_latest_msg(self.aligned_depth_topic)
         depth_img = ros_msg_to_cv2_image(depth_img_msg, self.bridge)
 
         # Convert the image to OpenCV format
@@ -1216,7 +1233,7 @@ class SegmentAllItemsNode(Node):
             for box in boxes:
                 masks, scores = self.run_efficient_sam(image, None, box, 1)
                 if len(masks) > 0:
-                    # self.get_logger().info(f"Mask: {masks[0]}")
+                    # self._node.get_logger().info(f"Mask: {masks[0]}")
                     masks_list.append(masks[0])
                     item_id = f"food_id_{mask_num:d}"
                     mask_num += 1
@@ -1227,14 +1244,14 @@ class SegmentAllItemsNode(Node):
                     item_labels.append(phrase)
 
         # self.display_masks(image, masks_list, item_labels)
-        # self.get_logger().info(f"Detected items: {detected_items}")
-        self.get_logger().info(f"Item_labels: {item_labels}")
+        # self._node.get_logger().info(f"Detected items: {detected_items}")
+        self._node.get_logger().info(f"Item_labels: {item_labels}")
         result.detected_items = detected_items
         result.item_labels = item_labels
 
         # Measure the elapsed time running GroundingDINO on the image prompt
         inference_time = int(round((time.time() - inference_time) * 1000))
-        self.get_logger().info(
+        self._node.get_logger().info(
             f"VISION PIPELINE - Approx. Inference Time: {inference_time}"
         )
 
@@ -1255,26 +1272,29 @@ class SegmentAllItemsNode(Node):
         result: The result message containing masks for all food items detected in the image
                 paired with semantic labels.
         """
-        starting_time = self.get_clock().now()
-        self.get_logger().info("Received a new goal!")
+        self._node.get_logger().info("Received a new goal!")
+        starting_time = self._node.get_clock().now()
 
         # Get the latest image and camera info
-        with self.latest_img_msg_lock:
-            latest_img_msg = self.latest_img_msg
-        with self.camera_info_lock:
+        latest_img_msg = self._node.get_latest_msg(self.rgb_image_topic)
+        if self.camera_info is None:
+            self.camera_info = self._node.get_latest_msg(self.camera_info_topic)
+        if self.camera_info is not None:
             camera_info = self.camera_info
+        else:
+            camera_info = None
 
         # Check if the image and camera info are available
         if latest_img_msg is None or camera_info is None:
-            self.get_logger().error("Image or camera info not available.")
+            self._node.get_logger().error("Image or camera info not available.")
             return SegmentAllItems.Result()
 
         # Get the caption from the goal request
         caption = goal_handle.request.caption
-        self.get_logger().info(f"caption: {caption}")
+        self._node.get_logger().info(f"caption: {caption}")
 
         # Start running the vision pipeline as a separate thread
-        rate = self.create_rate(self.rate_hz)
+        rate = self._node.create_rate(self.rate_hz)
         vision_pipeline_task = self.executor.create_task(
             self.run_vision_pipeline, latest_img_msg, caption
         )
@@ -1287,13 +1307,13 @@ class SegmentAllItemsNode(Node):
             and not goal_handle.is_cancel_requested
             and not vision_pipeline_task.done()
         ):
-            feedback.elapsed_time = (self.get_clock().now() - starting_time).to_msg()
+            feedback.elapsed_time = (self._node.get_clock().now() - starting_time).to_msg()
             goal_handle.publish_feedback(feedback)
             rate.sleep()
 
         # If there is a cancel request, cancel the vision pipeline task
         if goal_handle.is_cancel_requested:
-            self.get_logger().info("Goal cancelled.")
+            self._node.get_logger().info("Goal cancelled.")
             goal_handle.canceled()
             result = SegmentAllItems.Result()
             result.status = result.STATUS_CANCELLED
@@ -1305,8 +1325,8 @@ class SegmentAllItemsNode(Node):
             return result
 
         # Set the result after the task has been completed
-        self.get_logger().info("Goal not cancelled.")
-        self.get_logger().info("VIsion pipeline completed successfully.")
+        self._node.get_logger().info("Goal not cancelled.")
+        self._node.get_logger().info("VIsion pipeline completed successfully.")
         result = vision_pipeline_task.result()
         goal_handle.succeed()
         result.status = result.STATUS_SUCCEEDED
@@ -1324,7 +1344,8 @@ def main(args=None):
     """
     rclpy.init(args=args)
 
-    segment_all_items = SegmentAllItemsNode()
+    node = ADAFeedingPerceptionNode("segment_all_items")
+    segment_all_items = SegmentAllItemsNode(node)
 
     # Use a MultiThreadedExecutor to enable processing goals concurrently
     executor = MultiThreadedExecutor(num_threads=5)
