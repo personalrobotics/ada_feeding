@@ -38,6 +38,7 @@ from PIL import Image as ImagePIL
 from copy import deepcopy
 import base64
 from openai import OpenAI
+from dotenv import load_dotenv
 
 # Local imports
 from ada_feeding_msgs.action import SegmentAllItems
@@ -70,6 +71,9 @@ class SegmentAllItemsNode(Node):
 
         # Check if cuda is available
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Load environment variables from the .env file
+        load_dotenv()
 
         # Load the parameters'
         (
@@ -200,7 +204,8 @@ class SegmentAllItemsNode(Node):
             )
 
         # Initialize the OpenAI API and load environment variables
-        API_KEY = ""
+        API_KEY = os.getenv("OPENAI_API_KEY")
+        self.get_logger().info(f"API Key: {API_KEY}")
         self.openai = OpenAI(api_key=API_KEY)
 
     def read_params(
