@@ -205,7 +205,6 @@ class SegmentAllItemsNode(Node):
 
         # Initialize the OpenAI API and load environment variables
         API_KEY = os.getenv("OPENAI_API_KEY")
-        self.get_logger().info(f"API Key: {API_KEY}")
         self.openai = OpenAI(api_key=API_KEY)
 
     def read_params(
@@ -355,7 +354,7 @@ class SegmentAllItemsNode(Node):
                         name="box_threshold",
                         type=ParameterType.PARAMETER_DOUBLE,
                         description="The lower threshold for the bounding box detections" + 
-                                    "by Open-GroundingDINO.",
+                                    "by GroundingDINO.",
                         read_only=True,
                     ),
                 ),
@@ -366,7 +365,7 @@ class SegmentAllItemsNode(Node):
                         name="text_threshold",
                         type=ParameterType.PARAMETER_DOUBLE,
                         description="The lower threshold for the text detections" +
-                                    "by Open-GroundingDINO.",
+                                    "by GroundingDINO.",
                         read_only=True,
                     ),
                 ),
@@ -431,14 +430,14 @@ class SegmentAllItemsNode(Node):
         self, groundingdino_config_path: str, groundingdino_model_path: str
     ) -> None:
         """
-        Initialize the Open-GroundingDINO model.
+        Initialize the GroundingDINO model.
 
         Parameters
         ----------
-        groundingdino_config_path: The path to the Open-GroundingDINO configuration file.
-        groundingdino_model_path: The path to the Open-GroundingDINO model checkpoint.
+        groundingdino_config_path: The path to the GroundingDINO configuration file.
+        groundingdino_model_path: The path to the GroundingDINO model checkpoint.
         """
-        self.get_logger().info("Initializing Open-GroundingDINO...")
+        self.get_logger().info("Initializing GroundingDINO...")
 
         # Get model configuration arguments from the configuration file
         config_args = SLConfig.fromfile(groundingdino_config_path)
@@ -841,7 +840,7 @@ class SegmentAllItemsNode(Node):
         text_threshold: float, 
     ):
         """
-        Run Open-GroundingDINO on the image.
+        Run GroundingDINO on the image.
 
         Parameters
         ----------
@@ -868,7 +867,7 @@ class SegmentAllItemsNode(Node):
         # Lowercase and strip the caption
         caption = caption.lower().strip()
 
-        # Run Open-GroundingDINO on the image using the input caption
+        # Run GroundingDINO on the image using the input caption
         image_transformed = image_transformed.to(device=self.device)
         #self.get_logger().info(f"device: {self.device}")
         with torch.no_grad():
@@ -1166,7 +1165,7 @@ class SegmentAllItemsNode(Node):
         # Convert the image to OpenCV format 
         image = ros_msg_to_cv2_image(image_msg, self.bridge)
 
-        # Run Open-GroundingDINO on the image
+        # Run GroundingDINO on the image
         bbox_predictions = self.run_grounding_dino(image, caption, self.box_threshold, self.text_threshold)
 
         # Publish a visualization of the GroundingDINO predictions, if the visualization
