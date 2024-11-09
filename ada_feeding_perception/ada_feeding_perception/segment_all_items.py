@@ -12,7 +12,7 @@ from typing import Optional, Tuple, Union
 
 # Third-party imports
 import cv2
-import time 
+import time
 import random
 from cv_bridge import CvBridge
 from efficient_sam.efficient_sam import build_efficient_sam
@@ -55,9 +55,10 @@ from ada_feeding_perception.helpers import (
     ros_msg_to_cv2_image,
 )
 
+
 class SegmentAllItemsNode(Node):
     """
-    The SegmentAllItemsNode launches an action server that segments all food 
+    The SegmentAllItemsNode launches an action server that segments all food
     items in the latest image and defines each segmentation with a semantic
     label using GPT-4o, GroundingDINO, and SegmentAnything.
     """
@@ -103,10 +104,14 @@ class SegmentAllItemsNode(Node):
         groundingdino_model_path = os.path.join(model_dir, groundingdino_model_name)
         if not os.path.isfile(groundingdino_model_path):
             self.get_logger().info("Model checkpoint does not exist. Downloading...")
-            download_checkpoint(groundingdino_model_name, model_dir, groundingdino_model_base_url)
-            self.get_logger().info(f"Model checkpoint downloaded {groundingdino_model_path}.")
+            download_checkpoint(
+                groundingdino_model_name, model_dir, groundingdino_model_base_url
+            )
+            self.get_logger().info(
+                f"Model checkpoint downloaded {groundingdino_model_path}."
+            )
 
-        # Set the path to the GroundingDINO configurations file in the model directory 
+        # Set the path to the GroundingDINO configurations file in the model directory
         groundingdino_config_path = os.path.join(model_dir, groundingdino_config_name)
 
         # Subscribe to the camera info topic, to get the camera intrinsics
@@ -159,8 +164,10 @@ class SegmentAllItemsNode(Node):
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
-        # Initialize GroundingDINO 
-        self.initialize_grounding_dino(groundingdino_config_path, groundingdino_model_path)
+        # Initialize GroundingDINO
+        self.initialize_grounding_dino(
+            groundingdino_config_path, groundingdino_model_path
+        )
 
         # Initialize Segment Anything
         if self.use_efficient_sam:
@@ -353,8 +360,8 @@ class SegmentAllItemsNode(Node):
                     ParameterDescriptor(
                         name="box_threshold",
                         type=ParameterType.PARAMETER_DOUBLE,
-                        description="The lower threshold for the bounding box detections" + 
-                                    "by GroundingDINO.",
+                        description="The lower threshold for the bounding box detections"
+                        + "by GroundingDINO.",
                         read_only=True,
                     ),
                 ),
@@ -364,8 +371,8 @@ class SegmentAllItemsNode(Node):
                     ParameterDescriptor(
                         name="text_threshold",
                         type=ParameterType.PARAMETER_DOUBLE,
-                        description="The lower threshold for the text detections" +
-                                    "by GroundingDINO.",
+                        description="The lower threshold for the text detections"
+                        + "by GroundingDINO.",
                         read_only=True,
                     ),
                 ),
@@ -395,11 +402,11 @@ class SegmentAllItemsNode(Node):
                     ParameterDescriptor(
                         name="viz_groundingdino",
                         type=ParameterType.PARAMETER_BOOL,
-                        description="Whether to visualize the bounding box" 
-                                    + "predictions of GroundingDINO.",
+                        description="Whether to visualize the bounding box"
+                        + "predictions of GroundingDINO.",
                         read_only=True,
                     ),
-                )
+                ),
             ],
         )
 
@@ -425,7 +432,7 @@ class SegmentAllItemsNode(Node):
             max_depth_mm.value,
             viz_groundingdino.value,
         )
-    
+
     def initialize_grounding_dino(
         self, groundingdino_config_path: str, groundingdino_model_path: str
     ) -> None:
@@ -527,7 +534,7 @@ class SegmentAllItemsNode(Node):
         self.efficient_sam.to(device=self.device)
 
         self.get_logger().info("...Done!")
-    
+
     def camera_info_callback(self, msg: CameraInfo) -> None:
         """
         Store the latest camera info message.
@@ -560,7 +567,7 @@ class SegmentAllItemsNode(Node):
         """
         with self.latest_img_msg_lock:
             self.latest_img_msg = msg
-    
+
     def goal_callback(self, goal_request: SegmentAllItems.Goal) -> GoalResponse:
         """
         Accept or reject the goal request based on the availability of the latest
@@ -585,24 +592,24 @@ class SegmentAllItemsNode(Node):
                     "Rejecting goal request because no depth image was received"
                 )
                 return GoalResponse.REJECT
-        
+
         # Accept the goal request is there isn't already an active one,
         # otherwise reject it
         with self.active_goal_request_lock:
             if self.active_goal_request is None:
                 self.get_logger().info("Accepting goal request")
-                self.active_goal_request = goal_request 
+                self.active_goal_request = goal_request
                 return GoalResponse.ACCEPT
             self.get_logger().info(
                 "Rejecting goal request because there is already an active one"
             )
             return GoalResponse.REJECT
-    
+
     def cancel_callback(self, _: ServerGoalHandle) -> CancelResponse:
         """
         Always accept the cancel request, however, 'execute_callback'
         will wait for segmentation to complete and not interrupt the process
-        in response to a cancel request. 
+        in response to a cancel request.
 
         Parameters
         ----------
@@ -610,12 +617,14 @@ class SegmentAllItemsNode(Node):
         """
         self.get_logger().info("Cancelling the goal request...")
         return CancelResponse.ACCEPT
-    
-    def invoke_gpt4o_callback(self, request: GenerateCaption.Request, response: GenerateCaption.Response):
+
+    def invoke_gpt4o_callback(
+        self, request: GenerateCaption.Request, response: GenerateCaption.Response
+    ):
         """
-        Callback function for the GPT-4o service. This function takes in a list 
-        of string labels describing the foods on an image as input and returns a 
-        caption generated by GPT-4o that compiles these labels into a descriptive 
+        Callback function for the GPT-4o service. This function takes in a list
+        of string labels describing the foods on an image as input and returns a
+        caption generated by GPT-4o that compiles these labels into a descriptive
         sentence used as a query for GroundingDINO.
 
         Parameters
@@ -637,10 +646,10 @@ class SegmentAllItemsNode(Node):
         if latest_img_msg is None or camera_info is None:
             self.get_logger().error("Image or camera info not available.")
             return response
-        
+
         # Convert the image message to a CV2 image
         image = ros_msg_to_cv2_image(latest_img_msg)
-        
+
         # Run GPT-4o to generate a caption for the image
         vlm_query = self.run_gpt4o(image, request.input_labels)
         self.get_logger().info(f"GPT-4o Query: {vlm_query}")
@@ -656,13 +665,13 @@ class SegmentAllItemsNode(Node):
 
         Parameters
         ----------
-        image: A CV2 above the plate image that is used as reference for GPT-4o 
+        image: A CV2 above the plate image that is used as reference for GPT-4o
                 to generate a caption input for GroundingDINO.
         labels_list: The list of food items to compile into a sentence prompt.
 
         Returns
         -------
-        vlm_query: The caption generated by GPT-4o that is used as text input for 
+        vlm_query: The caption generated by GPT-4o that is used as text input for
                    GroundingDINO.
         """
         self.get_logger().info("Running GPT-4o...")
@@ -705,21 +714,25 @@ class SegmentAllItemsNode(Node):
             and artichoke on a plate.
         """
 
-        # Run GPT-4o to generate a sentence caption given the user query, system query, 
+        # Run GPT-4o to generate a sentence caption given the user query, system query,
         # and image prompt
         response = self.openai.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "system", "content": system_query}, 
-                      {"role": "user",
-                       "content": [
-                           {"type": "text", "text": user_query},
-                           {
-                               "type": "image_url",
-                               "image_url": {
-                                   "url": f"data:image/jpeg;base64,{image_base64}"
-                               }
-                           }
-                       ]}],
+            messages=[
+                {"role": "system", "content": system_query},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": user_query},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
+                            },
+                        },
+                    ],
+                },
+            ],
         )
 
         # Get the caption generated by GPT-4o
@@ -728,10 +741,10 @@ class SegmentAllItemsNode(Node):
         return vlm_query
 
     def run_sam(
-        self, 
-        image: npt.NDArray, 
-        seed_point: Tuple[int, int], 
-        bbox: Tuple[int, int, int, int], 
+        self,
+        image: npt.NDArray,
+        seed_point: Tuple[int, int],
+        bbox: Tuple[int, int, int, int],
         prompt: int,
     ):
         """
@@ -741,8 +754,8 @@ class SegmentAllItemsNode(Node):
         ----------
         image: The image to perform segmentation on.
         seed_point: The seed point for SAM to segment from.
-        bbox: The bounding box prompt for SAM to segment. 
-        prompt: The prompt to use for SAM. If 0, use the seed point prompt. 
+        bbox: The bounding box prompt for SAM to segment.
+        prompt: The prompt to use for SAM. If 0, use the seed point prompt.
                 If 1, use the bounding box prompt.
 
         Returns
@@ -768,14 +781,14 @@ class SegmentAllItemsNode(Node):
                 box=bbox,
                 multimask_output=True,
             )
-        
+
         return masks, scores
-    
+
     def run_efficient_sam(
-        self, 
-        image: npt.NDArray, 
-        seed_point: Tuple[int, int], 
-        bbox: Tuple[int, int, int, int], 
+        self,
+        image: npt.NDArray,
+        seed_point: Tuple[int, int],
+        bbox: Tuple[int, int, int, int],
         prompt: int,
     ) -> Tuple[npt.NDArray, npt.NDArray]:
         """
@@ -785,8 +798,8 @@ class SegmentAllItemsNode(Node):
         ----------
         image: The image to perform segmentation on.
         seed_point: The seed point for EfficientSAM to segment from.
-        bbox: The bounding box prompt for EfficientSAM to segment. 
-        prompt: The prompt to use for EfficientSAM. If 0, use the seed point prompt. 
+        bbox: The bounding box prompt for EfficientSAM to segment.
+        prompt: The prompt to use for EfficientSAM. If 0, use the seed point prompt.
                 If 1, use the bounding box prompt.
 
         Returns
@@ -807,14 +820,18 @@ class SegmentAllItemsNode(Node):
             prompt_tensor = torch.tensor(np.array(seed_point).reshape((1, 1, 1, 2))).to(
                 device=self.device
             )
-            
+
             # Define the labels for the input prompt
             prompt_labels = torch.tensor([[[1]]]).to(device=self.device)
         else:
-            prompt_tensor = torch.reshape(torch.tensor(bbox), [1, 1, 2, 2]).to(self.device)
+            prompt_tensor = torch.reshape(torch.tensor(bbox), [1, 1, 2, 2]).to(
+                self.device
+            )
 
             # Define the labels for the input prompt
-            prompt_labels = torch.reshape(torch.tensor([2, 3]), [1, 1, 2]).to(self.device)
+            prompt_labels = torch.reshape(torch.tensor([2, 3]), [1, 1, 2]).to(
+                self.device
+            )
 
         # Run EfficientSAM on the image using the input prompt
         predicted_logits, predicted_iou = self.efficient_sam(
@@ -829,22 +846,22 @@ class SegmentAllItemsNode(Node):
         )
         masks = torch.ge(predicted_logits[0, 0, :, :, :], 0).cpu().detach().numpy()
         scores = predicted_iou[0, 0, :].cpu().detach().numpy()
-    
+
         return masks, scores
-    
+
     def run_grounding_dino(
-        self, 
-        image: npt.NDArray, 
-        caption: str, 
-        box_threshold: float, 
-        text_threshold: float, 
+        self,
+        image: npt.NDArray,
+        caption: str,
+        box_threshold: float,
+        text_threshold: float,
     ):
         """
         Run GroundingDINO on the image.
 
         Parameters
         ----------
-        image: The CV2 above the plate image to retrieve semantically labeled bounding 
+        image: The CV2 above the plate image to retrieve semantically labeled bounding
                boxes from.
         caption: The caption to use as text input for GroundingDINO.
         box_threshold: The threshold for the bounding box.
@@ -852,12 +869,12 @@ class SegmentAllItemsNode(Node):
 
         Returns
         -------
-        bbox_predictions: A dictionary containing the bounding boxes for each food item label 
+        bbox_predictions: A dictionary containing the bounding boxes for each food item label
                         detected from the image.
         """
         self.get_logger().info("Running GroundingDINO...")
-        
-        # Set the initial time to measure the elapsed time running GroundingDINO on the 
+
+        # Set the initial time to measure the elapsed time running GroundingDINO on the
         # desired image and text prompts.
         inference_time = time.time()
 
@@ -869,7 +886,7 @@ class SegmentAllItemsNode(Node):
 
         # Run GroundingDINO on the image using the input caption
         image_transformed = image_transformed.to(device=self.device)
-        #self.get_logger().info(f"device: {self.device}")
+        # self.get_logger().info(f"device: {self.device}")
         with torch.no_grad():
             outputs = self.groundingdino(
                 image_transformed[None],
@@ -878,7 +895,7 @@ class SegmentAllItemsNode(Node):
         logits = outputs["pred_logits"].sigmoid()[0]
         boxes = outputs["pred_boxes"][0]
         self.get_logger().info("... Done")
-        
+
         # Filter the output based on the box and text thresholds
         boxes_cxcywh = {}
         logits_filt = logits.cpu().clone()
@@ -887,9 +904,9 @@ class SegmentAllItemsNode(Node):
         logits_filt = logits_filt[filt_thresh_mask]
         boxes_filt = boxes_filt[filt_thresh_mask]
 
-        #self.get_logger().info(f"Caption: {caption}")
-        #self.get_logger().info(f"Boxes: {boxes_filt}")
-        #self.get_logger().info(f"Logits: {logits_filt}")
+        # self.get_logger().info(f"Caption: {caption}")
+        # self.get_logger().info(f"Boxes: {boxes_filt}")
+        # self.get_logger().info(f"Logits: {logits_filt}")
 
         # Tokenize the caption
         tokenizer = self.groundingdino.tokenizer
@@ -898,21 +915,22 @@ class SegmentAllItemsNode(Node):
         # Build the dictionary of bounding boxes for each food item label detected
         for logit, box in zip(logits_filt, boxes_filt):
             # Predict phrases based on the bounding boxes and the text threshold
-            phrase = get_phrases_from_posmap(logit > text_threshold, caption_tokens, tokenizer)
-            #self.get_logger().info(f"logit: {logit}, box: {box}")
-            #self.get_logger().info(f"{phrase}")
+            phrase = get_phrases_from_posmap(
+                logit > text_threshold, caption_tokens, tokenizer
+            )
+            # self.get_logger().info(f"logit: {logit}, box: {box}")
+            # self.get_logger().info(f"{phrase}")
             if phrase not in boxes_cxcywh:
                 boxes_cxcywh[phrase] = []
             boxes_cxcywh[phrase].append(box.cpu().numpy())
-        
 
         # Define height and width of image
         height, width, _ = image.shape
-        #self.get_logger().info(f"height, width: {height}, {width}")
+        # self.get_logger().info(f"height, width: {height}, {width}")
 
         # Convert the bounding boxes outputted by GroundingDINO to the following format
         # [top left x-value, top left y-value, bottom right x-value, bottom right y-value]
-        # and unnormalize the bounding box coordinate values 
+        # and unnormalize the bounding box coordinate values
         boxes_xyxy = {}
         for phrase, boxes in boxes_cxcywh.items():
             boxes_xyxy[phrase] = []
@@ -926,12 +944,12 @@ class SegmentAllItemsNode(Node):
                 x1 = x0 + w
                 y1 = y0 + h
                 boxes_xyxy[phrase].append([x0, y0, x1, y1])
-                
-        #self.get_logger().info(f"Predictions: {boxes_xyxy}")
-        
+
+        # self.get_logger().info(f"Predictions: {boxes_xyxy}")
+
         # Measure the elapsed time running GroundingDINO on the image prompt
         inference_time = int(round((time.time() - inference_time) * 1000))
-        #self.get_logger().info(f"Approx. Inference Time: {inference_time}")
+        # self.get_logger().info(f"Approx. Inference Time: {inference_time}")
 
         return boxes_xyxy
 
@@ -953,7 +971,7 @@ class SegmentAllItemsNode(Node):
 
         # Convert image to image pillow to apply transformation
         image_pil = ImagePIL.fromarray(image_array, mode="RGB")
-        #image_pil.show()
+        # image_pil.show()
         transform = T.Compose(
             [
                 T.RandomResize([800], max_size=1333),
@@ -962,21 +980,20 @@ class SegmentAllItemsNode(Node):
             ]
         )
         image, _ = transform(image_pil, None)  # 3, h, w
-        
+
         return image_pil, image
-    
+
     def generate_mask_msg(
-        self, 
-        item_id: str, 
+        self,
+        item_id: str,
         object_id: str,
-        score: float, 
-        mask:npt.NDArray[np.bool_], 
-        image: npt.NDArray, 
-        depth_img: npt.NDArray, 
+        score: float,
+        mask: npt.NDArray[np.bool_],
+        image: npt.NDArray,
+        depth_img: npt.NDArray,
         bbox: Tuple[int, int, int, int],
     ) -> Optional[Mask]:
-        """
-        """
+        """ """
         # Calculate center of the bounding box and use it as the seed point for
         # getting the connected component of the mask
         center_x = (bbox[0] + bbox[2]) // 2
@@ -985,9 +1002,9 @@ class SegmentAllItemsNode(Node):
         center_y = int(center_y)
         seed_point = (center_x, center_y)
 
-        # Use the mask to get a connected component containing the seed point 
+        # Use the mask to get a connected component containing the seed point
         cleaned_mask = get_connected_component(mask, seed_point)
-        
+
         # Use the cleaned mask to calculate the median depth over the mask
         masked_depth = depth_img[cleaned_mask]
         median_depth_mm = np.median(
@@ -1006,8 +1023,10 @@ class SegmentAllItemsNode(Node):
             return None
 
         # Convert the bounding box from a Python Tuple into the BoundingBox class
-        # from helpers.py to call the crop_image_mask_and_point 
-        bbox_converted = BoundingBox(int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+        # from helpers.py to call the crop_image_mask_and_point
+        bbox_converted = BoundingBox(
+            int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+        )
 
         # Crop the image and the mask
         cropped_image, cropped_mask, _ = crop_image_mask_and_point(
@@ -1038,10 +1057,10 @@ class SegmentAllItemsNode(Node):
         mask_msg.confidence = float(score)
 
         return mask_msg
-    
+
     def visualize_groundingdino_results(self, image: Image, predictions: dict):
         """
-        Visualizes the bounding box predictions of GroundingDINO and then 
+        Visualizes the bounding box predictions of GroundingDINO and then
         publishes the image as a ROS message.
 
         Parameters
@@ -1054,19 +1073,29 @@ class SegmentAllItemsNode(Node):
 
         # Define height of image
         height, _, _ = image_copy.shape
-        
+
         for phrase, boxes in predictions.items():
             for box in boxes:
                 x0, y0, x1, y1 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
-                #self.get_logger().info(f"box: {x0}, {y0}, {x1}, {y1}")
+                # self.get_logger().info(f"box: {x0}, {y0}, {x1}, {y1}")
                 color = (0, 255, 0)
                 thickness = 6
-                image_copy = cv2.rectangle(image_copy, (x0, y0), (x1, y1), color, thickness)
+                image_copy = cv2.rectangle(
+                    image_copy, (x0, y0), (x1, y1), color, thickness
+                )
 
                 # Display text label below bounding box
-                image_copy = cv2.putText(image_copy, phrase, (x0, y0 - 12), 0, 1e-3 * height, color, thickness // 3)
+                image_copy = cv2.putText(
+                    image_copy,
+                    phrase,
+                    (x0, y0 - 12),
+                    0,
+                    1e-3 * height,
+                    color,
+                    thickness // 3,
+                )
 
-        cv2.imshow('image', image_copy)
+        cv2.imshow("image", image_copy)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
         # Publish the image
@@ -1074,7 +1103,9 @@ class SegmentAllItemsNode(Node):
             cv2_image_to_ros_msg(image_copy, compress=False, bridge=self.bridge)
         )
 
-    def display_masks(self, image: npt.NDArray, masks: list[npt.NDArray], item_labels: list[str]):
+    def display_masks(
+        self, image: npt.NDArray, masks: list[npt.NDArray], item_labels: list[str]
+    ):
         """
         Display the masks on the image.
 
@@ -1099,16 +1130,15 @@ class SegmentAllItemsNode(Node):
             cv2.imshow(label, mask)
             cv2.waitKey(0)
             cv2.destroyAllWindows()
-            #self.get_logger().info(f"Mask max: {np.max(mask)}")
-            #image_copy = cv2.addWeighted(image, 1.0, mask, 0.3, 0)
+            # self.get_logger().info(f"Mask max: {np.max(mask)}")
+            # image_copy = cv2.addWeighted(image, 1.0, mask, 0.3, 0)
 
-        #cv2.imshow("Masks", image)
-        #cv2.waitKey(0)
-        #cv2.destroyAllWindows()
+        # cv2.imshow("Masks", image)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
 
     def display_mask(self, image: npt.NDArray, mask: npt.NDArray):
-        """
-        """
+        """ """
         image_copy = deepcopy(image)
         mask_int = mask.astype(np.uint8)
         mask_int = cv2.resize(mask_int, (image.shape[1], image.shape[0]))
@@ -1116,23 +1146,23 @@ class SegmentAllItemsNode(Node):
         mask_int = np.stack([mask_int] * color_dims, axis=-1)
         color_scalar = random.randint(80, 255)
         mask_int = np.multiply(mask_int, color_scalar)
-        cv2.imshow('mask', mask_int)
+        cv2.imshow("mask", mask_int)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    
+
     async def run_vision_pipeline(self, image_msg: Image, caption: str):
         """
-        Run the vision pipeline consisting of two foundation models, GroundingDINO and 
-        EfficientSAM, on the image. GroundingDINO is prompted with a caption and the latest image,  
-        and outputs bounding boxes for each semantic label in the caption detected in the 
-        image. The detected items are then segmented by passing in the bounding box detections 
-        into EfficientSAM which outputs pixel-wise masks for each bounding box. The top masks 
-        are then returned along with the semantic label for each mask as a dictionary. 
+        Run the vision pipeline consisting of two foundation models, GroundingDINO and
+        EfficientSAM, on the image. GroundingDINO is prompted with a caption and the latest image,
+        and outputs bounding boxes for each semantic label in the caption detected in the
+        image. The detected items are then segmented by passing in the bounding box detections
+        into EfficientSAM which outputs pixel-wise masks for each bounding box. The top masks
+        are then returned along with the semantic label for each mask as a dictionary.
 
         Parameters
         ----------
         image: The image to segment, as a ROS image message.
-        caption: The caption to use for GroundingDINO containing all the food items 
+        caption: The caption to use for GroundingDINO containing all the food items
                  detected in the image.
 
         Returns
@@ -1142,7 +1172,7 @@ class SegmentAllItemsNode(Node):
         """
         self.get_logger().info("Running the vision pipeline...")
 
-        # Set the initial time to measure the elapsed time running GroundingDINO on the 
+        # Set the initial time to measure the elapsed time running GroundingDINO on the
         # desired image and text prompts.
         inference_time = time.time()
 
@@ -1161,20 +1191,22 @@ class SegmentAllItemsNode(Node):
         with self.latest_depth_img_msg_lock:
             depth_img_msg = self.latest_depth_img_msg
         depth_img = ros_msg_to_cv2_image(depth_img_msg, self.bridge)
-        
-        # Convert the image to OpenCV format 
+
+        # Convert the image to OpenCV format
         image = ros_msg_to_cv2_image(image_msg, self.bridge)
 
         # Run GroundingDINO on the image
-        bbox_predictions = self.run_grounding_dino(image, caption, self.box_threshold, self.text_threshold)
+        bbox_predictions = self.run_grounding_dino(
+            image, caption, self.box_threshold, self.text_threshold
+        )
 
         # Publish a visualization of the GroundingDINO predictions, if the visualization
-        # flag is set to true 
+        # flag is set to true
         if self.viz_groundingdino:
             self.visualize_groundingdino_results(image, bbox_predictions)
 
-        # Collect the top contender mask for each food item label detected by 
-        # GroundingDINO using EfficientSAM and create dictionary of mask 
+        # Collect the top contender mask for each food item label detected by
+        # GroundingDINO using EfficientSAM and create dictionary of mask
         # predictions from the pipeline
         detected_items = []
         item_labels = []
@@ -1184,7 +1216,7 @@ class SegmentAllItemsNode(Node):
             for box in boxes:
                 masks, scores = self.run_efficient_sam(image, None, box, 1)
                 if len(masks) > 0:
-                    #self.get_logger().info(f"Mask: {masks[0]}")
+                    # self.get_logger().info(f"Mask: {masks[0]}")
                     masks_list.append(masks[0])
                     item_id = f"food_id_{mask_num:d}"
                     mask_num += 1
@@ -1193,18 +1225,20 @@ class SegmentAllItemsNode(Node):
                     )
                     detected_items.append(mask_msg)
                     item_labels.append(phrase)
-                    
-        #self.display_masks(image, masks_list, item_labels)
-        #self.get_logger().info(f"Detected items: {detected_items}")
+
+        # self.display_masks(image, masks_list, item_labels)
+        # self.get_logger().info(f"Detected items: {detected_items}")
         self.get_logger().info(f"Item_labels: {item_labels}")
         result.detected_items = detected_items
         result.item_labels = item_labels
 
         # Measure the elapsed time running GroundingDINO on the image prompt
         inference_time = int(round((time.time() - inference_time) * 1000))
-        self.get_logger().info(f"VISION PIPELINE - Approx. Inference Time: {inference_time}")
+        self.get_logger().info(
+            f"VISION PIPELINE - Approx. Inference Time: {inference_time}"
+        )
 
-        return result 
+        return result
 
     async def execute_callback(
         self, goal_handle: ServerGoalHandle
@@ -1245,16 +1279,16 @@ class SegmentAllItemsNode(Node):
             self.run_vision_pipeline, latest_img_msg, caption
         )
 
-        # Wait for the vision pipeline to finish and keep publishing 
+        # Wait for the vision pipeline to finish and keep publishing
         # feedback (elapsed time) while waiting
         feedback = SegmentAllItems.Feedback()
         while (
-            rclpy.ok() 
+            rclpy.ok()
             and not goal_handle.is_cancel_requested
             and not vision_pipeline_task.done()
         ):
             feedback.elapsed_time = (self.get_clock().now() - starting_time).to_msg()
-            goal_handle.publish_feedback(feedback) 
+            goal_handle.publish_feedback(feedback)
             rate.sleep()
 
         # If there is a cancel request, cancel the vision pipeline task
@@ -1269,8 +1303,8 @@ class SegmentAllItemsNode(Node):
                 self.active_goal_request = None
 
             return result
-        
-        # Set the result after the task has been completed        
+
+        # Set the result after the task has been completed
         self.get_logger().info("Goal not cancelled.")
         self.get_logger().info("VIsion pipeline completed successfully.")
         result = vision_pipeline_task.result()
@@ -1284,7 +1318,6 @@ class SegmentAllItemsNode(Node):
         return result
 
 
-    
 def main(args=None):
     """
     Launch the ROS node and spin.
