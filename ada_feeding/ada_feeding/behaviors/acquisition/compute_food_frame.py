@@ -336,7 +336,7 @@ class ComputeFoodFrame(BlackboardBehavior):
             x_unit.vector, x_pos.vector
         )
 
-        # # If you need to send a fixed food frame to the robot arm, e.g., to 
+        # # If you need to send a fixed food frame to the robot arm, e.g., to
         # # debug off-centering issues, uncomment this and modify the translation.
         # deg = 90  # fork roll
         # world_to_food_transform.transform.translation.x = 0.26262263022586224

@@ -57,6 +57,7 @@ from ada_feeding_perception.helpers import (
 )
 from ada_feeding_perception.ada_feeding_perception_node import ADAFeedingPerceptionNode
 
+
 class SegmentAllItemsNode(Node):
     """
     The SegmentAllItemsNode launches an action server that segments all food
@@ -75,7 +76,6 @@ class SegmentAllItemsNode(Node):
               and camera info.
         """
         self._node = node
-        super().__init__("segment_all_items")
 
         # Check if cuda is available
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -103,14 +103,20 @@ class SegmentAllItemsNode(Node):
         # Download the checkpoint for SAM/EfficientSAM if it doesn't exist
         seg_model_path = os.path.join(model_dir, seg_model_name)
         if not os.path.isfile(seg_model_path):
-            self._node.get_logger().info("Model checkpoint does not exist. Downloading...")
+            self._node.get_logger().info(
+                "Model checkpoint does not exist. Downloading..."
+            )
             download_checkpoint(seg_model_name, model_dir, seg_model_base_url)
-            self._node.get_logger().info(f"Model checkpoint downloaded {seg_model_path}.")
+            self._node.get_logger().info(
+                f"Model checkpoint downloaded {seg_model_path}."
+            )
 
         # Download the checkpoint for GroundingDINO if it doesn't exist
         groundingdino_model_path = os.path.join(model_dir, groundingdino_model_name)
         if not os.path.isfile(groundingdino_model_path):
-            self._node.get_logger().info("Model checkpoint does not exist. Downloading...")
+            self._node.get_logger().info(
+                "Model checkpoint does not exist. Downloading..."
+            )
             download_checkpoint(
                 groundingdino_model_name, model_dir, groundingdino_model_base_url
             )
@@ -185,7 +191,7 @@ class SegmentAllItemsNode(Node):
         self.active_goal_request = None
 
         # Create the service that invokes GPT-4o
-        self.srv = self.create_service(
+        self.srv = self._node.create_service(
             GenerateCaption,
             "~/invoke_gpt4o",
             self.invoke_gpt4o_callback,
@@ -195,7 +201,7 @@ class SegmentAllItemsNode(Node):
         # Create the Action Server.
         # Note: remapping action names does not work: https://github.com/ros2/ros2/issues/1312
         self._action_server = ActionServer(
-            self,
+            self._node,
             SegmentAllItems,
             "SegmentAllItems",
             self.execute_callback,
@@ -207,7 +213,7 @@ class SegmentAllItemsNode(Node):
         # If the GroundingDINO results visualization flage is set, then a publisher
         # is created to visualize the bounding box predictions of GroundingDINO
         if self.viz_groundingdino:
-            self.viz_groundingdino_pub = self.create_publisher(
+            self.viz_groundingdino_pub = self._node.create_publisher(
                 Image, "~/groundingdino_detection", 1
             )
 
@@ -240,7 +246,7 @@ class SegmentAllItemsNode(Node):
             min_depth_mm,
             max_depth_mm,
             viz_groundingdino,
-        ) = self.declare_parameters(
+        ) = self._node.declare_parameters(
             "",
             [
                 (
@@ -536,39 +542,6 @@ class SegmentAllItemsNode(Node):
 
         self._node.get_logger().info("...Done!")
 
-    def camera_info_callback(self, msg: CameraInfo) -> None:
-        """
-        Store the latest camera info message.
-
-        Parameters
-        ----------
-        msg: The camera info message.
-        """
-        with self.camera_info_lock:
-            self.camera_info = msg
-
-    def depth_image_callback(self, msg: Union[Image, CompressedImage]) -> None:
-        """
-        Store the latest depth image message.
-
-        Parameters
-        ----------
-        msg: The depth image message.
-        """
-        with self.latest_depth_img_msg_lock:
-            self.latest_depth_img_msg = msg
-
-    def image_callback(self, msg: Union[Image, CompressedImage]) -> None:
-        """
-        Store the latest image message.
-
-        Parameters
-        ----------
-        msg: The image message.
-        """
-        with self.latest_img_msg_lock:
-            self.latest_img_msg = msg
-
     def goal_callback(self, goal_request: SegmentAllItems.Goal) -> GoalResponse:
         """
         Accept or reject the goal request based on the availability of the latest
@@ -580,7 +553,7 @@ class SegmentAllItemsNode(Node):
         """
         # If no RGB image is received, reject the goal request
         self._node.get_logger().info("Received goal request...")
-        latest_rgb_img_msg = None
+        latest_rgb_img_msg = self._node.get_latest_msg(self.rgb_image_topic)
         if latest_rgb_img_msg is None:
             self._node.get_logger().info(
                 "Rejecting goal request because no color image was received"
@@ -998,7 +971,7 @@ class SegmentAllItemsNode(Node):
         depth_img: npt.NDArray,
         bbox: Tuple[int, int, int, int],
     ) -> Optional[Mask]:
-        """ 
+        """
         Convert a mask detected by EfficientSAM or SAM into a ROS Mask message.
 
         Parameters
@@ -1112,9 +1085,6 @@ class SegmentAllItemsNode(Node):
                     thickness // 3,
                 )
 
-        cv2.imshow("image", image_copy)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
         # Publish the image
         self.viz_groundingdino_pub.publish(
             cv2_image_to_ros_msg(image_copy, compress=False, bridge=self.bridge)
@@ -1293,9 +1263,15 @@ class SegmentAllItemsNode(Node):
         caption = goal_handle.request.caption
         self._node.get_logger().info(f"caption: {caption}")
 
-        # Start running the vision pipeline as a separate thread
+        # Create a rate object to control the rate of the vision pipeline
         rate = self._node.create_rate(self.rate_hz)
-        vision_pipeline_task = self.executor.create_task(
+
+        # Define a cleanup function to destroy the rate
+        def cleanup():
+            self._node.destroy_rate(rate)
+
+        # Start running the vision pipeline as a separate thread
+        vision_pipeline_task = self._node.executor.create_task(
             self.run_vision_pipeline, latest_img_msg, caption
         )
 
@@ -1307,7 +1283,9 @@ class SegmentAllItemsNode(Node):
             and not goal_handle.is_cancel_requested
             and not vision_pipeline_task.done()
         ):
-            feedback.elapsed_time = (self._node.get_clock().now() - starting_time).to_msg()
+            feedback.elapsed_time = (
+                self._node.get_clock().now() - starting_time
+            ).to_msg()
             goal_handle.publish_feedback(feedback)
             rate.sleep()
 
@@ -1322,6 +1300,8 @@ class SegmentAllItemsNode(Node):
             with self.active_goal_request_lock:
                 self.active_goal_request = None
 
+            # Cleanup the rate
+            cleanup()
             return result
 
         # Set the result after the task has been completed
@@ -1335,6 +1315,8 @@ class SegmentAllItemsNode(Node):
         with self.active_goal_request_lock:
             self.active_goal_request = None
 
+        # Cleanup the rate
+        cleanup()
         return result
 
 
@@ -1350,7 +1332,7 @@ def main(args=None):
     # Use a MultiThreadedExecutor to enable processing goals concurrently
     executor = MultiThreadedExecutor(num_threads=5)
 
-    rclpy.spin(segment_all_items, executor=executor)
+    rclpy.spin(node, executor=executor)
 
 
 if __name__ == "__main__":
