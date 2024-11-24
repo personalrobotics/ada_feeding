@@ -25,9 +25,9 @@
     <remap from="~/toggle_watchdog_listener" to="/ada_watchdog_listener/toggle_watchdog_listener" />
     <remap from="~/re_tare_ft" to="/wireless_ft/set_bias" />
     <remap from="~/ft_topic" to="/wireless_ft/ftSensor3" />
-    <remap from="~/set_force_gate_controller_parameters" to="/jaco_arm_controller/set_parameters" />
-    <remap from="~/set_servo_controller_parameters" to="/jaco_arm_servo_controller/set_parameters" />
-    <remap from="~/set_cartesian_controller_parameters" to="/jaco_arm_cartesian_controller/set_parameters" />
+    <remap from="~/set_force_gate_controller_parameters" to="/jaco_af_controller/set_parameters" />
+    <remap from="~/set_servo_controller_parameters" to="/jaco_af_servo_controller/set_parameters" />
+    <remap from="~/set_cartesian_controller_parameters" to="/jaco_af_cartesian_controller/set_parameters" />
     <remap from="~/clear_octomap" to="/clear_octomap" />
     <remap from="~/toggle_face_detection" to="/toggle_face_detection" />
     <remap from="~/face_detection" to="/face_detection" />
@@ -36,7 +36,7 @@
     <remap from="~/switch_controller" to="/controller_manager/switch_controller" />
     <remap from="~/start_servo" to="/servo_node/start_servo" />
     <remap from="~/servo_twist_cmds" to="/servo_node/delta_twist_cmds" />
-    <remap from="~/cartesian_twist_cmds" to="/jaco_arm_cartesian_controller/twist_cmd" />
+    <remap from="~/cartesian_twist_cmds" to="/jaco_af_cartesian_controller/twist_cmd" />
     <remap from="~/servo_status" to="/servo_node/status" />
     <remap from="~/stop_servo" to="/servo_node/stop_servo" />
     <remap from="~/action_select" to="/ada_feeding_action_select/action_select" />
@@ -48,9 +48,9 @@
   <node pkg="ada_moveit" exec="servo_republisher.py" name="servo_republisher">
     <remap from="~/cartesian_commands_input" to="/web_app/servo_node/delta_twist_cmds" />
     <remap from="~/joint_commands_input" to="/web_app/servo_node/delta_joint_cmds" />
-    <remap from="~/cartesian_commands_output" to="/jaco_arm_cartesian_controller/twist_cmd" />
-    <remap from="~/joint_commands_output" to="/jaco_arm_servo_controller/commands" />
-    <remap from="~/joint_controller_get_parameters" to="/jaco_arm_servo_controller/get_parameters" />
+    <remap from="~/cartesian_commands_output" to="/jaco_af_cartesian_controller/twist_cmd" />
+    <remap from="~/joint_commands_output" to="/jaco_af_servo_controller/commands" />
+    <remap from="~/joint_controller_get_parameters" to="/jaco_af_servo_controller/get_parameters" />
     <remap from="~/joint_states" to="/joint_states" />
   </node>
 
