@@ -9,6 +9,8 @@ ada_feeding_action_servers:
       - -1.4583640571583674
       - -1.8237450981853311
       - 7.026948142726954
+      - 0.0
+      - 0.0
       MoveAbovePlate.tree_kwargs.joint_positions:
       - -0.19797034068
       - 3.6562432079254257
@@ -16,6 +18,8 @@ ada_feeding_action_servers:
       - -2.659056359891099
       - 4.916644381246061
       - 1.7380801275071338
+      - 0.0
+      - 0.0
       MoveFromMouth.tree_kwargs.staging_configuration_position:
       - -0.6014194269891053
       - 0.08069224383248258
@@ -32,6 +36,8 @@ ada_feeding_action_servers:
       - -1.4583640571583674
       - -1.8237450981853311
       - 7.026948142726954
+      - 0.0
+      - 0.0
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
       - -0.5394174198411514
       - 4.294121954324551
@@ -39,6 +45,8 @@ ada_feeding_action_servers:
       - -1.0393311059687216
       - -2.1827671763194583
       - 1.6106314909061383
+      - 0.0
+      - 0.0
       planning_scene_namespace_to_use: bedside
     bed_side_table_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
@@ -48,6 +56,8 @@ ada_feeding_action_servers:
       - -1.2987086150725533
       - -1.7135562754510847
       - 0.77158428024418
+      - 0.0
+      - 0.0
       MoveAbovePlate.tree_kwargs.joint_positions:
       - -1.76876666747
       - 3.6562432079254257
@@ -55,6 +65,8 @@ ada_feeding_action_servers:
       - -2.659056359891099
       - 4.916644381246061
       - 1.7380801275071338
+      - 0.0
+      - 0.0
       MoveFromMouth.tree_kwargs.linear_speed_near_mouth: 0.08
       MoveFromMouth.tree_kwargs.max_linear_speed_to_staging_configuration: 0.15
       MoveFromMouth.tree_kwargs.staging_configuration_position:
@@ -79,6 +91,8 @@ ada_feeding_action_servers:
       - -1.2987086150725533
       - -1.7135562754510847
       - 0.77158428024418
+      - 0.0
+      - 0.0
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
       - -1.41958843169
       - 4.259094195455066
@@ -86,6 +100,8 @@ ada_feeding_action_servers:
       - -0.6739427412487604
       - -3.0701456341812565
       - 1.8009590918986131
+      - 0.0
+      - 0.0
       planning_scene_namespace_to_use: bedside_90
     custom_namespaces:
     - bed_side_table_1
@@ -103,6 +119,8 @@ ada_feeding_action_servers:
       - 1.598314237706468
       - -2.0289974534007733
       - -3.1847696853949206
+      - 0.0
+      - 0.0
       MoveAbovePlate.tree_kwargs.joint_positions:
       - 6.794832881070045
       - 3.031285852819256
@@ -110,6 +128,8 @@ ada_feeding_action_servers:
       - 7.187106922258792
       - -1.9369287787234262
       - -3.5496749526931417
+      - 0.0
+      - 0.0
       MoveFromMouth.tree_kwargs.staging_configuration_position:
       - -0.6081959669757366
       - 0.07835060871598665
@@ -126,6 +146,8 @@ ada_feeding_action_servers:
       - 1.598314237706468
       - -2.0289974534007733
       - -3.1847696853949206
+      - 0.0
+      - 0.0
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
       - 5.434125875820449
       - 4.617459538064379
@@ -133,6 +155,8 @@ ada_feeding_action_servers:
       - 6.7890666046778065
       - -1.2377163671553406
       - -2.845521578354632
+      - 0.0
+      - 0.0
       MoveToStowLocation.tree_kwargs.joint_positions:
       - -4.710004519102688
       - 3.99497173223704
@@ -140,6 +164,8 @@ ada_feeding_action_servers:
       - -6.180243112219014
       - -0.03213529960954986
       - 3.09639028777566
+      - 0.0
+      - 0.0
       planning_scene_namespace_to_use: seated
     side_staging_2:
       AcquireFood.tree_kwargs.resting_joint_positions:
@@ -149,6 +175,8 @@ ada_feeding_action_servers:
       - 1.8144095201421138
       - -1.8424579327428283
       - -4.013874849654423
+      - 0.0
+      - 0.0
       MoveAbovePlate.tree_kwargs.joint_positions:
       - 0.7081435885997758
       - 3.1719859795303225
@@ -156,6 +184,8 @@ ada_feeding_action_servers:
       - 0.7550125606240812
       - -1.8810567243180003
       - -3.3398213209043153
+      - 0.0
+      - 0.0
       MoveFromMouth.tree_kwargs.staging_configuration_position:
       - 0.037235594565912356
       - 0.02990399812200957
@@ -172,6 +202,8 @@ ada_feeding_action_servers:
       - 1.8144095201421138
       - -1.8424579327428283
       - -4.013874849654423
+      - 0.0
+      - 0.0
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
       - -0.9312115594014667
       - 4.543584514690017
@@ -179,6 +211,8 @@ ada_feeding_action_servers:
       - 0.7394639609157636
       - -1.8431887041459447
       - -2.598331227031222
+      - 0.0
+      - 0.0
       MoveToStowLocation.tree_kwargs.joint_positions:
       - -4.75874755758608
       - 4.016084474410861
@@ -186,6 +220,8 @@ ada_feeding_action_servers:
       - -4.805756745041778
       - 0.15785301466004853
       - 1.831326452018514
+      - 0.0
+      - 0.0
       planning_scene_namespace_to_use: seated
     side_staging_3:
       AcquireFood.tree_kwargs.resting_joint_positions:
@@ -195,6 +231,8 @@ ada_feeding_action_servers:
       - -3.8708726864970906
       - 4.406298027864214
       - -5.1482973181377325
+      - 0.0
+      - 0.0
       MoveAbovePlate.tree_kwargs.joint_positions:
       - 0.7081435885997758
       - 3.1719859795303225
@@ -202,6 +240,8 @@ ada_feeding_action_servers:
       - 0.7550125606240812
       - -1.8810567243180003
       - -3.3398213209043153
+      - 0.0
+      - 0.0
       MoveFromMouth.tree_kwargs.staging_configuration_position:
       - 0.037235594565912356
       - 0.02990399812200957
@@ -218,6 +258,8 @@ ada_feeding_action_servers:
       - -3.8708726864970906
       - 4.406298027864214
       - -5.1482973181377325
+      - 0.0
+      - 0.0
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
       - -0.9312115594014667
       - 4.543584514690017
@@ -225,6 +267,8 @@ ada_feeding_action_servers:
       - 0.7394639609157636
       - -1.8431887041459447
       - -2.598331227031222
+      - 0.0
+      - 0.0
       MoveToStowLocation.tree_kwargs.joint_positions:
       - 1.4888151736945519
       - 4.067945009266301
@@ -232,6 +276,8 @@ ada_feeding_action_servers:
       - 0.41718325265453116
       - 5.824282703942583
       - 2.9376642889102835
+      - 0.0
+      - 0.0
       planning_scene_namespace_to_use: seated
     wheelchair_side_table_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
@@ -241,6 +287,8 @@ ada_feeding_action_servers:
       - -6.704937345842203
       - 4.10020174902156
       - 5.1406561763380765
+      - 0.0
+      - 0.0
       MoveAbovePlate.tree_kwargs.joint_positions:
       - 0.02532932512774355
       - 3.1431881533988597
@@ -248,6 +296,8 @@ ada_feeding_action_servers:
       - -2.3604859079728984
       - 4.162401474177013
       - 4.090987211649885
+      - 0.0
+      - 0.0
       MoveFromMouth.tree_kwargs.staging_configuration_position:
       - -0.011402569359730129
       - 0.029461197720583806
@@ -264,6 +314,8 @@ ada_feeding_action_servers:
       - -6.704937345842203
       - 4.10020174902156
       - 5.1406561763380765
+      - 0.0
+      - 0.0
       MoveToStagingConfiguration.tree_kwargs.goal_configuration:
       - -0.6009865084504753
       - 4.406308680508575
@@ -271,4 +323,6 @@ ada_feeding_action_servers:
       - -5.48339275809026
       - 4.099009718117641
       - 3.976385530989377
+      - 0.0
+      - 0.0
       planning_scene_namespace_to_use: seated_90
