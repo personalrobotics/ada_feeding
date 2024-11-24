@@ -358,6 +358,8 @@ class WorkspaceWalls:
                 "j2n6s200_joint_4",
                 "j2n6s200_joint_5",
                 "j2n6s200_joint_6",
+                "af_joint_1",
+                "af_joint_2",
             ],  # default value
             ParameterDescriptor(
                 name="articulated_joint_names",
