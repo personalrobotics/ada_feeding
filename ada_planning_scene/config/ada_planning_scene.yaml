@@ -90,7 +90,7 @@ ada_planning_scene:
       in_front_of_face_wall: # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
         primitive_type: 1 # shape_msgs/SolidPrimitive.BOX
         primitive_dims: [0.65, 0.01, 0.4]
-        position: [0.37, 0.17, 0.85]
+        position: [0.37, 0.22, 0.85]
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         add_on_initialize: False # don't add this to the planning scene initially
@@ -316,6 +316,8 @@ ada_planning_scene:
       - j2n6s200_joint_4
       - j2n6s200_joint_5
       - j2n6s200_joint_6
+      - af_joint_1
+      - af_joint_2
 
     ############################################################################
     # Parameters related to the UpdateFromFaceDetectionpace class
