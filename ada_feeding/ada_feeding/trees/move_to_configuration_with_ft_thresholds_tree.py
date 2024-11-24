@@ -263,8 +263,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 self.joint_positions is not None
             ), "For action MoveTo, must provide hardcoded joint_positions"
             assert (
-                len(self.joint_positions) == 6
-            ), "For action MoveTo, must provide 6 joint positions"
+                len(self.joint_positions) == 8
+            ), "For action MoveTo, must provide 8 joint positions"
 
         # Adds MoveToVisitor for Feedback
         return super().send_goal(tree, goal)

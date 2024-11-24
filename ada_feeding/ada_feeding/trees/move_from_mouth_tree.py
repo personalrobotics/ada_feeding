@@ -151,7 +151,7 @@ class MoveFromMouthTree(MoveToTree):
         self.staging_configuration_quat_xyzw = staging_configuration_quat_xyzw
         self.end_configuration = end_configuration
         if self.end_configuration is not None:
-            assert len(self.end_configuration) == 6, "Must provide 6 joint positions"
+            assert len(self.end_configuration) == 8, "Must provide 8 joint positions"
         self.staging_configuration_tolerance_position = (
             staging_configuration_tolerance_position
         )

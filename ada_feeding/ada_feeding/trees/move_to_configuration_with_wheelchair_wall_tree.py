@@ -93,7 +93,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
 
         # Store the parameters
         self.goal_configuration = goal_configuration
-        assert len(self.goal_configuration) == 6, "Must provide 6 joint positions"
+        assert len(self.goal_configuration) == 8, "Must provide 8 joint positions"
         self.goal_configuration_tolerance = goal_configuration_tolerance
         self.orientation_constraint_quaternion = orientation_constraint_quaternion
         self.orientation_constraint_tolerances = orientation_constraint_tolerances
