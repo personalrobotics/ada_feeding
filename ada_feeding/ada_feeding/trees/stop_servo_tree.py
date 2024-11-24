@@ -41,7 +41,7 @@ class StopServoTree(TriggerTree):
         self,
         node: Node,
         base_frame_id: str = "j2n6s200_link_base",
-        servo_controller_name: str = "jaco_arm_servo_controller",
+        servo_controller_name: str = "jaco_af_servo_controller",
         delay: float = 0.5,
         stop_moveit_servo: bool = True,
     ) -> None:

@@ -31,7 +31,7 @@ class StartServoTree(TriggerTree):
     def __init__(
         self,
         node: Node,
-        servo_controller_name: str = "jaco_arm_servo_controller",
+        servo_controller_name: str = "jaco_af_servo_controller",
         start_moveit_servo: bool = True,
     ) -> None:
         """
