@@ -32,7 +32,7 @@ class ActivateControllerTree(TriggerTree):
     def __init__(
         self,
         node: Node,
-        controller_to_activate: Optional[str] = "jaco_arm_cartesian_controller",
+        controller_to_activate: Optional[str] = "jaco_af_cartesian_controller",
         all_controller_names: Optional[List[str]] = None,
         re_tare: bool = False,
     ) -> None:
@@ -55,9 +55,9 @@ class ActivateControllerTree(TriggerTree):
         self.all_controller_names = all_controller_names
         if all_controller_names is None:
             self.all_controller_names = [
-                "jaco_arm_cartesian_controller",
-                "jaco_arm_controller",
-                "jaco_arm_servo_controller",
+                "jaco_af_cartesian_controller",
+                "jaco_af_controller",
+                "jaco_af_servo_controller",
             ]
         self.re_tare = re_tare
 
