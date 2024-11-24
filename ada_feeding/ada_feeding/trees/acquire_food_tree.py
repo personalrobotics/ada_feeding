@@ -753,7 +753,7 @@ class AcquireFoodTree(MoveToTree):
                                                 children=[
                                                     StartServoTree(
                                                         self._node,
-                                                        servo_controller_name="jaco_arm_cartesian_controller",
+                                                        servo_controller_name="jaco_af_cartesian_controller",
                                                         start_moveit_servo=False,
                                                     )
                                                     .create_tree(
@@ -775,7 +775,7 @@ class AcquireFoodTree(MoveToTree):
                                                     ),
                                                     StopServoTree(
                                                         self._node,
-                                                        servo_controller_name="jaco_arm_cartesian_controller",
+                                                        servo_controller_name="jaco_af_cartesian_controller",
                                                         stop_moveit_servo=False,
                                                     )
                                                     .create_tree(name="StopServoScoped")
