@@ -529,8 +529,8 @@ class MoveIt2Plan(BlackboardBehavior):
             return total_len, joint_lens
 
         j6_i = None
-        if exclude_j6 and "j2n6s200_joint_6" in path.joint_names:
-            j6_i = path.joint_names.index("j2n6s200_joint_6")
+        if exclude_j6 and "af_joint_2" in path.joint_names:
+            j6_i = path.joint_names.index("af_joint_2")
 
         prev_pos = np.array(path.points[0].positions)
         for point in path.points:
