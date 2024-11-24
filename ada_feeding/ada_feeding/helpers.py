@@ -450,3 +450,4 @@ def import_from_string(import_string: str) -> Any:
             import_class,
         )
     except Exception as exc:
+        raise ImportError(f"Error importing {import_string}") from exc
