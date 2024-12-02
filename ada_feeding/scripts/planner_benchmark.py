@@ -47,10 +47,14 @@ class Benchmark:
         base_position: tuple[float] = (0.26262263022586224, -0.2783553055166875, 0.22773121634396466),
         base_position_frame: str = "j2n6s200_link_base",
         planners: tuple[str] = ("AnytimePathShortening", "RRTConnectkConfigDefault", "RRTstarkConfigDefault"),
-        dxs: tuple[float] = (0.0, -0.05, 0.05, 0.1),
-        dys: tuple[float] = (0.0, -0.05, 0.05, 0.1),
+        dxs: tuple[float] = (0.0, -0.1, -0.05, 0.05),
+        dys: tuple[float] = (0.0, -0.1, -0.05, 0.05),
         fork_pitches: tuple[float] = (0.0, np.pi/8, -np.pi/8),
         fork_rolls: tuple[float] = (0, np.pi/2, np.pi, -np.pi/2),
+        # dxs: tuple[float] = (0.0, 0.05),
+        # dys: tuple[float] = (0.0, 0.05),
+        # fork_pitches: tuple[float] = (0.0, -np.pi/8),
+        # fork_rolls: tuple[float] = (0, -np.pi/2),
     ):
         self.node = node
         self.moveit2 = moveit2
@@ -64,6 +68,8 @@ class Benchmark:
         self.num_conditions = len(dxs) * len(dys) * len(fork_pitches) * len(fork_rolls)
 
         self.results: dict[Condition, dict[str, tuple[Optional[JointTrajectory], float]]] = defaultdict(dict)
+
+        self.rate = self.node.create_rate(10)
 
     def conditions(self):
         for dx in self.dxs:
@@ -104,6 +110,7 @@ class Benchmark:
         position: tuple[float, float, float], 
         quat_xyzw: tuple[float, float, float, float], 
         planner: str,
+        timeout_sec: float = 10.0,
     ) -> tuple[Optional[JointTrajectory], float]:
         # Plan to the above food pose
         self.moveit2.planner_id = planner
@@ -119,17 +126,31 @@ class Benchmark:
             parameterization = 1,
         )
         start_time = self.node.get_clock().now()
-        trajectory = self.moveit2.plan()
+        future = self.moveit2.plan_async()
+
+        if future is None:
+            return None, (self.node.get_clock().now() - start_time).nanoseconds / 1e9
+
+        while not future.done() and (self.node.get_clock().now() - start_time).nanoseconds / 1e9 < timeout_sec:
+            self.rate.sleep()
+
+        if not future.done():
+            return None, (self.node.get_clock().now() - start_time).nanoseconds / 1e9
+
+        trajectory = self.moveit2.get_trajectory(future)
+
         elapsed_time = (self.node.get_clock().now() - start_time).nanoseconds / 1e9
 
         return trajectory, elapsed_time
 
-    def run(self):
+    def run(self, log_every: Optional[int] = None):
         i = 0
         for condition in self.conditions():
             self.node.get_logger().info(f"Planning to condition {i}/{self.num_conditions}")
             self.run_condition(condition)
             i += 1
+            if log_every and i % log_every == log_every - 1:
+                self.log_results()
 
     def to_csv(self, filename: str, above_plate_config: list[float]):
         header = [
@@ -282,11 +303,12 @@ def main(out_dir: Optional[str]):
 
     # Configure the MoveIt2 object
     moveit2.planner_id = benchmark.planners[0]
-    moveit2.allowed_planning_time = 5.0 # secs
+    moveit2.allowed_planning_time = 0.5 # secs
     moveit2.max_velocity = 1.0
     moveit2.max_acceleration = 0.8
 
     # First, move above plate
+    # TODO: Re-tare the F/T sensor here!
     above_plate_config = [
         -2.3149168248766614,
         3.1444595465032634,
@@ -301,7 +323,7 @@ def main(out_dir: Optional[str]):
     node.get_logger().info("Moved to above plate configuration")
 
     # Run the benchmark
-    benchmark.run()
+    benchmark.run(log_every=10)
 
     # Save results
     if out_dir is not None:
