@@ -10,7 +10,7 @@ uint8 STATUS_FAILED=1
 uint8 STATUS_CANCELED=3
 uint8 STATUS_UNKNOWN=99
 
-# Whether the segmentation succeeded and if not, why
+# Whether the vision pipeline succeeded and if not, why
 uint8 status
 
 # The header for the image that the masks corresponds to
@@ -23,5 +23,5 @@ ada_feeding_msgs/Mask[] detected_items
 # items in the image
 string[] item_labels
 ---
-# How much time the action has spent segmenting the food item
+# How much time the action has spent running the vision pipeline
 builtin_interfaces/Duration elapsed_time

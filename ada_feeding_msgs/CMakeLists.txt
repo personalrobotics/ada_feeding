@@ -24,6 +24,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
   "action/AcquireFood.action"
   "action/ActivateController.action"
+  "action/GenerateCaption.action"
   "action/MoveTo.action"
   "action/MoveToConfiguration.action"
   "action/MoveToMouth.action"
@@ -35,7 +36,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/AcquisitionReport.srv"
   "srv/AcquisitionSelect.srv"
   "srv/GetRobotState.srv"
-  "srv/GenerateCaption.srv"
   "srv/ModifyCollisionObject.srv"
 
   DEPENDENCIES geometry_msgs sensor_msgs std_msgs
