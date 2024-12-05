@@ -1303,7 +1303,7 @@ class SegmentAllItemsNode(Node):
             self._node.get_logger().info("Goal cancelled.")
             goal_handle.canceled()
             response = GenerateCaption.Result()
-            response.status = response.STATUS_CANCELLED
+            response.status = response.STATUS_CANCELED
 
             # Cleanup the rate
             cleanup()
