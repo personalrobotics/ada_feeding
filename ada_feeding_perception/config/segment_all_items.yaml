@@ -31,7 +31,7 @@ segment_all_items:
 
     # A boolean to determine whether to visualize the bounding box predictions 
     # made by GroundingDINO
-    viz_groundingdino: false
+    viz_groundingdino: true
 
 # NOTE: If using the combined perception node, be very careful to ensure no name clashes of parameters!
 ada_feeding_perception:

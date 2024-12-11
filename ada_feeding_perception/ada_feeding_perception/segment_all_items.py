@@ -1050,6 +1050,9 @@ class SegmentAllItemsNode(Node):
                     thickness // 3,
                 )
 
+        cv2.imshow("GroundingDINO Predictions", image_copy)
+        cv2.waitKey(0)
+
         # Publish the image as a ROS message
         self.viz_groundingdino_pub.publish(
             cv2_image_to_ros_msg(image_copy, compress=False, bridge=self.bridge)
