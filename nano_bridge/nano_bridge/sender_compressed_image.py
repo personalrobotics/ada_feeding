@@ -21,9 +21,10 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 
 # Local imports
+# pylint: disable=import-error, no-name-in-module
 from nano_bridge.msg import (
     CompressedImage as CompressedImageOutput,
-)  # pylint: disable=import-error, no-name-in-module
+)
 
 
 class SenderCompressedImageNode(Node):
