@@ -5,10 +5,13 @@ preempt-handling version of that idiom is merged into py_trees, this
 idiom should be removed in favor of the main py_trees one.
 """
 
+# Standard imports
 import typing
 
+# Third-party imports
 from py_trees import behaviour, behaviours, composites
 
+# Local imports
 from ada_feeding.decorators import OnPreempt
 
 
@@ -29,7 +32,7 @@ def eventually_swiss(
     This is a swiss knife version of the eventually idiom
     that facilitates a multi-tick response for specialised
     handling work sequence's completion status. Specifically, this idiom
-    guarentees the following:
+    guarantees the following:
     1. The on_success behaviour is ticked only if the workers all return SUCCESS.
     2. The on_failure behaviour is ticked only if at least one worker returns FAILURE.
     3. The on_preempt behaviour is ticked only if `stop(INVALID)` is called on the

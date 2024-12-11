@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 This module defines the MoveFromMouthTree behaviour tree and provides functions to
@@ -356,8 +355,7 @@ class MoveFromMouthTree(MoveToTree):
                 + post_stamped.pose.position.y**2.0
                 + post_stamped.pose.position.z**2.0
             ) ** 0.5
-            if pose_distance > max_pose_distance:
-                max_pose_distance = pose_distance
+            max_pose_distance = max(max_pose_distance, pose_distance)
             prop = (max_pose_distance - pose_distance) / max_pose_distance  # ** 2.0
             return (
                 self.max_linear_speed_to_staging_configuration * prop

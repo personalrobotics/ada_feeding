@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 This module defines the retry_call_ros_service idiom, which will call a ROS
@@ -28,7 +27,7 @@ def retry_call_ros_service(
     server_execution_timeout_sec: float = 10.0,
 ) -> py_trees.behaviour.Behaviour:
     """
-    Creates a behavior that calls a ROS service and optionally checkes the response.
+    Creates a behavior that calls a ROS service and optionally checks the response.
     If there is a failure for any kind (e.g., service is unavailable, doesn't
     return, response does not pass the check, etc.) it retries up to `max_retries`
     times.

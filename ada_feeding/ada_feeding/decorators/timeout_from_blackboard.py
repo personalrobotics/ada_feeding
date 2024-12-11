@@ -1,6 +1,6 @@
 """
 This module extends the Timeout decorator
-to accept a blackboard namespace and 
+to accept a blackboard namespace and
 """
 
 # Standard imports

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 This module defines the abstract MoveTo behavior tree and provides functions to
@@ -91,7 +90,7 @@ class MoveToTree(ActionServerBT, ABC):
         # If the tree succeeded, return success
         if tree.root.status == py_trees.common.Status.SUCCESS:
             result_msg.status = result_msg.STATUS_SUCCESS
-        # If the tree failed, detemine whether it was a planning or motion failure
+        # If the tree failed, determine whether it was a planning or motion failure
         elif tree.root.status == py_trees.common.Status.FAILURE:
             # Get Feedback Visitor to investigate failure cause
             feedback_visitor = None

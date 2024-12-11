@@ -1,6 +1,6 @@
 """
 This file defines the TableDetectionNode class, which publishes the 3D PoseStamped
-location of the table with respect to camera_depth_optical_frame. 
+location of the table with respect to camera_depth_optical_frame.
 """
 
 # Standard imports
@@ -36,6 +36,9 @@ from ada_feeding_perception.helpers import (
     ros_msg_to_cv2_image,
 )
 from ada_feeding_perception.ada_feeding_perception_node import ADAFeedingPerceptionNode
+
+# pylint: disable=duplicate-code
+# Many perception nodes have similar subscribers/publishers.
 
 
 class TableDetectionNode:

@@ -42,6 +42,9 @@ from ada_feeding_perception.helpers import (
 )
 from ada_feeding_perception.ada_feeding_perception_node import ADAFeedingPerceptionNode
 
+# pylint: disable=duplicate-code
+# Many perception nodes have similar subscribers/publishers.
+
 
 class SegmentFromPointNode:
     """
@@ -335,7 +338,7 @@ class SegmentFromPointNode:
         Initialize all attributes needed for food segmentation with SAM.
 
         This includes loading the SAM, launching the action
-        server, and more. Note that we are guarenteed the model exists since
+        server, and more. Note that we are guaranteed the model exists since
         it was downloaded in the __init__ function of this class.
 
         Parameters
@@ -372,7 +375,7 @@ class SegmentFromPointNode:
         Initialize all attributes needed for food segmentation with EfficientSAM.
 
         This includes loading the EfficientSAM model, launching the action
-        server, and more. Note that we are guarenteed the model exists since
+        server, and more. Note that we are guaranteed the model exists since
         it was downloaded in the __init__ function of this class.
 
         Parameters

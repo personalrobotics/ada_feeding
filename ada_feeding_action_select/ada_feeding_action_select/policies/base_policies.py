@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-This module defines an abstract class (and defaults) for 
+This module defines an abstract class (and defaults) for
 selecting an action based on a policy.
 """
 

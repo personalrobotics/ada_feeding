@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 This module defines the MoveIt2Plan behavior, which uses pymoveit2
@@ -792,8 +791,9 @@ class MoveIt2Plan(BlackboardBehavior):
         # pylint: disable=import-outside-toplevel
         # No need to import graphing libraries if we aren't saving the trajectory
         import csv
-        from ament_index_python.packages import get_package_share_directory
+
         import matplotlib.pyplot as plt
+        from ament_index_python.packages import get_package_share_directory
 
         # Get the filepath, excluding the extension
         file_dir = os.path.join(

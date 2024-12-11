@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 This module contains EStopCondition, a watchdog condition that listens for the
@@ -415,7 +414,7 @@ class EStopCondition(WatchdogCondition):
         for the e-stop button.
 
         TODO: Although not crucial, we should consider storing the original
-        system volume, and then restoring it when thos watchdog condition is
+        system volume, and then restoring it when this watchdog condition is
         terminated.
         """
         # pylint: disable=too-many-branches, too-many-statements, too-many-locals
@@ -579,7 +578,7 @@ class EStopCondition(WatchdogCondition):
                 (
                     f"Error opening audio device with index {device_i}. "
                     f"{EStopCondition.PYAUDIO_STREAM_TROUBLESHOOTING}\n\n"
-                    f"Excpetion: {exc}"
+                    f"Exception: {exc}"
                 ),
                 throttle_duration_sec=1,
             )
@@ -610,7 +609,7 @@ class EStopCondition(WatchdogCondition):
                 self._node.get_logger().info("E-Stop button unplugged")
                 with self.is_mic_unplugged_lock:
                     self.is_mic_unplugged = True
-            # Although there is also an "add" action, that doesn't have the devce ID.
+            # Although there is also an "add" action, that doesn't have the device ID.
             elif action == "change":
                 self._node.get_logger().info("E-Stop button plugged in")
                 with self.is_mic_unplugged_lock:
@@ -818,7 +817,7 @@ class EStopCondition(WatchdogCondition):
             status of a startup condition, a string name describing the condition,
             and a string detailing the status of the condition. All conditions
             must be True for the startup condition to be considered passed.
-            For example, [(False, "Recieved Topic X Data", "Has not received at
+            For example, [(False, "Received Topic X Data", "Has not received at
             least one message on topic X")] means that the startup condition has not
             passed because the node has not received any messages on topic X yet.
         """

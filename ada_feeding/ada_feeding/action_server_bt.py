@@ -65,7 +65,7 @@ class ActionServerBT(ABC):
 
         The default behavior of this function calls the `stop` method on the
         root of the behavior tree. This should block until all nodes of the
-        behavior tree have succesfully terminated. Subclasses can override this
+        behavior tree have successfully terminated. Subclasses can override this
         method if they want to implement a different behavior.
 
         Parameters

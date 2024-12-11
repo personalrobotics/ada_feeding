@@ -13,6 +13,7 @@ import py_trees
 
 # Local imports
 from ada_feeding.idioms import scoped_behavior
+
 from .helpers import (
     TickCounterWithTerminateTimestamp,
     check_count_status,

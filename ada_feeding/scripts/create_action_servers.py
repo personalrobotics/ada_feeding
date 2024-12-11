@@ -947,7 +947,7 @@ class CreateActionServers(Node):
         Runs the initial setup on a behavior tree after creating it.
 
         Specifically, this function: (1) sets every behavior's logger
-        to be the node's logger; and (2) calls teh tree's `setup` function.
+        to be the node's logger; and (2) calls the tree's `setup` function.
 
         Parameters
         ----------
@@ -1006,7 +1006,7 @@ class CreateActionServers(Node):
             (if not already loaded) and executes the behavior tree, publishing
             periodic feedback.
             """
-            # pylint: disable=too-many-statements
+            # pylint: disable=too-many-statements, too-many-nested-blocks, too-many-branches
             # This is the main execution loop.
 
             goal_uuid = "".join(format(x, "02x") for x in goal_handle.goal_id.uuid)

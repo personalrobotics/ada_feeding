@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 This module defines the StopServoTree behavior tree, which stops MoveIt Servo.

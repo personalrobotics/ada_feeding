@@ -42,6 +42,9 @@ from .depth_post_processors import (
     post_processor_chain,
 )
 
+# pylint: disable=duplicate-code
+# Many perception nodes have similar subscribers/publishers.
+
 
 class FoodOnForkDetectionNode:
     """

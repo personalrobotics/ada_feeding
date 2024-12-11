@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 This module defines the ActivateController behavior tree, which activates a
@@ -43,7 +42,7 @@ class ActivateControllerTree(TriggerTree):
         ----------
         node: The ROS node.
         controller_to_activate: The name of the controller to activate. If None,
-            deactive all controllers without activating any.
+            deactivate all controllers without activating any.
         all_controller_names: The names of all controllers. If None, the default
             controllers are "jaco_arm_cartesian_controller", "jaco_arm_controller",
             and "jaco_arm_servo_controller"

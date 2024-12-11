@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 This module defines the abstract TriggerTree class, which is a behavior tree
@@ -20,7 +19,7 @@ from ada_feeding import ActionServerBT
 
 class TriggerTree(ActionServerBT, ABC):
     """
-    An abstract behvaior tree for any behavior that should get triggered and send
+    An abstract behaviour tree for any behavior that should get triggered and send
     feedback and results according to the `Trigger.action` interface defined in
     `ada_feeding_msgs`.
     """

@@ -12,7 +12,7 @@ food_on_fork_detection:
     # Keyword arguments to pass to the FoodOnFork class's constructor
     model_kwargs:
       camera_matrix: [614.5933227539062, 0.0, 312.1358947753906, 0.0, 614.6914672851562, 223.70831298828125, 0.0, 0.0, 1.0]
-    
+
     # The rate at which to detect and publish the confidence that there is food on the fork
     food_on_fork_detection_rate_hz: 10.0
     # The top-left  and bottom-right corners to crop the depth image to
@@ -33,7 +33,7 @@ food_on_fork_detection:
     viz_lower_thresh: 0.25
     viz_upper_thresh: 0.75
 
-    # The offset to add to no-food-on-fork points. This is useful to acocunt for scenarios like when
+    # The offset to add to no-food-on-fork points. This is useful to account for scenarios like when
     # the fork gets bent or the camera extrinsics changes slightly.
     # NOTE: The fact that food-on-fork detection is sensitive to such small offsets is, in itself,
     # an indication that it needs to be improved.
@@ -53,7 +53,7 @@ ada_feeding_perception:
     # Keyword arguments to pass to the FoodOnFork class's constructor
     model_kwargs:
       camera_matrix: [614.5933227539062, 0.0, 312.1358947753906, 0.0, 614.6914672851562, 223.70831298828125, 0.0, 0.0, 1.0]
-    
+
     # The rate at which to detect and publish the confidence that there is food on the fork
     food_on_fork_detection_rate_hz: 10.0
     # The top-left  and bottom-right corners to crop the depth image to
@@ -74,7 +74,7 @@ ada_feeding_perception:
     viz_lower_thresh: 0.25
     viz_upper_thresh: 0.75
 
-    # The offset to add to no-food-on-fork points. This is useful to acocunt for scenarios like when
+    # The offset to add to no-food-on-fork points. This is useful to account for scenarios like when
     # the fork gets bent or the camera extrinsics changes slightly.
     # NOTE: The fact that food-on-fork detection is sensitive to such small offsets is, in itself,
     # an indication that it needs to be improved.

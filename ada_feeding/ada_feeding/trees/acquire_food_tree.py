@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 This module defines the AcquireFood behavior tree and provides functions to
@@ -57,9 +56,13 @@ from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_succ
 from ada_feeding.trees import MoveToTree, StartServoTree, StopServoTree
 
 
+# pylint: disable=too-many-lines
+# This tree is the cruz of bite acquisition, hence is long.
+
+
 class AcquireFoodTree(MoveToTree):
     """
-    A behvaior tree to select and execute an acquisition
+    A behaviour tree to select and execute an acquisition
     action (see ada_feeding_msgs.action.AcquisitionSchema)
     for a given food mask in ada_feeding_msgs.action.AcquireFood.
 
@@ -527,7 +530,7 @@ class AcquireFoodTree(MoveToTree):
                     name="Success",
                     # Set Approach F/T Thresh
                     pre_behavior=(
-                        Success()
+                        Success()  # pylint: disable=abstract-class-instantiated
                         # ToggleCollisionObject(
                         #     name="AllowTable",
                         #     ns=name,
@@ -538,7 +541,7 @@ class AcquireFoodTree(MoveToTree):
                         # )
                     ),
                     post_behavior=(
-                        Success()
+                        Success()  # pylint: disable=abstract-class-instantiated
                         # ToggleCollisionObject(
                         #     name="DisallowTable",
                         #     ns=name,

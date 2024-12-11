@@ -31,7 +31,7 @@ class PlanningSceneInitializer:
     """
 
     # pylint: disable=too-few-public-methods
-    # This class only exists to intialize the planning scene, hence it only needs one
+    # This class only exists to initialize the planning scene, hence it only needs one
     # public method
 
     def __init__(

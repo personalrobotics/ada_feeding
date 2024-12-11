@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 This module contains FTSensorCondition, a watchdog condition that accumulates all
@@ -164,7 +163,7 @@ class FTSensorCondition(WatchdogCondition):
             status of a startup condition, a string name describing the condition,
             and a string detailing the status of the condition. All conditions
             must be True for the startup condition to be considered passed.
-            For example, [(False, "Recieved Topic X Data", "Has not received at
+            For example, [(False, "Received Topic X Data", "Has not received at
             least one message on topic X")] means that the startup condition has not
             passed because the node has not received any messages on topic X yet.
         """

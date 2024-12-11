@@ -23,7 +23,9 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rclpy.publisher import Publisher
 
 # Local imports
-from nano_bridge.msg import CompressedImage as CompressedImageInput
+from nano_bridge.msg import (
+    CompressedImage as CompressedImageInput,
+)  # pylint: disable=import-error, no-name-in-module
 
 
 class ReceiverCompressedImageNode(Node):

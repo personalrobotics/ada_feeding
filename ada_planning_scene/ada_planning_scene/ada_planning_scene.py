@@ -149,7 +149,7 @@ class ADAPlanningScene(Node):
         )
         self.__base_frame = base_frame.value
 
-        # If all the collision objects have not been succesfully added to the
+        # If all the collision objects have not been successfully added to the
         # planning scene within this time, stop initialization.
         initialization_timeout_secs = self.declare_parameter(
             "initialization_timeout_secs",
@@ -158,7 +158,7 @@ class ADAPlanningScene(Node):
                 name="initialization_timeout_secs",
                 type=ParameterType.PARAMETER_DOUBLE,
                 description=(
-                    "If all the collision objects have not been succesfully added to the "
+                    "If all the collision objects have not been successfully added to the "
                     "planning scene within this time, stop initialization."
                 ),
                 read_only=True,
@@ -329,6 +329,7 @@ class ADAPlanningScene(Node):
         if future.done():
             response = future.result()
             if len(response.values) > 0:
+                # pylint: disable=attribute-defined-outside-init
                 # If the parameter is set, that is the namespace to use
                 if response.values[0].type == ParameterType.PARAMETER_STRING:
                     self.__namespace_to_use = response.values[0].string_value
@@ -388,7 +389,7 @@ def spin(node: Node, executor: MultiThreadedExecutor) -> None:
     """
     try:
         rclpy.spin(node, executor=executor)
-    except rclpy._rclpy_pybind11.InvalidHandle:
+    except rclpy._rclpy_pybind11.InvalidHandle:  # pylint: disable=protected-access
         # There is a known issue in rclpy where it doesn't properly handle destruction of
         # elements in the executor.
         # - https://github.com/ros2/rclpy/issues/1355

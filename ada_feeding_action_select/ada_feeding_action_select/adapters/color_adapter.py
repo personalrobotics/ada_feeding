@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 This module defines the SPANet context adapter.
@@ -13,9 +12,9 @@ import numpy.typing as npt
 from overrides import override
 
 # Local imports
-from ada_feeding_action_select.helpers import logger
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_perception.helpers import ros_msg_to_cv2_image
+from ada_feeding_action_select.helpers import logger
 from .base_adapters import ContextAdapter
 
 

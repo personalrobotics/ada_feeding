@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 This module defines unit tests for the eventually_swiss idiom.
 """
@@ -178,7 +177,7 @@ def check_termination_new_statuses(
     descriptor: str = "",
 ) -> None:
     """
-    Checkes that `terminate` either has not been called on the behavior, or
+    Checks that `terminate` either has not been called on the behavior, or
     that it has been called with the correct new status.
 
     Parameters

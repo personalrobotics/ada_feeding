@@ -28,7 +28,8 @@ clear-cache-post-run=no
 extension-pkg-allow-list=cv2,
                          cv,
                          lxml,
-                         tf2_py
+                         tf2_py,
+                         rclpy._rclpy_pybind11
 
 # A comma-separated list of package or module names from where C extensions may
 # be loaded. Extensions are loading into the active Python interpreter and may
@@ -37,7 +38,8 @@ extension-pkg-allow-list=cv2,
 extension-pkg-whitelist=cv2,
                         cv,
                         lxml,
-                        tf2_py
+                        tf2_py,
+                        rclpy._rclpy_pybind11
 
 # Return non-zero exit code if any of these messages/categories are detected,
 # even if score is above --fail-under value. Syntax same as enable. Messages

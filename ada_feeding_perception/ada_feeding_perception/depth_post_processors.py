@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 This module contains a series of post-processors for depth images.
 """

@@ -82,7 +82,7 @@ def main(in_fname: str, out_fname: str):
     print(f"Writing to: {out_fname}")
     data["actions"] = actions
     with open(out_fname, "w", encoding="utf-8") as file:
-        file.write("# This file was modifed by modify_ac_library.py\n")
+        file.write("# This file was modified by modify_ac_library.py\n")
         yaml.dump(data, file)
 
 
