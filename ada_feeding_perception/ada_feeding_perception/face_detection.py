@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This file defines the FaceDetection class, which publishes the 3d PointStamped locations
 of the largest detected mouth with respect to camera_depth_optical_frame.

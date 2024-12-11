@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This file defines the SegmentFromPointNode class, which launches an action
 server that takes in a seed point, segments the latest image with that seed

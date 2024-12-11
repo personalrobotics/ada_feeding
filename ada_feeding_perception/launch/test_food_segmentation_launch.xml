@@ -1,3 +1,8 @@
+<!--
+   Copyright (c) 2024, Personal Robotics Laboratory
+   License: BSD 3-Clause. See LICENSE.md file in root directory.
+-->
+
 <launch>
   <node pkg="ada_feeding_perception" exec="test_segment_from_point" name="test_segment_from_point">
     <param from="$(find-pkg-share ada_feeding_perception)/config/test_segment_from_point.yaml"/>

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains a node, ReceiverCompressedImageNode, which subscribes to a
 topic published by SenderCompressedImageNode and republishes the messages to the original topics,

@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the PlanningSceneInitializer class, which reads the configuration
 for static mesh and primitive collision objects from the parameters and adds them to

@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This file contains an abstract class, FoodOnForkDetector, that takes in a single depth
 image and returns a confidence in [0,1] that there is food on the fork.

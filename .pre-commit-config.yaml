@@ -21,28 +21,28 @@ repos:
       - id: requirements-txt-fixer
       - id: trailing-whitespace
 
-  # - repo: https://github.com/Lucas-C/pre-commit-hooks
-  #   rev: v1.5.0
-  #   hooks:
-  #     - id: insert-license
-  #       args:
-  #         - --license-file
-  #         - .github/LICENSE_HEADER.md
-  #         - --use-current-year
-  #       types_or: [python]
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.0
+    hooks:
+      - id: insert-license
+        args:
+          - --license-file
+          - .github/LICENSE_HEADER.md
+          - --use-current-year
+        types_or: [python]
 
-  # - repo: https://github.com/Lucas-C/pre-commit-hooks
-  #   rev: v1.5.0
-  #   hooks:
-  #     - id: insert-license
-  #       args:
-  #         - --license-file
-  #         - docs/LICENSE_HEADER.md
-  #         - --use-current-year
-  #         - --comment-style
-  #         - "<!--|  |-->"
-  #       types_or: [xml]
-  #       exclude: ".*package.xml$"
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.0
+    hooks:
+      - id: insert-license
+        args:
+          - --license-file
+          - .github/LICENSE_HEADER.md
+          - --use-current-year
+          - --comment-style
+          - "<!--|  |-->"
+        types_or: [xml]
+        exclude: ".*package.xml$"
 
   - repo: https://github.com/psf/black
     rev: 23.1.0

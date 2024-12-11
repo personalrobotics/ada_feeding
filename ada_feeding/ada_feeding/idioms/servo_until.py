@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the servo_until idiom, which takes in a condition behavior
 that should never return RUNNING, and an instance of the ServoMove behavior and

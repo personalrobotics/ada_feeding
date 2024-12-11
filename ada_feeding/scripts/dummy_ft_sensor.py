@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains a node, DummyForceTorqueSensor, which publishes sample data
 to mimic the force-torque sensor on the robot. By setting parameters, users can

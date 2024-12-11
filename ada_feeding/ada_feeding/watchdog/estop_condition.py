@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains EStopCondition, a watchdog condition that listens for the
 e-stop button either being clicked or being unplugged and fails if so.

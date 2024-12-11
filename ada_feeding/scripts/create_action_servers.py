@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 # pylint: disable=too-many-lines
 """
 This module contains a node, CreateActionServers, for creating action servers

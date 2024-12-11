@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the CollisionObjectManager class, which tracks the IDs of the
 (attached) collision objects in the planning scene and allows users to add collision

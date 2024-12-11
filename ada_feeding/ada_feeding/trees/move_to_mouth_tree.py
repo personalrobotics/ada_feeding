@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the MoveToMouthTree behaviour tree and provides functions to
 wrap that behaviour tree in a ROS2 action server.

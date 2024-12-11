@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains the UpdateFromFaceDetection class, which subscribes to the
 output of face detection, moves the head to the detected position, and scales the

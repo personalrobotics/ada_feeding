@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the abstract TriggerTree class, which is a behavior tree
 that implements the `Trigger.action` interface defined in `ada_feeding_msgs`.

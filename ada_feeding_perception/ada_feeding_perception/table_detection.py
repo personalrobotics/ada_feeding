@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This file defines the TableDetectionNode class, which publishes the 3D PoseStamped
 location of the table with respect to camera_depth_optical_frame.

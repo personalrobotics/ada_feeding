@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains FTSensorCondition, a watchdog condition that accumulates all
 force-torque sensor readings and checks that the sensor is still publishing and

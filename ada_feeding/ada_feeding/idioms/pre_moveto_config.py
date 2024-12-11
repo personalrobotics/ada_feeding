@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the pre_moveto_config idiom, which returns a behavior that
 calls the ROS services that should be called before any MoveTo behavior.

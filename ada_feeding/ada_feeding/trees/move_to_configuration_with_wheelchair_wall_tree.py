@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the MoveToConfigurationWithWheelchairWallTree behaviour tree.
 This tree was designed for the MoveToStagingConfiguration action, but can be

@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the `scoped_behavior` idiom, which is a way to run a main
 behavior within the scope of a pre and post behavior.
