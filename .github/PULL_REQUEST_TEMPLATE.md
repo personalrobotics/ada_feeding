@@ -9,7 +9,7 @@
 # Before opening a pull request
 
 - \[ \] `pre-commit run --all-files`
-- \[ \] Run your code through [pylint](https://pylint.readthedocs.io/en/latest/) (the online workflow uses version 3.1.0). `pylint --recursive=y --rcfile=.pylintrc .`. All warnings but `fixme` must be addressed.
+- \[ \] Run your code through [pylint](https://pylint.readthedocs.io/en/latest/). `pylint --recursive=y --rcfile=.pylintrc .`. All warnings but `fixme` must be addressed.
 
 # Before Merging
 

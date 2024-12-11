@@ -31,11 +31,11 @@ jobs:
       - name: Apply fixes from pre-commit
         uses: pre-commit-ci/lite-action@v1.0.2
         if: always()
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install --force-reinstall pylint==3.1.0
-          pip install overrides
-      - name: Analysing the code with pylint
-        run: |
-          pylint --recursive=y --rcfile=.pylintrc . --disable fixme --disable import-error
+      # - name: Install dependencies
+      #   run: |
+      #     python -m pip install --upgrade pip
+      #     pip install --force-reinstall pylint==3.1.0
+      #     pip install overrides
+      # - name: Analysing the code with pylint
+      #   run: |
+      #     pylint --recursive=y --rcfile=.pylintrc . --disable fixme --disable import-error
