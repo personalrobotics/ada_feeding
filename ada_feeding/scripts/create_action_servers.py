@@ -148,6 +148,28 @@ class CreateActionServers(Node):
         # Create the action servers.
         self.create_action_servers(self.action_server_params)
 
+        # Render dot tree representation for each action server
+        for params in self.action_server_params.values():
+            self.get_logger().info(f"Rendering dot tree for {params.server_name}")
+            tree_action_server = self._tree_classes[params.tree_class](self, **params.tree_kwargs)
+            tree = tree_action_server.create_tree(params.server_name)
+            tree.setup(node=self)
+
+            # Render dot tree representation of tree
+            for mode in ["normal", "collapsed"]:
+                target_directory = "tree_viz/" + mode
+                os.makedirs(target_directory, exist_ok=True)
+                try:
+                    py_trees.display.render_dot_tree(
+                        root=tree.root,
+                        target_directory=target_directory,
+                        collapse_decorators=(mode=="collapsed"),
+                    )
+                except Exception as e:
+                    self.get_logger().error(f"Failed to render dot tree for {params.server_name}")
+                    self.get_logger().error(str(e))
+                    continue
+
     @staticmethod
     def get_parameter_value(param: Parameter) -> Any:
         """
