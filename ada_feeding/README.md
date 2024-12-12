@@ -9,42 +9,42 @@ See the [`ada_feeding` top-level README for setup instructions](https://github.c
 ## Usage
 
 1. Build your workspace: `colcon build`
-1. Source your workspace: `source install/setup.bash`
-1. Launch the force-torque sensor:
+2. Source your workspace: `source install/setup.bash`
+3. Launch the force-torque sensor:
    1. Dummy node: `ros2 run ada_feeding dummy_ft_sensor.py`
-   1. Real node: Follow the instructions in the [`forque_sensor_hardware` README](https://github.com/personalrobotics/forque_sensor_hardware/blob/main/README.md). Note that this is in the _main_ branch, which may not be the default branch.
-1. Launch the RealSense & Perception:
+   2. Real node: Follow the instructions in the [`forque_sensor_hardware` README](https://github.com/personalrobotics/forque_sensor_hardware/blob/main/README.md). Note that this is in the _main_ branch, which may not be the default branch.
+4. Launch the RealSense & Perception:
    1. Dummy nodes: `ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml run_motion:=false run_web_bridge:=false`
-   1. Real nodes: Follow the instructions in the [`ada_feeding_perception` README](https://github.com/personalrobotics/ada_feeding/blob/ros2-devel/ada_feeding_perception/README.md#usage)
-1. Run the action servers:
+   2. Real nodes: Follow the instructions in the [`ada_feeding_perception` README](https://github.com/personalrobotics/ada_feeding/blob/ros2-devel/ada_feeding_perception/README.md#usage)
+5. Run the action servers:
    1. If the e-stop is plugged in: `ros2 launch ada_feeding ada_feeding_launch.xml`
-   1. If the e-stop is not plugged in: `ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false`
-1. Launch MoveIt2:
+   2. If the e-stop is not plugged in: `ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false`
+6. Launch MoveIt2:
    1. Sim (RVIZ): `ros2 launch ada_moveit demo_feeding.launch.py sim:=mock`
-   1. Real Robot: `ros2 launch ada_moveit demo_feeding.launch.py`
-1. Test it:
+   2. Real Robot: `ros2 launch ada_moveit demo_feeding.launch.py`
+7. Test it:
    1. Test the individual actions with the command line interface:
       1. `ros2 action send_goal /MoveAbovePlate ada_feeding_msgs/action/MoveTo "{}" --feedback`
-      1. `ros2 action send_goal /AcquireFood ada_feeding_msgs/action/AcquireFood "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, detected_food: {roi: {x_offset: 0, y_offset: 0, height: 0, width: 0, do_rectify: false}, mask: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, format: '', data: []}, item_id: '', confidence: 0.0}}" --feedback`
-      1. `ros2 action send_goal /MoveToRestingPosition ada_feeding_msgs/action/MoveTo "{}" --feedback`
-      1. `ros2 action send_goal /MoveToStagingConfiguration ada_feeding_msgs/action/MoveTo "{}" --feedback`
-      1. `ros2 action send_goal /MoveToMouth ada_feeding_msgs/action/MoveToMouth "{}" --feedback`
-      1. `ros2 action send_goal /MoveFromMouth ada_feeding_msgs/action/MoveTo "{}" --feedback`
-      1. `ros2 action send_goal /MoveToStowLocation ada_feeding_msgs/action/MoveTo "{}" --feedback`
-   1. Test the individual actions with the web app:
+      2. `ros2 action send_goal /AcquireFood ada_feeding_msgs/action/AcquireFood "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, detected_food: {roi: {x_offset: 0, y_offset: 0, height: 0, width: 0, do_rectify: false}, mask: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, format: '', data: []}, item_id: '', confidence: 0.0}}" --feedback`
+      3. `ros2 action send_goal /MoveToRestingPosition ada_feeding_msgs/action/MoveTo "{}" --feedback`
+      4. `ros2 action send_goal /MoveToStagingConfiguration ada_feeding_msgs/action/MoveTo "{}" --feedback`
+      5. `ros2 action send_goal /MoveToMouth ada_feeding_msgs/action/MoveToMouth "{}" --feedback`
+      6. `ros2 action send_goal /MoveFromMouth ada_feeding_msgs/action/MoveTo "{}" --feedback`
+      7. `ros2 action send_goal /MoveToStowLocation ada_feeding_msgs/action/MoveTo "{}" --feedback`
+   2. Test the individual actions with the web app:
       1. Launch the web app ([instructions here](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp))
-      1. Go through the web app, ensure the expected actions happen on the robot.
-   1. Test the watchdog in isolation:
+      2. Go through the web app, ensure the expected actions happen on the robot.
+   3. Test the watchdog in isolation:
       1. Echo the watchdog topic: `ros2 topic echo /ada_watchdog`
-      1. Induce errors in the force-torque sensor and verify the watchdog reacts appropriately. Errors could include:
+      2. Induce errors in the force-torque sensor and verify the watchdog reacts appropriately. Errors could include:
          - Terminating the node.
          - Disconnecting the physical force-torque sensor from power.
          - Inducing corruption by causing the dummy note to output zero-variance values: `ros2 param set /dummy_ft_sensor std  '[0.1, 0.1, 0.0, 0.1, 0.1, 0.1]'`
-   1. Test the watchdog with the action servers:
+   4. Test the watchdog with the action servers:
       1. Start an action (see above), induce errors in the force-torque sensor (see above), and ensure the action gets aborted.
-      1. While there are errors in the force-torque sensor, ensure no new goals get accepted.
-      1. Terminate the watchdog node and ensure in-progress actions get aborted and incoming goals get rejected.
-      1. Launch the action servers without the watchdog node running and ensure it rejects all goals.
+      2. While there are errors in the force-torque sensor, ensure no new goals get accepted.
+      3. Terminate the watchdog node and ensure in-progress actions get aborted and incoming goals get rejected.
+      4. Launch the action servers without the watchdog node running and ensure it rejects all goals.
 
 ## Writing Behavior Trees That Can Be Wrapped Into Action Servers
 
