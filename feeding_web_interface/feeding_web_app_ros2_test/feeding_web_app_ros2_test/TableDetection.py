@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 from builtin_interfaces.msg import Time
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from std_srvs.srv import SetBool
@@ -66,13 +69,13 @@ class TableDetectionNode(Node):
             self.is_on = True
             self.is_on_lock.release()
             response.success = True
-            response.message = "Succesfully turned table detection on"
+            response.message = "Successfully turned table detection on"
         else:
             self.is_on_lock.acquire()
             self.is_on = False
             self.is_on_lock.release()
             response.success = True
-            response.message = "Succesfully turned table detection off"
+            response.message = "Successfully turned table detection off"
         return response
 
     def camera_callback(self, msg):

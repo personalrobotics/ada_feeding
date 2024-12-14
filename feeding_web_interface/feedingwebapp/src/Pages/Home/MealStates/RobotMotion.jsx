@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 // React Imports
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMediaQuery } from 'react-responsive'
@@ -38,7 +43,7 @@ import {
  * action is completed.
  *
  * @param {boolean} debug - whether to run it in debug mode (e.g., if you aren't
- *        simulatenously running the robot) or not
+ *        simultaneously running the robot) or not
  * @param {string} mealState - the meal state corresponding with the motion the
  *         robot is executing
  * @param {string} nextMealState - the meal state to transition to once the
@@ -476,7 +481,7 @@ const RobotMotion = (props) => {
 
 RobotMotion.propTypes = {
   /**
-   * Whether to run it in debug mode (e.g., if you aren't simulatenously running
+   * Whether to run it in debug mode (e.g., if you aren't simultaneously running
    * the robot) or not
    */
   debug: PropTypes.bool.isRequired,

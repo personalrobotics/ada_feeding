@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 // React imports
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import PropTypes from 'prop-types'
@@ -52,7 +57,7 @@ function VideoStream(props) {
   const ros = useRef(useROS().ros)
 
   /**
-   * Callback for when this page recieves an image from the robot.
+   * Callback for when this page receives an image from the robot.
    */
   const imageCallback = useCallback(
     (message) => {

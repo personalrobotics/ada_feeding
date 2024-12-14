@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 from ada_feeding_msgs.msg import FoodOnForkDetection
 from std_srvs.srv import SetBool
 import rclpy
@@ -78,13 +81,13 @@ class FoodOnForkDetectionNode(Node):
             self.is_on = True
             self.is_on_lock.release()
             response.success = True
-            response.message = "Succesfully turned food-on-fork detection on"
+            response.message = "Successfully turned food-on-fork detection on"
         else:
             self.is_on_lock.acquire()
             self.is_on = False
             self.is_on_lock.release()
             response.success = True
-            response.message = "Succesfully turned food-on-fork detection off"
+            response.message = "Successfully turned food-on-fork detection off"
         return response
 
     def camera_callback(self, msg):

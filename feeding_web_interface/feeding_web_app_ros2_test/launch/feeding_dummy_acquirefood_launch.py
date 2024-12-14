@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 from launch_ros.substitutions import FindPackageShare
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription

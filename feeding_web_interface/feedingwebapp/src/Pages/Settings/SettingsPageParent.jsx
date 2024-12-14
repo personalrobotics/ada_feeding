@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 // React imports
 import React, { useCallback, useEffect, useRef } from 'react'
 import { useMediaQuery } from 'react-responsive'
@@ -71,7 +76,7 @@ const SettingsPageParent = (props) => {
   )
 
   /**
-   * Get the paramater values in the specified namespace or, if they don't exist,
+   * Get the parameter values in the specified namespace or, if they don't exist,
    * in the default namespace. Set the local state to these values.
    */
   const setLocalParametersToGlobalValues = useCallback(
@@ -160,7 +165,7 @@ const SettingsPageParent = (props) => {
     console.log('Sending SetParameter request', currentRequest)
     service.callService(currentRequest, (response) => {
       console.log('For request', currentRequest, 'received SetParameter response', response)
-      // If it was succesful, and if the props specify, then call the action to update the
+      // If it was successful, and if the props specify, then call the action to update the
       // workspace walls.
       if (response.result.successful) {
         if (props.resetWorkspaceWallsOnParameterUpdate) {
@@ -363,7 +368,7 @@ SettingsPageParent.propTypes = {
   localParamValues: PropTypes.arrayOf(PropTypes.any).isRequired,
   setLocalParamValues: PropTypes.func.isRequired,
   // A ref that contains a function to call after the "reset to preset" button
-  // succesfully sets the local and global parameters. This must be a ref to avoid
+  // successfully sets the local and global parameters. This must be a ref to avoid
   // unnecessary setting of global parameters.
   resetToPresetSuccessCallback: PropTypes.shape({
     current: PropTypes.func.isRequired

@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 const { chromium } = require('playwright')
 const logId = 'start_robot_browser.js'
 

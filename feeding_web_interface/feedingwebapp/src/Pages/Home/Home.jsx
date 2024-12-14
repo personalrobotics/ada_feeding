@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 // React imports
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import PropTypes from 'prop-types'
@@ -28,7 +33,7 @@ import {
  * needed, and communicates with the robot.
  *
  * @param {boolean} debug - whether to run it in debug mode (e.g., if you aren't
- *        simulatenously running the robot) or not
+ *        simultaneously running the robot) or not
  * @returns {JSX.Element}
  */
 function Home(props) {
@@ -329,7 +334,7 @@ function Home(props) {
 }
 Home.propTypes = {
   /**
-   * Whether to run it in debug mode (e.g., if you aren't simulatenously running
+   * Whether to run it in debug mode (e.g., if you aren't simultaneously running
    * the robot) or not
    */
   debug: PropTypes.bool,

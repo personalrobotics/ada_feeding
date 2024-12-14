@@ -6,9 +6,10 @@
 
 **Global State**: Global state are the variables that we need to keep track of across components and page refreshes. This includes what page the app is on (see FAQ below), what stage of the meal the user/robot are currently on, and any settings. All variables in global state should be defined in [`GlobalState.jsx`](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp/src/Pages/GlobalState.jsx), along with their setter functions. Internally, we use [`zustland`](https://github.com/pmndrs/zustand) for global state, which in turn uses cookies to store the state. Therefore, the state will persist across page refreshes, even after clearing the cache. The only way to reset global state is by clearing cookies.
 
-## ROS <--> App Interface
+## ROS \<--> App Interface
 
 All functions to interact with ROS are defined in [`ros_helpers.jsx`](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp/src/ros/ros_helpers.jsx). We followed the following guiding principles when making it:
+
 - No other piece of code should need to import `roslib`; all functions that use ROSLIB should be in `ros_helpers.jsx`.
 - No other piece of code should need to import `react-ros`. The only exception to that is [`App.jsx`](https://github.com/personalrobotics/feeding_web_interface/tree/main/feedingwebapp/src/App.jsx) which needs to wrap elements that use ROS in the ROS tag.
 - Only `connectToROS()` should call `useROS()`, while other functions should have the `ros` object passed in. This is because hooks can only be used in React components (e.g., not callback functions). So the general idea is that a component that uses ROS will call `let { isConnected, ros } = connectToROS()` within the main code for the component, and will pass `ros` to any subsequent `ros_helpers.jsx` function calls it makes.
@@ -24,6 +25,7 @@ Although the web app's settings menu seem parameter-esque it is not a good idea 
 React, by default, will re-render a component any time local state changes. In other words, it will re-run all code in the function that defines that component. However, this doesn't work well for ROS Services, Actions, etc. because: (a) we don't want to keep re-calling the service/action each time the UI re-renders; and (b) we don't want to keep re-creating a service/action client each time the UI re-renders. Therefore, it is crucial to use React Hooks intentionally and to double and triple check that the service/action is only getting once, to avoid bugs.
 
 These resources that can help you understand React Hooks in general:
+
 - https://medium.com/@guptagaruda/react-hooks-understanding-component-re-renders-9708ddee9928
 - https://stackoverflow.com/a/69264685
 

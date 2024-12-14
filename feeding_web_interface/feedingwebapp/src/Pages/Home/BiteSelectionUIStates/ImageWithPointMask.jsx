@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 // React Imports
 import React, { useState } from 'react'
 import Button from 'react-bootstrap/Button'

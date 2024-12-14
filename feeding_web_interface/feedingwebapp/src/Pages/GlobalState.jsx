@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 /**
  * zustand is a state management system for React apps. It lets us manage global
  * state, i.e., state that persists beyond individual pages of the app. In
@@ -20,8 +25,8 @@ export const APP_PAGE = {
 
 /**
  * MEAL_STATE stores the current state of the meal, and configures the
- * functionality of APP_PAGE.Home. States pre-pended with "U_" are waiting
- * for user input whereas states pre-pended with "R_" are waiting for the
+ * functionality of APP_PAGE.Home. States prepended with "U_" are waiting
+ * for user input whereas states prepended with "R_" are waiting for the
  * robot to finish moving. The states are:
  *   - U_PreMeal: Waiting for the user to click "Start Feeding."
  *   - R_MovingAbovePlate: Waiting for the robot to move above the plate.
@@ -31,7 +36,7 @@ export const APP_PAGE = {
  *   - R_MovingToRestingPosition: Waiting for the robot to move to resting
  *     position.
  *   - U_BiteAcquisitionCheck: Waiting for the user to specify whether the
- *     bite acquisition was succesful or not.
+ *     bite acquisition was successful or not.
  *   - R_MovingToStagingConfiguration: Waiting for the robot to move to the
  *     staging configuration.
  *   - R_DetectingFace: Waiting for the robot to detect a face.

@@ -1,3 +1,8 @@
+<!--
+   Copyright (c) 2024, Personal Robotics Laboratory
+   License: BSD 3-Clause. See LICENSE.md file in root directory.
+-->
+
 <launch>
 
   <!-- What nodes to run -->
@@ -51,7 +56,7 @@
     <!-- Perception: The TableDetection node -->
     <node pkg="feeding_web_app_ros2_test" exec="TableDetection" name="TableDetection"/>
   </group>
-  
+
   <group if="$(var run_motion)">
     <!-- Motion: The MoveAbovePlate action -->
     <node pkg="feeding_web_app_ros2_test" exec="MoveAbovePlate" name="MoveAbovePlate"/>

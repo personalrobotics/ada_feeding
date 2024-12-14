@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 // React Imports
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Button from 'react-bootstrap/Button'
@@ -38,7 +43,7 @@ import VideoFeed from '../VideoFeed'
  * plate. It enables users to select their desired food item.
  *
  * @param {boolean} debug - whether to run it in debug mode (e.g., if you aren't
- *        simulatenously running the robot) or not
+ *        simultaneously running the robot) or not
  */
 const BiteSelection = (props) => {
   // Get the relevant global variables
@@ -337,7 +342,7 @@ const BiteSelection = (props) => {
 
         /**
          * Determine how much to scale the masks so that the largest mask fits
-         * into the alloted space.
+         * into the allotted space.
          */
         // Get the size of the largest mask
         let [maxWidth, maxHeight] = [0, 0]
@@ -633,7 +638,7 @@ const BiteSelection = (props) => {
 }
 BiteSelection.propTypes = {
   /**
-   * Whether to run it in debug mode (e.g., if you aren't simulatenously running
+   * Whether to run it in debug mode (e.g., if you aren't simultaneously running
    * the robot) or not
    */
   debug: PropTypes.bool.isRequired,

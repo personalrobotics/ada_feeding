@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 // React imports
 import React, { useCallback, useMemo, useState } from 'react'
 import { useMediaQuery } from 'react-responsive'
@@ -27,7 +32,7 @@ function InfoModal(props) {
   const inNonMovingState = useGlobalState((state) => state.inNonMovingState)
   const teleopCallback = useCallback(() => {
     /**
-     * TODO: We need a more dynamic way to determing if the app is in a non-moving
+     * TODO: We need a more dynamic way to determine if the app is in a non-moving
      * state, i.e., if robot motion is in error or if auto-continue is not going
      * to get triggered or such.
      */

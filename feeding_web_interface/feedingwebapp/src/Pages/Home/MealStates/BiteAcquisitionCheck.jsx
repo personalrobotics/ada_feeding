@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 // React Imports
 import React, { useCallback, useEffect, useState, useRef } from 'react'
 import Button from 'react-bootstrap/Button'
@@ -18,7 +23,7 @@ import { FOOD_ON_FORK_DETECTION_TOPIC, FOOD_ON_FORK_DETECTION_TOPIC_MSG, ROS_SER
  * acquire a bite, and asks the user whether it succeeded at acquiring the bite.
  */
 const BiteAcquisitionCheck = (props) => {
-  // Store the remining time before auto-continuing
+  // Store the remaining time before auto-continuing
   const [remainingSeconds, setRemainingSeconds] = useState(null)
   // Get the relevant global variables
   const prevMealState = useGlobalState((state) => state.prevMealState)

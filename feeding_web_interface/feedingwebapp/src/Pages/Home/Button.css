@@ -1,4 +1,9 @@
-/* There is a known bug in Firefox where the buttons in this class don't 
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
+/* There is a known bug in Firefox where the buttons in this class don't
    change styles when clicked. Must be addressed before incorporating
    one of these mock-ups into the actual app. */
 .RectButtonsOnImg:hover {

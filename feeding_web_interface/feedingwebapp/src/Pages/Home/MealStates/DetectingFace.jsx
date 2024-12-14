@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 // React Imports
 import React, { useCallback, useEffect, useState } from 'react'
 // PropTypes is used to validate that the used props are in fact passed to this

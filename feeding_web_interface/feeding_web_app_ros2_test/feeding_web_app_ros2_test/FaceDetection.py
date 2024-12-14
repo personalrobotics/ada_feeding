@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 from ada_feeding_msgs.msg import FaceDetection
 from std_srvs.srv import SetBool
 import cv2
@@ -96,13 +99,13 @@ class FaceDetectionNode(Node):
             self.is_on = True
             self.is_on_lock.release()
             response.success = True
-            response.message = "Succesfully turned face detection on"
+            response.message = "Successfully turned face detection on"
         else:
             self.is_on_lock.acquire()
             self.is_on = False
             self.is_on_lock.release()
             response.success = True
-            response.message = "Succesfully turned face detection off"
+            response.message = "Successfully turned face detection off"
         return response
 
     def camera_callback(self, msg):

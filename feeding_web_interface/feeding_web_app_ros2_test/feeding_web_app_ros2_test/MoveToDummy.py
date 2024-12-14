@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
@@ -64,7 +66,7 @@ class MoveToDummy(Node):
     def cancel_callback(self, goal_handle):
         """
         Always accept client requests to cancel the active goal. Note that this
-        function should not actually impelement the cancel; that is handled in
+        function should not actually implement the cancel; that is handled in
         `execute_callback`
 
         Parameters

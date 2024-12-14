@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 // ProgressBar.js 1.1.0
 // https://kimmobrunfeldt.github.io/progressbar.js
 // License: MIT

@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024, Personal Robotics Laboratory
+ * License: BSD 3-Clause. See LICENSE.md file in root directory.
+ */
+
 // React imports
 import { useRos as useRosReact } from 'rosreact'
 import ROSLIB from 'roslib'
