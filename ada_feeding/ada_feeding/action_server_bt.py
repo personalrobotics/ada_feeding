@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines ActionServerBT, an abstract class that links ROS2 action
 servers with py_trees.
@@ -65,7 +68,7 @@ class ActionServerBT(ABC):
 
         The default behavior of this function calls the `stop` method on the
         root of the behavior tree. This should block until all nodes of the
-        behavior tree have succesfully terminated. Subclasses can override this
+        behavior tree have successfully terminated. Subclasses can override this
         method if they want to implement a different behavior.
 
         Parameters

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 A node that subscribes to the joint states, keeps track of the most up-to-date
 state for each joint, and exposes a service of type GetRobotState.srv that

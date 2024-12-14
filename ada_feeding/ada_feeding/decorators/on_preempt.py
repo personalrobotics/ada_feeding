@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 NOTE: This is a multi-tick version of the decorator discussed in
 https://github.com/splintered-reality/py_trees/pull/427 . Once a

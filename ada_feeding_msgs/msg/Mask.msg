@@ -1,4 +1,4 @@
-# This message is used to specify a single output of an image segmentation 
+# This message is used to specify a single output of an image segmentation
 # algorithm.
 
 # The axis-aligned bounding box that contains the segmented item
@@ -19,6 +19,6 @@ float64 average_depth
 # An arbitrary ID that defines the segmented item
 string item_id
 
-# A score that indicates how confident the segemntation algorithm is in 
+# A score that indicates how confident the segemntation algorithm is in
 # this mask.
 float64 confidence

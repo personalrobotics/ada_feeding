@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the CollisionObjectManager class, which tracks the IDs of the
 (attached) collision objects in the planning scene and allows users to add collision
@@ -224,7 +227,7 @@ class CollisionObjectManager:
         -------
         True if the collision objects were successfully added, False otherwise.
         """
-        # pylint: disable=too-many-arguments, too-many-branches, too-many-statements
+        # pylint: disable=too-many-arguments, too-many-branches, too-many-statements,too-many-locals
         # This is the main bread and butter of adding to the planning scene,
         # so is expected to be complex.
         self.__node.get_logger().info(
@@ -386,7 +389,7 @@ class CollisionObjectManager:
                 self.__collision_objects_per_batch.pop(batch_id)
                 self.__attached_collision_objects_per_batch.pop(batch_id)
 
-        cleanup()
+        cleanup()  # pylint: disable=duplicate-code
         return True
 
     def move_collision_objects(
