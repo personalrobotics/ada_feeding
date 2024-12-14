@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains the ADAFeedingPerceptionNode class, which is used as a component
 of all perception nodes in the ADA Feeding project. Specifically, by storing all
@@ -21,6 +25,9 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rclpy.subscription import Subscription
 
 # Local imports
+
+# pylint: disable=duplicate-code
+# Many perception nodes have similar subscribers/publishers.
 
 
 class ADAFeedingPerceptionNode(Node):
@@ -167,7 +174,8 @@ def main(args=None):
     Launch the ROS node and spin.
     """
     # Import the necessary modules
-    # pylint: disable=import-outside-toplevel
+    # pylint: disable=import-outside-toplevel, cyclic-import
+    # We don't need to worry about the cyclic import because this is inside main().
     from ada_feeding_perception.face_detection import FaceDetectionNode
     from ada_feeding_perception.food_on_fork_detection import FoodOnForkDetectionNode
     from ada_feeding_perception.segment_from_point import SegmentFromPointNode

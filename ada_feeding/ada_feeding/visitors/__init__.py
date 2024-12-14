@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This package contains custom BT Visitors that are used in the Ada Feeding
 project. All of these extend VisitorBase.

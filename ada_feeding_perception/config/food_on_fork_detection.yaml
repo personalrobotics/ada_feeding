@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 food_on_fork_detection:
   ros__parameters:
@@ -35,7 +38,7 @@ food_on_fork_detection:
     viz_lower_thresh: 0.25
     viz_upper_thresh: 0.75
 
-    # The offset to add to no-food-on-fork points. This is useful to acocunt for scenarios like when
+    # The offset to add to no-food-on-fork points. This is useful to account for scenarios like when
     # the fork gets bent or the camera extrinsics changes slightly.
     # NOTE: The fact that food-on-fork detection is sensitive to such small offsets is, in itself,
     # an indication that it needs to be improved.
@@ -78,7 +81,7 @@ ada_feeding_perception:
     viz_lower_thresh: 0.25
     viz_upper_thresh: 0.75
 
-    # The offset to add to no-food-on-fork points. This is useful to acocunt for scenarios like when
+    # The offset to add to no-food-on-fork points. This is useful to account for scenarios like when
     # the fork gets bent or the camera extrinsics changes slightly.
     # NOTE: The fact that food-on-fork detection is sensitive to such small offsets is, in itself,
     # an indication that it needs to be improved.

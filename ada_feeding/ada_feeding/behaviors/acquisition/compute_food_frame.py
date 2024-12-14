@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the ComputeFoodFrame behavior, which computes the
 food frame from the Mask provided from a perception algorithm.
@@ -295,7 +297,7 @@ class ComputeFoodFrame(BlackboardBehavior):
         full_contours = np.vstack(contours)
         rect = cv.minAreaRect(full_contours)
         points = cv.boxPoints(rect)
-        # Get direction of +X axix in pixel-space
+        # Get direction of +X axis in pixel-space
         # Take longest side
         if np.linalg.norm(points[0] - points[1]) > np.linalg.norm(
             points[1] - points[2]
@@ -336,7 +338,7 @@ class ComputeFoodFrame(BlackboardBehavior):
             x_unit.vector, x_pos.vector
         )
 
-        # # If you need to send a fixed food frame to the robot arm, e.g., to 
+        # # If you need to send a fixed food frame to the robot arm, e.g., to
         # # debug off-centering issues, uncomment this and modify the translation.
         # deg = 90  # fork roll
         # world_to_food_transform.transform.translation.x = 0.26262263022586224

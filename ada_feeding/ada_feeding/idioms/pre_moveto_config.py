@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the pre_moveto_config idiom, which returns a behavior that
 calls the ROS services that should be called before any MoveTo behavior.
@@ -196,7 +198,7 @@ def pre_moveto_config(
                     operator=partial(
                         add_logging_to_operator,
                         operator_fn=operator.eq,
-                        success_msg="Succesfully retared F/T sensor",
+                        success_msg="Successfully retared F/T sensor",
                         failure_msg="Failed to retare F/T sensor",
                     ),
                 )
@@ -238,7 +240,7 @@ def pre_moveto_config(
                     operator=partial(
                         add_logging_to_operator,
                         operator_fn=set_parameter_response_all_success,
-                        success_msg="Succesfully set F/T threshold",
+                        success_msg="Successfully set F/T threshold",
                         failure_msg="Failed to set F/T threshold",
                     ),
                 )

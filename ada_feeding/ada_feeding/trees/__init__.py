@@ -1,7 +1,10 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This package contains custom behavior trees that are used in the Ada Feeding
 project. All of these trees implement the ActionServerBT interface, in order
-to be wrapped in a ROS action server. 
+to be wrapped in a ROS action server.
 """
 
 # pylint: disable=cyclic-import

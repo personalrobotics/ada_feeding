@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains a node, ADAWatchdog, which does the following:
     1. Monitors the state of the force-torque sensor, to ensure it is still

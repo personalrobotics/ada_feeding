@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines unit tests for the scoped_behaviour idiom.
 """
@@ -13,6 +16,7 @@ import py_trees
 
 # Local imports
 from ada_feeding.idioms import scoped_behavior
+
 from .helpers import (
     TickCounterWithTerminateTimestamp,
     check_count_status,

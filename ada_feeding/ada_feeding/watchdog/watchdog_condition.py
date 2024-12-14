@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains WatchdogCondition, an abstract class that every watchdog
 condition must inherit from.
@@ -37,7 +39,7 @@ class WatchdogCondition(ABC):
             status of a startup condition, a string name describing the condition,
             and a string detailing the status of the condition. All conditions
             must be True for the startup condition to be considered passed.
-            For example, [(False, "Recieved Topic X Data", "Has not received at
+            For example, [(False, "Received Topic X Data", "Has not received at
             least one message on topic X")] means that the startup condition has not
             passed because the node has not received any messages on topic X yet.
         """

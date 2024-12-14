@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains helper functions to generate the behaviors used in bite
 transfer, e.g., the MoveToMouth and MoveFromMouth behaviors.
