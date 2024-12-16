@@ -294,7 +294,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 # "Xvfb :5 -screen 0 800x600x24 &" if not args.dev else "",
                 # "export DISPLAY=:5" if not args.dev else "",
                 "ros2 launch ada_planning_scene ada_moveit_launch.xml "
-                f"use_rviz:={'true' if args.dev else 'false'}"
+                f"use_rviz:={'true' if args.dev else 'false'} "
                 f"end_effector_tool:={args.end_effector_tool}",
             ],
             "feeding": [
