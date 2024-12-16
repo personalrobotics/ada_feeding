@@ -71,6 +71,13 @@ parser.add_argument(
         "These options are all named learning policies for ada_feeding_action_select."
     ),
 )
+parser.add_argument(
+    "--end_effector_tool",
+    default="fork",
+    help=(
+        "Which end-effector tool to use: 'none', 'fork', 'articulable_fork'"
+    )
+)
 
 
 async def get_existing_screens():
@@ -208,7 +215,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 ),
             ],
             "moveit": [
-                "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock"
+                "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock "
+                f"end_effector_tool:={args.end_effector_tool}",
             ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
@@ -285,7 +293,9 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "moveit": [
                 # "Xvfb :5 -screen 0 800x600x24 &" if not args.dev else "",
                 # "export DISPLAY=:5" if not args.dev else "",
-                f"ros2 launch ada_planning_scene ada_moveit_launch.xml use_rviz:={'true' if args.dev else 'false'}",
+                "ros2 launch ada_planning_scene ada_moveit_launch.xml "
+                f"use_rviz:={'true' if args.dev else 'false'}"
+                f"end_effector_tool:={args.end_effector_tool}",
             ],
             "feeding": [
                 # "sudo ./src/ada_feeding/configure_lovelace.sh",
