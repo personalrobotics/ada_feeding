@@ -164,6 +164,17 @@ In a browser, access `127.0.0.1:3000` (if on the same device serving the web app
 
 To close, run `python3 src/ada_feeding/start.py --sim dummy -c`
 
+## Contributing
+
+1. Install `pre-commit`:
+   1. `python3 -m pip install pre-commit`
+   2. `cd ~/colcon_ws/src/ada_feeding`
+   3. `pre-commit install`
+2. Before opening a pull request:
+   1. `cd ~/colcon_ws/src/ada_feeding`
+   2. `pre-commit run --all-files`
+   3. `pylint --recursive=y --rcfile=.pylintrc .`
+
 ## Troubleshooting
 
 - **Something is not working, what do I do?**: All our code runs in `screen` sessions, so the first step is to attach to individual screen sessions to identify where the issue is. Run `screen -ls` to list all screens, run `screen -r <name>` to attach to a screen session, and `Ctrl-A d` to detach from the screen session. An introduction to `screen` can be found [here](https://astrobiomike.github.io/unix/screen-intro).
