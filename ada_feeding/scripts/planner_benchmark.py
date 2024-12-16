@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This script, intended to be run in sim, is used to benchmark planner performance.
 
@@ -37,6 +40,7 @@ from ada_feeding.behaviors.moveit2 import MoveIt2Plan
 
 Condition = namedtuple("Condition", ["x", "y", "z", "qx", "qy", "qz", "qw", "frame_id"])
 
+
 class Benchmark:
     FORKTIP_QUAT_WXYZ = (0.0, 1.0, 0.0, 0.0)
 
@@ -44,13 +48,21 @@ class Benchmark:
         self,
         node: Node,
         moveit2: MoveIt2,
-        base_position: tuple[float] = (0.26262263022586224, -0.2783553055166875, 0.22773121634396466),
+        base_position: tuple[float] = (
+            0.26262263022586224,
+            -0.2783553055166875,
+            0.22773121634396466,
+        ),
         base_position_frame: str = "j2n6s200_link_base",
-        planners: tuple[str] = ("AnytimePathShortening", "RRTConnectkConfigDefault", "RRTstarkConfigDefault"),
+        planners: tuple[str] = (
+            "AnytimePathShortening",
+            "RRTConnectkConfigDefault",
+            "RRTstarkConfigDefault",
+        ),
         dxs: tuple[float] = (0.0, -0.1, -0.05, 0.05),
         dys: tuple[float] = (0.0, -0.1, -0.05, 0.05),
-        fork_pitches: tuple[float] = (0.0, np.pi/8, -np.pi/8),
-        fork_rolls: tuple[float] = (0, np.pi/2, np.pi, -np.pi/2),
+        fork_pitches: tuple[float] = (0.0, np.pi / 8, -np.pi / 8),
+        fork_rolls: tuple[float] = (0, np.pi / 2, np.pi, -np.pi / 2),
         # dxs: tuple[float] = (0.0, 0.05),
         # dys: tuple[float] = (0.0, 0.05),
         # fork_pitches: tuple[float] = (0.0, -np.pi/8),
@@ -67,7 +79,9 @@ class Benchmark:
         self.fork_rolls = fork_rolls
         self.num_conditions = len(dxs) * len(dys) * len(fork_pitches) * len(fork_rolls)
 
-        self.results: dict[Condition, dict[str, tuple[Optional[JointTrajectory], float]]] = defaultdict(dict)
+        self.results: dict[
+            Condition, dict[str, tuple[Optional[JointTrajectory], float]]
+        ] = defaultdict(dict)
 
         self.rate = self.node.create_rate(10)
 
@@ -83,7 +97,9 @@ class Benchmark:
                             quaternion_from_euler(0, fork_pitch, fork_roll, "sxyz"),
                             self.FORKTIP_QUAT_WXYZ,
                         )
-                        yield Condition(x, y, z, qx, qy, qz, qw, self.base_position_frame)
+                        yield Condition(
+                            x, y, z, qx, qy, qz, qw, self.base_position_frame
+                        )
 
     def run_condition(self, condition: Condition):
         # Get the above food pose
@@ -99,31 +115,31 @@ class Benchmark:
         # Plan to the above food pose
         for planner in self.planners:
             trajectory, elapsed_time = self.plan(
-                position = above_food_position,
-                quat_xyzw = above_food_quat_xyzw,
-                planner = planner,
+                position=above_food_position,
+                quat_xyzw=above_food_quat_xyzw,
+                planner=planner,
             )
             self.results[condition][planner] = (trajectory, elapsed_time)
 
     def plan(
-        self, 
-        position: tuple[float, float, float], 
-        quat_xyzw: tuple[float, float, float, float], 
+        self,
+        position: tuple[float, float, float],
+        quat_xyzw: tuple[float, float, float, float],
         planner: str,
         timeout_sec: float = 10.0,
     ) -> tuple[Optional[JointTrajectory], float]:
         # Plan to the above food pose
         self.moveit2.planner_id = planner
         self.moveit2.set_position_goal(
-            position = position,
-            frame_id = self.base_position_frame,
-            tolerance = 0.001,
+            position=position,
+            frame_id=self.base_position_frame,
+            tolerance=0.001,
         )
         self.moveit2.set_orientation_goal(
-            quat_xyzw = quat_xyzw,
-            frame_id = self.base_position_frame,
-            tolerance = (0.01, 0.01, 0.01),
-            parameterization = 1,
+            quat_xyzw=quat_xyzw,
+            frame_id=self.base_position_frame,
+            tolerance=(0.01, 0.01, 0.01),
+            parameterization=1,
         )
         start_time = self.node.get_clock().now()
         future = self.moveit2.plan_async()
@@ -131,7 +147,11 @@ class Benchmark:
         if future is None:
             return None, (self.node.get_clock().now() - start_time).nanoseconds / 1e9
 
-        while not future.done() and (self.node.get_clock().now() - start_time).nanoseconds / 1e9 < timeout_sec:
+        while (
+            not future.done()
+            and (self.node.get_clock().now() - start_time).nanoseconds / 1e9
+            < timeout_sec
+        ):
             self.rate.sleep()
 
         if not future.done():
@@ -146,7 +166,9 @@ class Benchmark:
     def run(self, log_every: Optional[int] = None):
         i = 0
         for condition in self.conditions():
-            self.node.get_logger().info(f"Planning to condition {i}/{self.num_conditions}")
+            self.node.get_logger().info(
+                f"Planning to condition {i}/{self.num_conditions}"
+            )
             self.run_condition(condition)
             i += 1
             if log_every and i % log_every == log_every - 1:
@@ -175,8 +197,10 @@ class Benchmark:
                 for planner, (trajectory, elapsed_time) in planner_results.items():
                     if trajectory is None:
                         success = 0
-                        path_len = ''
-                        joint_path_lens = {joint_name: '' for joint_name in kinova.joint_names()}
+                        path_len = ""
+                        joint_path_lens = {
+                            joint_name: "" for joint_name in kinova.joint_names()
+                        }
                     else:
                         success = 1
                         path_len, joint_path_lens = MoveIt2Plan.get_path_len(trajectory)
@@ -211,7 +235,7 @@ class Benchmark:
         )
 
     def log_results(
-        self, 
+        self,
         max_path_len: float = 10.0,
         max_path_len_joint: dict[str, float] = {
             "j2n6s200_joint_1": np.pi * 5.0 / 6.0,
@@ -234,12 +258,15 @@ class Benchmark:
         Summary statistics report mean, median, min, max, 25th, 50th, 75th percentiles, and standard deviation
         """
         # Get the results
-        n_succ = {planner_id : 0 for planner_id in self.planners}
-        n_fail = {planner_id : 0 for planner_id in self.planners}
-        path_lengths = {planner_id : [] for planner_id in self.planners}
-        path_lengths_joint = {planner_id : {joint_name: [] for joint_name in kinova.joint_names()} for planner_id in self.planners}
-        n_succ_path_lens = {planner_id : 0 for planner_id in self.planners}
-        elapsed_times = {planner_id : [] for planner_id in self.planners}
+        n_succ = {planner_id: 0 for planner_id in self.planners}
+        n_fail = {planner_id: 0 for planner_id in self.planners}
+        path_lengths = {planner_id: [] for planner_id in self.planners}
+        path_lengths_joint = {
+            planner_id: {joint_name: [] for joint_name in kinova.joint_names()}
+            for planner_id in self.planners
+        }
+        n_succ_path_lens = {planner_id: 0 for planner_id in self.planners}
+        elapsed_times = {planner_id: [] for planner_id in self.planners}
         for condition, planner_results in self.results.items():
             for planner, (trajectory, elapsed_time) in planner_results.items():
                 elapsed_times[planner].append(elapsed_time)
@@ -253,7 +280,10 @@ class Benchmark:
                     for joint_name, joint_len in joints_len.items():
                         path_lengths_joint[planner][joint_name].append(joint_len)
                         if joint_name in max_path_len_joint:
-                            satisfied_path_len = satisfied_path_len and joint_len <= max_path_len_joint[joint_name]
+                            satisfied_path_len = (
+                                satisfied_path_len
+                                and joint_len <= max_path_len_joint[joint_name]
+                            )
                     if satisfied_path_len:
                         n_succ_path_lens[planner] += 1
 
@@ -261,10 +291,16 @@ class Benchmark:
         for planner_id in self.planners:
             total_plans = n_succ[planner_id] + n_fail[planner_id]
             self.node.get_logger().info(f"*** {planner_id} ***")
-            self.node.get_logger().info(f"    {n_succ[planner_id]} succeeded, {n_fail[planner_id]} failed")
-            self.node.get_logger().info(f"    Success rate: {n_succ[planner_id] / total_plans}")
+            self.node.get_logger().info(
+                f"    {n_succ[planner_id]} succeeded, {n_fail[planner_id]} failed"
+            )
+            self.node.get_logger().info(
+                f"    Success rate: {n_succ[planner_id] / total_plans}"
+            )
             if n_succ[planner_id] > 0:
-                self.node.get_logger().info(f"    Path Lengths: {Benchmark.summary_stats(path_lengths[planner_id])}")
+                self.node.get_logger().info(
+                    f"    Path Lengths: {Benchmark.summary_stats(path_lengths[planner_id])}"
+                )
                 for joint_name in kinova.joint_names():
                     self.node.get_logger().info(
                         f"        {joint_name} Path Lengths: {Benchmark.summary_stats(path_lengths_joint[planner_id][joint_name])}"
@@ -272,7 +308,10 @@ class Benchmark:
                 self.node.get_logger().info(
                     f"    Proportion of plans with path lengths within maxes: {n_succ_path_lens[planner_id] / total_plans}"
                 )
-            self.node.get_logger().info(f"    Elapsed Times: {Benchmark.summary_stats(elapsed_times[planner_id])}")
+            self.node.get_logger().info(
+                f"    Elapsed Times: {Benchmark.summary_stats(elapsed_times[planner_id])}"
+            )
+
 
 def main(out_dir: Optional[str]):
     rclpy.init()
@@ -303,7 +342,7 @@ def main(out_dir: Optional[str]):
 
     # Configure the MoveIt2 object
     moveit2.planner_id = benchmark.planners[0]
-    moveit2.allowed_planning_time = 0.5 # secs
+    moveit2.allowed_planning_time = 0.5  # secs
     moveit2.max_velocity = 1.0
     moveit2.max_acceleration = 0.8
 
@@ -329,7 +368,9 @@ def main(out_dir: Optional[str]):
     if out_dir is not None:
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
-        filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "planner_benchmark.csv"
+        filename = (
+            datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "planner_benchmark.csv"
+        )
         benchmark.to_csv(os.path.join(out_dir, filename), above_plate_config)
 
     # Log the results
