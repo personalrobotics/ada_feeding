@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains the class `WorkspaceWalls` for managing the workspace walls
 in ADA's planning scene.
@@ -169,7 +172,7 @@ class WorkspaceWalls:
                     j_label = "x" if j == 0 else "y" if j == 1 else "z"
 
                     # Get the offset for the wall in that direction
-                    name = f"{namespace}.workspace_wall_margin_{j_label}_{i_label}"
+                    name = f"workspace_walls.{namespace}.workspace_wall_margin_{j_label}_{i_label}"
                     default = 0.1
                     margin = self.__node.declare_parameter(
                         name,
@@ -187,7 +190,7 @@ class WorkspaceWalls:
                     self.__workspace_wall_margins[namespace][i, j] = margin.value
 
                     # Check whether the wall in that direction is disabled
-                    name = f"{namespace}.disable_workspace_wall_{j_label}_{i_label}"
+                    name = f"workspace_walls.{namespace}.disable_workspace_wall_{j_label}_{i_label}"
                     disable = self.__node.declare_parameter(
                         name,
                         False,  # default value
@@ -348,7 +351,7 @@ class WorkspaceWalls:
         self.__fixed_joint_values = self.__fixed_joint_values[:min_len]
 
         # The name of the articulated joints in the robot's full URDF. The order
-        # of these must match the order ot joints in the robot configuration parameters.
+        # of these must match the order of joints in the robot configuration parameters.
         articulated_joint_names = self.__node.declare_parameter(
             "articulated_joint_names",
             [
@@ -368,7 +371,7 @@ class WorkspaceWalls:
         )
         self.__articulated_joint_names = articulated_joint_names.value
 
-    def __get_homogenous_transform_in_base_frame(
+    def __get_homogeneous_transform_in_base_frame(
         self,
         position: Tuple[float, float, float],
         quat_xyzw: Tuple[float, float, float, float],
@@ -377,7 +380,7 @@ class WorkspaceWalls:
     ) -> Optional[npt.NDArray]:
         """
         Transforms the position and quaternion in frame_id into base_frame. Returns
-        The resulting pose represented as a homogenous transformation matrix. In other
+        The resulting pose represented as a homogeneous transformation matrix. In other
         words, the return value times (0, 0, 0, 1) is the position in the base frame.
 
         Parameters
@@ -390,7 +393,7 @@ class WorkspaceWalls:
 
         Returns
         -------
-        The homogenous transformation matrix that takes a point in the object's frame
+        The homogeneous transformation matrix that takes a point in the object's frame
         and converts it to the base frame. None if the transform fails.
         """
         # Get the pose as a PoseStamped
@@ -419,7 +422,7 @@ class WorkspaceWalls:
             self.__node.get_logger().error(f"Failed to transform the pose: {error}")
             return None
 
-        # Covert the pose to a homogenous transformation matrix
+        # Convert the pose to a homogeneous transformation matrix
         pose_matrix = quaternion_matrix(
             [
                 pose.pose.orientation.w,
@@ -457,7 +460,7 @@ class WorkspaceWalls:
         mesh = params.mesh
 
         # Get the transformation matrix
-        transform = self.__get_homogenous_transform_in_base_frame(
+        transform = self.__get_homogeneous_transform_in_base_frame(
             position=params.position,
             quat_xyzw=params.quat_xyzw,
             frame_id=params.frame_id,
@@ -491,7 +494,7 @@ class WorkspaceWalls:
         The bounds of the primitive object.
         """
         # Get the transformation matrix
-        transform = self.__get_homogenous_transform_in_base_frame(
+        transform = self.__get_homogeneous_transform_in_base_frame(
             position=params.position,
             quat_xyzw=params.quat_xyzw,
             frame_id=params.frame_id,
@@ -536,8 +539,8 @@ class WorkspaceWalls:
             points = np.array(points)
 
         # Transform the points
-        points_homogenous = np.hstack([points, np.ones((points.shape[0], 1))])
-        points_transformed = np.dot(transform, points_homogenous.T).T[:, :3]
+        points_homogeneous = np.hstack([points, np.ones((points.shape[0], 1))])
+        points_transformed = np.dot(transform, points_homogeneous.T).T[:, :3]
 
         # Get the bounds as a (2, 3) array
         if params.primitive_type == SolidPrimitive.SPHERE:
@@ -744,7 +747,7 @@ class WorkspaceWalls:
         # `yourdfpy` only allows loading URDF from file, so we bypass its default load.
         self.__robot_model = URDF(robot=URDF._parse_robot(xml_element=xml_root))
 
-        cleanup()
+        cleanup()  # pylint: disable=duplicate-code
         return True
 
     def __get_parameter_prefix(
@@ -808,7 +811,7 @@ class WorkspaceWalls:
         ):
             prefix = ""
         else:
-            prefix = response.values[0].string_value + "."
+            prefix = response.values[0].string_value
 
         cleanup()
         return True, prefix
@@ -825,6 +828,87 @@ class WorkspaceWalls:
             for i, name in enumerate(msg.name):
                 if name in self.__articulated_joint_names:
                     self.__joint_states[name] = msg.position[i]
+
+    def __get_robot_configurations_within_prefix(
+        self,
+        prefix: str,
+        configurations_parameter_names: List[str],
+        rate_hz: float = 10.0,
+        timeout: Duration = Duration(seconds=5),
+        publish_feedback: Optional[Callable[[], None]] = None,
+    ) -> Tuple[bool, Dict[str, List[float]]]:
+        """
+        Get the robot's configurations within a prefix.
+
+        Parameters
+        ----------
+        prefix: The prefix to add to the parameter name.
+        configurations_parameter_names: The names of the parameters that contain robot
+            joint configurations that should be contained within the workspace walls.
+        rate_hz: The rate at which to call the service.
+        timeout: The timeout for the service.
+        publish_feedback: If not None, call this function periodically to publish feedback.
+
+        Returns
+        -------
+        success: True if successful, False otherwise.
+        robot_configurations: A map from the parameter name to the configuration.
+        """
+        # pylint: disable=too-many-locals, too-many-arguments
+        # One over is fine.
+
+        # Start the time
+        start_time = self.__node.get_clock().now()
+        rate = self.__node.create_rate(rate_hz)
+
+        def cleanup():
+            self.__node.destroy_rate(rate)
+
+        # Get the robot configurations
+        robot_configurations = {}
+        request = GetParameters.Request()
+        request.names = [
+            ".".join([prefix, name]) for name in configurations_parameter_names
+        ]
+        self.__node.get_logger().info(
+            f"Getting robot configurations from parameters: {request.names}"
+        )
+        future = self.__get_robot_configurations_parameter_service.call_async(request)
+        while not future.done():
+            if not check_ok(self.__node, start_time, timeout):
+                self.__node.get_logger().error(
+                    "Timeout while getting the robot configurations."
+                )
+                cleanup()
+                return False, {}
+            if publish_feedback is not None:
+                publish_feedback()
+            rate.sleep()
+
+        # Get the response
+        try:
+            response = future.result()
+        except Exception as error:  # pylint: disable=broad-except
+            self.__node.get_logger().error(
+                f"Failed to get robot configurations: {error}"
+            )
+            cleanup()
+            return False, {}
+        for i, param in enumerate(response.values):
+            if param.type != ParameterType.PARAMETER_DOUBLE_ARRAY:
+                continue
+            robot_configurations[configurations_parameter_names[i]] = list(
+                param.double_array_value
+            )
+            if publish_feedback is not None:
+                publish_feedback()
+        if len(robot_configurations) == 0:
+            self.__node.get_logger().error("Failed to get robot configurations.")
+            cleanup()
+            return False, {}
+
+        cleanup()
+        return True, robot_configurations
 
     def __get_robot_configurations(
         self,
@@ -884,45 +968,32 @@ class WorkspaceWalls:
             rate.sleep()
 
         # Get the robot configurations
-        robot_configurations = {}
-        request = GetParameters.Request()
-        request.names = [
-            prefix + name for name in self.__robot_configurations_parameter_names
-        ]
-        self.__node.get_logger().info(
-            f"Getting robot configurations from parameters: {request.names}"
+        _, robot_configurations = self.__get_robot_configurations_within_prefix(
+            prefix,
+            self.__robot_configurations_parameter_names,
+            rate_hz,
+            get_remaining_time(self.__node, start_time, timeout),
+            publish_feedback=publish_feedback,
         )
-        future = self.__get_robot_configurations_parameter_service.call_async(request)
-        while not future.done():
-            if not check_ok(self.__node, start_time, timeout):
-                self.__node.get_logger().error(
-                    "Timeout while getting the robot configurations."
-                )
-                cleanup()
-                return False, {}
-            if publish_feedback is not None:
-                publish_feedback()
-            rate.sleep()
-
-        # Get the response
-        try:
-            response = future.result()
-        except Exception as error:  # pylint: disable=broad-except
-            self.__node.get_logger().error(
-                f"Failed to get robot configurations: {error}"
-            )
-            cleanup()
-            return False, {}
-        for i, param in enumerate(response.values):
-            if param.type != ParameterType.PARAMETER_DOUBLE_ARRAY:
-                continue
-            robot_configurations[self.__robot_configurations_parameter_names[i]] = list(
-                param.double_array_value
-            )
-            if publish_feedback is not None:
-                publish_feedback()
-        if len(robot_configurations) == 0:
+        remaining_configurations_parameter_names = [
+            name
+            for name in self.__robot_configurations_parameter_names
+            if name not in robot_configurations
+        ]
+        _, default_robot_configurations = self.__get_robot_configurations_within_prefix(
+            "default",
+            remaining_configurations_parameter_names,
+            rate_hz,
+            get_remaining_time(self.__node, start_time, timeout),
+            publish_feedback=publish_feedback,
+        )
+        robot_configurations.update(default_robot_configurations)
+        # If we got some but not all of them, raise an error but continue
+        if len(robot_configurations) != len(
+            self.__robot_configurations_parameter_names
+        ):
             self.__node.get_logger().error("Failed to get robot configurations.")
+        if len(robot_configurations) == 0:
             cleanup()
             return False, {}
 
@@ -1071,7 +1142,7 @@ class WorkspaceWalls:
         self.__compute_object_bounds()
 
         # Load the robot's URDF. We do this in `initialize` as opposed to `__init__`
-        # because the MoveGroup has to be running to get the paramter.
+        # because the MoveGroup has to be running to get the parameter.
         if self.__use_robot_model:
             # Get the robot model (may take <= 10 secs)
             self.__node.get_logger().info("Loading robot model.")

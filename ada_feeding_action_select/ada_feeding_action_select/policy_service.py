@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines a node that launches a 2 ROS2 services.
 This service implement AcquisitionSelect and AcquisitionReport.
@@ -23,11 +26,11 @@ from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import torch
 
 # Internal imports
+from ada_feeding_msgs.srv import AcquisitionSelect, AcquisitionReport
 from ada_feeding.helpers import import_from_string
 from ada_feeding_action_select.helpers import register_logger
 from ada_feeding_action_select.policies import Policy
 from ada_feeding_action_select.adapters import ContextAdapter, PosthocAdapter
-from ada_feeding_msgs.srv import AcquisitionSelect, AcquisitionReport
 
 
 class PolicyServices(Node):
@@ -162,7 +165,7 @@ class PolicyServices(Node):
 
     def _init_checkpoints_record(self, context_cls: type, posthoc_cls: type) -> None:
         """
-        Seperate logic for checkpoint and data record
+        Separate logic for checkpoint and data record
         """
 
         # pylint: disable=too-many-branches
@@ -443,7 +446,7 @@ class PolicyServices(Node):
     # TODO: Consider making get_kwargs an ada_feeding helper
     def get_kwargs(self, kws_root: str, kwarg_root: str) -> Dict:
         """
-        Pull variable keyward arguments from ROS2 parameter server.
+        Pull variable keyword arguments from ROS2 parameter server.
         Needed because RCL does not allow dictionary params.
 
         Parameters

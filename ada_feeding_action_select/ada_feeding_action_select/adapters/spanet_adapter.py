@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the SPANet context adapter.
 
@@ -16,9 +18,9 @@ from overrides import override
 import torch
 
 # Local imports
-from ada_feeding_action_select.helpers import logger
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_perception.helpers import ros_msg_to_cv2_image
+from ada_feeding_action_select.helpers import logger
 from .models import SPANetConfig, SPANet
 from .base_adapters import ContextAdapter
 

@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains a ROS2 node that: (a) takes in parameters specifying a FoodOnFork
 class to use and kwargs for the class's constructor; (b) exposes a ROS2 service to
@@ -41,6 +44,9 @@ from .depth_post_processors import (
     create_temporal_post_processor,
     post_processor_chain,
 )
+
+# pylint: disable=duplicate-code
+# Many perception nodes have similar subscribers/publishers.
 
 
 class FoodOnForkDetectionNode:

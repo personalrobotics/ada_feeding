@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This script takes in a variety of command line arguments and then trains and test a
 FoodOnForkDetector as configured by the arguments. Note that although this is not

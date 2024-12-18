@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains the UpdateFromFaceDetection class, which subscribes to the
 output of face detection, moves the head to the detected position, and scales the
@@ -27,7 +30,6 @@ from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from ada_feeding_msgs.msg import FaceDetection
 from ada_planning_scene.collision_object_manager import CollisionObjectManager
 from ada_planning_scene.helpers import CollisionObjectParams
-
 
 # Define a namedtuple to store latest the joint state
 UpdateFromFaceDetectionParams = namedtuple(
@@ -208,10 +210,10 @@ class UpdateFromFaceDetection:
             try:
                 # The object ID of the head in the planning scene
                 head_object_id = self.__node.declare_parameter(
-                    f"{namespace}.head_object_id",
+                    f"face_detection.{namespace}.head_object_id",
                     "head",
                     descriptor=ParameterDescriptor(
-                        name=f"{namespace}.head_object_id",
+                        name=f"face_detection.{namespace}.head_object_id",
                         type=ParameterType.PARAMETER_STRING,
                         description=(
                             "The object ID of the head in the planning scene. "
@@ -222,16 +224,16 @@ class UpdateFromFaceDetection:
                 )
             except ParameterAlreadyDeclaredException:
                 head_object_id = self.__node.get_parameter(
-                    f"{namespace}.head_object_id"
+                    f"face_detection.{namespace}.head_object_id"
                 )
 
             try:
                 # The object ID of the body in the planning scene
                 body_object_id = self.__node.declare_parameter(
-                    f"{namespace}.body_object_id",
+                    f"face_detection.{namespace}.body_object_id",
                     "body",
                     descriptor=ParameterDescriptor(
-                        name=f"{namespace}.body_object_id",
+                        name=f"face_detection.{namespace}.body_object_id",
                         type=ParameterType.PARAMETER_STRING,
                         description=(
                             "The object ID of the body in the planning scene. "
@@ -242,17 +244,17 @@ class UpdateFromFaceDetection:
                 )
             except ParameterAlreadyDeclaredException:
                 body_object_id = self.__node.get_parameter(
-                    f"{namespace}.body_object_id"
+                    f"face_detection.{namespace}.body_object_id"
                 )
 
             try:
                 # If the head is farther than this distance from the default position,
                 # use the default position instead
                 head_distance_threshold = self.__node.declare_parameter(
-                    f"{namespace}.head_distance_threshold",
+                    f"face_detection.{namespace}.head_distance_threshold",
                     0.5,
                     descriptor=ParameterDescriptor(
-                        name=f"{namespace}.head_distance_threshold",
+                        name=f"face_detection.{namespace}.head_distance_threshold",
                         type=ParameterType.PARAMETER_DOUBLE,
                         description=(
                             "Reject any mouth positions that are greater than the distance "
@@ -263,16 +265,16 @@ class UpdateFromFaceDetection:
                 )
             except ParameterAlreadyDeclaredException:
                 head_distance_threshold = self.__node.get_parameter(
-                    f"{namespace}.head_distance_threshold"
+                    f"face_detection.{namespace}.head_distance_threshold"
                 )
 
             try:
                 # The TF frame to use for the mouth
                 mouth_frame_id = self.__node.declare_parameter(
-                    f"{namespace}.mouth_frame_id",
+                    f"face_detection.{namespace}.mouth_frame_id",
                     "mouth",
                     descriptor=ParameterDescriptor(
-                        name=f"{namespace}.mouth_frame_id",
+                        name=f"face_detection.{namespace}.mouth_frame_id",
                         type=ParameterType.PARAMETER_STRING,
                         description=("The name of the frame to use for the mouth."),
                         read_only=True,
@@ -280,16 +282,16 @@ class UpdateFromFaceDetection:
                 )
             except ParameterAlreadyDeclaredException:
                 mouth_frame_id = self.__node.get_parameter(
-                    f"{namespace}.mouth_frame_id"
+                    f"face_detection.{namespace}.mouth_frame_id"
                 )
 
             try:
                 # Whether to move the body as well as the head
                 update_body = self.__node.declare_parameter(
-                    f"{namespace}.update_body",
+                    f"face_detection.{namespace}.update_body",
                     False,
                     descriptor=ParameterDescriptor(
-                        name=f"{namespace}.update_body",
+                        name=f"face_detection.{namespace}.update_body",
                         type=ParameterType.PARAMETER_BOOL,
                         description=(
                             "Whether to update the body as well as the head based on face detection."
@@ -298,7 +300,9 @@ class UpdateFromFaceDetection:
                     ),
                 )
             except ParameterAlreadyDeclaredException:
-                update_body = self.__node.get_parameter(f"{namespace}.update_body")
+                update_body = self.__node.get_parameter(
+                    f"face_detection.{namespace}.update_body"
+                )
 
             self.__namespace_to_params[namespace] = UpdateFromFaceDetectionParams(
                 head_object_id=head_object_id.value,
@@ -322,6 +326,9 @@ class UpdateFromFaceDetection:
         fixed quaternion to the mouth center to create a pose. Finally, move the
         head in the planning scene to that pose.
         """
+        # pylint: disable=too-many-locals
+        # One over is fine.
+
         with self.__latest_face_detection_lock:
             if (
                 self.__latest_face_detection is None
@@ -410,7 +417,7 @@ class UpdateFromFaceDetection:
         # NOTE: Although in theory, publishing the mouth TF here can allow for visual servoing
         # to the mouth, in practice we have to make some assumptions about the mouth orientation
         # (e.g., the mouth is facing the fork). Those assumptions are made in the MoveToMouth tree,
-        # and would be overrided here if we published the mouth TF.
+        # and would be overridden here if we published the mouth TF.
         if self.__publish_mouth_tf:
             self.__tf_broadcaster.sendTransform(
                 TransformStamped(

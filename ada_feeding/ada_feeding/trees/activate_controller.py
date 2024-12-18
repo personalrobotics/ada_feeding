@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the ActivateController behavior tree, which activates a
 user-specified controller and deactivates all others.
@@ -43,7 +45,7 @@ class ActivateControllerTree(TriggerTree):
         ----------
         node: The ROS node.
         controller_to_activate: The name of the controller to activate. If None,
-            deactive all controllers without activating any.
+            deactivate all controllers without activating any.
         all_controller_names: The names of all controllers. If None, the default
             controllers are "jaco_arm_cartesian_controller", "jaco_arm_controller",
             and "jaco_arm_servo_controller"

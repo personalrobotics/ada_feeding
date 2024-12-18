@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 test_segment_from_point:
   ros__parameters:
@@ -6,12 +9,12 @@ test_segment_from_point:
     #            When the user clicks a point on the image, it will call the
     #            SegmentFromPoint action server and display the result(s).
     #   offline: The node will read the images and points specified in the params.
-    #            It will call the SegmentFromPoint action server and save the results. 
+    #            It will call the SegmentFromPoint action server and save the results.
     mode: online # online or offline
-    
+
     # The name of the action server to call
     action_server_name: /SegmentFromPoint
-    
+
     # Note that all directories are relative to the `base_dir` parameter, passed
     # in by the launchfile.
     offline: # Params for offline mode
