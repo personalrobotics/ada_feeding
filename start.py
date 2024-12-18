@@ -74,9 +74,7 @@ parser.add_argument(
 parser.add_argument(
     "--end_effector_tool",
     default="fork",
-    help=(
-        "Which end-effector tool to use: 'none', 'fork', 'articulable_fork'"
-    )
+    help=("Which end-effector tool to use: 'none', 'fork', 'articulable_fork'"),
 )
 
 
