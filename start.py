@@ -279,7 +279,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "pm2 log server",
             ],
             "camera": [
-                "ssh nano@nano -t './start_nano.sh'",
+                "ssh nano -t './start_nano.sh'",
             ],
             "ft": [
                 "ros2 run forque_sensor_hardware forque_sensor_hardware --ros-args -p host:=ft-sensor-2",
@@ -291,14 +291,14 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "ros2 launch ada_feeding_perception ada_feeding_perception.launch.py combine_perception_nodes:=true",
             ],
             "moveit": [
-                # "Xvfb :5 -screen 0 800x600x24 &" if not args.dev else "",
-                # "export DISPLAY=:5" if not args.dev else "",
+                "Xvfb :5 -screen 0 800x600x24 &" if not args.dev else "",
+                "export DISPLAY=:5" if not args.dev else "",
                 "ros2 launch ada_planning_scene ada_moveit_launch.xml "
                 f"use_rviz:={'true' if args.dev else 'false'} "
                 f"end_effector_tool:={args.end_effector_tool}",
             ],
             "feeding": [
-                # "sudo ./src/ada_feeding/configure_lovelace.sh",
+                "sudo ./src/ada_feeding/configure_lovelace.sh",
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml "
                     f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy}"
