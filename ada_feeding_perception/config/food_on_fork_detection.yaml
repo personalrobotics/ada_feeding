@@ -13,7 +13,7 @@ food_on_fork_detection:
     # Keyword arguments to pass to the FoodOnFork class's constructor
     model_kwargs:
       camera_matrix: [614.5933227539062, 0.0, 312.1358947753906, 0.0, 614.6914672851562, 223.70831298828125, 0.0, 0.0, 1.0]
-      min_points: 100
+      min_points: 40
 
     # The rate at which to detect and publish the confidence that there is food on the fork
     food_on_fork_detection_rate_hz: 10.0
@@ -39,7 +39,7 @@ food_on_fork_detection:
     # the fork gets bent or the camera extrinsics changes slightly.
     # NOTE: The fact that food-on-fork detection is sensitive to such small offsets is, in itself,
     # an indication that it needs to be improved.
-    no_fof_points_offset: [-0.005, 0.01, -0.0025]
+    no_fof_points_offset: [0.0, 0.0025, -0.005]
 
 # NOTE: If using the combined perception node, be very careful to ensure no name clashes of parameters!
 ada_feeding_perception:
@@ -56,7 +56,7 @@ ada_feeding_perception:
     # Keyword arguments to pass to the FoodOnFork class's constructor
     model_kwargs:
       camera_matrix: [614.5933227539062, 0.0, 312.1358947753906, 0.0, 614.6914672851562, 223.70831298828125, 0.0, 0.0, 1.0]
-      min_points: 100
+      min_points: 40
 
     # The rate at which to detect and publish the confidence that there is food on the fork
     food_on_fork_detection_rate_hz: 10.0
@@ -82,4 +82,4 @@ ada_feeding_perception:
     # the fork gets bent or the camera extrinsics changes slightly.
     # NOTE: The fact that food-on-fork detection is sensitive to such small offsets is, in itself,
     # an indication that it needs to be improved.
-    no_fof_points_offset: [-0.005, 0.01, -0.0025]
+    no_fof_points_offset: [0.0, 0.0025, -0.005]
