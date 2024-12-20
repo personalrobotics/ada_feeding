@@ -2,6 +2,29 @@
 
 This README is the definitive source for downloading, installing, and running the Personal Robotics Lab's robot-assisted feeding software. This code has been run and tested on machines running **Ubuntu 22.04** and ROS2 Humble.
 
+## HRI '25 Release
+
+The code in this `hri25a` tag was released as part of the paper "Lessons Learned from Designing and Evaluating a Robot-assisted Feeding System for Out-of-lab Use" published in the Proceedings of the 2025 ACM/IEEE International Conference on Human-Robot Interaction. The main system code is in three repositories:
+
+- [ada_feeding (tag: `v1.0.0-hri25a`)](https://github.com/personalrobotics/ada_feeding/releases/tag/v1.0.0-hri25a)
+- [ada_ros2 (tag: `v1.0.0-hri25a`)](https://github.com/personalrobotics/ada_ros2/releases/tag/v1.0.0-hri25a)
+- [feeding_web_interface (tag: `v1.0.0-hri25a`)](https://github.com/personalrobotics/feeding_web_interface/releases/tag/v1.0.0-hri25a)
+
+Some additional repositories are also necessary. The below instructions will guide you through downloading and installing all repositories needed for the robot-assisted feeding system.
+
+Note that configuration-file changes specific to the in-home deployment ("Study 2" in the paper) can be found in the commits from 9/1/24 to 9/10/24.
+
+If you use or refer to this code, please cite:
+
+```
+@inproceedings{nanavati2025lessons,
+  title={Lessons Learned from Designing and Evaluating a Robot-assisted Feeding System for Out-of-lab Use},
+  author={Nanavati, Amal and Gordon, Ethan K and Kessler Faulkner, Taylor A and Song, Yuxin (Ray) and Ko, Johnathan and Schrenk, Tyler and Nguyen, Vy and Zhu, Bernie Hao and Bolotski, Haya and Kashyap, Atharva and Kutty, Sriram and Karim, Raida and Rainbolt, Liander and Scalise, Rosario and Song, Hanjun and Qu, Ramon and Cakmak, Maya and Srinivasa, Siddhartha S},
+  booktitle={Proceedings of the 2025 ACM/IEEE International Conference on Human-Robot Interaction},
+  year={2025}
+}
+```
+
 ## Setup
 
 ### Setup (Robot Software)
