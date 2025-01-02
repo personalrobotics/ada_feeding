@@ -13,7 +13,6 @@ from typing import Optional, Tuple, Union
 # Third-party imports
 import cv2
 import time
-import random
 from cv_bridge import CvBridge
 from efficient_sam.efficient_sam import build_efficient_sam
 import numpy as np
@@ -46,7 +45,6 @@ from ada_feeding_msgs.action import SegmentAllItems, GenerateCaption
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_perception.helpers import (
     BoundingBox,
-    bbox_from_mask,
     crop_image_mask_and_point,
     cv2_image_to_ros_msg,
     download_checkpoint,
@@ -221,7 +219,7 @@ class SegmentAllItemsNode(Node):
             )
 
         # Initialize the OpenAI API and load environment variables
-        API_KEY = os.getenv("OPENAI_API_KEY")
+        API_KEY = os.getenv("OPENAI_API_KEY") 
         self.openai = OpenAI(api_key=API_KEY)
 
     def read_params(
@@ -841,6 +839,12 @@ class SegmentAllItemsNode(Node):
 
         # Run GroundingDINO on the image using the input caption
         image_transformed = image_transformed.to(device=self.device)
+
+        # Display image transformed
+        image_pil.show()
+        #cv2.imshow("transformed", image_transformed)
+        #cv2.waitKey(0)
+        
         with torch.no_grad():
             outputs = self.groundingdino(
                 image_transformed[None],
@@ -910,7 +914,6 @@ class SegmentAllItemsNode(Node):
         image_pil: The image in Image pillow format.
         image: The image in tensor format.
         """
-        # Convert image from BGR to RGB to convert CV2 image to image pillow
         image_array = cv2.cvtColor(image_array, cv2.COLOR_BGR2RGB)
 
         # Convert image to image pillow to apply transformation
@@ -1050,9 +1053,12 @@ class SegmentAllItemsNode(Node):
                     thickness // 3,
                 )
 
+        #cv2.imshow("GroundingDINO Predictions", image_copy)
+        #cv2.waitKey(0)
+
         # Publish the image as a ROS message
         self.viz_groundingdino_pub.publish(
-            cv2_image_to_ros_msg(image_copy, compress=False, bridge=self.bridge)
+            cv2_image_to_ros_msg(image_copy, compress=False, bridge=self.bridge, encoding="bgr8")
         )
 
     async def run_vision_pipeline(self, image_msg: Image, caption: str):
