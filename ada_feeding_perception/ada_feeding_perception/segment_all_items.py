@@ -13,6 +13,7 @@ from typing import Optional, Tuple, Union
 # Third-party imports
 import cv2
 import time
+import random
 from cv_bridge import CvBridge
 from efficient_sam.efficient_sam import build_efficient_sam
 import numpy as np
@@ -41,7 +42,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 # Local imports
-from ada_feeding_msgs.action import SegmentAllItems, GenerateCaption
+from ada_feeding_msgs.action import SegmentAllItems, GenerateCaption, SegmentFromBox
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_perception.helpers import (
     BoundingBox,
@@ -211,6 +212,18 @@ class SegmentAllItemsNode(Node):
             callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
+        # Create the Action Server to perform segmentation from a bounding box
+        # Note: remapping action names does not work: https://github.com/ros2/ros2/issues/1312
+        self._segment_action_server = ActionServer(
+            self._node,
+            SegmentFromBox,
+            "SegmentFromBox",
+            execute_callback=self.segmentation_callback,
+            goal_callback=self.goal_callback,
+            cancel_callback=self.cancel_callback,
+            callback_group=MutuallyExclusiveCallbackGroup(),
+        )
+
         # If the GroundingDINO results visualization flage is set, then a publisher
         # is created to visualize the bounding box predictions of GroundingDINO
         if self.viz_groundingdino:
@@ -219,7 +232,7 @@ class SegmentAllItemsNode(Node):
             )
 
         # Initialize the OpenAI API and load environment variables
-        API_KEY = os.getenv("OPENAI_API_KEY") 
+        API_KEY = os.getenv("OPENAI_API_KEY")
         self.openai = OpenAI(api_key=API_KEY)
 
     def read_params(
@@ -1015,6 +1028,31 @@ class SegmentAllItemsNode(Node):
         mask_msg.confidence = float(score)
 
         return mask_msg
+    
+    def display_mask(self, image: npt.NDArray, mask: npt.NDArray, item_label: str):
+        """
+        Display the masks on the image.
+
+        Parameters
+        ----------
+        image: The image to display the masks on.
+        masks: The masks to display on the image.
+        """
+        self._node.get_logger().info("Displaying masks...")
+
+        # Create a deep copy of the image to visualize
+        image_copy = deepcopy(image)
+
+        # Display the mask on the image
+        mask = mask.astype(np.uint8)
+        mask = cv2.resize(mask, (image.shape[1], image.shape[0]))
+        color_dims = 3
+        mask = np.stack([mask] * color_dims, axis=-1)
+        color_scalar = random.randint(80, 255)
+        mask = np.multiply(mask, color_scalar)
+        cv2.imshow(item_label, mask)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
     def visualize_groundingdino_results(self, image: Image, predictions: dict):
         """
@@ -1126,16 +1164,26 @@ class SegmentAllItemsNode(Node):
         mask_num = 1
         for phrase, boxes in bbox_predictions.items():
             for box in boxes:
-                masks, scores = self.run_efficient_sam(image, None, box, 1)
-                if len(masks) > 0:
-                    masks_list.append(masks[0])
-                    item_id = f"food_id_{mask_num:d}"
-                    mask_num += 1
-                    mask_msg = self.generate_mask_msg(
-                        item_id, phrase, scores[0], masks[0], image, depth_img, box
-                    )
-                    detected_items.append(mask_msg)
-                    item_labels.append(phrase)
+                # Convert the bounding box from a tuple into a RegionOfInterest message
+                roi_msg = RegionOfInterest(
+                    x_offset=int(box[0]),
+                    y_offset=int(box[1]),
+                    height=int(box[3] - box[1]),
+                    width=int(box[2] - box[0]),
+                    do_rectify=False,
+                )
+                detected_items.append(roi_msg)
+                item_labels.append(phrase)
+                #masks, scores = self.run_efficient_sam(image, None, box, 1)
+                #if len(masks) > 0:
+                #    masks_list.append(masks[0])
+                #    item_id = f"food_id_{mask_num:d}"
+                #    mask_num += 1
+                #    mask_msg = self.generate_mask_msg(
+                #        item_id, phrase, scores[0], masks[0], image, depth_img, box
+                #    )
+                #    detected_items.append(mask_msg)
+                #    item_labels.append(phrase)
 
         result.detected_items = detected_items
         result.item_labels = item_labels
@@ -1147,96 +1195,56 @@ class SegmentAllItemsNode(Node):
         )
 
         return result
-
-    async def execute_callback(
-        self, goal_handle: ServerGoalHandle
-    ) -> SegmentAllItems.Result:
+    
+    async def segment_from_bbox(
+        self, image_msg: Image, label: str, bbox: Tuple[int, int, int, int]
+    ) -> Tuple[npt.NDArray, npt.NDArray]:
         """
-        Execute the action server callback.
+        Segment an image using a bounding box.
 
         Parameters
         ----------
-        goal_handle: The goal handle for the action server.
+        image: The image to segment.
+        bbox: The bounding box to segment.
 
         Returns
         -------
-        result: The result message containing masks for all food items detected in the image
-                paired with semantic labels.
+        masks: The masks for each segmentation.
+        scores: The confidence scores for each segmentation.
         """
-        self._node.get_logger().info("Received a new goal!")
-        starting_time = self._node.get_clock().now()
+        # Get the latest depth image and convert the depth image to OpenCV format
+        depth_img_msg = self._node.get_latest_msg(self.aligned_depth_topic)
+        depth_img = ros_msg_to_cv2_image(depth_img_msg, self.bridge)
 
-        # Get the latest image and camera info
-        latest_img_msg = self._node.get_latest_msg(self.rgb_image_topic)
+        # Convert the image to OpenCV format
+        image = ros_msg_to_cv2_image(image_msg, self.bridge)
+
+        # Run EfficientSAM on the image using the input bounding box prompt
+        masks, scores = self.run_efficient_sam(image, None, bbox, 1)
+        mask_num = 1
+        if len(masks) > 0:
+            item_id = f"food_id_{mask_num:d}"
+            mask_num += 1
+            mask_msg = self.generate_mask_msg(
+                item_id, label, scores[0], masks[0], image, depth_img, bbox
+            )
+            self.display_mask(image, masks[0], label) 
+
+        # Define the result and create result message header
+        result = SegmentFromBox.Result()
+        result.header = image_msg.header
         if self.camera_info is None:
             self.camera_info = self._node.get_latest_msg(self.camera_info_topic)
         if self.camera_info is not None:
-            camera_info = self.camera_info
+            result.camera_info = self.camera_info
         else:
-            camera_info = None
+            self._node.get_logger().warn(
+                "Camera info not received, not including in result message"
+            )
 
-        # Check if the image and camera info are available
-        if latest_img_msg is None or camera_info is None:
-            self._node.get_logger().error("Image or camera info not available.")
-            return SegmentAllItems.Result()
+        # Set the mask message as the result
+        result.detected_item = mask_msg
 
-        # Get the caption from the goal request
-        caption = goal_handle.request.caption
-
-        # Create a rate object to control the rate of the vision pipeline
-        rate = self._node.create_rate(self.rate_hz)
-
-        # Define a cleanup function to destroy the rate
-        def cleanup():
-            self._node.destroy_rate(rate)
-
-        # Start running the vision pipeline as a separate thread
-        vision_pipeline_task = self._node.executor.create_task(
-            self.run_vision_pipeline, latest_img_msg, caption
-        )
-
-        # Wait for the vision pipeline to finish and keep publishing
-        # feedback (elapsed time) while waiting
-        feedback = SegmentAllItems.Feedback()
-        while (
-            rclpy.ok()
-            and not goal_handle.is_cancel_requested
-            and not vision_pipeline_task.done()
-        ):
-            feedback.elapsed_time = (
-                self._node.get_clock().now() - starting_time
-            ).to_msg()
-            goal_handle.publish_feedback(feedback)
-            rate.sleep()
-
-        # If there is a cancel request, cancel the vision pipeline task
-        if goal_handle.is_cancel_requested:
-            self._node.get_logger().info("Goal cancelled.")
-            goal_handle.canceled()
-            result = SegmentAllItems.Result()
-            result.status = result.STATUS_CANCELLED
-
-            # Clear the active goal
-            with self.active_goal_request_lock:
-                self.active_goal_request = None
-
-            # Cleanup the rate
-            cleanup()
-            return result
-
-        # Set the result after the task has been completed
-        self._node.get_logger().info("Goal not cancelled.")
-        self._node.get_logger().info("VIsion pipeline completed successfully.")
-        result = vision_pipeline_task.result()
-        goal_handle.succeed()
-        result.status = result.STATUS_SUCCEEDED
-
-        # Clear the active goal
-        with self.active_goal_request_lock:
-            self.active_goal_request = None
-
-        # Cleanup the rate
-        cleanup()
         return result
 
     async def invoke_gpt4o_callback(
@@ -1329,6 +1337,187 @@ class SegmentAllItemsNode(Node):
         # Cleanup the rate
         cleanup()
         return response
+    
+    async def execute_callback(
+        self, goal_handle: ServerGoalHandle
+    ) -> SegmentAllItems.Result:
+        """
+        Execute the action server callback.
+
+        Parameters
+        ----------
+        goal_handle: The goal handle for the action server.
+
+        Returns
+        -------
+        result: The result message containing masks for all food items detected in the image
+                paired with semantic labels.
+        """
+        self._node.get_logger().info("Received a new goal!")
+        starting_time = self._node.get_clock().now()
+
+        # Get the latest image and camera info
+        latest_img_msg = self._node.get_latest_msg(self.rgb_image_topic)
+        if self.camera_info is None:
+            self.camera_info = self._node.get_latest_msg(self.camera_info_topic)
+        if self.camera_info is not None:
+            camera_info = self.camera_info
+        else:
+            camera_info = None
+
+        # Check if the image and camera info are available
+        if latest_img_msg is None or camera_info is None:
+            self._node.get_logger().error("Image or camera info not available.")
+            return SegmentAllItems.Result()
+
+        # Get the caption from the goal request
+        caption = goal_handle.request.caption
+
+        # Create a rate object to control the rate of the vision pipeline
+        rate = self._node.create_rate(self.rate_hz)
+
+        # Define a cleanup function to destroy the rate
+        def cleanup():
+            self._node.destroy_rate(rate)
+
+        # Start running the vision pipeline as a separate thread
+        vision_pipeline_task = self._node.executor.create_task(
+            self.run_vision_pipeline, latest_img_msg, caption
+        )
+
+        # Wait for the vision pipeline to finish and keep publishing
+        # feedback (elapsed time) while waiting
+        feedback = SegmentAllItems.Feedback()
+        while (
+            rclpy.ok()
+            and not goal_handle.is_cancel_requested
+            and not vision_pipeline_task.done()
+        ):
+            feedback.elapsed_time = (
+                self._node.get_clock().now() - starting_time
+            ).to_msg()
+            goal_handle.publish_feedback(feedback)
+            rate.sleep()
+
+        # If there is a cancel request, cancel the vision pipeline task
+        if goal_handle.is_cancel_requested:
+            self._node.get_logger().info("Goal cancelled.")
+            goal_handle.canceled()
+            result = SegmentAllItems.Result()
+            result.status = result.STATUS_CANCELLED
+
+            # Clear the active goal
+            with self.active_goal_request_lock:
+                self.active_goal_request = None
+
+            # Cleanup the rate
+            cleanup()
+            return result
+
+        # Set the result after the task has been completed
+        self._node.get_logger().info("Goal not cancelled.")
+        self._node.get_logger().info("Vision pipeline completed successfully.")
+        result = vision_pipeline_task.result()
+        goal_handle.succeed()
+        result.status = result.STATUS_SUCCEEDED
+
+        # Clear the active goal
+        with self.active_goal_request_lock:
+            self.active_goal_request = None
+
+        # Cleanup the rate
+        cleanup()
+        return result
+    
+    async def segmentation_callback(
+        self, goal_handle: ServerGoalHandle
+    ) -> SegmentFromBox.Result:
+        """
+        """
+        self._node.get_logger().info("Received a new goal!")
+        starting_time = self._node.get_clock().now()
+
+        # Get the latest image and camera info
+        latest_img_msg = self._node.get_latest_msg(self.rgb_image_topic)
+        if self.camera_info is None:
+            self.camera_info = self._node.get_latest_msg(self.camera_info_topic)
+        if self.camera_info is not None:
+            camera_info = self.camera_info
+        else:
+            camera_info = None
+
+        # Check if the image and camera info are available
+        if latest_img_msg is None or camera_info is None:
+            self._node.get_logger().error("Image or camera info not available.")
+            return SegmentFromBox.Result()
+
+        # Get the desired bounding box to segment and its semantic label from the goal request
+        roi_msg = goal_handle.request.region_of_interest
+        label = goal_handle.request.label
+
+        # Store the top left and bottom right coordinates of the bounding box given
+        # the RegionOfInterest message as a list for input to the segmentation model
+        bbox_xyxy = [
+            roi_msg.x_offset, 
+            roi_msg.y_offset, 
+            roi_msg.x_offset + roi_msg.width, 
+            roi_msg.y_offset + roi_msg.height
+        ]
+
+        # Create a rate object to control the rate of the segmentation task
+        rate = self._node.create_rate(self.rate_hz)
+
+        # Define a cleanup function to destroy the rate
+        def cleanup():
+            self._node.destroy_rate(rate)
+
+        # Start running the segmentation task as a separate thread
+        segment_from_bbox_task = self._node.executor.create_task(
+            self.segment_from_bbox, latest_img_msg, label, bbox_xyxy
+        )
+
+        # Publish feedback (elapsed time) until segmentation is complete
+        feedback = SegmentFromBox.Feedback()
+        while (
+            rclpy.ok()
+            and not goal_handle.is_cancel_requested
+            and not segment_from_bbox_task.done()
+        ):
+            feedback.elapsed_time = (
+                self._node.get_clock().now() - starting_time
+            ).to_msg()
+            goal_handle.publish_feedback(feedback)
+            rate.sleep()
+
+        # If there is a cancel request, cancel the vision pipeline task
+        if goal_handle.is_cancel_requested:
+            self._node.get_logger().info("Goal cancelled.")
+            goal_handle.canceled()
+            result = SegmentFromBox.Result()
+            result.status = result.STATUS_CANCELLED
+
+            # Clear the active goal
+            with self.active_goal_request_lock:
+                self.active_goal_request = None
+
+            # Cleanup the rate
+            cleanup()
+            return result
+
+        # Set the result after the task has been completed
+        self._node.get_logger().info("Goal not cancelled.")
+        self._node.get_logger().info("Segmentation task completed successfully.")
+        result = segment_from_bbox_task.result()
+        goal_handle.succeed()
+        result.status = result.STATUS_SUCCEEDED
+
+        # Clear the active goal
+        with self.active_goal_request_lock:
+            self.active_goal_request = None
+
+        # Cleanup the rate
+        cleanup()
+        return result
 
 
 def main(args=None):

@@ -29,6 +29,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/MoveToConfiguration.action"
   "action/MoveToMouth.action"
   "action/SegmentAllItems.action"
+  "action/SegmentFromBox.action"
   "action/SegmentFromPoint.action"
   "action/Teleoperate.action"
   "action/Trigger.action"

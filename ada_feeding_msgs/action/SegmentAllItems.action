@@ -1,5 +1,5 @@
 # The interface for an action that gets an image from the camera and returns
-# the masks of all segmented items within that image.
+# the bounding boxes of all items within that image.
 
 # The list of input semantic labels for the food items on the plate
 string caption   
@@ -17,8 +17,8 @@ uint8 status
 std_msgs/Header header
 # The camera intrinsics
 sensor_msgs/CameraInfo camera_info
-# Masks of all the detected items in the image
-ada_feeding_msgs/Mask[] detected_items
+# Bounding boxes of all the detected items in the image
+sensor_msgs/RegionOfInterest[] detected_items
 # A list of semantic labels corresponding to each of the masks of detected
 # items in the image
 string[] item_labels
