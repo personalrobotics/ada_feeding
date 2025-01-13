@@ -209,12 +209,13 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "feeding": [
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false "
-                    f"policy:={args.policy}"
+                    f"policy:={args.policy} "
+                    f"end_effector_tool:={args.end_effector_tool}"
                 ),
             ],
             "moveit": [
                 "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock "
-                f"end_effector_tool:={args.end_effector_tool}",
+                f"end_effector_tool:={args.end_effector_tool}"
             ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
@@ -299,7 +300,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "sudo ./src/ada_feeding/configure_lovelace.sh",
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml "
-                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy}"
+                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy} "
+                    f"end_effector_tool:={args.end_effector_tool}"
                 ),
             ],
             "browser": [
