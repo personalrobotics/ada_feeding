@@ -9,7 +9,7 @@ Ada Feeding project.
 # Standard imports
 import logging
 from threading import Lock
-from typing import Any, Optional, Set, Tuple
+from typing import Any, Optional, Set, Tuple, List
 
 # Third-party imports
 import numpy as np
@@ -331,12 +331,15 @@ def get_moveit2_object(
     # the same object.
     moveit2_blackboard_key = "/moveit2"
     moveit2_lock_blackboard_key = "/moveit2_lock"
+    end_effector_tool_blackboard_key = "/end_effector_tool"
 
     # First, register the MoveIt2 object and its corresponding lock for READ access
     if not blackboard.is_registered(moveit2_blackboard_key, Access.READ):
         blackboard.register_key(moveit2_blackboard_key, Access.READ)
     if not blackboard.is_registered(moveit2_lock_blackboard_key, Access.READ):
         blackboard.register_key(moveit2_lock_blackboard_key, Access.READ)
+    if not blackboard.is_registered(end_effector_tool_blackboard_key, Access.READ):
+        blackboard.register_key(end_effector_tool_blackboard_key, Access.READ)
 
     # Second, check if the MoveIt2 object and its corresponding lock exist on the
     # blackboard. If they do not, register the blackboard for WRITE access to those
@@ -357,9 +360,14 @@ def get_moveit2_object(
         blackboard.register_key(moveit2_lock_blackboard_key, Access.WRITE)
         # TODO: Assess whether ReentrantCallbackGroup is necessary for MoveIt2.
         callback_group = ReentrantCallbackGroup()
+        tool_joints = get_tool_joints(blackboard.get(end_effector_tool_blackboard_key))
+        joint_names = kinova.joint_names() + tool_joints
+        node.get_logger().info(
+            f"Creating MoveIt2 object with: {joint_names}"
+        )
         moveit2 = MoveIt2(
             node=node,
-            joint_names=kinova.joint_names(),
+            joint_names=joint_names,
             base_link_name=kinova.base_link_name(),
             end_effector_name="forkTip",
             group_name="ada",
@@ -454,3 +462,29 @@ def import_from_string(import_string: str) -> Any:
         )
     except Exception as exc:
         raise ImportError(f"Error importing {import_string}") from exc
+
+def get_tool_joints(end_effector_tool: str) -> List[str]:
+    """
+    Returns a list of joint names associated with the given end-effector tool.
+
+    Args:
+        end_effector_tool: The name of the end-effector tool.
+
+    Returns:
+        A list of joint names, or an empty list if no joints are associated
+        with the tool.
+    
+    Raises:
+        ValueError: If an unsupported tool is provided.
+    """
+
+    tool_joints = {
+        "articulable_fork": ["af_joint_1", "af_joint_2"],
+        "none": [],
+        "fork": [],
+    }
+
+    if end_effector_tool in tool_joints:
+        return tool_joints[end_effector_tool]
+    else:
+        raise ValueError(f"Unknown end_effector_tool: {end_effector_tool}")
