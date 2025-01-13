@@ -15,6 +15,7 @@ from typing import List
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, SetParametersResult
 from rcl_interfaces.srv import GetParameters
 import rclpy
+from rclpy.exceptions import ParameterNotDeclaredException
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
@@ -31,6 +32,7 @@ from ada_planning_scene.planning_scene_initializer import PlanningSceneInitializ
 from ada_planning_scene.update_from_face_detection import UpdateFromFaceDetection
 from ada_planning_scene.update_from_table_detection import UpdateFromTableDetection
 from ada_planning_scene.workspace_walls import WorkspaceWalls
+from ada_feeding.helpers import get_tool_joints
 
 
 class ADAPlanningScene(Node):
@@ -53,13 +55,25 @@ class ADAPlanningScene(Node):
         """
         super().__init__("ada_planning_scene")
 
+        try:
+            # Get the end_effector_tool parameter
+            self.declare_parameter('end_effector_tool') # Declaring the parameter first
+            self.end_effector_tool = self.get_parameter('end_effector_tool').value
+            self.get_logger().info(f"End effector tool: {self.end_effector_tool}")
+        except ParameterNotDeclaredException:
+            self.get_logger().warn("Parameter 'end_effector_tool' not declared. Using default value.")
+            self.end_effector_tool = "fork"  # Provide a sensible default
+
+        self.tool_joints = get_tool_joints(self.end_effector_tool)
+        self.get_logger().info(f"Tool joints: {self.tool_joints}")
+
         # Load the parameters. Note that each of the other classes below may
         # initialize their own parameters, all of which will be in the same
         # namespace as the parameters loaded here.
         self.__load_parameters()
 
         # Create an object to add collision objects to the planning scene
-        self.__collision_object_manager = CollisionObjectManager(node=self)
+        self.__collision_object_manager = CollisionObjectManager(node=self, tool_joints=self.tool_joints)
 
         # Create the initializer
         self.__initializer = PlanningSceneInitializer(
@@ -86,6 +100,7 @@ class ADAPlanningScene(Node):
             tf_buffer=self.__tf_buffer,
             namespaces=self.__namespaces,
             namespace_to_use=self.__namespace_to_use,
+            tool_joints=self.tool_joints
         )
 
         # Add a callback to update the namespace to use

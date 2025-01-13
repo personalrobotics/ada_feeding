@@ -71,6 +71,7 @@ class WorkspaceWalls:
         tf_buffer: Buffer,
         namespaces: List[str],
         namespace_to_use: str,
+        tool_joints: List,
     ):
         """
         Initialize the workspace walls.
@@ -96,9 +97,10 @@ class WorkspaceWalls:
         self.__tf_buffer = tf_buffer
         self.__namespaces = namespaces
         self.__namespace_to_use = namespace_to_use
+        self.__tool_joints = tool_joints
 
         # Load parameters
-        self.__load_parameters()
+        self.__load_parameters(self.__tool_joints)
 
         # Check if the necessary parameters are set to use the robot model
         self.__use_robot_model = True
@@ -153,7 +155,7 @@ class WorkspaceWalls:
         self.__active_goal_request_lock = Lock()
         self.__active_goal_request = None
 
-    def __load_parameters(self):
+    def __load_parameters(self, tool_joints: List):
         """
         Load parameters relevant to the workspace walls.
         """
@@ -361,7 +363,7 @@ class WorkspaceWalls:
                 "j2n6s200_joint_4",
                 "j2n6s200_joint_5",
                 "j2n6s200_joint_6",
-            ],  # default value
+            ] + tool_joints,  # default value
             ParameterDescriptor(
                 name="articulated_joint_names",
                 type=ParameterType.PARAMETER_STRING_ARRAY,

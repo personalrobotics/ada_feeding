@@ -9,7 +9,7 @@ objects to the planning scene.
 
 # Standard imports
 from threading import Lock
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 # Third-party imports
 from moveit_msgs.msg import CollisionObject, PlanningScene
@@ -36,7 +36,7 @@ class CollisionObjectManager:
     __GLOBAL_BATCH_ID = "global"
     __BATCH_ID_FORMAT = "batch_{:d}"
 
-    def __init__(self, node: Node):
+    def __init__(self, node: Node, tool_joints: List):
         """
         Initialize the CollisionObjectManager.
 
@@ -50,9 +50,10 @@ class CollisionObjectManager:
         # Using ReentrantCallbackGroup to align with the examples from pymoveit2.
         # TODO: Assess whether ReentrantCallbackGroup is necessary for MoveIt2.
         callback_group = ReentrantCallbackGroup()
+        joint_names = kinova.joint_names() + tool_joints
         self.moveit2 = MoveIt2(
             node=self.__node,
-            joint_names=kinova.joint_names(),
+            joint_names=joint_names,
             base_link_name=kinova.base_link_name(),
             end_effector_name="forkTip",
             group_name="ada",
