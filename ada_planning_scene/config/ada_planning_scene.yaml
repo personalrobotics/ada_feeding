@@ -93,7 +93,7 @@ ada_planning_scene:
       in_front_of_face_wall: # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
         primitive_type: 1 # shape_msgs/SolidPrimitive.BOX
         primitive_dims: [0.65, 0.01, 0.4]
-        position: [0.37, 0.17, 0.85]
+        position: [0.37, 0.22, 0.85]
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         add_on_initialize: False # don't add this to the planning scene initially
@@ -264,10 +264,20 @@ ada_planning_scene:
     workspace_walls:
       seated:
         workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
-        disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
+        disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
+        disable_workspace_wall_y_max: True
+        disable_workspace_wall_x_min: True
+        disable_workspace_wall_x_max: True
+        disable_workspace_wall_z_min: True
+        disable_workspace_wall_z_max: True
       seated_90:
         workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
-        disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
+        disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
+        disable_workspace_wall_y_max: True
+        disable_workspace_wall_x_min: True
+        disable_workspace_wall_x_max: True
+        disable_workspace_wall_z_min: True
+        disable_workspace_wall_z_max: True
       bedside:
         disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
       bedside_90:
