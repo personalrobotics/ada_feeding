@@ -60,6 +60,8 @@ class ActivateControllerTree(TriggerTree):
                 "jaco_arm_cartesian_controller",
                 "jaco_arm_controller",
                 "jaco_arm_servo_controller",
+                "af_controller",
+                "af_servo_controller",
             ]
         self.re_tare = re_tare
 
