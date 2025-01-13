@@ -531,8 +531,14 @@ class MoveIt2Plan(BlackboardBehavior):
             return total_len, joint_lens
 
         j6_i = None
+        af1_i = None
+        af2_i = None
         if exclude_j6 and "j2n6s200_joint_6" in path.joint_names:
             j6_i = path.joint_names.index("j2n6s200_joint_6")
+        if exclude_j6 and "af_joint_1" in path.joint_names:
+            af1_i = path.joint_names.index("af_joint_1")
+        if exclude_j6 and "af_joint_2" in path.joint_names:
+            af2_i = path.joint_names.index("af_joint_2")
 
         prev_pos = np.array(path.points[0].positions)
         for point in path.points:
@@ -540,9 +546,15 @@ class MoveIt2Plan(BlackboardBehavior):
             seg_len = np.abs(curr_pos - prev_pos)
             if j6_i is not None:
                 j6_len = seg_len[j6_i]
+                af1_len = seg_len[af1_i]
+                af2_len = seg_len[af2_i]
                 seg_len[j6_i] = 0.0
+                seg_len[af1_i] = 0.0
+                seg_len[af2_i] = 0.0
                 total_len += np.linalg.norm(seg_len)
                 seg_len[j6_i] = j6_len
+                seg_len[af1_i] = af1_len
+                seg_len[af2_i] = af2_len
             else:
                 total_len += np.linalg.norm(seg_len)
             for index, name in enumerate(path.joint_names):
