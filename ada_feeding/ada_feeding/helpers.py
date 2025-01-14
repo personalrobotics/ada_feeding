@@ -362,9 +362,7 @@ def get_moveit2_object(
         callback_group = ReentrantCallbackGroup()
         tool_joints = get_tool_joints(blackboard.get(end_effector_tool_blackboard_key))
         joint_names = kinova.joint_names() + tool_joints
-        node.get_logger().info(
-            f"Creating MoveIt2 object with: {joint_names}"
-        )
+        node.get_logger().info(f"Creating MoveIt2 object with: {joint_names}")
         moveit2 = MoveIt2(
             node=node,
             joint_names=joint_names,
@@ -463,6 +461,7 @@ def import_from_string(import_string: str) -> Any:
     except Exception as exc:
         raise ImportError(f"Error importing {import_string}") from exc
 
+
 def get_tool_joints(end_effector_tool: str) -> List[str]:
     """
     Returns a list of joint names associated with the given end-effector tool.
@@ -473,7 +472,7 @@ def get_tool_joints(end_effector_tool: str) -> List[str]:
     Returns:
         A list of joint names, or an empty list if no joints are associated
         with the tool.
-    
+
     Raises:
         ValueError: If an unsupported tool is provided.
     """

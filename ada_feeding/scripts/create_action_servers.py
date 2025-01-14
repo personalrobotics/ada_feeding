@@ -138,11 +138,13 @@ class CreateActionServers(Node):
 
         try:
             # Get the end_effector_tool parameter
-            self.declare_parameter('end_effector_tool') # Declaring the parameter first
-            self.end_effector_tool = self.get_parameter('end_effector_tool').value
+            self.declare_parameter("end_effector_tool")  # Declaring the parameter first
+            self.end_effector_tool = self.get_parameter("end_effector_tool").value
             self.get_logger().info(f"End effector tool: {self.end_effector_tool}")
         except ParameterNotDeclaredException:
-            self.get_logger().warn("Parameter 'end_effector_tool' not declared. Using default value.")
+            self.get_logger().warn(
+                "Parameter 'end_effector_tool' not declared. Using default value."
+            )
             self.end_effector_tool = "fork"  # Provide a sensible default
 
         self.tool_joints = get_tool_joints(self.end_effector_tool)
@@ -150,7 +152,9 @@ class CreateActionServers(Node):
 
         # Set the end_effector_tool on the global blackboard using the provided client
         blackboard.register_key("/end_effector_tool", Access.WRITE)
-        blackboard.set("/end_effector_tool", self.end_effector_tool)  # Set the global key
+        blackboard.set(
+            "/end_effector_tool", self.end_effector_tool
+        )  # Set the global key
 
         # Read the parameters that specify what action servers to create.
         self.namespace_to_use = CreateActionServers.DEFAULT_PARAMETER_NAMESPACE
@@ -373,14 +377,22 @@ class CreateActionServers(Node):
                     else:
                         value = self.parameters[default_namespace][full_name]
 
-                    if kw.endswith("joint_positions") or kw.endswith("goal_configuration"):
+                    if kw.endswith("joint_positions") or kw.endswith(
+                        "goal_configuration"
+                    ):
                         if isinstance(value, list):  # Check if the value is a list
                             zeros_to_append = [0.0] * len(self.tool_joints)
                             value.extend(zeros_to_append)  # Append tool joints
-                            self.get_logger().info(f"Appending tool joints to {full_name}: {self.tool_joints}")
-                            self.get_logger().info(f"Value of {full_name} after appending: {value}")
+                            self.get_logger().info(
+                                f"Appending tool joints to {full_name}: {self.tool_joints}"
+                            )
+                            self.get_logger().info(
+                                f"Value of {full_name} after appending: {value}"
+                            )
                         else:
-                            self.get_logger().warn(f"tree_kwarg {full_name} is not a list, cannot append tool joints")
+                            self.get_logger().warn(
+                                f"tree_kwarg {full_name} is not a list, cannot append tool joints"
+                            )
                     tree_kwargs[kw] = value
 
             action_server_params[server_name] = ActionServerParams(

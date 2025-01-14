@@ -363,7 +363,8 @@ class WorkspaceWalls:
                 "j2n6s200_joint_4",
                 "j2n6s200_joint_5",
                 "j2n6s200_joint_6",
-            ] + tool_joints,  # default value
+            ]
+            + tool_joints,  # default value
             ParameterDescriptor(
                 name="articulated_joint_names",
                 type=ParameterType.PARAMETER_STRING_ARRAY,

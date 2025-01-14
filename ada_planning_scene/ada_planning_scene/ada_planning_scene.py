@@ -57,11 +57,13 @@ class ADAPlanningScene(Node):
 
         try:
             # Get the end_effector_tool parameter
-            self.declare_parameter('end_effector_tool') # Declaring the parameter first
-            self.end_effector_tool = self.get_parameter('end_effector_tool').value
+            self.declare_parameter("end_effector_tool")  # Declaring the parameter first
+            self.end_effector_tool = self.get_parameter("end_effector_tool").value
             self.get_logger().info(f"End effector tool: {self.end_effector_tool}")
         except ParameterNotDeclaredException:
-            self.get_logger().warn("Parameter 'end_effector_tool' not declared. Using default value.")
+            self.get_logger().warn(
+                "Parameter 'end_effector_tool' not declared. Using default value."
+            )
             self.end_effector_tool = "fork"  # Provide a sensible default
 
         self.tool_joints = get_tool_joints(self.end_effector_tool)
@@ -73,7 +75,9 @@ class ADAPlanningScene(Node):
         self.__load_parameters()
 
         # Create an object to add collision objects to the planning scene
-        self.__collision_object_manager = CollisionObjectManager(node=self, tool_joints=self.tool_joints)
+        self.__collision_object_manager = CollisionObjectManager(
+            node=self, tool_joints=self.tool_joints
+        )
 
         # Create the initializer
         self.__initializer = PlanningSceneInitializer(
@@ -100,7 +104,7 @@ class ADAPlanningScene(Node):
             tf_buffer=self.__tf_buffer,
             namespaces=self.__namespaces,
             namespace_to_use=self.__namespace_to_use,
-            tool_joints=self.tool_joints
+            tool_joints=self.tool_joints,
         )
 
         # Add a callback to update the namespace to use
