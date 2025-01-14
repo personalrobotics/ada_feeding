@@ -264,20 +264,10 @@ ada_planning_scene:
     workspace_walls:
       seated:
         workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
-        disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
-        disable_workspace_wall_y_max: True
-        disable_workspace_wall_x_min: True
-        disable_workspace_wall_x_max: True
-        disable_workspace_wall_z_min: True
-        disable_workspace_wall_z_max: True
+        disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
       seated_90:
         workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
-        disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
-        disable_workspace_wall_y_max: True
-        disable_workspace_wall_x_min: True
-        disable_workspace_wall_x_max: True
-        disable_workspace_wall_z_min: True
-        disable_workspace_wall_z_max: True
+        disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
       bedside:
         disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
       bedside_90:
