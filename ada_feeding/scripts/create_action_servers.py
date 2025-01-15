@@ -197,7 +197,7 @@ class CreateActionServers(Node):
         -------
         action_server_params: A dict mapping server names to ActionServerParams objects.
         """
-        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-locals, too-many-branches
         # Okay because we are providing a lot of generic capabilities through parameters
 
         default_namespace = CreateActionServers.DEFAULT_PARAMETER_NAMESPACE

@@ -485,5 +485,5 @@ def get_tool_joints(end_effector_tool: str) -> List[str]:
 
     if end_effector_tool in tool_joints:
         return tool_joints[end_effector_tool]
-    else:
-        raise ValueError(f"Unknown end_effector_tool: {end_effector_tool}")
+
+    raise ValueError(f"Unknown end_effector_tool: {end_effector_tool}")
