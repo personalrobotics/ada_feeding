@@ -10,7 +10,7 @@
   <arg name="use_rviz" default="True" description="Whether or not to launch RVIZ"/>
   <arg name="run_moveit" default="True" description="Whether or not to launch MoveIt"/>
   <arg name="run_planning_scene" default="True" description="Whether or not to launch the planning scene node"/>
-  <arg name="end_effector_tool" default="fork" description="Which end-effector tool to use: none, fork, articulable_fork" />
+  <arg name="end_effector_tool" default="fork" description="Which end-effector tool to use" />
 
   <!-- Launch MoveIt -->
   <group if="$(var run_moveit)">

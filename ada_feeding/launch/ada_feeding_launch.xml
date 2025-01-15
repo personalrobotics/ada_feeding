@@ -9,7 +9,7 @@
   <arg name="log_level" default="info" description="Log Level to pass to create_action_servers: debug, info, warn" />
   <arg name="policy" default="constant" description="Which policy to use" />
   <arg name="action" default="0" description="Which action to use with constant policy" />
-  <arg name="end_effector_tool" default="fork" description="Which end-effector tool to use: none, fork, articulable_fork"/>
+  <arg name="end_effector_tool" default="fork" description="Which end-effector tool to use"/>
 
   <group if="$(var run_web_bridge)">
     <!-- The ROSBridge Node -->
