@@ -93,7 +93,7 @@ class MoveIt2Plan(BlackboardBehavior):
         ] = None,
         ignore_violated_path_constraints: Union[BlackboardKey, bool] = False,
         pipeline_id: Union[BlackboardKey, str] = "ompl",
-        planner_id: Union[BlackboardKey, str] = "RRTConnectkConfigDefault",
+        planner_id: Union[BlackboardKey, str] = "RRTstarkConfigDefault",
         allowed_planning_time: Union[BlackboardKey, float] = 0.5,
         max_velocity_scale: Union[BlackboardKey, float] = 0.1,
         max_acceleration_scale: Union[BlackboardKey, float] = 0.1,
@@ -538,6 +538,7 @@ class MoveIt2Plan(BlackboardBehavior):
         for point in path.points:
             curr_pos = np.array(point.positions)
             seg_len = np.abs(curr_pos - prev_pos)
+            seg_len = np.minimum(seg_len, 2 * np.pi - seg_len)
             if j6_i is not None:
                 j6_len = seg_len[j6_i]
                 seg_len[j6_i] = 0.0

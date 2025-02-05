@@ -92,7 +92,7 @@ class AcquireFoodTree(MoveToTree):
         max_velocity_scaling_to_resting_configuration: Optional[float] = 0.8,
         max_acceleration_scaling_to_resting_configuration: Optional[float] = 0.8,
         pickle_goal_path: Optional[str] = None,
-        allowed_planning_time_for_move_above: float = 2.0,
+        allowed_planning_time_for_move_above: float = 0.5,
         allowed_planning_time_for_move_into: float = 0.5,
         allowed_planning_time_to_resting_configuration: float = 0.5,
         allowed_planning_time_for_recovery: float = 0.5,
