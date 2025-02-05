@@ -381,7 +381,6 @@ class PolicyServices(Node):
         # Start the asynch thread
         request_copy = copy.deepcopy(request)
         response_copy = copy.deepcopy(response)
-        # self.report_callback_work(request_copy, response_copy)
         thread = threading.Thread(
             target=self.report_callback_work, args=(request_copy, response_copy)
         )
