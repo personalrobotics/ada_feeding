@@ -69,7 +69,7 @@ class MoveFromMouthTree(MoveToTree):
         orientation_constraint_to_end_configuration_tolerances: Optional[
             List[float]
         ] = None,
-        planner_id: str = "AnytimePathShortening",
+        planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time_to_staging_configuration: float = 0.5,
         allowed_planning_time_to_end_configuration: float = 0.5,
         max_linear_speed_to_staging_configuration: float = 0.05,

@@ -48,7 +48,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         tolerance_joint: float = 0.001,
         weight_joint: float = 1.0,
         pipeline_id: str = "ompl",
-        planner_id: str = "AnytimePathShortening",
+        planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
         max_acceleration_scaling_factor: float = 0.1,
