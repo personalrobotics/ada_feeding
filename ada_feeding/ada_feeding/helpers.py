@@ -324,6 +324,14 @@ def get_moveit2_object(
     Raises
     -------
     KeyError: if the MoveIt2 object does not exist and node is None.
+
+    Expects
+    -------
+    The blackboard key `/end_effector_tool` to be set.  If this key is not set,
+    the default value "fork" is used.  Other possible values are "none" and
+    "articulable_fork".  It is crucial that the `get_tool_joints` function
+    can handle these string values.  If `/end_effector_tool` is not set, a
+    warning message will be logged.
     """
     # These Blackboard keys are used to store the single, global MoveIt2 object
     # and its corresponding lock. Note that it is important that these keys start with
@@ -358,6 +366,13 @@ def get_moveit2_object(
         )
         blackboard.register_key(moveit2_blackboard_key, Access.WRITE)
         blackboard.register_key(moveit2_lock_blackboard_key, Access.WRITE)
+        blackboard.register_key(end_effector_tool_blackboard_key, Access.WRITE)
+        end_effector_tool = "fork" # Assign to default value
+        if blackboard.get(end_effector_tool_blackboard_key) is None:  # Check if not set
+            node.get_logger().warn(f"end_effector_tool not set, using default: {end_effector_tool}")
+            blackboard.set(end_effector_tool_blackboard_key, end_effector_tool) #Set the value on the blackboard
+        else:
+            end_effector_tool = blackboard.get(end_effector_tool_blackboard_key) #Get the value from the blackboard
         # TODO: Assess whether ReentrantCallbackGroup is necessary for MoveIt2.
         callback_group = ReentrantCallbackGroup()
         tool_joints = get_tool_joints(blackboard.get(end_effector_tool_blackboard_key))
