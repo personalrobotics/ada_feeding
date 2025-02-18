@@ -367,12 +367,18 @@ def get_moveit2_object(
         blackboard.register_key(moveit2_blackboard_key, Access.WRITE)
         blackboard.register_key(moveit2_lock_blackboard_key, Access.WRITE)
         blackboard.register_key(end_effector_tool_blackboard_key, Access.WRITE)
-        end_effector_tool = "fork" # Assign to default value
+        end_effector_tool = "fork"  # Assign to default value
         if blackboard.get(end_effector_tool_blackboard_key) is None:  # Check if not set
-            node.get_logger().warn(f"end_effector_tool not set, using default: {end_effector_tool}")
-            blackboard.set(end_effector_tool_blackboard_key, end_effector_tool) #Set the value on the blackboard
+            node.get_logger().warn(
+                f"end_effector_tool not set, using default: {end_effector_tool}"
+            )
+            blackboard.set(
+                end_effector_tool_blackboard_key, end_effector_tool
+            )  # Set the value on the blackboard
         else:
-            end_effector_tool = blackboard.get(end_effector_tool_blackboard_key) #Get the value from the blackboard
+            end_effector_tool = blackboard.get(
+                end_effector_tool_blackboard_key
+            )  # Get the value from the blackboard
         # TODO: Assess whether ReentrantCallbackGroup is necessary for MoveIt2.
         callback_group = ReentrantCallbackGroup()
         tool_joints = get_tool_joints(blackboard.get(end_effector_tool_blackboard_key))
