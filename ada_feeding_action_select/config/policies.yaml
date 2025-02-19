@@ -17,9 +17,11 @@ ada_feeding_action_select:
 
     context_class: ada_feeding_action_select.adapters.SPANetContext
     context_kws:
-      - checkpoint # Relative to share data directory
+      - checkpoint_url
+      - checkpoint_path # Relative to share data directory
     context_kwargs:
-      checkpoint: checkpoint/adapter/food_spanet_all_rgb_wall_ckpt_best.pth
+      checkpoint_url: "https://drive.google.com/uc?id=1BsFe3xyex2_e7MWQEA3Q4oZEzrjzLtiH&export=download"  # Direct download link
+      checkpoint_path: "checkpoint/adapter/food_spanet_all_rgb_wall_ckpt_best.pth" # Local path (relative to share dir)
 
     #context_class: ada_feeding_action_select.adapters.ColorContext
 
