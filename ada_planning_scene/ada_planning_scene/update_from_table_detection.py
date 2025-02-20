@@ -1,3 +1,6 @@
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains the UpdateFromTableDetection class, which updates the pose
 of the table based on the results of table detection.
@@ -158,10 +161,10 @@ class UpdateFromTableDetection:
             try:
                 # The object ID of the table in the planning scene
                 table_object_id = self.__node.declare_parameter(
-                    f"{namespace}.table_object_id",
+                    f"table_detection.{namespace}.table_object_id",
                     "table",
                     descriptor=ParameterDescriptor(
-                        name=f"{namespace}.table_object_id",
+                        name=f"table_detection.{namespace}.table_object_id",
                         type=ParameterType.PARAMETER_STRING,
                         description=(
                             "The object ID of the table in the planning scene. "
@@ -172,16 +175,16 @@ class UpdateFromTableDetection:
                 )
             except ParameterAlreadyDeclaredException:
                 table_object_id = self.__node.get_parameter(
-                    f"{namespace}.table_object_id"
+                    f"table_detection.{namespace}.table_object_id"
                 )
 
             try:
                 # Where the origin of the table is expected to be relative to the detected point
                 table_origin_offset = self.__node.declare_parameter(
-                    f"{namespace}.table_origin_offset",
+                    f"table_detection.{namespace}.table_origin_offset",
                     [-0.20, -0.25, -0.79],  # default value
                     descriptor=ParameterDescriptor(
-                        name=f"{namespace}.table_origin_offset",
+                        name=f"table_detection.{namespace}.table_origin_offset",
                         type=ParameterType.PARAMETER_DOUBLE_ARRAY,
                         description=(
                             "(x, y, z) values to add to the detected table pose (e.g., plate "
@@ -192,17 +195,17 @@ class UpdateFromTableDetection:
                 )
             except ParameterAlreadyDeclaredException:
                 table_origin_offset = self.__node.get_parameter(
-                    f"{namespace}.table_origin_offset"
+                    f"table_detection.{namespace}.table_origin_offset"
                 )
 
             try:
                 # If the detected table has moved more than this relative to the default,
                 # publish the default pose instead.
                 table_distance_threshold = self.__node.declare_parameter(
-                    f"{namespace}.table_distance_threshold",
+                    f"table_detection.{namespace}.table_distance_threshold",
                     0.5,  # default value
                     descriptor=ParameterDescriptor(
-                        name=f"{namespace}.table_distance_threshold",
+                        name=f"table_detection.{namespace}.table_distance_threshold",
                         type=ParameterType.PARAMETER_DOUBLE,
                         description=(
                             "The threshold for the distance (m) between "
@@ -214,17 +217,17 @@ class UpdateFromTableDetection:
                 )
             except ParameterAlreadyDeclaredException:
                 table_distance_threshold = self.__node.get_parameter(
-                    f"{namespace}.table_distance_threshold"
+                    f"table_detection.{namespace}.table_distance_threshold"
                 )
 
             try:
                 # If the detected table has rotated more than this relative to the default,
                 # publish the default pose instead.
                 table_rotation_threshold = self.__node.declare_parameter(
-                    f"{namespace}.table_rotation_threshold",
+                    f"table_detection.{namespace}.table_rotation_threshold",
                     np.pi / 6.0,  # default value
                     descriptor=ParameterDescriptor(
-                        name=f"{namespace}.table_rotation_threshold",
+                        name=f"table_detection.{namespace}.table_rotation_threshold",
                         type=ParameterType.PARAMETER_DOUBLE,
                         description=(
                             "The threshold for the angular distance between "
@@ -236,15 +239,15 @@ class UpdateFromTableDetection:
                 )
             except ParameterAlreadyDeclaredException:
                 table_rotation_threshold = self.__node.get_parameter(
-                    f"{namespace}.table_rotation_threshold"
+                    f"table_detection.{namespace}.table_rotation_threshold"
                 )
 
             try:
                 disable_table_detection = self.__node.declare_parameter(
-                    f"{namespace}.disable_table_detection",
+                    f"table_detection.{namespace}.disable_table_detection",
                     False,  # default value
                     descriptor=ParameterDescriptor(
-                        name=f"{namespace}.disable_table_detection",
+                        name=f"table_detection.{namespace}.disable_table_detection",
                         type=ParameterType.PARAMETER_BOOL,
                         description=(
                             "Whether to disable table detection in this namespace."
@@ -254,7 +257,7 @@ class UpdateFromTableDetection:
                 )
             except ParameterAlreadyDeclaredException:
                 disable_table_detection = self.__node.get_parameter(
-                    f"{namespace}.disable_table_detection"
+                    f"table_detection.{namespace}.disable_table_detection"
                 )
 
             # Store the parameters

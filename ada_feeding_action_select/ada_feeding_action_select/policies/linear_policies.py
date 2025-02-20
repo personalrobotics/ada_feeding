@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines concrete linear policy classes.
 """
@@ -16,8 +18,8 @@ import numpy as np
 import numpy.typing as npt
 
 # Local imports
-from ada_feeding_action_select.helpers import get_action_library, logger
 from ada_feeding_msgs.msg import AcquisitionSchema
+from ada_feeding_action_select.helpers import get_action_library, logger
 from .base_policies import Policy
 
 

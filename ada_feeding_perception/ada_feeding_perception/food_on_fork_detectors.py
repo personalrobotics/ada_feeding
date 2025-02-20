@@ -1,3 +1,6 @@
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This file contains an abstract class, FoodOnForkDetector, that takes in a single depth
 image and returns a confidence in [0,1] that there is food on the fork.
@@ -182,7 +185,7 @@ class FoodOnForkDetector(ABC):
 
         Returns
         -------
-        transforms: The transforms (homogenous coordinates) that are necessary
+        transforms: The transforms (homogeneous coordinates) that are necessary
             for this classifier. Size (num_transforms, 4, 4). Note that if the
             transform is not found, it will be a zero matrix.
         """
@@ -238,7 +241,7 @@ class FoodOnForkDetector(ABC):
         X: The depth images to train on. Size (num_images, height, width).
         y: The labels for the depth images. Size (num_images,). Must be one of the
             values enumerated in FoodOnForkLabel.
-        t: The transforms (homogenous coordinates) that are necessary for this
+        t: The transforms (homogeneous coordinates) that are necessary for this
             classifier. Size (num_images, num_transforms, 4, 4). Should be outputted
             by `get_transforms`.
         viz_save_dir: The directory to save visualizations to. If None, no
@@ -285,7 +288,7 @@ class FoodOnForkDetector(ABC):
         Parameters
         ----------
         X: The depth images to predict on.
-        t: The transforms (homogenous coordinates) that are necessary for this
+        t: The transforms (homogeneous coordinates) that are necessary for this
             classifier. Size (num_images, num_transforms, 4, 4). Should be outputted
             by `get_transforms`.
 
@@ -311,7 +314,7 @@ class FoodOnForkDetector(ABC):
         Parameters
         ----------
         X: The depth images to predict on.
-        t: The transforms (homogenous coordinates) that are necessary for this
+        t: The transforms (homogeneous coordinates) that are necessary for this
             classifier. Size (num_images, num_transforms, 4, 4). Should be outputted
             by `get_transforms`.
         lower_thresh: The lower threshold for food on the fork.
@@ -355,12 +358,12 @@ class FoodOnForkDetector(ABC):
         Parameters
         ----------
         img: The depth image to overlay debug information onto.
-        t: The closest transforms (homogenous coordinates) to this image's timestamp.
+        t: The closest transforms (homogeneous coordinates) to this image's timestamp.
             Size (num_transforms, 4, 4). Should be outputted by `get_transforms`.
 
         Returns
         -------
-        img_with_debug_info: The depth image with debug information overlayed.
+        img_with_debug_info: The depth image with debug information overlaid.
         """
         # pylint: disable=unused-argument
         return img
@@ -376,7 +379,7 @@ class FoodOnForkDetector(ABC):
         Parameters
         ----------
         img: The depth image to visualize.
-        t: The closest transforms (homogenous coordinates) to this image's timestamp.
+        t: The closest transforms (homogeneous coordinates) to this image's timestamp.
             Size (num_transforms, 4, 4). Should be outputted by `get_transforms`.
         """
         # pylint: disable=unused-argument
@@ -894,12 +897,12 @@ class FoodOnForkDistanceToNoFOFDetector(FoodOnForkDetector):
         # This is done to make it clear what the camera matrix values are.
 
         # First, convert all no_fof_points back to the camera frame by applying
-        # the inverse of the homogenous transform t[0, :, :]
-        no_fof_points_homogenous = np.hstack(
+        # the inverse of the homogeneous transform t[0, :, :]
+        no_fof_points_homogeneous = np.hstack(
             [self.no_fof_points, np.ones((self.no_fof_points.shape[0], 1))]
         )
         no_fof_points_camera = np.dot(
-            np.linalg.inv(t[0, :, :]), no_fof_points_homogenous.T
+            np.linalg.inv(t[0, :, :]), no_fof_points_homogeneous.T
         ).T[:, :3]
 
         # For every point in the no_fof_points, convert them back into (u,v) pixel

@@ -1,10 +1,13 @@
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the `scoped_behavior` idiom, which is a way to run a main
 behavior within the scope of a pre and post behavior.
 
 In expected usage, the pre behavior will open or create a resources, the main
 behavior will use those resources, and the post behavior will close or delete the
-resources. The idiom guarentees the following:
+resources. The idiom guarantees the following:
     1. The main behavior will not be ticked unless the pre behavior returns
        SUCCESS.
     2. The behavior returned by this idiom will not reach a terminal (non-RUNNING)

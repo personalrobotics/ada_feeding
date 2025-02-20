@@ -1,3 +1,8 @@
+<!--
+   Copyright (c) 2024-2025, Personal Robotics Laboratory
+   License: BSD 3-Clause. See LICENSE.md file in root directory.
+-->
+
 <launch>
   <arg name="calib" default="manual" description="Which calibration folder, in the ada_moveit package, to use"/>
   <arg name="log_level" default="info" description="Log Level to pass to create_action_servers: debug, info, warn" />

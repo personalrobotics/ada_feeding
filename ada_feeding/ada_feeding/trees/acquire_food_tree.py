@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the AcquireFood behavior tree and provides functions to
 wrap that behavior tree in a ROS2 action server.
@@ -57,9 +59,13 @@ from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_succ
 from ada_feeding.trees import MoveToTree, StartServoTree, StopServoTree
 
 
+# pylint: disable=too-many-lines
+# This tree is the cruz of bite acquisition, hence is long.
+
+
 class AcquireFoodTree(MoveToTree):
     """
-    A behvaior tree to select and execute an acquisition
+    A behaviour tree to select and execute an acquisition
     action (see ada_feeding_msgs.action.AcquisitionSchema)
     for a given food mask in ada_feeding_msgs.action.AcquireFood.
 
@@ -86,7 +92,7 @@ class AcquireFoodTree(MoveToTree):
         max_velocity_scaling_to_resting_configuration: Optional[float] = 0.8,
         max_acceleration_scaling_to_resting_configuration: Optional[float] = 0.8,
         pickle_goal_path: Optional[str] = None,
-        allowed_planning_time_for_move_above: float = 2.0,
+        allowed_planning_time_for_move_above: float = 0.5,
         allowed_planning_time_for_move_into: float = 0.5,
         allowed_planning_time_to_resting_configuration: float = 0.5,
         allowed_planning_time_for_recovery: float = 0.5,
@@ -527,7 +533,7 @@ class AcquireFoodTree(MoveToTree):
                     name="Success",
                     # Set Approach F/T Thresh
                     pre_behavior=(
-                        Success()
+                        Success()  # pylint: disable=abstract-class-instantiated
                         # ToggleCollisionObject(
                         #     name="AllowTable",
                         #     ns=name,
@@ -538,7 +544,7 @@ class AcquireFoodTree(MoveToTree):
                         # )
                     ),
                     post_behavior=(
-                        Success()
+                        Success()  # pylint: disable=abstract-class-instantiated
                         # ToggleCollisionObject(
                         #     name="DisallowTable",
                         #     ns=name,

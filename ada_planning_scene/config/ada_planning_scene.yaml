@@ -1,3 +1,6 @@
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 ada_planning_scene:
   ros__parameters:
@@ -7,7 +10,7 @@ ada_planning_scene:
     # available.
     initialization_timeout_secs: 60.0
 
-    # The base frame. Workspace walls and dynamic position updates (e.g., face and 
+    # The base frame. Workspace walls and dynamic position updates (e.g., face and
     # table) are published in this frame. Note that if using workspace walls, this
     # frame must match the base link in the full robot's URDF (note: not the move group).
     base_frame: root
@@ -25,12 +28,12 @@ ada_planning_scene:
       - bedside
       - seated_90
       - bedside_90
-    namespace_to_use: seated_90 # bedside_90 # 
+    namespace_to_use: seated
 
     ############################################################################
     # Parameters related to the PlanningSceneInitializer class
     ############################################################################
-    
+
     seated:
       # list of objects to add to the planning scene. Before changing names,
       # check where else they are used (e.g., in `ada_feeding`). Ideally, the object_ids
@@ -75,7 +78,7 @@ ada_planning_scene:
         # updated as the robot perceives the table.
         position: [0.08, -0.5, -0.56]
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
-        offsets: [-0.20, -0.25, -0.689] 
+        offsets: [-0.20, -0.25, -0.689]
         frame_id: root # the frame_id that the pose is relative to
       # NOTE: If you change this you must also change the hardcoded initial pose in
       # bite transfer.
@@ -139,7 +142,7 @@ ada_planning_scene:
         # updated as the robot perceives the table.
         position: [-0.5, -0.08, -0.56]
         quat_xyzw: [0.0, 0.0, -0.7071068, 0.7071068]
-        offsets: [-0.20, -0.25, -0.689] 
+        offsets: [-0.20, -0.25, -0.689]
         frame_id: root # the frame_id that the pose is relative to
       # NOTE: If you change this you must also change the hardcoded initial pose in
       # bite transfer.
@@ -175,7 +178,7 @@ ada_planning_scene:
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: False # whether to add workspace walls around the wheelchair
-      body: 
+      body:
         filename: body_collision_in_bed.stl
         position: [-0.68, 0.4, -1.24] # should match the wheelchair position
         quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
@@ -221,7 +224,7 @@ ada_planning_scene:
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: False # whether to add workspace walls around the wheelchair
-      body: 
+      body:
         filename: body_collision_in_bed.stl
         position: [-0.58, 0.25, -1.09] # should match the wheelchair position
         quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
@@ -258,21 +261,22 @@ ada_planning_scene:
     # Direction-specific margins for how far the workspace wall should be (default 0.1m)
     # from the nearest contained object in that direction.
     # Also, direction-specific flags to disable the workspace wall in that direction.
-    seated:
-      workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
-      disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
-    seated_90:
-      workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
-      disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
-    bedside:
-      disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
-    bedside_90:
-      disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
-      # disable_workspace_wall_y_max: True
-      # disable_workspace_wall_x_min: True
-      # disable_workspace_wall_x_max: True
-      # disable_workspace_wall_z_min: True
-      # disable_workspace_wall_z_max: True
+    workspace_walls:
+      seated:
+        workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
+        disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
+      seated_90:
+        workspace_wall_margin_y_min: 0.2 # The min y direction needs a larger margin since the robot moves into that for acquisition
+        disable_workspace_wall_y_max: True # Remove the back wall, to be able to see in in RVIZ
+      bedside:
+        disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
+      bedside_90:
+        disable_workspace_wall_y_min: True # Remove the back wall, to be able to see in in RVIZ
+        # disable_workspace_wall_y_max: True
+        # disable_workspace_wall_x_min: True
+        # disable_workspace_wall_x_max: True
+        # disable_workspace_wall_z_min: True
+        # disable_workspace_wall_z_max: True
 
     # Whether the workspace walls should contain the robot's current configuration
     # at time of recomputation.
@@ -294,7 +298,7 @@ ada_planning_scene:
       - "MoveAbovePlate.tree_kwargs.joint_positions"
       - "MoveToRestingPosition.tree_kwargs.goal_configuration"
       - "MoveToStagingConfiguration.tree_kwargs.goal_configuration"
-      - "MoveToStowLocation.tree_kwargs.tree_kwargs"
+      - "MoveToStowLocation.tree_kwargs.joint_positions"
 
     # Which joints in the robot's URDF are fixed (along with their values).
     # These are used when computing the bounds of different robot arm configurationss.
@@ -322,47 +326,49 @@ ada_planning_scene:
     ############################################################################
 
     # Reject any mouth poses that are greater than the distance threshold away from the default head position
-    seated:
-      head_object_id: head
-      head_distance_threshold: 0.5 # m
-      update_body: True
-    seated_90:
-      head_object_id: head
-      head_distance_threshold: 0.5 # m
-      update_body: True
-    bedside:
-      head_object_id: head
-      head_distance_threshold: 0.5 # m
-      update_body: False
-    bedside_90:
-      head_object_id: head
-      head_distance_threshold: 0.5 # m
-      update_body: False
+    face_detection:
+      seated:
+        head_object_id: head
+        head_distance_threshold: 0.5 # m
+        update_body: True
+      seated_90:
+        head_object_id: head
+        head_distance_threshold: 0.5 # m
+        update_body: True
+      bedside:
+        head_object_id: head
+        head_distance_threshold: 0.5 # m
+        update_body: False
+      bedside_90:
+        head_object_id: head
+        head_distance_threshold: 0.5 # m
+        update_body: False
 
     ############################################################################
     # Parameters related to the UpdateFromTableDetectionpace class
     ############################################################################
 
-    # - `table_origin_offset`: The offset values (in meters) for the center coordinates ([x, y, z]) 
+    # - `table_origin_offset`: The offset values (in meters) for the center coordinates ([x, y, z])
     #    of the table. These values are used to translate the detected position into the table's origin.
     # - `table_quat_dist_thresh`: The threshold on the angular distance (in radians) between the default
     #    table quaternion and the latest table quaternion to determine whether to reject or accept the
     #    latest table quaternion.
     # - `table_pos_dist_thresh`: The threshold on the linear distance (in m) between the default table position
     #    and the latest table position to determine whether to reject or accept the latest table position.
-    seated:
-      table_origin_offset: [-0.20, -0.25, -0.79]
-      table_quat_dist_thresh: 0.349
-      table_pos_dist_thresh: 0.5
-    seated_90:
-      table_origin_offset: [-0.10, -0.25, -0.79]
-      table_quat_dist_thresh: 0.349
-      table_pos_dist_thresh: 0.5
-    bedside:
-      table_origin_offset: [-0.23, 0.71, -1.0067]
-      table_quat_dist_thresh: 0.349
-      table_pos_dist_thresh: 0.5
-    bedside_90:
-      table_origin_offset: [-0.71, -0.23, -1.0067]
-      table_quat_dist_thresh: 0.349
-      table_pos_dist_thresh: 0.5
+    table_detection:
+      seated:
+        table_origin_offset: [-0.20, -0.25, -0.79]
+        table_quat_dist_thresh: 0.349
+        table_pos_dist_thresh: 0.5
+      seated_90:
+        table_origin_offset: [-0.10, -0.25, -0.79]
+        table_quat_dist_thresh: 0.349
+        table_pos_dist_thresh: 0.5
+      bedside:
+        table_origin_offset: [-0.23, 0.71, -1.0067]
+        table_quat_dist_thresh: 0.349
+        table_pos_dist_thresh: 0.5
+      bedside_90:
+        table_origin_offset: [-0.71, -0.23, -1.0067]
+        table_quat_dist_thresh: 0.349
+        table_pos_dist_thresh: 0.5

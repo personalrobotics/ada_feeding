@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the servo_until idiom, which takes in a condition behavior
 that should never return RUNNING, and an instance of the ServoMove behavior and
@@ -44,7 +46,6 @@ from ada_feeding.behaviors.ros import (
 )
 from ada_feeding.helpers import BlackboardKey
 
-
 # Hardcoded parts of the behavior names that compute the distance for Servoing.
 # This is used by MoveToVisitor to populate feedback. Try to make these as
 # unique as possible to avoid clashes.
@@ -60,8 +61,8 @@ def servo_until(
     servo_inputs: Dict[str, Union[BlackboardKey, Any]],
 ) -> py_trees.behaviour.Behaviour:
     """
-    An idiom to implement servoing until a condition is met. Sepcifically, this
-    behavior wll iteratively sense the world, check if a condition is met, if so
+    An idiom to implement servoing until a condition is met. Specifically, this
+    behavior will iteratively sense the world, check if a condition is met, if so
     return SUCCESS, else compute a twist and send it to the servo controller.
 
     Parameters
@@ -305,7 +306,7 @@ def servo_until_pose(
     # Check whether the ee_to_target_pose_stamped is within the tolerances.
     # Note that this behavior can technically return FAILURE for a reason
     # other than the condition not being met, specifically if the blackboard
-    # variable doens't exist or the permissions are not correctly set.
+    # variable doesn't exist or the permissions are not correctly set.
     # Therefore, it is crucial to be vigilant when testing this idiom.
     check_behavior = py_trees.behaviours.CheckBlackboardVariableValue(
         name=f"{name} ServoUntilPose CheckTolerances",

@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the MoveToConfigurationWithFTThresholdsTree behavior
 tree and provides functions to wrap that behavior tree in a ROS2 action server.
@@ -46,7 +48,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         tolerance_joint: float = 0.001,
         weight_joint: float = 1.0,
         pipeline_id: str = "ompl",
-        planner_id: str = "RRTConnectkConfigDefault",
+        planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
         max_acceleration_scaling_factor: float = 0.1,

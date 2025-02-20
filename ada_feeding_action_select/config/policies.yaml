@@ -1,3 +1,6 @@
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 ## Cross-Policy Variables
 # RCL *NEEDS* to add aliases
 # See: https://github.com/personalrobotics/ada_feeding/issues/79
@@ -27,7 +30,7 @@ ada_feeding_action_select:
     #posthoc_class: ada_feeding_action_select.adapters.HapticNetPosthoc
     #posthoc_kws:
     #  - checkpoint # Path relative to share data directory
-    #  - n_features 
+    #  - n_features
     #  - gpu_index
     #posthoc_kwargs:
     #  checkpoint: checkpoint/adapter/hapticnet_ckpt.pth
@@ -77,7 +80,7 @@ ada_feeding_action_select:
 
     random:
       policy_class: ada_feeding_action_select.policies.RandomLinearPolicy
-      kws: 
+      kws:
         - library
         - lambda_l2
         - lambda_posthoc_damp
@@ -90,7 +93,7 @@ ada_feeding_action_select:
 
     random_noposthoc:
       policy_class: ada_feeding_action_select.policies.RandomLinearPolicy
-      kws: 
+      kws:
         - library
         - lambda_l2
         - lambda_posthoc_damp
@@ -103,7 +106,7 @@ ada_feeding_action_select:
 
     greedy:
       policy_class: ada_feeding_action_select.policies.GreedyLinearPolicy
-      kws: 
+      kws:
         - library
         - lambda_l2
         - lambda_posthoc_damp
@@ -116,7 +119,7 @@ ada_feeding_action_select:
 
     greedy_noposthoc:
       policy_class: ada_feeding_action_select.policies.GreedyLinearPolicy
-      kws: 
+      kws:
         - library
         - lambda_l2
         - lambda_posthoc_damp
@@ -129,7 +132,7 @@ ada_feeding_action_select:
 
     egreedy:
       policy_class: ada_feeding_action_select.policies.EpsilonGreedyLinearPolicy
-      kws: 
+      kws:
         - library
         - lambda_l2
         - lambda_posthoc_damp
@@ -144,7 +147,7 @@ ada_feeding_action_select:
 
     egreedy_noposthoc:
       policy_class: ada_feeding_action_select.policies.EpsilonGreedyLinearPolicy
-      kws: 
+      kws:
         - library
         - lambda_l2
         - lambda_posthoc_damp
@@ -159,7 +162,7 @@ ada_feeding_action_select:
 
     linucb:
       policy_class: ada_feeding_action_select.policies.LinUCBPolicy
-      kws: 
+      kws:
         - library
         - lambda_l2
         - lambda_posthoc_damp
@@ -174,7 +177,7 @@ ada_feeding_action_select:
 
     linucb_noposthoc:
       policy_class: ada_feeding_action_select.policies.LinUCBPolicy
-      kws: 
+      kws:
         - library
         - lambda_l2
         - lambda_posthoc_damp
