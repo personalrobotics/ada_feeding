@@ -47,10 +47,13 @@ class HapticNetPosthoc(PosthocAdapter):
 
         # Init CUDA
         self.use_cuda = torch.cuda.is_available()
+        self.device = torch.device("cuda") if self.use_cuda else torch.device("cpu")
         if self.use_cuda:
             logger.info("Init HapticNet with CUDA")
             os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
             os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_index)
+        else:
+            logger.info("Init HapticNet with CPU")
 
         # Init HapticNet
         self.config = HapticNetConfig(n_output=n_features)
@@ -60,7 +63,7 @@ class HapticNetPosthoc(PosthocAdapter):
         ckpt_file = os.path.join(
             get_package_share_directory("ada_feeding_action_select"), "data", checkpoint
         )
-        ckpt = torch.load(ckpt_file)
+        ckpt = torch.load(ckpt_file, map_location=self.device)
         self.hapticnet.load_state_dict(ckpt["state_dict"])
         self.hapticnet.eval()
         if self.use_cuda:

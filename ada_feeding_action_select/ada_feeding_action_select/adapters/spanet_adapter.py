@@ -49,10 +49,13 @@ class SPANetContext(ContextAdapter):
 
         # Init CUDA
         self.use_cuda = torch.cuda.is_available()
+        self.device = torch.device("cuda") if self.use_cuda else torch.device("cpu")
         if self.use_cuda:
             logger.info("Init SPANet with CUDA")
             os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
             os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_index)
+        else:
+            logger.info("Init SPANet with CPU")
 
         # Init SPANet
         self.config = SPANetConfig(n_features=n_features)
@@ -62,7 +65,7 @@ class SPANetContext(ContextAdapter):
         ckpt_file = os.path.join(
             get_package_share_directory("ada_feeding_action_select"), "data", checkpoint
         )
-        ckpt = torch.load(ckpt_file)
+        ckpt = torch.load(ckpt_file, map_location=self.device)
         self.spanet.load_state_dict(ckpt["net"])
         self.spanet.eval()
         if self.use_cuda:
