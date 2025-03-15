@@ -65,14 +65,10 @@ class SPANetContext(ContextAdapter):
 
         # Load Checkpoint
         ckpt_file = os.path.join(
-            get_package_share_directory("ada_feeding_action_select"),
-            "data",
-            checkpoint_path,
+            get_package_share_directory("ada_feeding_action_select"), "data", checkpoint_path
         )
         if not os.path.exists(ckpt_file):
-            logger.info(
-                f"Checkpoint file not found at {ckpt_file}. Downloading from {checkpoint_url}..."
-            )
+            logger.info(f"Checkpoint file not found at {ckpt_file}. Downloading from {checkpoint_url}...")
 
             try:
                 gdown.download(checkpoint_url, ckpt_file, quiet=False)
@@ -80,7 +76,7 @@ class SPANetContext(ContextAdapter):
             except Exception as e:
                 raise RuntimeError(f"Error downloading checkpoint: {e}")
         else:
-            logger.info(f"Checkpoint file found at {ckpt_file}. Loading...")
+          logger.info(f"Checkpoint file found at {ckpt_file}. Loading...")
 
         ckpt = torch.load(ckpt_file, map_location=self.device)
         self.spanet.load_state_dict(ckpt["net"])
