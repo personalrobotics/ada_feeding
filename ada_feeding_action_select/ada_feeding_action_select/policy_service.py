@@ -226,7 +226,7 @@ class PolicyServices(Node):
             )
             if len(pt_files) > 0:
                 with open(pt_files[-1], "rb") as ckpt_file:
-                    ckpt = torch.load(ckpt_file)
+                    ckpt = torch.load(ckpt_file, map_location=self.device)
                     try:
                         if ckpt["context_cls"] != context_cls:
                             self.get_logger().warning(
@@ -252,6 +252,8 @@ class PolicyServices(Node):
         super().__init__("policy_service")
         register_logger(self.get_logger())
         self._declare_parameters()
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Name of the Policy
         policy_name = self.get_parameter("policy").value
