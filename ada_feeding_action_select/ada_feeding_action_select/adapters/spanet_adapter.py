@@ -9,6 +9,7 @@ This module defines the SPANet context adapter.
 
 # Standard imports
 import os
+import gdown
 
 # Third-party imports
 from ament_index_python.packages import get_package_share_directory
@@ -33,7 +34,8 @@ class SPANetContext(ContextAdapter):
 
     def __init__(
         self,
-        checkpoint: str,
+        checkpoint_url: str,
+        checkpoint_path: str,
         n_features: int = 2048,
         gpu_index: int = 0,
     ) -> None:
@@ -63,8 +65,23 @@ class SPANetContext(ContextAdapter):
 
         # Load Checkpoint
         ckpt_file = os.path.join(
-            get_package_share_directory("ada_feeding_action_select"), "data", checkpoint
+            get_package_share_directory("ada_feeding_action_select"),
+            "data",
+            checkpoint_path,
         )
+        if not os.path.exists(ckpt_file):
+            logger.info(
+                f"Checkpoint file not found at {ckpt_file}. Downloading from {checkpoint_url}..."
+            )
+
+            try:
+                gdown.download(checkpoint_url, ckpt_file, quiet=False)
+                logger.info(f"Checkpoint file downloaded successfully to {ckpt_file}")
+            except Exception as e:
+                raise RuntimeError(f"Error downloading checkpoint: {e}")
+        else:
+            logger.info(f"Checkpoint file found at {ckpt_file}. Loading...")
+
         ckpt = torch.load(ckpt_file, map_location=self.device)
         self.spanet.load_state_dict(ckpt["net"])
         self.spanet.eval()
