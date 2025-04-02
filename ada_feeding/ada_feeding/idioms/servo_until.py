@@ -174,7 +174,7 @@ def servo_until_pose(
     name: str,
     ns: str,
     target_pose_stamped_key: BlackboardKey,
-    end_effector_frame: str = "forkTip",
+    end_effector_frame: str = "tool_tip",
     tolerance_position: float = 0.005,
     tolerance_orientation: Union[float, Tuple[float, float, float]] = 0.09,
     relaxed_tolerance_position: float = 0.005,
