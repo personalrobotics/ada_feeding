@@ -1,10 +1,8 @@
-import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 import py_trees
 
 from ada_feeding.behaviors import BlackboardBehavior
-from ada_feeding.helpers import BlackboardKey
 
 class GetJointStates(BlackboardBehavior):
     def __init__(self, name, joint_names, output_key, ns="/"):
