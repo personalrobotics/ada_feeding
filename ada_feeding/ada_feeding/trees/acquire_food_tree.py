@@ -387,6 +387,7 @@ class AcquireFoodTree(MoveToTree):
                             joint_names=["atool_joint1", "atool_joint2"],
                             output_key="atool_joints",
                             ns=name,
+                            node=self._node,
                         ),
                     ),
                     # Create Joint Constraint
