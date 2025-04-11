@@ -385,7 +385,7 @@ class AcquireFoodTree(MoveToTree):
                         child=GetJointStates(
                             name="GetArticutoolJoints",
                             joint_names=["atool_joint1", "atool_joint2"],
-                            output_key="atool_joints",
+                            output_key=BlackboardKey("atool_joints"),
                             ns=name,
                             node=self._node,
                         ),
