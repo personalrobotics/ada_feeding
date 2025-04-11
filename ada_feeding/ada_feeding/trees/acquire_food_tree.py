@@ -44,6 +44,7 @@ from ada_feeding.behaviors.moveit2 import (
     ServoMove,
     ToggleCollisionObject,
 )
+from ada_feeding.behaviors.state import GetJointStates
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
     pre_moveto_config,
@@ -377,6 +378,29 @@ class AcquireFoodTree(MoveToTree):
                 name="MoveAbovePlanningSeq",
                 memory=True,
                 children=[
+                    # Get Articutool Joint States with Timeout
+                    py_trees.decorators.Timeout(
+                        name="GetArticutoolJointsTimeout",
+                        duration=1.0,
+                        child=GetJointStates(
+                            name="GetArticutoolJoints",
+                            joint_names=["atool_joint1", "atool_joint2"],
+                            output_key="atool_joints",
+                            ns=name,
+                        ),
+                    ),
+                    # Create Joint Constraint
+                    MoveIt2JointConstraint(
+                        name="AtoolJointConstraint",
+                        ns=name,
+                        inputs={
+                            "joint_positions": BlackboardKey("atool_joints"),
+                            "tolerance": 0.01,
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("atool_constraints"),
+                        },
+                    ),
                     # Compute Food Frame
                     py_trees.decorators.Timeout(
                         name="ComputeFoodFrameTimeout",
