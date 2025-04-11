@@ -399,7 +399,7 @@ class AcquireFoodTree(MoveToTree):
                             "tolerance": 0.01,
                         },
                         outputs={
-                            "constraints": BlackboardKey("atool_constraints"),
+                            "constraints": BlackboardKey("goal_constraints"),
                         },
                     ),
                     # Compute Food Frame
