@@ -22,6 +22,7 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2Execute,
     MoveIt2JointConstraint,
 )
+from ada_feeding.behaviors.state import GetJointStates
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import get_toggle_watchdog_listener_behavior
@@ -162,6 +163,39 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
             name=name,
             memory=True,
             children=[
+                py_trees.composites.Sequence(
+                    name="GetAndConstrainArticutoolJoints",
+                    memory=True,
+                    children=[
+                        py_trees.decorators.Timeout(
+                            name="GetArticutoolJointsTimeout",
+                            duration=1.0,
+                            child=GetJointStates(
+                                name="GetArticutoolJoints",
+                                ns=name,
+                                node=self._node,
+                                inputs={
+                                    "joint_names": ["atool_joint1", "atool_joint2"],
+                                },
+                                outputs={
+                                    "joint_names": BlackboardKey("joint_names"),
+                                    "joint_positions": BlackboardKey("joint_positions"),
+                                }
+                            ),
+                        ),
+                        MoveIt2JointConstraint(
+                            name="ArticutoolJointConstraint",
+                            ns=name,
+                            inputs={
+                                "joint_names": BlackboardKey("joint_names"),
+                                "joint_positions": BlackboardKey("joint_positions"),
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                        ),
+                    ],
+                ),
                 MoveIt2JointConstraint(
                     name="JointConstraint",
                     ns=name,
@@ -169,6 +203,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                         "joint_positions": BlackboardKey("joint_positions"),
                         "tolerance": self.tolerance_joint,
                         "weight": self.weight_joint,
+                        "constraints": BlackboardKey("goal_constraints"),
                     },
                     outputs={
                         "constraints": BlackboardKey("goal_constraints"),
