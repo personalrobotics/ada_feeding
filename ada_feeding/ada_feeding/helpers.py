@@ -359,7 +359,7 @@ def get_moveit2_object(
         callback_group = ReentrantCallbackGroup()
         moveit2 = MoveIt2(
             node=node,
-            joint_names=kinova.joint_names(),
+            joint_names=kinova.joint_names() + ["atool_joint1", "atool_joint2"],
             base_link_name=kinova.base_link_name(),
             end_effector_name="tool_tip",
             group_name="jaco_arm_with_articutool",
