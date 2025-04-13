@@ -178,8 +178,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                                     "joint_names": ["atool_joint1", "atool_joint2"],
                                 },
                                 outputs={
-                                    "joint_names": BlackboardKey("joint_names"),
-                                    "joint_positions": BlackboardKey("joint_positions"),
+                                    "joint_names": BlackboardKey("atool_joint_names"),
+                                    "joint_positions": BlackboardKey("atool_joint_positions"),
                                 }
                             ),
                         ),
@@ -187,8 +187,8 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                             name="ArticutoolJointConstraint",
                             ns=name,
                             inputs={
-                                "joint_names": BlackboardKey("joint_names"),
-                                "joint_positions": BlackboardKey("joint_positions"),
+                                "joint_names": BlackboardKey("atool_joint_names"),
+                                "joint_positions": BlackboardKey("atool_joint_positions"),
                             },
                             outputs={
                                 "constraints": BlackboardKey("goal_constraints"),
