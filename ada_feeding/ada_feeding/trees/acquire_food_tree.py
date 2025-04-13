@@ -378,30 +378,6 @@ class AcquireFoodTree(MoveToTree):
                 name="MoveAbovePlanningSeq",
                 memory=True,
                 children=[
-                    # Get Articutool Joint States with Timeout
-                    py_trees.decorators.Timeout(
-                        name="GetArticutoolJointsTimeout",
-                        duration=1.0,
-                        child=GetJointStates(
-                            name="GetArticutoolJoints",
-                            joint_names=["atool_joint1", "atool_joint2"],
-                            output_key=BlackboardKey("atool_joints"),
-                            ns=name,
-                            node=self._node,
-                        ),
-                    ),
-                    # Create Joint Constraint
-                    MoveIt2JointConstraint(
-                        name="AtoolJointConstraint",
-                        ns=name,
-                        inputs={
-                            "joint_positions": BlackboardKey("atool_joints"),
-                            "tolerance": 0.01,
-                        },
-                        outputs={
-                            "constraints": BlackboardKey("goal_constraints"),
-                        },
-                    ),
                     # Compute Food Frame
                     py_trees.decorators.Timeout(
                         name="ComputeFoodFrameTimeout",
@@ -713,6 +689,39 @@ class AcquireFoodTree(MoveToTree):
                                     on_preempt_timeout=5.0,
                                     # Starts a new Sequence w/ Memory internally
                                     workers=[
+                                        # py_trees.composites.Sequence(
+                                        #     name="GetAndConstrainArticutoolJoints",
+                                        #     memory=True,
+                                        #     children=[
+                                        #         py_trees.decorators.Timeout(
+                                        #             name="GetArticutoolJointsTimeout",
+                                        #             duration=1.0,
+                                        #             child=GetJointStates(
+                                        #                 name="GetArticutoolJoints",
+                                        #                 ns=name,
+                                        #                 node=self._node,
+                                        #                 inputs={
+                                        #                     "joint_names": ["atool_joint1", "atool_joint2"],
+                                        #                 },
+                                        #                 outputs={
+                                        #                     "joint_names": BlackboardKey("atool_joint_names"),
+                                        #                     "joint_positions": BlackboardKey("atool_joint_positions"),
+                                        #                 }
+                                        #             ),
+                                        #         ),
+                                        #         MoveIt2JointConstraint(
+                                        #             name="ArticutoolJointConstraint",
+                                        #             ns=name,
+                                        #             inputs={
+                                        #                 "joint_names": BlackboardKey("atool_joint_names"),
+                                        #                 "joint_positions": BlackboardKey("atool_joint_positions"),
+                                        #             },
+                                        #             outputs={
+                                        #                 "constraints": BlackboardKey("goal_constraints"),
+                                        #             },
+                                        #         ),
+                                        #     ],
+                                        # ),
                                         ### Move Into Food
                                         MoveIt2PoseConstraint(
                                             name="MoveIntoPose",
