@@ -27,6 +27,7 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2JointConstraint,
     MoveIt2OrientationConstraint,
 )
+from ada_feeding.behaviors.state import GetJointStates
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import (
@@ -115,11 +116,45 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
         ### Define Tree Logic
 
         constraints = [
+            py_trees.composites.Sequence(
+                name="GetAndConstrainArticutoolJoints",
+                memory=True,
+                children=[
+                    py_trees.decorators.Timeout(
+                        name="GetArticutoolJointsTimeout",
+                        duration=1.0,
+                        child=GetJointStates(
+                            name="GetArticutoolJoints",
+                            ns=name,
+                            node=self._node,
+                            inputs={
+                                "joint_names": ["atool_joint1", "atool_joint2"],
+                            },
+                            outputs={
+                                "joint_names": BlackboardKey("atool_joint_names"),
+                                "joint_positions": BlackboardKey("atool_joint_positions"),
+                            }
+                        ),
+                    ),
+                    MoveIt2JointConstraint(
+                        name="ArticutoolJointConstraint",
+                        ns=name,
+                        inputs={
+                            "joint_names": BlackboardKey("atool_joint_names"),
+                            "joint_positions": BlackboardKey("atool_joint_positions"),
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("goal_constraints"),
+                        },
+                    ),
+                ],
+            ),
             # Goal configuration: staging configuration
             MoveIt2JointConstraint(
                 name="StagingConfigurationGoalConstraint",
                 ns=name,
                 inputs={
+                    "constraints": BlackboardKey("goal_constraints"),
                     "joint_positions": self.goal_configuration,
                     "tolerance": self.goal_configuration_tolerance,
                 },
@@ -135,6 +170,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                     name="KeepForkStraightPathConstraint",
                     ns=name,
                     inputs={
+                        "constraints": BlackboardKey("goal_constraints"),
                         "quat_xyzw": self.orientation_constraint_quaternion,
                         "tolerance": self.orientation_constraint_tolerances,
                         "parameterization": 1,  # Rotation vector
