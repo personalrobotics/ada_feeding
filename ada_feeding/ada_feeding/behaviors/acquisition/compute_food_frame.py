@@ -370,4 +370,15 @@ class ComputeFoodFrame(BlackboardBehavior):
         request.food_context = mask
         self.blackboard_set("action_select_request", request)
 
+        publisher_ = create_publisher(TransformStamped, '/tf', 10)
+        timer_period = 0.5 #seconds
+        timer = create_timer(timer_period, timer_callback)
+
+        def timer_callback():
+            msg = String()
+            msgxdata = f"Food Frame x: {world_to_food_transform.transform.translation.x}, y: {world_to_food_transform.transform.translation.y}, z: {world_to_food_transform.transform.translation.z}, rotation: {world_to_food_transform.transform.rotation}"
+            publisher_.publish(msg)
+            get_logger().info('Publishing: "%s"'%msgxdata)
+            
+
         return py_trees.common.Status.SUCCESS
