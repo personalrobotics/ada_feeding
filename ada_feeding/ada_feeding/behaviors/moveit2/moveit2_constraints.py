@@ -25,6 +25,7 @@ from geometry_msgs.msg import (
 import numpy as np
 from overrides import override
 import py_trees
+from py_trees.blackboard import Blackboard
 import rclpy
 import ros2_numpy
 
@@ -165,6 +166,7 @@ class MoveIt2PositionOffsetConstraint(BlackboardBehavior):
         constraints: Union[
             BlackboardKey, Optional[List[Tuple[MoveIt2ConstraintType, Dict[str, Any]]]]
         ] = None,
+        group_name: Union[BlackboardKey, str] = "jaco_arm_with_articutool",
     ) -> None:
         """
         Blackboard Inputs
@@ -178,6 +180,8 @@ class MoveIt2PositionOffsetConstraint(BlackboardBehavior):
 
         Note: if position is Vector3Stamped,
               use position.header.frame_id for frame_id (if not "")
+
+        group_name: The name of the MoveIt2 planning group
 
         Parameters
         ----------
@@ -220,10 +224,14 @@ class MoveIt2PositionOffsetConstraint(BlackboardBehavior):
         # Get Node from Kwargs
         self.node = kwargs["node"]
 
+        # Get group name from blackboard
+        self.group_name = self.blackboard_get("group_name")
+
         # Get the MoveIt2 object, don't need lock (const read only)
         self.moveit2, _ = get_moveit2_object(
             self.blackboard,
             self.node,
+            self.group_name,
         )
 
         # Get TF Listener from blackboard

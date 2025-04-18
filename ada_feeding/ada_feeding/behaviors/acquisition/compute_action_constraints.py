@@ -232,6 +232,7 @@ class ComputeActionTwist(BlackboardBehavior):
         action: Union[BlackboardKey, AcquisitionSchema],
         is_grasp: Union[BlackboardKey, bool] = True,
         approach_frame_id: Union[BlackboardKey, str] = "approach",
+        group_name: Union[BlackboardKey, str] = "jaco_arm_with_articutool",
     ) -> None:
         """
         Blackboard Inputs
@@ -241,6 +242,7 @@ class ComputeActionTwist(BlackboardBehavior):
         action: AcquisitionSchema msg object
         is_grasp: if true, use the grasp action elements, else use extraction
         approach_frame_id: approach frame defined in AcquisitionSchema.msg
+        group_name: The name of the MoveIt2 planning group
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -279,6 +281,9 @@ class ComputeActionTwist(BlackboardBehavior):
         # Get Node from Kwargs
         self.node = kwargs["node"]
 
+        # Get group name from blackboard
+        self.group_name = self.blackboard_get("group_name")
+
         # Get TF Listener from blackboard
         # For transform approach -> end_effector_frame
         self.tf_buffer, _, self.tf_lock = get_tf_object(self.blackboard, self.node)
@@ -288,6 +293,7 @@ class ComputeActionTwist(BlackboardBehavior):
         self.moveit2, self.moveit2_lock = get_moveit2_object(
             self.blackboard,
             self.node,
+            self.group_name,
         )
 
     @override
