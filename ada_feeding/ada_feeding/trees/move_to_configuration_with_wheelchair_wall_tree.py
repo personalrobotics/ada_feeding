@@ -116,45 +116,11 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
         ### Define Tree Logic
 
         constraints = [
-            py_trees.composites.Sequence(
-                name="GetAndConstrainArticutoolJoints",
-                memory=True,
-                children=[
-                    py_trees.decorators.Timeout(
-                        name="GetArticutoolJointsTimeout",
-                        duration=1.0,
-                        child=GetJointStates(
-                            name="GetArticutoolJoints",
-                            ns=name,
-                            node=self._node,
-                            inputs={
-                                "joint_names": ["atool_joint1", "atool_joint2"],
-                            },
-                            outputs={
-                                "joint_names": BlackboardKey("atool_joint_names"),
-                                "joint_positions": BlackboardKey("atool_joint_positions"),
-                            }
-                        ),
-                    ),
-                    MoveIt2JointConstraint(
-                        name="ArticutoolJointConstraint",
-                        ns=name,
-                        inputs={
-                            "joint_names": BlackboardKey("atool_joint_names"),
-                            "joint_positions": BlackboardKey("atool_joint_positions"),
-                        },
-                        outputs={
-                            "constraints": BlackboardKey("goal_constraints"),
-                        },
-                    ),
-                ],
-            ),
             # Goal configuration: staging configuration
             MoveIt2JointConstraint(
                 name="StagingConfigurationGoalConstraint",
                 ns=name,
                 inputs={
-                    "constraints": BlackboardKey("goal_constraints"),
                     "joint_positions": self.goal_configuration,
                     "tolerance": self.goal_configuration_tolerance,
                 },
@@ -226,6 +192,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                                     "allowed_planning_time": self.allowed_planning_time,
                                     "max_velocity_scale": self.max_velocity_scaling_factor,
                                     "ignore_violated_path_constraints": True,
+                                    "group_name": "jaco_arm"
                                 },
                                 outputs={"trajectory": BlackboardKey("trajectory")},
                             ),
@@ -234,7 +201,10 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                         MoveIt2Execute(
                             name="MoveToStagingConfigurationExecute",
                             ns=name,
-                            inputs={"trajectory": BlackboardKey("trajectory")},
+                            inputs={
+                                "trajectory": BlackboardKey("trajectory"),
+                                "group_name": "jaco_arm",
+                            },
                             outputs={},
                         ),
                     ],

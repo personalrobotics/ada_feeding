@@ -192,45 +192,11 @@ class AcquireFoodTree(MoveToTree):
                             # Default fail if service is down
                             wait_for_server_timeout_sec=0.0,
                         ),
-                        py_trees.composites.Sequence(
-                            name="GetAndConstrainArticutoolJoints",
-                            memory=True,
-                            children=[
-                                py_trees.decorators.Timeout(
-                                    name="GetArticutoolJointsTimeout",
-                                    duration=1.0,
-                                    child=GetJointStates(
-                                        name="GetArticutoolJoints",
-                                        ns=name,
-                                        node=self._node,
-                                        inputs={
-                                            "joint_names": ["atool_joint1", "atool_joint2"],
-                                        },
-                                        outputs={
-                                            "joint_names": BlackboardKey("atool_joint_names"),
-                                            "joint_positions": BlackboardKey("atool_joint_positions"),
-                                        }
-                                    ),
-                                ),
-                                MoveIt2JointConstraint(
-                                    name="ArticutoolJointConstraint",
-                                    ns=name,
-                                    inputs={
-                                        "joint_names": BlackboardKey("atool_joint_names"),
-                                        "joint_positions": BlackboardKey("atool_joint_positions"),
-                                    },
-                                    outputs={
-                                        "constraints": BlackboardKey("goal_constraints"),
-                                    },
-                                ),
-                            ],
-                        ),
                         MoveIt2JointConstraint(
                             name="RestingConstraint",
                             ns=name,
                             inputs={
                                 "joint_positions": self.resting_joint_positions,
-                                "constraints": BlackboardKey("goal_constraints"),
                             },
                             outputs={
                                 "constraints": BlackboardKey("goal_constraints"),
@@ -251,6 +217,7 @@ class AcquireFoodTree(MoveToTree):
                                     "max_velocity_scale": self.max_velocity_scaling_to_resting_configuration,
                                     "max_acceleration_scale": self.max_acceleration_scaling_to_resting_configuration,
                                     "allowed_planning_time": self.allowed_planning_time_to_resting_configuration,
+                                    "group_name": "jaco_arm",
                                 },
                                 outputs={
                                     "trajectory": BlackboardKey("resting_trajectory")
@@ -260,7 +227,10 @@ class AcquireFoodTree(MoveToTree):
                         MoveIt2Execute(
                             name="Resting",
                             ns=name,
-                            inputs={"trajectory": BlackboardKey("resting_trajectory")},
+                            inputs={
+                                "trajectory": BlackboardKey("resting_trajectory"),
+                                "group_name": "jaco_arm",
+                            },
                             outputs={},
                         ),
                     ],
