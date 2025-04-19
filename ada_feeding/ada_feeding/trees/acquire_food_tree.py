@@ -589,24 +589,7 @@ class AcquireFoodTree(MoveToTree):
                             "constraints": BlackboardKey("move_above_articutool_constraints"),
                         }
                     ),
-                    # ### Move Above Food
-                    # MoveIt2PoseConstraint(
-                    #     name="MoveAbovePose",
-                    #     ns=name,
-                    #     inputs={
-                    #         "pose": BlackboardKey("move_above_pose"),
-                    #         "frame_id": "food",
-                    #         "tolerance_orientation": [
-                    #             0.01,
-                    #             0.01,
-                    #             0.01,
-                    #         ],  # x, y, z rotvec
-                    #         "parameterization": 1,
-                    #     },
-                    #     outputs={
-                    #         "constraints": BlackboardKey("goal_constraints"),
-                    #     },
-                    # ),
+                    ### Move Above Food
                     py_trees.decorators.Timeout(
                         name="MoveAboveJacoArmPlanTimeout",
                         # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
@@ -649,116 +632,155 @@ class AcquireFoodTree(MoveToTree):
                             },
                         ),
                     ),
-                    # # Convert Pose to PoseStamped using the defined frame_id
-                    # StampPoseFromPose(
-                    #     name="StampMoveIntoPose",
-                    #     ns=name,
-                    #     inputs={
-                    #         "input_pose": BlackboardKey("move_into_pose"),
-                    #         "frame_id": "food"
-                    #     },
-                    #     outputs={
-                    #         "output_pose_stamped": BlackboardKey("move_into_pose_stamped_food_frame")
-                    #     }
-                    # ),
-                    #
-                    # # Use ApplyTransform to transform into the MoveIt Planning Frame
-                    # ApplyTransform(
-                    #     name="TransformPoseToIKFrame",
-                    #     ns=name,
-                    #     inputs={
-                    #         "stamped_msg": BlackboardKey("move_into_pose_stamped_food_frame"),
-                    #         "target_frame": "j2n6s200_link_base",
-                    #     },
-                    #     outputs={
-                    #         "transformed_msg": BlackboardKey("move_into_pose_stamped_base_frame")
-                    #     }
-                    # ),
-                    #
-                    # # Compute IK for the target pose using the full jaco_arm_with_articutool planning group
-                    # MoveIt2ComputeIK(
-                    #     name="ComputeJacoArmWithArticutoolIK",
-                    #     ns=name,
-                    #     inputs={
-                    #         "target_pose": BlackboardKey("move_into_pose_stamped_base_frame"),
-                    #         "group_name": "jaco_arm_with_articutool",
-                    #         # "start_joint_state": BlackboardKey("current_joint_positions"),
-                    #     },
-                    #     outputs={
-                    #         "ik_solution_joint_state": BlackboardKey("move_into_ik_solution"),
-                    #         "success": BlackboardKey("move_into_ik_success"),
-                    #     }
-                    # ),
-                    # ExtractJointsFromState(
-                    #     name="ExtractJacoArmJoints",
-                    #     ns=name,
-                    #     inputs={
-                    #         "source_joint_state": BlackboardKey("move_into_ik_solution"),
-                    #         "target_joint_names": [
-                    #             "j2n6s200_joint_1",
-                    #             "j2n6s200_joint_2",
-                    #             "j2n6s200_joint_3",
-                    #             "j2n6s200_joint_4",
-                    #             "j2n6s200_joint_5",
-                    #             "j2n6s200_joint_6",
-                    #         ]
-                    #
-                    #     },
-                    #     outputs={
-                    #         "output_joint_names": BlackboardKey("move_into_jaco_arm_joint_names"),
-                    #         "output_joint_positions": BlackboardKey("move_into_jaco_arm_joint_positions"),
-                    #         "success": BlackboardKey("extract_jaco_arm_joints_success")
-                    #     }
-                    # ),
-                    # MoveIt2JointConstraint(
-                    #     name="SetJacoArmJointConstraint",
-                    #     ns=name,
-                    #     inputs={
-                    #         "joint_positions": BlackboardKey("move_into_jaco_arm_joint_positions"),
-                    #         "joint_names": BlackboardKey("move_into_jaco_arm_joint_names"),
-                    #         "tolerance": 0.001,
-                    #         "constraints": None,
-                    #     },
-                    #     outputs={
-                    #         "constraints": BlackboardKey("move_into_jaco_arm_constraints"),
-                    #     }
-                    # ),
-                    # ### Test MoveIntoFood
-                    # MoveIt2PoseConstraint(
-                    #     name="MoveIntoPose",
-                    #     ns=name,
-                    #     inputs={
-                    #         "pose": BlackboardKey("move_into_pose"),
-                    #         "frame_id": "food",
-                    #     },
-                    #     outputs={
-                    #         "constraints": BlackboardKey("goal_constraints"),
-                    #     },
-                    # ),
-                    # py_trees.decorators.Timeout(
-                    #     name="MoveIntoPlanTimeout",
-                    #     # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                    #     duration=10.0 * self.allowed_planning_time_for_move_into,
-                    #     child=MoveIt2Plan(
-                    #         name="MoveIntoPlan",
-                    #         ns=name,
-                    #         inputs={
-                    #             "goal_constraints": BlackboardKey("move_into_jaco_arm_constraints"),
-                    #             "max_velocity_scale": self.max_velocity_scaling_move_into,
-                    #             "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                    #             "cartesian": True,
-                    #             "cartesian_max_step": 0.001,
-                    #             "cartesian_fraction_threshold": 0.92,
-                    #             "start_joint_state": BlackboardKey("test_into_joints"),
-                    #             "max_path_len_joint": max_path_len_joint,
-                    #             "allowed_planning_time": self.allowed_planning_time_for_move_into,
-                    #             "group_name": "jaco_arm",
-                    #         },
-                    #         outputs={
-                    #             "trajectory": BlackboardKey("move_into_trajectory")
-                    #         },
-                    #     ),
-                    # ),
+                    # Convert Pose to PoseStamped using the defined frame_id
+                    StampPoseFromPose(
+                        name="StampMoveIntoPose",
+                        ns=name,
+                        inputs={
+                            "input_pose": BlackboardKey("move_into_pose"),
+                            "frame_id": "food"
+                        },
+                        outputs={
+                            "output_pose_stamped": BlackboardKey("move_into_pose_stamped_food_frame")
+                        }
+                    ),
+
+                    # Use ApplyTransform to transform into the MoveIt Planning Frame
+                    ApplyTransform(
+                        name="TransformPoseToIKFrame",
+                        ns=name,
+                        inputs={
+                            "stamped_msg": BlackboardKey("move_into_pose_stamped_food_frame"),
+                            "target_frame": "j2n6s200_link_base",
+                        },
+                        outputs={
+                            "transformed_msg": BlackboardKey("move_into_pose_stamped_base_frame")
+                        }
+                    ),
+
+                    # Compute IK for the target pose using the full jaco_arm_with_articutool planning group
+                    MoveIt2ComputeIK(
+                        name="ComputeJacoArmWithArticutoolIK",
+                        ns=name,
+                        inputs={
+                            "target_pose": BlackboardKey("move_into_pose_stamped_base_frame"),
+                            "group_name": "jaco_arm_with_articutool",
+                            # "start_joint_state": BlackboardKey("current_joint_positions"),
+                        },
+                        outputs={
+                            "ik_solution_joint_state": BlackboardKey("move_into_ik_solution"),
+                            "success": BlackboardKey("move_into_ik_success"),
+                        }
+                    ),
+                    ExtractJointsFromState(
+                        name="ExtractJacoArmJoints",
+                        ns=name,
+                        inputs={
+                            "source_joint_state": BlackboardKey("move_into_ik_solution"),
+                            "target_joint_names": [
+                                "j2n6s200_joint_1",
+                                "j2n6s200_joint_2",
+                                "j2n6s200_joint_3",
+                                "j2n6s200_joint_4",
+                                "j2n6s200_joint_5",
+                                "j2n6s200_joint_6",
+                            ]
+
+                        },
+                        outputs={
+                            "output_joint_names": BlackboardKey("move_into_jaco_arm_joint_names"),
+                            "output_joint_positions": BlackboardKey("move_into_jaco_arm_joint_positions"),
+                            "success": BlackboardKey("extract_jaco_arm_joints_success")
+                        }
+                    ),
+                    ExtractJointsFromState(
+                        name="ExtractArticutoolJoints",
+                        ns=name,
+                        inputs={
+                            "source_joint_state": BlackboardKey("move_into_ik_solution"),
+                            "target_joint_names": [
+                                "atool_joint1",
+                                "atool_joint2",
+                            ]
+
+                        },
+                        outputs={
+                            "output_joint_names": BlackboardKey("move_into_articutool_joint_names"),
+                            "output_joint_positions": BlackboardKey("move_into_articutool_joint_positions"),
+                            "success": BlackboardKey("extract_articutool_joints_success")
+                        }
+                    ),
+                    MoveIt2JointConstraint(
+                        name="SetJacoArmJointConstraint",
+                        ns=name,
+                        inputs={
+                            "joint_positions": BlackboardKey("move_into_jaco_arm_joint_positions"),
+                            "joint_names": BlackboardKey("move_into_jaco_arm_joint_names"),
+                            "tolerance": 0.001,
+                            "constraints": None,
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("move_into_jaco_arm_constraints"),
+                        }
+                    ),
+                    MoveIt2JointConstraint(
+                        name="SetArticutoolJointConstraint",
+                        ns=name,
+                        inputs={
+                            "joint_positions": BlackboardKey("move_into_articutool_joint_positions"),
+                            "joint_names": BlackboardKey("move_into_articutool_joint_names"),
+                            "tolerance": 0.001,
+                            "constraints": None,
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("move_into_articutool_constraints"),
+                        }
+                    ),
+                    ### Test MoveIntoFood
+                    py_trees.decorators.Timeout(
+                        name="MoveIntoJacoArmPlanTimeout",
+                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                        duration=10.0 * self.allowed_planning_time_for_move_into,
+                        child=MoveIt2Plan(
+                            name="MoveIntoJacoArmPlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("move_into_jaco_arm_constraints"),
+                                "max_velocity_scale": self.max_velocity_scaling_move_into,
+                                "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                                "cartesian": True,
+                                "cartesian_max_step": 0.001,
+                                "cartesian_fraction_threshold": 0.92,
+                                "start_joint_state": BlackboardKey("test_into_joints"),
+                                "max_path_len_joint": max_path_len_joint,
+                                "allowed_planning_time": self.allowed_planning_time_for_move_into,
+                                "group_name": "jaco_arm",
+                            },
+                            outputs={
+                                "trajectory": BlackboardKey("move_into_jaco_arm_trajectory")
+                            },
+                        ),
+                    ),
+                    py_trees.decorators.Timeout(
+                        name="MoveIntoArticutoolPlanTimeout",
+                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                        duration=10.0 * self.allowed_planning_time_for_move_above,
+                        child=MoveIt2Plan(
+                            name="MoveIntoArticutoolPlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("move_into_articutool_constraints"),
+                                "max_velocity_scale": self.max_velocity_scaling_move_above,
+                                "max_acceleration_scale": self.max_acceleration_scaling_move_above,
+                                "allowed_planning_time": self.allowed_planning_time_for_move_above,
+                                "max_path_len_joint": max_path_len_joint,
+                                "group_name": "articutool",
+                            },
+                            outputs={
+                                "trajectory": BlackboardKey("move_into_articutool_trajectory"),
+                            },
+                        ),
+                    ),
                 ],
             )
 
@@ -885,326 +907,326 @@ class AcquireFoodTree(MoveToTree):
                                         "action_status": BlackboardKey("tool_action_status"),
                                     }
                                 ),
-                                # # If Anything goes wrong, reset FT to safe levels
-                                # scoped_behavior(
-                                #     name="SafeFTPreempt",
-                                #     # Set Approach F/T Thresh
-                                #     pre_behavior=py_trees.composites.Sequence(
-                                #         name=name,
-                                #         memory=True,
-                                #         children=[
-                                #             retry_call_ros_service(
-                                #                 name="ApproachFTThresh",
-                                #                 service_type=SetParameters,
-                                #                 service_name="~/set_force_gate_controller_parameters",
-                                #                 # Blackboard, not Constant
-                                #                 request=None,
-                                #                 # Need absolute Blackboard name
-                                #                 key_request=Blackboard.separator.join(
-                                #                     [
-                                #                         name,
-                                #                         BlackboardKey(
-                                #                             "approach_thresh"
-                                #                         ),
-                                #                     ]
-                                #                 ),
-                                #                 key_response=Blackboard.separator.join(
-                                #                     [name, BlackboardKey("ft_response")]
-                                #                 ),
-                                #                 response_checks=[
-                                #                     py_trees.common.ComparisonExpression(
-                                #                         variable=Blackboard.separator.join(
-                                #                             [
-                                #                                 name,
-                                #                                 BlackboardKey(
-                                #                                     "ft_response"
-                                #                                 ),
-                                #                             ]
-                                #                         ),
-                                #                         value=SetParameters.Response(),  # Unused
-                                #                         operator=set_parameter_response_all_success,
-                                #                     )
-                                #                 ],
-                                #             ),
-                                #         ],
-                                #     ),
-                                #     post_behavior=py_trees.composites.Sequence(
-                                #         name=name,
-                                #         memory=True,
-                                #         children=[
-                                #             pre_moveto_config(
-                                #                 name="PostAcquireFTSet", re_tare=False
-                                #             ),
-                                #         ],
-                                #     ),
-                                #     on_preempt_timeout=5.0,
-                                #     # Starts a new Sequence w/ Memory internally
-                                #     workers=[
-                                #         ### Move Into Food
-                                #         MoveIt2PoseConstraint(
-                                #             name="MoveIntoPose",
-                                #             ns=name,
-                                #             inputs={
-                                #                 "pose": BlackboardKey("move_into_pose"),
-                                #                 "frame_id": "food",
-                                #             },
-                                #             outputs={
-                                #                 "constraints": BlackboardKey(
-                                #                     "goal_constraints"
-                                #                 ),
-                                #             },
-                                #         ),
-                                #         # If this fails
-                                #         # Auto-fallback to precomputed MoveInto
-                                #         # From move_above_plan()
-                                #         py_trees.decorators.FailureIsSuccess(
-                                #             name="MoveIntoPlanFallbackPrecomputed",
-                                #             child=py_trees.decorators.Timeout(
-                                #                 name="MoveIntoPlanTimeout",
-                                #                 # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                                #                 duration=10.0
-                                #                 * self.allowed_planning_time_for_move_into,
-                                #                 child=MoveIt2Plan(
-                                #                     name="MoveIntoPlan",
-                                #                     ns=name,
-                                #                     inputs={
-                                #                         "goal_constraints": BlackboardKey(
-                                #                             "goal_constraints"
-                                #                         ),
-                                #                         "max_velocity_scale": self.max_velocity_scaling_move_into,
-                                #                         "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                #                         "cartesian": True,
-                                #                         "cartesian_max_step": 0.001,
-                                #                         "cartesian_fraction_threshold": 0.92,
-                                #                         "max_path_len_joint": max_path_len_joint,
-                                #                         "allowed_planning_time": self.allowed_planning_time_for_move_into,
-                                #                     },
-                                #                     outputs={
-                                #                         "trajectory": BlackboardKey(
-                                #                             "move_into_trajectory"
-                                #                         )
-                                #                     },
-                                #                 ),
-                                #             ),
-                                #         ),
-                                #         # MoveInto expect F/T failure
-                                #         py_trees.decorators.FailureIsSuccess(
-                                #             name="MoveIntoExecuteSucceed",
-                                #             child=MoveIt2Execute(
-                                #                 name="MoveInto",
-                                #                 ns=name,
-                                #                 inputs={
-                                #                     "trajectory": BlackboardKey(
-                                #                         "move_into_trajectory"
-                                #                     )
-                                #                 },
-                                #                 outputs={},
-                                #             ),
-                                #         ),
-                                #         ### Scoped Behavior for Moveit2_Servo
-                                #         scoped_behavior(
-                                #             name="MoveIt2Servo",
-                                #             # Set Approach F/T Thresh
-                                #             pre_behavior=py_trees.composites.Sequence(
-                                #                 name=name,
-                                #                 memory=True,
-                                #                 children=[
-                                #                     StartServoTree(
-                                #                         self._node,
-                                #                         servo_controller_name="jaco_arm_cartesian_controller",
-                                #                         start_moveit_servo=False,
-                                #                     )
-                                #                     .create_tree(
-                                #                         name="StartServoScoped"
-                                #                     )
-                                #                     .root,
-                                #                 ],
-                                #             ),
-                                #             # Reset FT and Stop Servo
-                                #             post_behavior=py_trees.composites.Sequence(
-                                #                 name=name,
-                                #                 memory=True,
-                                #                 children=[
-                                #                     pre_moveto_config(
-                                #                         name="PostServoFTSet",
-                                #                         re_tare=False,
-                                #                         f_mag=1.0,
-                                #                         param_service_name="~/set_cartesian_controller_parameters",
-                                #                     ),
-                                #                     StopServoTree(
-                                #                         self._node,
-                                #                         servo_controller_name="jaco_arm_cartesian_controller",
-                                #                         stop_moveit_servo=False,
-                                #                     )
-                                #                     .create_tree(name="StopServoScoped")
-                                #                     .root,
-                                #                 ],
-                                #             ),
-                                #             on_preempt_timeout=5.0,
-                                #             # Starts a new Sequence w/ Memory internally
-                                #             workers=[
-                                #                 py_trees.composites.Selector(
-                                #                     name="InFoodErrorSelector",
-                                #                     memory=True,
-                                #                     children=[
-                                #                         py_trees.composites.Sequence(
-                                #                             name="InFoodGraspExtract",
-                                #                             memory=True,
-                                #                             children=[
-                                #                                 ### Grasp
-                                #                                 retry_call_ros_service(
-                                #                                     name="GraspFTThresh",
-                                #                                     service_type=SetParameters,
-                                #                                     service_name="~/set_cartesian_controller_parameters",
-                                #                                     # Blackboard, not Constant
-                                #                                     request=None,
-                                #                                     # Need absolute Blackboard name
-                                #                                     key_request=Blackboard.separator.join(
-                                #                                         [
-                                #                                             name,
-                                #                                             BlackboardKey(
-                                #                                                 "grasp_thresh"
-                                #                                             ),
-                                #                                         ]
-                                #                                     ),
-                                #                                     key_response=Blackboard.separator.join(
-                                #                                         [
-                                #                                             name,
-                                #                                             BlackboardKey(
-                                #                                                 "ft_response"
-                                #                                             ),
-                                #                                         ]
-                                #                                     ),
-                                #                                     response_checks=[
-                                #                                         py_trees.common.ComparisonExpression(
-                                #                                             variable=Blackboard.separator.join(
-                                #                                                 [
-                                #                                                     name,
-                                #                                                     BlackboardKey(
-                                #                                                         "ft_response"
-                                #                                                     ),
-                                #                                                 ]
-                                #                                             ),
-                                #                                             value=SetParameters.Response(),  # Unused
-                                #                                             operator=set_parameter_response_all_success,
-                                #                                         )
-                                #                                     ],
-                                #                                 ),
-                                #                                 ComputeActionTwist(
-                                #                                     name="ComputeGrasp",
-                                #                                     ns=name,
-                                #                                     inputs={
-                                #                                         "action": BlackboardKey(
-                                #                                             "action"
-                                #                                         ),
-                                #                                         "is_grasp": True,
-                                #                                     },
-                                #                                     outputs={
-                                #                                         "twist": BlackboardKey(
-                                #                                             "twist"
-                                #                                         ),
-                                #                                         "duration": BlackboardKey(
-                                #                                             "duration"
-                                #                                         ),
-                                #                                     },
-                                #                                 ),
-                                #                                 ServoMove(
-                                #                                     name="GraspServo",
-                                #                                     ns=name,
-                                #                                     inputs={
-                                #                                         "twist": BlackboardKey(
-                                #                                             "twist"
-                                #                                         ),
-                                #                                         "duration": BlackboardKey(
-                                #                                             "duration"
-                                #                                         ),
-                                #                                         "pub_topic": "~/cartesian_twist_cmds",
-                                #                                         "servo_status_sub_topic": None,
-                                #                                     },
-                                #                                 ),  # Auto Zero-Twist on terminate()
-                                #                                 ### Extraction
-                                #                                 ComputeActionTwist(
-                                #                                     name="ComputeExtract",
-                                #                                     ns=name,
-                                #                                     inputs={
-                                #                                         "action": BlackboardKey(
-                                #                                             "action"
-                                #                                         ),
-                                #                                         "is_grasp": False,
-                                #                                     },
-                                #                                     outputs={
-                                #                                         "twist": BlackboardKey(
-                                #                                             "twist"
-                                #                                         ),
-                                #                                         "duration": BlackboardKey(
-                                #                                             "duration"
-                                #                                         ),
-                                #                                     },
-                                #                                 ),
-                                #                                 retry_call_ros_service(
-                                #                                     name="ExtractionFTThresh",
-                                #                                     service_type=SetParameters,
-                                #                                     service_name="~/set_cartesian_controller_parameters",
-                                #                                     # Blackboard, not Constant
-                                #                                     request=None,
-                                #                                     # Need absolute Blackboard name
-                                #                                     key_request=Blackboard.separator.join(
-                                #                                         [
-                                #                                             name,
-                                #                                             BlackboardKey(
-                                #                                                 "ext_thresh"
-                                #                                             ),
-                                #                                         ]
-                                #                                     ),
-                                #                                     key_response=Blackboard.separator.join(
-                                #                                         [
-                                #                                             name,
-                                #                                             BlackboardKey(
-                                #                                                 "ft_response"
-                                #                                             ),
-                                #                                         ]
-                                #                                     ),
-                                #                                     response_checks=[
-                                #                                         py_trees.common.ComparisonExpression(
-                                #                                             variable=Blackboard.separator.join(
-                                #                                                 [
-                                #                                                     name,
-                                #                                                     BlackboardKey(
-                                #                                                         "ft_response"
-                                #                                                     ),
-                                #                                                 ]
-                                #                                             ),
-                                #                                             value=SetParameters.Response(),  # Unused
-                                #                                             operator=set_parameter_response_all_success,
-                                #                                         )
-                                #                                     ],
-                                #                                 ),
-                                #                                 ServoMove(
-                                #                                     name="ExtractServo",
-                                #                                     ns=name,
-                                #                                     inputs={
-                                #                                         "twist": BlackboardKey(
-                                #                                             "twist"
-                                #                                         ),
-                                #                                         "duration": BlackboardKey(
-                                #                                             "duration"
-                                #                                         ),
-                                #                                         "pub_topic": "~/cartesian_twist_cmds",
-                                #                                         "servo_status_sub_topic": None,
-                                #                                     },
-                                #                                 ),  # Auto Zero-Twist on terminate()
-                                #                                 ft_thresh_satisfied(
-                                #                                     name="CheckFTForkOffPlate"
-                                #                                 ),
-                                #                             ],  # End InFoodGraspExtract.children
-                                #                         ),  # End InFoodGraspExtract
-                                #                         recovery_tree,
-                                #                     ],  # End InFoodErrorSelector.children
-                                #                 ),  # End InFoodErrorSelector
-                                #             ],  # End MoveIt2Servo.workers
-                                #         ),  # End MoveIt2Servo
-                                #     ],  # End SafeFTPreempt.workers
-                                # ),  # End SafeFTPreempt
+                                # If Anything goes wrong, reset FT to safe levels
+                                scoped_behavior(
+                                    name="SafeFTPreempt",
+                                    # Set Approach F/T Thresh
+                                    pre_behavior=py_trees.composites.Sequence(
+                                        name=name,
+                                        memory=True,
+                                        children=[
+                                            retry_call_ros_service(
+                                                name="ApproachFTThresh",
+                                                service_type=SetParameters,
+                                                service_name="~/set_force_gate_controller_parameters",
+                                                # Blackboard, not Constant
+                                                request=None,
+                                                # Need absolute Blackboard name
+                                                key_request=Blackboard.separator.join(
+                                                    [
+                                                        name,
+                                                        BlackboardKey(
+                                                            "approach_thresh"
+                                                        ),
+                                                    ]
+                                                ),
+                                                key_response=Blackboard.separator.join(
+                                                    [name, BlackboardKey("ft_response")]
+                                                ),
+                                                response_checks=[
+                                                    py_trees.common.ComparisonExpression(
+                                                        variable=Blackboard.separator.join(
+                                                            [
+                                                                name,
+                                                                BlackboardKey(
+                                                                    "ft_response"
+                                                                ),
+                                                            ]
+                                                        ),
+                                                        value=SetParameters.Response(),  # Unused
+                                                        operator=set_parameter_response_all_success,
+                                                    )
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                    post_behavior=py_trees.composites.Sequence(
+                                        name=name,
+                                        memory=True,
+                                        children=[
+                                            pre_moveto_config(
+                                                name="PostAcquireFTSet", re_tare=False
+                                            ),
+                                        ],
+                                    ),
+                                    on_preempt_timeout=5.0,
+                                    # Starts a new Sequence w/ Memory internally
+                                    workers=[
+                                        ### Move Into Food
+                                        MoveIt2PoseConstraint(
+                                            name="MoveIntoPose",
+                                            ns=name,
+                                            inputs={
+                                                "pose": BlackboardKey("move_into_pose"),
+                                                "frame_id": "food",
+                                            },
+                                            outputs={
+                                                "constraints": BlackboardKey(
+                                                    "goal_constraints"
+                                                ),
+                                            },
+                                        ),
+                                        # If this fails
+                                        # Auto-fallback to precomputed MoveInto
+                                        # From move_above_plan()
+                                        py_trees.decorators.FailureIsSuccess(
+                                            name="MoveIntoPlanFallbackPrecomputed",
+                                            child=py_trees.decorators.Timeout(
+                                                name="MoveIntoPlanTimeout",
+                                                # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                                                duration=10.0
+                                                * self.allowed_planning_time_for_move_into,
+                                                child=MoveIt2Plan(
+                                                    name="MoveIntoPlan",
+                                                    ns=name,
+                                                    inputs={
+                                                        "goal_constraints": BlackboardKey(
+                                                            "goal_constraints"
+                                                        ),
+                                                        "max_velocity_scale": self.max_velocity_scaling_move_into,
+                                                        "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                                                        "cartesian": True,
+                                                        "cartesian_max_step": 0.001,
+                                                        "cartesian_fraction_threshold": 0.92,
+                                                        "max_path_len_joint": max_path_len_joint,
+                                                        "allowed_planning_time": self.allowed_planning_time_for_move_into,
+                                                    },
+                                                    outputs={
+                                                        "trajectory": BlackboardKey(
+                                                            "move_into_trajectory"
+                                                        )
+                                                    },
+                                                ),
+                                            ),
+                                        ),
+                                        # MoveInto expect F/T failure
+                                        py_trees.decorators.FailureIsSuccess(
+                                            name="MoveIntoExecuteSucceed",
+                                            child=MoveIt2Execute(
+                                                name="MoveInto",
+                                                ns=name,
+                                                inputs={
+                                                    "trajectory": BlackboardKey(
+                                                        "move_into_trajectory"
+                                                    )
+                                                },
+                                                outputs={},
+                                            ),
+                                        ),
+                                        ### Scoped Behavior for Moveit2_Servo
+                                        scoped_behavior(
+                                            name="MoveIt2Servo",
+                                            # Set Approach F/T Thresh
+                                            pre_behavior=py_trees.composites.Sequence(
+                                                name=name,
+                                                memory=True,
+                                                children=[
+                                                    StartServoTree(
+                                                        self._node,
+                                                        servo_controller_name="jaco_arm_cartesian_controller",
+                                                        start_moveit_servo=False,
+                                                    )
+                                                    .create_tree(
+                                                        name="StartServoScoped"
+                                                    )
+                                                    .root,
+                                                ],
+                                            ),
+                                            # Reset FT and Stop Servo
+                                            post_behavior=py_trees.composites.Sequence(
+                                                name=name,
+                                                memory=True,
+                                                children=[
+                                                    pre_moveto_config(
+                                                        name="PostServoFTSet",
+                                                        re_tare=False,
+                                                        f_mag=1.0,
+                                                        param_service_name="~/set_cartesian_controller_parameters",
+                                                    ),
+                                                    StopServoTree(
+                                                        self._node,
+                                                        servo_controller_name="jaco_arm_cartesian_controller",
+                                                        stop_moveit_servo=False,
+                                                    )
+                                                    .create_tree(name="StopServoScoped")
+                                                    .root,
+                                                ],
+                                            ),
+                                            on_preempt_timeout=5.0,
+                                            # Starts a new Sequence w/ Memory internally
+                                            workers=[
+                                                py_trees.composites.Selector(
+                                                    name="InFoodErrorSelector",
+                                                    memory=True,
+                                                    children=[
+                                                        py_trees.composites.Sequence(
+                                                            name="InFoodGraspExtract",
+                                                            memory=True,
+                                                            children=[
+                                                                ### Grasp
+                                                                retry_call_ros_service(
+                                                                    name="GraspFTThresh",
+                                                                    service_type=SetParameters,
+                                                                    service_name="~/set_cartesian_controller_parameters",
+                                                                    # Blackboard, not Constant
+                                                                    request=None,
+                                                                    # Need absolute Blackboard name
+                                                                    key_request=Blackboard.separator.join(
+                                                                        [
+                                                                            name,
+                                                                            BlackboardKey(
+                                                                                "grasp_thresh"
+                                                                            ),
+                                                                        ]
+                                                                    ),
+                                                                    key_response=Blackboard.separator.join(
+                                                                        [
+                                                                            name,
+                                                                            BlackboardKey(
+                                                                                "ft_response"
+                                                                            ),
+                                                                        ]
+                                                                    ),
+                                                                    response_checks=[
+                                                                        py_trees.common.ComparisonExpression(
+                                                                            variable=Blackboard.separator.join(
+                                                                                [
+                                                                                    name,
+                                                                                    BlackboardKey(
+                                                                                        "ft_response"
+                                                                                    ),
+                                                                                ]
+                                                                            ),
+                                                                            value=SetParameters.Response(),  # Unused
+                                                                            operator=set_parameter_response_all_success,
+                                                                        )
+                                                                    ],
+                                                                ),
+                                                                ComputeActionTwist(
+                                                                    name="ComputeGrasp",
+                                                                    ns=name,
+                                                                    inputs={
+                                                                        "action": BlackboardKey(
+                                                                            "action"
+                                                                        ),
+                                                                        "is_grasp": True,
+                                                                    },
+                                                                    outputs={
+                                                                        "twist": BlackboardKey(
+                                                                            "twist"
+                                                                        ),
+                                                                        "duration": BlackboardKey(
+                                                                            "duration"
+                                                                        ),
+                                                                    },
+                                                                ),
+                                                                ServoMove(
+                                                                    name="GraspServo",
+                                                                    ns=name,
+                                                                    inputs={
+                                                                        "twist": BlackboardKey(
+                                                                            "twist"
+                                                                        ),
+                                                                        "duration": BlackboardKey(
+                                                                            "duration"
+                                                                        ),
+                                                                        "pub_topic": "~/cartesian_twist_cmds",
+                                                                        "servo_status_sub_topic": None,
+                                                                    },
+                                                                ),  # Auto Zero-Twist on terminate()
+                                                                ### Extraction
+                                                                ComputeActionTwist(
+                                                                    name="ComputeExtract",
+                                                                    ns=name,
+                                                                    inputs={
+                                                                        "action": BlackboardKey(
+                                                                            "action"
+                                                                        ),
+                                                                        "is_grasp": False,
+                                                                    },
+                                                                    outputs={
+                                                                        "twist": BlackboardKey(
+                                                                            "twist"
+                                                                        ),
+                                                                        "duration": BlackboardKey(
+                                                                            "duration"
+                                                                        ),
+                                                                    },
+                                                                ),
+                                                                retry_call_ros_service(
+                                                                    name="ExtractionFTThresh",
+                                                                    service_type=SetParameters,
+                                                                    service_name="~/set_cartesian_controller_parameters",
+                                                                    # Blackboard, not Constant
+                                                                    request=None,
+                                                                    # Need absolute Blackboard name
+                                                                    key_request=Blackboard.separator.join(
+                                                                        [
+                                                                            name,
+                                                                            BlackboardKey(
+                                                                                "ext_thresh"
+                                                                            ),
+                                                                        ]
+                                                                    ),
+                                                                    key_response=Blackboard.separator.join(
+                                                                        [
+                                                                            name,
+                                                                            BlackboardKey(
+                                                                                "ft_response"
+                                                                            ),
+                                                                        ]
+                                                                    ),
+                                                                    response_checks=[
+                                                                        py_trees.common.ComparisonExpression(
+                                                                            variable=Blackboard.separator.join(
+                                                                                [
+                                                                                    name,
+                                                                                    BlackboardKey(
+                                                                                        "ft_response"
+                                                                                    ),
+                                                                                ]
+                                                                            ),
+                                                                            value=SetParameters.Response(),  # Unused
+                                                                            operator=set_parameter_response_all_success,
+                                                                        )
+                                                                    ],
+                                                                ),
+                                                                ServoMove(
+                                                                    name="ExtractServo",
+                                                                    ns=name,
+                                                                    inputs={
+                                                                        "twist": BlackboardKey(
+                                                                            "twist"
+                                                                        ),
+                                                                        "duration": BlackboardKey(
+                                                                            "duration"
+                                                                        ),
+                                                                        "pub_topic": "~/cartesian_twist_cmds",
+                                                                        "servo_status_sub_topic": None,
+                                                                    },
+                                                                ),  # Auto Zero-Twist on terminate()
+                                                                ft_thresh_satisfied(
+                                                                    name="CheckFTForkOffPlate"
+                                                                ),
+                                                            ],  # End InFoodGraspExtract.children
+                                                        ),  # End InFoodGraspExtract
+                                                        recovery_tree,
+                                                    ],  # End InFoodErrorSelector.children
+                                                ),  # End InFoodErrorSelector
+                                            ],  # End MoveIt2Servo.workers
+                                        ),  # End MoveIt2Servo
+                                    ],  # End SafeFTPreempt.workers
+                                ),  # End SafeFTPreempt
                             ],  # End OctomapAndTableCollision.workers
                         ),  # OctomapAndTableCollision
                     ]
