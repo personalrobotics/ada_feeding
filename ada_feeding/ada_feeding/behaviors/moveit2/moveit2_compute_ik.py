@@ -43,13 +43,12 @@ class MoveIt2ComputeIK(BlackboardBehavior):
     # pylint: disable=arguments-differ
     # pylint: disable=too-many-arguments
 
-    @override
     def blackboard_inputs(
         self,
         target_pose: Union[BlackboardKey, PoseStamped],
         group_name: Union[BlackboardKey, str],
         start_joint_state: Optional[Union[BlackboardKey, JointState]] = None,
-        constraints: Optional[Union[BlackboardKey, Constraints]] = None,
+        ik_constraints: Optional[Union[BlackboardKey, Constraints]] = None,
     ) -> None:
         """
         Blackboard Inputs
@@ -61,14 +60,13 @@ class MoveIt2ComputeIK(BlackboardBehavior):
         group_name: The MoveIt2 planning group name. Used during setup to retrieve
                     the correct MoveIt2 object instance.
         start_joint_state: Optional seed state (JointState or List[float]) for the IK solver.
-        constraints: Optional MoveIt constraints message to respect during IK solving.
+        ik_constraints: Optional MoveIt constraints message to respect during IK solving.
         """
         # pylint: disable=unused-argument, duplicate-code
         super().blackboard_inputs(
             **{key: value for key, value in locals().items() if key != "self"}
         )
 
-    @override
     def blackboard_outputs(
         self,
         ik_solution_joint_state: Optional[BlackboardKey], # -> Optional[JointState]
@@ -147,8 +145,18 @@ class MoveIt2ComputeIK(BlackboardBehavior):
             try:
                 # Read inputs from blackboard at runtime
                 target_pose_stamped: PoseStamped = self.blackboard_get("target_pose")
-                start_state_seed = self.blackboard_get("start_joint_state", None) # Optional
-                ik_constraints = self.blackboard_get("constraints", None) # Optional
+                start_state_seed = None
+                try:
+                    start_state_seed = self.blackboard_get("start_joint_state")
+                except KeyError:
+                    self.logger.debug(f"[{self.name}] Optional input 'start_joint_state' not found, using None.")
+                    pass
+                ik_constraints = None
+                try:
+                    ik_constraints = self.blackboard_get("ik_constraints")
+                except KeyError:
+                    self.logger.debug(f"[{self.name}] Optional input 'ik_constraints' not found, using None.")
+                    pass
 
                 # Validate target_pose_stamped type
                 if not isinstance(target_pose_stamped, PoseStamped):
