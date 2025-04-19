@@ -545,6 +545,23 @@ class AcquireFoodTree(MoveToTree):
                             "success": BlackboardKey("extract_jaco_arm_joints_success")
                         }
                     ),
+                    ExtractJointsFromState(
+                        name="ExtractArticutoolJoints",
+                        ns=name,
+                        inputs={
+                            "source_joint_state": BlackboardKey("move_above_ik_solution"),
+                            "target_joint_names": [
+                                "atool_joint1",
+                                "atool_joint2",
+                            ]
+
+                        },
+                        outputs={
+                            "output_joint_names": BlackboardKey("move_above_articutool_joint_names"),
+                            "output_joint_positions": BlackboardKey("move_above_articutool_joint_positions"),
+                            "success": BlackboardKey("extract_articutool_joints_success")
+                        }
+                    ),
                     MoveIt2JointConstraint(
                         name="SetJacoArmJointConstraint",
                         ns=name,
@@ -556,6 +573,19 @@ class AcquireFoodTree(MoveToTree):
                         },
                         outputs={
                             "constraints": BlackboardKey("move_above_jaco_arm_constraints"),
+                        }
+                    ),
+                    MoveIt2JointConstraint(
+                        name="SetArticutoolJointConstraint",
+                        ns=name,
+                        inputs={
+                            "joint_positions": BlackboardKey("move_above_articutool_joint_positions"),
+                            "joint_names": BlackboardKey("move_above_articutool_joint_names"),
+                            "tolerance": 0.001,
+                            "constraints": None,
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("move_above_articutool_constraints"),
                         }
                     ),
                     # ### Move Above Food
@@ -577,11 +607,11 @@ class AcquireFoodTree(MoveToTree):
                     #     },
                     # ),
                     py_trees.decorators.Timeout(
-                        name="MoveAbovePlanTimeout",
+                        name="MoveAboveJacoArmPlanTimeout",
                         # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
                         duration=10.0 * self.allowed_planning_time_for_move_above,
                         child=MoveIt2Plan(
-                            name="MoveAbovePlan",
+                            name="MoveAboveJacoArmPlan",
                             ns=name,
                             inputs={
                                 "goal_constraints": BlackboardKey("move_above_jaco_arm_constraints"),
@@ -592,7 +622,28 @@ class AcquireFoodTree(MoveToTree):
                                 "group_name": "jaco_arm",
                             },
                             outputs={
-                                "trajectory": BlackboardKey("move_above_trajectory"),
+                                "trajectory": BlackboardKey("move_above_jaco_arm_trajectory"),
+                                "end_joint_state": BlackboardKey("test_into_joints"),
+                            },
+                        ),
+                    ),
+                    py_trees.decorators.Timeout(
+                        name="MoveAboveArticutoolPlanTimeout",
+                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                        duration=10.0 * self.allowed_planning_time_for_move_above,
+                        child=MoveIt2Plan(
+                            name="MoveAboveArticutoolPlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey("move_above_articutool_constraints"),
+                                "max_velocity_scale": self.max_velocity_scaling_move_above,
+                                "max_acceleration_scale": self.max_acceleration_scaling_move_above,
+                                "allowed_planning_time": self.allowed_planning_time_for_move_above,
+                                "max_path_len_joint": max_path_len_joint,
+                                "group_name": "articutool",
+                            },
+                            outputs={
+                                "trajectory": BlackboardKey("move_above_articutool_trajectory"),
                                 "end_joint_state": BlackboardKey("test_into_joints"),
                             },
                         ),
@@ -815,7 +866,7 @@ class AcquireFoodTree(MoveToTree):
                                     ns=name,
                                     inputs={
                                         "trajectory": BlackboardKey(
-                                            "move_above_trajectory"
+                                            "move_above_jaco_arm_trajectory"
                                         ),
                                         "group_name": "jaco_arm",
                                     },
