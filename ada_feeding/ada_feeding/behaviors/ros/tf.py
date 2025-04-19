@@ -348,10 +348,16 @@ class ApplyTransform(BlackboardBehavior):
         transformed_msg = None
         with self.tf_lock:
             if target_frame is not None:
+
+                import copy
+                msg_to_transform = copy.deepcopy(stamped_msg)
+                # Set stamp to zero to request latest transform
+                msg_to_transform.header.stamp = Time(seconds=0, nanoseconds=0).to_msg()
+
                 # Compute the transform from the TF tree
                 try:
                     transformed_msg = self.tf_buffer.transform(
-                        stamped_msg,
+                        msg_to_transform,
                         target_frame,
                         timeout,
                     )
