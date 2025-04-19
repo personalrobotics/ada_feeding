@@ -50,6 +50,7 @@ from ada_feeding.behaviors.moveit2 import (
 from ada_feeding.behaviors.state import GetJointStates, ExtractJointsFromState
 from ada_feeding.behaviors.ros.msgs import StampPoseFromPose
 from ada_feeding.behaviors.ros.tf import ApplyTransform
+from ada_feeding.behaviors.articutool.execute_articutool_trajectory import ExecuteArticutoolTrajectory
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
     pre_moveto_config,
@@ -862,7 +863,7 @@ class AcquireFoodTree(MoveToTree):
                                     ],
                                 ),
                                 MoveIt2Execute(
-                                    name="MoveAbove",
+                                    name="MoveAboveJacoArm",
                                     ns=name,
                                     inputs={
                                         "trajectory": BlackboardKey(
@@ -871,6 +872,18 @@ class AcquireFoodTree(MoveToTree):
                                         "group_name": "jaco_arm",
                                     },
                                     outputs={},
+                                ),
+                                ExecuteArticutoolTrajectory(
+                                    name="MoveAboveArticutool",
+                                    ns=name,
+                                    inputs={
+                                        "trajectory": BlackboardKey("move_above_articutool_trajectory"),
+                                    },
+                                    outputs={
+                                        "action_goal_accepted": BlackboardKey("tool_goal_accepted"),
+                                        "action_result_code": BlackboardKey("tool_exec_result_code"),
+                                        "action_status": BlackboardKey("tool_action_status"),
+                                    }
                                 ),
                                 # # If Anything goes wrong, reset FT to safe levels
                                 # scoped_behavior(
