@@ -679,7 +679,7 @@ class AcquireFoodTree(MoveToTree):
                         }
                     ),
                     MoveIt2JointConstraint(
-                        name="SetJacoArmJointConstraint",
+                        name="SetArticutoolPathConstraint",
                         ns=name,
                         inputs={
                             "joint_positions": BlackboardKey("test_into_articutool_joint_positions"),
@@ -700,7 +700,7 @@ class AcquireFoodTree(MoveToTree):
                             ns=name,
                             inputs={
                                 "goal_constraints": BlackboardKey("move_into_goal_constraints"),
-                                "path_constraints": BlackboardKey("move_into_path_constraints"),
+                                # "path_constraints": BlackboardKey("move_into_path_constraints"),
                                 "max_velocity_scale": self.max_velocity_scaling_move_into,
                                 "max_acceleration_scale": self.max_acceleration_scaling_move_into,
                                 "cartesian": True,
