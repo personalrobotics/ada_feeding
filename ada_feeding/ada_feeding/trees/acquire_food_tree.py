@@ -47,7 +47,7 @@ from ada_feeding.behaviors.moveit2 import (
     ServoMove,
     ToggleCollisionObject,
 )
-from ada_feeding.behaviors.state import GetJointStates, ExtractJointsFromState
+from ada_feeding.behaviors.state import GetJointStates, ExtractJointsFromState, CombineJointStates
 from ada_feeding.behaviors.ros.msgs import StampPoseFromPose
 from ada_feeding.behaviors.ros.tf import ApplyTransform
 from ada_feeding.behaviors.articutool.execute_articutool_trajectory import ExecuteArticutoolTrajectory
@@ -633,6 +633,27 @@ class AcquireFoodTree(MoveToTree):
                         ),
                     ),
                     ### Test MoveIntoFood
+                    CombineJointStates(
+                        name="CombineJacoArmAndArticutoolJoints",
+                        ns=name,
+                        inputs={
+                            "joint_state_1": BlackboardKey("test_into_jaco_arm_joints"),
+                            "joint_state_2": BlackboardKey("test_into_articutool_joints"),
+                            "full_joint_names": [
+                                "j2n6s200_joint_1",
+                                "j2n6s200_joint_2",
+                                "j2n6s200_joint_3",
+                                "j2n6s200_joint_4",
+                                "j2n6s200_joint_5",
+                                "j2n6s200_joint_6",
+                                "atool_joint1",
+                                "atool_joint2",
+                            ],
+                        },
+                        outputs={
+                            "combined_joint_state": BlackboardKey("test_into_joints"),
+                        }
+                    ),
                     MoveIt2PoseConstraint(
                         name="MoveIntoJacoArmWithArticutoolPose",
                         ns=name,
@@ -684,7 +705,7 @@ class AcquireFoodTree(MoveToTree):
                                 "cartesian": True,
                                 "cartesian_max_step": 0.001,
                                 "cartesian_fraction_threshold": 0.92,
-                                # "start_joint_state": BlackboardKey("test_into_jaco_arm_with_articutool_joints"),
+                                "start_joint_state": BlackboardKey("test_into_joints"),
                                 "max_path_len_joint": max_path_len_joint,
                                 "allowed_planning_time": self.allowed_planning_time_for_move_into,
                                 "group_name": "jaco_arm_with_articutool",

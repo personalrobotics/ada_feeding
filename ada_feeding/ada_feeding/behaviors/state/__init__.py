@@ -10,3 +10,6 @@ from .get_joint_states import (
 from .extract_joints_from_state import (
     ExtractJointsFromState,
 )
+from .combine_joint_states import (
+    CombineJointStates,
+)
