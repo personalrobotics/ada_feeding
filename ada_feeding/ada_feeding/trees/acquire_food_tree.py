@@ -665,24 +665,25 @@ class AcquireFoodTree(MoveToTree):
                             "constraints": BlackboardKey("move_into_goal_constraints"),
                         },
                     ),
-                    GetJointStates(
-                        name="GetArticutoolJoints",
-                        node=self._node,
+                    ExtractJointsFromState(
+                        name="ExtractTestIntoArticutoolJoints",
                         ns=name,
                         inputs={
-                            "joint_names": ["atool_joint1", "atool_joint2"],
+                            "source_joint_state": BlackboardKey("test_into_articutool_joints"),
+                            "target_joint_names": ["atool_joint1", "atool_joint2"],
                         },
                         outputs={
-                            "joint_names": BlackboardKey("articutool_joint_names"),
-                            "joint_positions": BlackboardKey("articutool_joint_positions"),
+                            "output_joint_names": BlackboardKey("test_into_articutool_joint_names"),
+                            "output_joint_positions": BlackboardKey("test_into_articutool_joint_positions"),
+                            "success": None,
                         }
                     ),
                     MoveIt2JointConstraint(
                         name="SetJacoArmJointConstraint",
                         ns=name,
                         inputs={
-                            "joint_positions": BlackboardKey("articutool_joint_positions"),
-                            "joint_names": BlackboardKey("articutool_joint_names"),
+                            "joint_positions": BlackboardKey("test_into_articutool_joint_positions"),
+                            "joint_names": BlackboardKey("test_into_articutool_joint_names"),
                             "tolerance": 0.001,
                             "constraints": None,
                         },
