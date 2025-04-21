@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 
+# Copyright (c) 2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the ExtractJointsFromState behavior, which extracts specific
 joint names and their corresponding positions from a JointState message.
@@ -50,9 +53,9 @@ class ExtractJointsFromState(BlackboardBehavior):
 
     def blackboard_outputs(
         self,
-        output_joint_names: Optional[BlackboardKey], # -> Optional[List[str]]
-        output_joint_positions: Optional[BlackboardKey], # -> Optional[List[float]]
-        success: Optional[BlackboardKey], # -> bool (Optional success flag)
+        output_joint_names: Optional[BlackboardKey],  # -> Optional[List[str]]
+        output_joint_positions: Optional[BlackboardKey],  # -> Optional[List[float]]
+        success: Optional[BlackboardKey],  # -> bool (Optional success flag)
     ) -> None:
         """
         Blackboard Outputs
@@ -79,7 +82,6 @@ class ExtractJointsFromState(BlackboardBehavior):
         self.blackboard_set("output_joint_positions", None)
         self.blackboard_set("success", False)
 
-
     @override
     def update(self) -> Status:
         """
@@ -91,22 +93,32 @@ class ExtractJointsFromState(BlackboardBehavior):
             target_names: List[str] = self.blackboard_get("target_joint_names")
 
             if not isinstance(source_state, JointState):
-                 self.logger.error(f"[{self.name}] Input 'source_joint_state' is not a JointState message (is type: {type(source_state)}).")
-                 return Status.FAILURE
+                self.logger.error(
+                    f"[{self.name}] Input 'source_joint_state' is not a JointState message (is type: {type(source_state)})."
+                )
+                return Status.FAILURE
 
-            if not isinstance(target_names, list) or not all(isinstance(n, str) for n in target_names):
-                 self.logger.error(f"[{self.name}] Input 'target_joint_names' must be a List[str].")
-                 return Status.FAILURE
+            if not isinstance(target_names, list) or not all(
+                isinstance(n, str) for n in target_names
+            ):
+                self.logger.error(
+                    f"[{self.name}] Input 'target_joint_names' must be a List[str]."
+                )
+                return Status.FAILURE
 
             if not target_names:
-                 self.logger.warning(f"[{self.name}] Input 'target_joint_names' is empty. Nothing to extract.")
-                 self.blackboard_set("output_joint_names", [])
-                 self.blackboard_set("output_joint_positions", [])
-                 self.blackboard_set("success", True)
-                 return Status.SUCCESS
+                self.logger.warning(
+                    f"[{self.name}] Input 'target_joint_names' is empty. Nothing to extract."
+                )
+                self.blackboard_set("output_joint_names", [])
+                self.blackboard_set("output_joint_positions", [])
+                self.blackboard_set("success", True)
+                return Status.SUCCESS
 
             # Create a lookup dictionary for efficient access
-            source_positions_dict = {name: pos for name, pos in zip(source_state.name, source_state.position)}
+            source_positions_dict = {
+                name: pos for name, pos in zip(source_state.name, source_state.position)
+            }
 
             extracted_names = []
             extracted_positions = []
@@ -117,7 +129,9 @@ class ExtractJointsFromState(BlackboardBehavior):
                     extracted_names.append(name)
                     extracted_positions.append(source_positions_dict[name])
                 else:
-                    self.logger.error(f"[{self.name}] Target joint '{name}' not found in source_joint_state names: {list(source_positions_dict.keys())}")
+                    self.logger.error(
+                        f"[{self.name}] Target joint '{name}' not found in source_joint_state names: {list(source_positions_dict.keys())}"
+                    )
                     all_found = False
                     break
 
@@ -125,7 +139,9 @@ class ExtractJointsFromState(BlackboardBehavior):
                 self.blackboard_set("output_joint_names", extracted_names)
                 self.blackboard_set("output_joint_positions", extracted_positions)
                 self.blackboard_set("success", True)
-                self.logger.info(f"[{self.name}] Successfully extracted {len(extracted_names)} joints.")
+                self.logger.info(
+                    f"[{self.name}] Successfully extracted {len(extracted_names)} joints."
+                )
                 return Status.SUCCESS
             else:
                 self.blackboard_set("output_joint_names", None)
@@ -138,6 +154,9 @@ class ExtractJointsFromState(BlackboardBehavior):
             self.blackboard_set("success", False)
             return Status.FAILURE
         except Exception as e:
-            self.logger.error(f"[{self.name}] Unexpected error during joint extraction: {e}", exc_info=True)
+            self.logger.error(
+                f"[{self.name}] Unexpected error during joint extraction: {e}",
+                exc_info=True,
+            )
             self.blackboard_set("success", False)
             return Status.FAILURE

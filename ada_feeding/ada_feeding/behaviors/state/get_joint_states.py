@@ -1,3 +1,6 @@
+# Copyright (c) 2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 import py_trees
@@ -6,9 +9,16 @@ from typing import Any, Dict, List, Optional, Union
 from ada_feeding.behaviors import BlackboardBehavior
 from ada_feeding.helpers import BlackboardKey
 
+
 class GetJointStates(BlackboardBehavior):
-    def __init__(self, name: str, node=None, ns:str="/", inputs: Optional[Dict[str, Union[BlackboardKey, Any]]] = None, outputs: Optional[Dict[str, Optional[BlackboardKey]]] = None,
-):
+    def __init__(
+        self,
+        name: str,
+        node=None,
+        ns: str = "/",
+        inputs: Optional[Dict[str, Union[BlackboardKey, Any]]] = None,
+        outputs: Optional[Dict[str, Optional[BlackboardKey]]] = None,
+    ):
         super().__init__(name, ns=ns, inputs=inputs, outputs=outputs)
         self.ns = ns
         self.node = node
@@ -68,7 +78,10 @@ class GetJointStates(BlackboardBehavior):
 
     def update(self):
         # Check if we have the joint states we need
-        if all(name in self.latest_joint_states for name in self.blackboard_get("joint_names")):
+        if all(
+            name in self.latest_joint_states
+            for name in self.blackboard_get("joint_names")
+        ):
             joint_names = list(self.latest_joint_states.keys())
             joint_positions = list(self.latest_joint_states.values())
             self.node.get_logger().info(f"Received all joint states")

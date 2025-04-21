@@ -387,7 +387,9 @@ def get_moveit2_object(
         blackboard.set(moveit2_blackboard_key, moveit2)
         blackboard.set(moveit2_lock_blackboard_key, lock)
 
-        node.get_logger().info(f"Successfully created and stored MoveIt2 object and lock for group '{group_name}'.")
+        node.get_logger().info(
+            f"Successfully created and stored MoveIt2 object and lock for group '{group_name}'."
+        )
 
     return moveit2, lock
 

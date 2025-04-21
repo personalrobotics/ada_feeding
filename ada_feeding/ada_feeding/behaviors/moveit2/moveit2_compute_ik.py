@@ -14,7 +14,10 @@ from threading import Lock
 # Third-party imports
 from geometry_msgs.msg import PoseStamped, Point, Quaternion
 from sensor_msgs.msg import JointState
-from moveit_msgs.msg import Constraints, MoveItErrorCodes # Added MoveItErrorCodes potentially used by wrapper
+from moveit_msgs.msg import (
+    Constraints,
+    MoveItErrorCodes,
+)  # Added MoveItErrorCodes potentially used by wrapper
 from overrides import override
 import py_trees
 import py_trees.blackboard
@@ -69,8 +72,8 @@ class MoveIt2ComputeIK(BlackboardBehavior):
 
     def blackboard_outputs(
         self,
-        ik_solution_joint_state: Optional[BlackboardKey], # -> Optional[JointState]
-        success: Optional[BlackboardKey], # -> bool
+        ik_solution_joint_state: Optional[BlackboardKey],  # -> Optional[JointState]
+        success: Optional[BlackboardKey],  # -> bool
     ) -> None:
         """
         Blackboard Outputs
@@ -98,9 +101,11 @@ class MoveIt2ComputeIK(BlackboardBehavior):
         try:
             self.ik_group_name = self.blackboard_get("group_name")
             if not isinstance(self.ik_group_name, str) or not self.ik_group_name:
-                 raise ValueError("group_name must be a non-empty string")
+                raise ValueError("group_name must be a non-empty string")
         except (KeyError, ValueError) as e:
-            self.logger.error(f"[{self.name}] Invalid or missing input 'group_name': {e}")
+            self.logger.error(
+                f"[{self.name}] Invalid or missing input 'group_name': {e}"
+            )
             return
 
         # Get the MoveIt2 object using the specific group name
@@ -111,11 +116,17 @@ class MoveIt2ComputeIK(BlackboardBehavior):
                 node=self.node,
             )
             if self.moveit2_obj is None or self.moveit2_lock is None:
-                 # Ensure setup fails completely if objects aren't retrieved
-                 raise RuntimeError("get_moveit2_object returned None for MoveIt2 object or lock")
-            self.logger.info(f"[{self.name}] Successfully obtained MoveIt2 object for IK group '{self.ik_group_name}'")
+                # Ensure setup fails completely if objects aren't retrieved
+                raise RuntimeError(
+                    "get_moveit2_object returned None for MoveIt2 object or lock"
+                )
+            self.logger.info(
+                f"[{self.name}] Successfully obtained MoveIt2 object for IK group '{self.ik_group_name}'"
+            )
         except Exception as e:
-            self.logger.error(f"[{self.name}] Failed to get MoveIt2 object for IK group '{self.ik_group_name}': {e}")
+            self.logger.error(
+                f"[{self.name}] Failed to get MoveIt2 object for IK group '{self.ik_group_name}': {e}"
+            )
             self.moveit2_obj = None
             self.moveit2_lock = None
 
@@ -126,13 +137,14 @@ class MoveIt2ComputeIK(BlackboardBehavior):
         self.blackboard_set("success", False)
         self.blackboard_set("ik_solution_joint_state", None)
 
-
     @override
     def update(self) -> py_trees.common.Status:
         """Perform the IK computation using the synchronous compute_ik method."""
         # Check if setup was successful
         if self.moveit2_obj is None or self.moveit2_lock is None:
-            self.logger.error(f"[{self.name}] MoveIt2 object not initialized. Setup likely failed.")
+            self.logger.error(
+                f"[{self.name}] MoveIt2 object not initialized. Setup likely failed."
+            )
             return py_trees.common.Status.FAILURE
 
         # Check if MoveIt2 is currently locked by another behavior
@@ -149,23 +161,31 @@ class MoveIt2ComputeIK(BlackboardBehavior):
                 try:
                     start_state_seed = self.blackboard_get("start_joint_state")
                 except KeyError:
-                    self.logger.debug(f"[{self.name}] Optional input 'start_joint_state' not found, using None.")
+                    self.logger.debug(
+                        f"[{self.name}] Optional input 'start_joint_state' not found, using None."
+                    )
                     pass
                 ik_constraints = None
                 try:
                     ik_constraints = self.blackboard_get("ik_constraints")
                 except KeyError:
-                    self.logger.debug(f"[{self.name}] Optional input 'ik_constraints' not found, using None.")
+                    self.logger.debug(
+                        f"[{self.name}] Optional input 'ik_constraints' not found, using None."
+                    )
                     pass
 
                 # Validate target_pose_stamped type
                 if not isinstance(target_pose_stamped, PoseStamped):
-                     self.logger.error(f"[{self.name}] Input 'target_pose' is not a PoseStamped message.")
-                     return py_trees.common.Status.FAILURE
+                    self.logger.error(
+                        f"[{self.name}] Input 'target_pose' is not a PoseStamped message."
+                    )
+                    return py_trees.common.Status.FAILURE
 
                 # --- Call the synchronous compute_ik method provided in the API ---
                 # It takes position and orientation separately.
-                self.logger.info(f"[{self.name}] Computing IK for group '{self.ik_group_name}' targeting pose in frame '{target_pose_stamped.header.frame_id}'...")
+                self.logger.info(
+                    f"[{self.name}] Computing IK for group '{self.ik_group_name}' targeting pose in frame '{target_pose_stamped.header.frame_id}'..."
+                )
 
                 # The MoveIt service internally uses the frame_id from the PoseStamped in its request,
                 # even though the wrapper function takes position/orientation separately.
@@ -174,7 +194,7 @@ class MoveIt2ComputeIK(BlackboardBehavior):
                     position=target_pose_stamped.pose.position,
                     quat_xyzw=target_pose_stamped.pose.orientation,
                     start_joint_state=start_state_seed,
-                    constraints=ik_constraints
+                    constraints=ik_constraints,
                 )
 
                 # Determine success based on whether a result was returned
@@ -188,19 +208,25 @@ class MoveIt2ComputeIK(BlackboardBehavior):
                     self.logger.info(f"[{self.name}] IK computation successful.")
                     return py_trees.common.Status.SUCCESS
                 else:
-                    self.logger.warning(f"[{self.name}] IK computation failed (see MoveIt2 wrapper logs for error code).")
+                    self.logger.warning(
+                        f"[{self.name}] IK computation failed (see MoveIt2 wrapper logs for error code)."
+                    )
                     return py_trees.common.Status.FAILURE
 
             except KeyError as e:
-                self.logger.error(f"[{self.name}] Blackboard key error during IK update: {e}")
+                self.logger.error(
+                    f"[{self.name}] Blackboard key error during IK update: {e}"
+                )
                 return py_trees.common.Status.FAILURE
             except Exception as e:
-                self.logger.error(f"[{self.name}] Unexpected error during IK computation: {e}", exc_info=True)
+                self.logger.error(
+                    f"[{self.name}] Unexpected error during IK computation: {e}",
+                    exc_info=True,
+                )
                 return py_trees.common.Status.FAILURE
 
         # This line should not be reachable if the lock logic is correct
         return py_trees.common.Status.FAILURE
-
 
     @override
     def terminate(self, new_status: py_trees.common.Status) -> None:

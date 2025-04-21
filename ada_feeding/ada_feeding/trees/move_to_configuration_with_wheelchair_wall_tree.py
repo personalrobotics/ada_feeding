@@ -192,7 +192,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                                     "allowed_planning_time": self.allowed_planning_time,
                                     "max_velocity_scale": self.max_velocity_scaling_factor,
                                     "ignore_violated_path_constraints": True,
-                                    "group_name": "jaco_arm"
+                                    "group_name": "jaco_arm",
                                 },
                                 outputs={"trajectory": BlackboardKey("trajectory")},
                             ),

@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 # (Add appropriate Copyright/License if desired)
 
 """
@@ -53,7 +56,7 @@ class CombineJointStates(BlackboardBehavior):
 
     def blackboard_outputs(
         self,
-        combined_joint_state: Optional[BlackboardKey], # -> Optional[JointState]
+        combined_joint_state: Optional[BlackboardKey],  # -> Optional[JointState]
     ) -> None:
         """
         Blackboard Outputs
@@ -73,9 +76,11 @@ class CombineJointStates(BlackboardBehavior):
         """Gets the ROS2 node from the arguments passed by the tree runner."""
         # pylint: disable=attribute-defined-outside-init
         try:
-            self.node: rclpy.node.Node = kwargs['node']
+            self.node: rclpy.node.Node = kwargs["node"]
         except KeyError as e:
-            self.logger.error(f"[{self.name}] Behaviour expects 'node' in setup kwargs. {e}")
+            self.logger.error(
+                f"[{self.name}] Behaviour expects 'node' in setup kwargs. {e}"
+            )
             self.node = None
 
     # initialise is not strictly needed, but good practice
@@ -86,7 +91,6 @@ class CombineJointStates(BlackboardBehavior):
         # Clear previous output
         self.blackboard_set("combined_joint_state", None)
 
-
     @override
     def update(self) -> Status:
         """
@@ -94,7 +98,9 @@ class CombineJointStates(BlackboardBehavior):
         and writes the combined JointState.
         """
         if self.node is None:
-            self.logger.error(f"[{self.name}] Node object not available. Setup likely failed.")
+            self.logger.error(
+                f"[{self.name}] Node object not available. Setup likely failed."
+            )
             return Status.FAILURE
 
         try:
@@ -105,19 +111,28 @@ class CombineJointStates(BlackboardBehavior):
 
             # --- Input Validation ---
             if not isinstance(state1, JointState):
-                 self.logger.error(f"[{self.name}] Input 'joint_state_1' is not a JointState message (is type: {type(state1)}).")
-                 return Status.FAILURE
+                self.logger.error(
+                    f"[{self.name}] Input 'joint_state_1' is not a JointState message (is type: {type(state1)})."
+                )
+                return Status.FAILURE
             if not isinstance(state2, JointState):
-                 self.logger.error(f"[{self.name}] Input 'joint_state_2' is not a JointState message (is type: {type(state2)}).")
-                 return Status.FAILURE
-            if not isinstance(full_names, list) or not all(isinstance(n, str) for n in full_names):
-                 self.logger.error(f"[{self.name}] Input 'full_joint_names' must be a List[str].")
-                 return Status.FAILURE
+                self.logger.error(
+                    f"[{self.name}] Input 'joint_state_2' is not a JointState message (is type: {type(state2)})."
+                )
+                return Status.FAILURE
+            if not isinstance(full_names, list) or not all(
+                isinstance(n, str) for n in full_names
+            ):
+                self.logger.error(
+                    f"[{self.name}] Input 'full_joint_names' must be a List[str]."
+                )
+                return Status.FAILURE
             if not full_names:
-                 self.logger.error(f"[{self.name}] Input 'full_joint_names' cannot be empty.")
-                 return Status.FAILURE
+                self.logger.error(
+                    f"[{self.name}] Input 'full_joint_names' cannot be empty."
+                )
+                return Status.FAILURE
             # --- End Validation ---
-
 
             # --- Merge Logic ---
             # Create a dictionary to hold combined positions, giving priority to state2 if names overlap
@@ -125,13 +140,15 @@ class CombineJointStates(BlackboardBehavior):
             for name, pos in zip(state1.name, state1.position):
                 combined_positions_dict[name] = pos
             for name, pos in zip(state2.name, state2.position):
-                combined_positions_dict[name] = pos # Overwrites if name was in state1
+                combined_positions_dict[name] = pos  # Overwrites if name was in state1
 
             # Create the output JointState
             output_state = JointState()
-            output_state.header.stamp = self.node.get_clock().now().to_msg() # Use current time
-            output_state.name = full_names # Assign the full ordered list of names
-            output_state.position = [] # Initialize empty list
+            output_state.header.stamp = (
+                self.node.get_clock().now().to_msg()
+            )  # Use current time
+            output_state.name = full_names  # Assign the full ordered list of names
+            output_state.position = []  # Initialize empty list
 
             # Populate positions in the order specified by full_names
             all_found = True
@@ -139,28 +156,36 @@ class CombineJointStates(BlackboardBehavior):
                 if name in combined_positions_dict:
                     output_state.position.append(combined_positions_dict[name])
                 else:
-                    self.logger.error(f"[{self.name}] Joint '{name}' from 'full_joint_names' not found in either input JointState.")
+                    self.logger.error(
+                        f"[{self.name}] Joint '{name}' from 'full_joint_names' not found in either input JointState."
+                    )
                     all_found = False
-                    break # Stop processing
+                    break  # Stop processing
 
             if not all_found:
                 return Status.FAILURE
 
             # Basic check for consistency
             if len(output_state.name) != len(output_state.position):
-                 self.logger.error(f"[{self.name}] Mismatch between output names ({len(output_state.name)}) and positions ({len(output_state.position)}). Logic error?")
-                 return Status.FAILURE
+                self.logger.error(
+                    f"[{self.name}] Mismatch between output names ({len(output_state.name)}) and positions ({len(output_state.position)}). Logic error?"
+                )
+                return Status.FAILURE
             # --- End Merge Logic ---
-
 
             # Write the successful result to the blackboard
             self.blackboard_set("combined_joint_state", output_state)
-            self.logger.info(f"[{self.name}] Successfully combined joint states for {len(output_state.name)} joints.")
+            self.logger.info(
+                f"[{self.name}] Successfully combined joint states for {len(output_state.name)} joints."
+            )
             return Status.SUCCESS
 
         except KeyError as e:
             self.logger.error(f"[{self.name}] Blackboard key error: {e}")
             return Status.FAILURE
         except Exception as e:
-            self.logger.error(f"[{self.name}] Unexpected error combining joint states: {e}", exc_info=True)
+            self.logger.error(
+                f"[{self.name}] Unexpected error combining joint states: {e}",
+                exc_info=True,
+            )
             return Status.FAILURE

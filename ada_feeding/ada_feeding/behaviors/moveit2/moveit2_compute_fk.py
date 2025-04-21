@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 # (Add appropriate Copyright/License if desired)
 
 """
@@ -62,8 +65,10 @@ class MoveIt2ComputeFK(BlackboardBehavior):
 
     def blackboard_outputs(
         self,
-        fk_poses: Optional[BlackboardKey], # -> Optional[Union[PoseStamped, List[PoseStamped]]]
-        success: Optional[BlackboardKey], # -> bool
+        fk_poses: Optional[
+            BlackboardKey
+        ],  # -> Optional[Union[PoseStamped, List[PoseStamped]]]
+        success: Optional[BlackboardKey],  # -> bool
     ) -> None:
         """
         Blackboard Outputs
@@ -83,7 +88,7 @@ class MoveIt2ComputeFK(BlackboardBehavior):
     def setup(self, **kwargs):
         """Get the ROS2 node and acquire the MoveIt2 object for the specified group."""
         # pylint: disable=attribute-defined-outside-init
-        self.node: rclpy.node.Node = kwargs['node']
+        self.node: rclpy.node.Node = kwargs["node"]
         self.moveit2_obj: Optional[MoveIt2] = None
         self.moveit2_lock: Optional[Lock] = None
         self.fk_group_name: Optional[str] = None
@@ -91,9 +96,11 @@ class MoveIt2ComputeFK(BlackboardBehavior):
         try:
             self.fk_group_name = self.blackboard_get("group_name")
             if not isinstance(self.fk_group_name, str) or not self.fk_group_name:
-                 raise ValueError("group_name must be a non-empty string")
+                raise ValueError("group_name must be a non-empty string")
         except (KeyError, ValueError) as e:
-            self.logger.error(f"[{self.name}] Invalid or missing input 'group_name': {e}")
+            self.logger.error(
+                f"[{self.name}] Invalid or missing input 'group_name': {e}"
+            )
             return
 
         try:
@@ -103,13 +110,16 @@ class MoveIt2ComputeFK(BlackboardBehavior):
                 node=self.node,
             )
             if self.moveit2_obj is None or self.moveit2_lock is None:
-                 raise RuntimeError("get_moveit2_object returned None")
-            self.logger.info(f"[{self.name}] Successfully obtained MoveIt2 object for FK group '{self.fk_group_name}'")
+                raise RuntimeError("get_moveit2_object returned None")
+            self.logger.info(
+                f"[{self.name}] Successfully obtained MoveIt2 object for FK group '{self.fk_group_name}'"
+            )
         except Exception as e:
-            self.logger.error(f"[{self.name}] Failed to get MoveIt2 object for FK group '{self.fk_group_name}': {e}")
+            self.logger.error(
+                f"[{self.name}] Failed to get MoveIt2 object for FK group '{self.fk_group_name}': {e}"
+            )
             self.moveit2_obj = None
             self.moveit2_lock = None
-
 
     @override
     def initialise(self) -> None:
@@ -119,13 +129,14 @@ class MoveIt2ComputeFK(BlackboardBehavior):
         self.blackboard_set("fk_poses", None)
         self.blackboard_set("success", False)
 
-
     @override
     def update(self) -> Status:
         """Perform the FK computation using the synchronous compute_fk method."""
         # Check if setup was successful
         if self.moveit2_obj is None or self.moveit2_lock is None:
-            self.logger.error(f"[{self.name}] MoveIt2 object not initialized. Setup likely failed.")
+            self.logger.error(
+                f"[{self.name}] MoveIt2 object not initialized. Setup likely failed."
+            )
             return Status.FAILURE
 
         # Check if MoveIt2 is currently locked by another behavior
@@ -143,28 +154,45 @@ class MoveIt2ComputeFK(BlackboardBehavior):
                 try:
                     joint_state_input = self.blackboard_get("joint_state")
                     # Optional validation
-                    if joint_state_input is not None and not isinstance(joint_state_input, (JointState, list)):
-                         self.logger.warning(f"[{self.name}] Input 'joint_state' is not JointState or List, ignoring.")
-                         joint_state_input = None
+                    if joint_state_input is not None and not isinstance(
+                        joint_state_input, (JointState, list)
+                    ):
+                        self.logger.warning(
+                            f"[{self.name}] Input 'joint_state' is not JointState or List, ignoring."
+                        )
+                        joint_state_input = None
                 except KeyError:
-                    self.logger.debug(f"[{self.name}] Optional input 'joint_state' not found, using MoveIt2 object's current state.")
-                    pass # Keep default None -> wrapper uses current state
+                    self.logger.debug(
+                        f"[{self.name}] Optional input 'joint_state' not found, using MoveIt2 object's current state."
+                    )
+                    pass  # Keep default None -> wrapper uses current state
 
                 fk_link_names_input = None
                 try:
                     fk_link_names_input = self.blackboard_get("fk_link_names")
-                    if fk_link_names_input is not None and not (isinstance(fk_link_names_input, list) and all(isinstance(n, str) for n in fk_link_names_input)):
-                         self.logger.warning(f"[{self.name}] Input 'fk_link_names' is not List[str], ignoring.")
-                         fk_link_names_input = None
+                    if fk_link_names_input is not None and not (
+                        isinstance(fk_link_names_input, list)
+                        and all(isinstance(n, str) for n in fk_link_names_input)
+                    ):
+                        self.logger.warning(
+                            f"[{self.name}] Input 'fk_link_names' is not List[str], ignoring."
+                        )
+                        fk_link_names_input = None
                 except KeyError:
-                    self.logger.debug(f"[{self.name}] Optional input 'fk_link_names' not found, using MoveIt2 object's default end-effector.")
-                    pass # Keep default None -> wrapper uses default EE link
+                    self.logger.debug(
+                        f"[{self.name}] Optional input 'fk_link_names' not found, using MoveIt2 object's default end-effector."
+                    )
+                    pass  # Keep default None -> wrapper uses default EE link
 
                 # Call the synchronous compute_fk method
-                self.logger.info(f"[{self.name}] Computing FK for group '{self.fk_group_name}' "
-                                 f"with links: {fk_link_names_input or 'default EE'}.")
+                self.logger.info(
+                    f"[{self.name}] Computing FK for group '{self.fk_group_name}' "
+                    f"with links: {fk_link_names_input or 'default EE'}."
+                )
 
-                result_poses: Optional[Union[PoseStamped, List[PoseStamped]]] = self.moveit2_obj.compute_fk(
+                result_poses: Optional[
+                    Union[PoseStamped, List[PoseStamped]]
+                ] = self.moveit2_obj.compute_fk(
                     joint_state=joint_state_input,
                     fk_link_names=fk_link_names_input,
                 )
@@ -177,28 +205,38 @@ class MoveIt2ComputeFK(BlackboardBehavior):
                 self.blackboard_set("fk_poses", result_poses)
 
                 if fk_success:
-                    num_poses = len(result_poses) if isinstance(result_poses, list) else 1
-                    self.logger.info(f"[{self.name}] FK computation successful ({num_poses} pose(s) found).")
+                    num_poses = (
+                        len(result_poses) if isinstance(result_poses, list) else 1
+                    )
+                    self.logger.info(
+                        f"[{self.name}] FK computation successful ({num_poses} pose(s) found)."
+                    )
                     return Status.SUCCESS
                 else:
                     # The compute_fk wrapper likely logs the specific error code/reason
-                    self.logger.warning(f"[{self.name}] FK computation failed (see MoveIt2 wrapper logs).")
+                    self.logger.warning(
+                        f"[{self.name}] FK computation failed (see MoveIt2 wrapper logs)."
+                    )
                     return Status.FAILURE
 
             except KeyError as e:
-                self.logger.error(f"[{self.name}] Blackboard key error during FK update: {e}")
+                self.logger.error(
+                    f"[{self.name}] Blackboard key error during FK update: {e}"
+                )
                 self.blackboard_set("success", False)
                 self.blackboard_set("fk_poses", None)
                 return Status.FAILURE
             except Exception as e:
-                self.logger.error(f"[{self.name}] Unexpected error during FK computation: {e}", exc_info=True)
+                self.logger.error(
+                    f"[{self.name}] Unexpected error during FK computation: {e}",
+                    exc_info=True,
+                )
                 self.blackboard_set("success", False)
                 self.blackboard_set("fk_poses", None)
                 return Status.FAILURE
 
         # Should not be reached if lock logic is correct
         return Status.FAILURE
-
 
     @override
     def terminate(self, new_status: Status) -> None:

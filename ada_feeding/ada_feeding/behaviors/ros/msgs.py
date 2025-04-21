@@ -38,6 +38,7 @@ import py_trees
 import py_trees.blackboard
 from py_trees.common import Access, Status
 
+
 class UpdateTimestamp(BlackboardBehavior):
     """
     Adds a custom timestamp (or current timestamp)
@@ -399,6 +400,7 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
         self.blackboard_set("twist_stamped", twist_stamped)
         return py_trees.common.Status.SUCCESS
 
+
 # -*- coding: utf-8 -*-
 # (Add appropriate Copyright/License if desired)
 
@@ -407,6 +409,7 @@ This module defines the StampPoseFromPose behavior, which converts a
 geometry_msgs/Pose message from the blackboard to a geometry_msgs/PoseStamped
 message by adding a header with a specified frame_id and the current timestamp.
 """
+
 
 class StampPoseFromPose(BlackboardBehavior):
     """
@@ -441,7 +444,7 @@ class StampPoseFromPose(BlackboardBehavior):
 
     def blackboard_outputs(
         self,
-        output_pose_stamped: Optional[BlackboardKey], # -> Optional[PoseStamped]
+        output_pose_stamped: Optional[BlackboardKey],  # -> Optional[PoseStamped]
     ) -> None:
         """
         Blackboard Outputs
@@ -461,16 +464,17 @@ class StampPoseFromPose(BlackboardBehavior):
         """Gets the ROS2 node from the arguments passed by the tree runner."""
         # pylint: disable=attribute-defined-outside-init
         try:
-            self.node: rclpy.node.Node = kwargs['node']
+            self.node: rclpy.node.Node = kwargs["node"]
         except KeyError as e:
-            self.logger.error(f"[{self.name}] Behaviour expects 'node' in setup kwargs. {e}")
+            self.logger.error(
+                f"[{self.name}] Behaviour expects 'node' in setup kwargs. {e}"
+            )
             self.node = None
 
     @override
     def initialise(self) -> None:
         """Optionally log initialization."""
         self.logger.debug(f"[{self.name}] Initializing.")
-
 
     @override
     def update(self) -> Status:
@@ -480,21 +484,27 @@ class StampPoseFromPose(BlackboardBehavior):
         Returns SUCCESS if successful, FAILURE otherwise.
         """
         # Verify setup provided the node needed for timestamping
-        if not hasattr(self, 'node') or self.node is None:
-             self.logger.error(f"[{self.name}] Node object not available. Setup likely failed.")
-             return Status.FAILURE
+        if not hasattr(self, "node") or self.node is None:
+            self.logger.error(
+                f"[{self.name}] Node object not available. Setup likely failed."
+            )
+            return Status.FAILURE
 
         try:
             pose_in = self.blackboard_get("input_pose")
             frame_id_str = self.blackboard_get("frame_id")
 
             if not isinstance(pose_in, Pose):
-                 self.logger.error(f"[{self.name}] Input 'input_pose' is not a geometry_msgs/Pose (is type: {type(pose_in)}).")
-                 return Status.FAILURE
+                self.logger.error(
+                    f"[{self.name}] Input 'input_pose' is not a geometry_msgs/Pose (is type: {type(pose_in)})."
+                )
+                return Status.FAILURE
 
             if not isinstance(frame_id_str, str) or not frame_id_str:
-                 self.logger.error(f"[{self.name}] Input 'frame_id' must be a non-empty string (is: '{frame_id_str}').")
-                 return Status.FAILURE
+                self.logger.error(
+                    f"[{self.name}] Input 'frame_id' must be a non-empty string (is: '{frame_id_str}')."
+                )
+                return Status.FAILURE
 
             pose_stamped_out = PoseStamped()
             pose_stamped_out.header.frame_id = frame_id_str
@@ -502,7 +512,9 @@ class StampPoseFromPose(BlackboardBehavior):
             pose_stamped_out.pose = pose_in
 
             self.blackboard_set("output_pose_stamped", pose_stamped_out)
-            self.logger.info(f"[{self.name}] Successfully stamped Pose into frame '{frame_id_str}'.")
+            self.logger.info(
+                f"[{self.name}] Successfully stamped Pose into frame '{frame_id_str}'."
+            )
             return Status.SUCCESS
 
         except KeyError as e:
