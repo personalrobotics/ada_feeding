@@ -13,3 +13,6 @@ from .extract_joints_from_state import (
 from .combine_joint_states import (
     CombineJointStates,
 )
+from .extract_pose_from_poses_by_link import (
+    ExtractPoseFromPosesByLink,
+)

@@ -44,6 +44,7 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2Plan,
     MoveIt2Execute,
     MoveIt2ComputeIK,
+    MoveIt2ComputeFK,
     ServoMove,
     ToggleCollisionObject,
 )
@@ -51,6 +52,7 @@ from ada_feeding.behaviors.state import (
     GetJointStates,
     ExtractJointsFromState,
     CombineJointStates,
+    ExtractPoseFromPosesByLink,
 )
 from ada_feeding.behaviors.ros.msgs import StampPoseFromPose
 from ada_feeding.behaviors.ros.tf import ApplyTransform
@@ -707,65 +709,102 @@ class AcquireFoodTree(MoveToTree):
                             "combined_joint_state": BlackboardKey("test_into_joints"),
                         },
                     ),
-                    MoveIt2PoseConstraint(
-                        name="MoveIntoJacoArmWithArticutoolPose",
+                    # Convert Pose to PoseStamped using the defined frame_id
+                    StampPoseFromPose(
+                        name="StampMoveIntoPose",
                         ns=name,
                         inputs={
-                            "pose": BlackboardKey("move_into_pose"),
+                            "input_pose": BlackboardKey("move_into_pose"),
                             "frame_id": "food",
+                        },
+                        outputs={
+                            "output_pose_stamped": BlackboardKey(
+                                "move_into_pose_stamped_food_frame"
+                            )
+                        },
+                    ),
+                    # Use ApplyTransform to transform into the MoveIt Planning Frame
+                    ApplyTransform(
+                        name="TransformPoseToIKFrame",
+                        ns=name,
+                        inputs={
+                            "stamped_msg": BlackboardKey(
+                                "move_into_pose_stamped_food_frame"
+                            ),
+                            "target_frame": "j2n6s200_link_base",
+                        },
+                        outputs={
+                            "transformed_msg": BlackboardKey(
+                                "move_into_pose_stamped_base_frame"
+                            )
+                        },
+                    ),
+                    # Compute IK for the target pose using the full jaco_arm_with_articutool planning group
+                    MoveIt2ComputeIK(
+                        name="ComputeJacoArmWithArticutoolIK",
+                        ns=name,
+                        inputs={
+                            "target_pose": BlackboardKey(
+                                "move_into_pose_stamped_base_frame"
+                            ),
+                            "group_name": "jaco_arm_with_articutool",
+                            # "start_joint_state": BlackboardKey("current_joint_positions"),
+                        },
+                        outputs={
+                            "ik_solution_joint_state": BlackboardKey(
+                                "move_into_ik_solution"
+                            ),
+                            "success": BlackboardKey("move_into_ik_success"),
+                        },
+                    ),
+                    MoveIt2ComputeFK(
+                        name="ComputeMoveIntoJacoArmEEPose",
+                        ns=name,
+                        inputs={
+                            "group_name": "jaco_arm_with_articutool",
+                            "joint_state": BlackboardKey("move_into_ik_solution"),
+                            "fk_link_names": ["j2n6s200_end_effector"],
+                        },
+                        outputs={
+                            "fk_poses": BlackboardKey("move_into_jaco_arm_ee_poses"),
+                            "success": None,
+                        }
+                    ),
+                    ExtractPoseFromPosesByLink(
+                        name="GetJacoArmEEPose",
+                        ns=name,
+                        inputs={
+                            "fk_poses": BlackboardKey("move_into_jaco_arm_ee_poses"),
+                            "target_link_name": "j2n6s200_end_effector",
+                            "requested_link_names": ["j2n6s200_end_effector"],
+                        },
+                        outputs={
+                            "extracted_pose": BlackboardKey("move_into_jaco_arm_ee_pose"),
+                            "success": None,
+                        }
+                    ),
+                    MoveIt2PoseConstraint(
+                        name="MoveIntoJacoArmEEPoseConstraint",
+                        ns=name,
+                        inputs={
+                            "pose": BlackboardKey("move_into_jaco_arm_ee_pose"),
+                            "frame_id": "j2n6s200_link_base",
                         },
                         outputs={
                             "constraints": BlackboardKey("move_into_goal_constraints"),
                         },
                     ),
-                    ExtractJointsFromState(
-                        name="ExtractTestIntoArticutoolJoints",
-                        ns=name,
-                        inputs={
-                            "source_joint_state": BlackboardKey(
-                                "test_into_articutool_joints"
-                            ),
-                            "target_joint_names": ["atool_joint1", "atool_joint2"],
-                        },
-                        outputs={
-                            "output_joint_names": BlackboardKey(
-                                "test_into_articutool_joint_names"
-                            ),
-                            "output_joint_positions": BlackboardKey(
-                                "test_into_articutool_joint_positions"
-                            ),
-                            "success": None,
-                        },
-                    ),
-                    MoveIt2JointConstraint(
-                        name="SetArticutoolPathConstraint",
-                        ns=name,
-                        inputs={
-                            "joint_positions": BlackboardKey(
-                                "test_into_articutool_joint_positions"
-                            ),
-                            "joint_names": BlackboardKey(
-                                "test_into_articutool_joint_names"
-                            ),
-                            "tolerance": 0.001,
-                            "constraints": None,
-                        },
-                        outputs={
-                            "constraints": BlackboardKey("move_into_path_constraints"),
-                        },
-                    ),
                     py_trees.decorators.Timeout(
-                        name="MoveIntoJacoArmWithArticutoolPlanTimeout",
+                        name="MoveIntoJacoArmEEPlanTimeout",
                         # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
                         duration=10.0 * self.allowed_planning_time_for_move_into,
                         child=MoveIt2Plan(
-                            name="MoveIntoJacoArmWithArticutoolPlan",
+                            name="MoveIntoJacoArmEEPlan",
                             ns=name,
                             inputs={
                                 "goal_constraints": BlackboardKey(
                                     "move_into_goal_constraints"
                                 ),
-                                # "path_constraints": BlackboardKey("move_into_path_constraints"),
                                 "max_velocity_scale": self.max_velocity_scaling_move_into,
                                 "max_acceleration_scale": self.max_acceleration_scaling_move_into,
                                 "cartesian": True,
@@ -774,7 +813,7 @@ class AcquireFoodTree(MoveToTree):
                                 "start_joint_state": BlackboardKey("test_into_joints"),
                                 "max_path_len_joint": max_path_len_joint,
                                 "allowed_planning_time": self.allowed_planning_time_for_move_into,
-                                "group_name": "jaco_arm_with_articutool",
+                                "group_name": "jaco_arm",
                             },
                             outputs={
                                 "trajectory": BlackboardKey(
