@@ -524,6 +524,20 @@ class AcquireFoodTree(MoveToTree):
                             )
                         },
                     ),
+                    MoveIt2OrientationConstraint(
+                        name="DefineIKWristRollConstraint",
+                        ns=name,
+                        inputs={
+                            "target_link": "j2n6s200_end_effector",
+                            "frame_id": "j2n6s200_link_base",
+                            "quat_xyzw": [0.0, 0.0, 0.0, 1.0],
+                            "tolerance": [2*np.pi, 2*np.pi, 0.5],
+                            "constraints": None,
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("wrist_constraints"),
+                        }
+                    ),
                     # Compute IK for the target pose using the full jaco_arm_with_articutool planning group
                     MoveIt2ComputeIK(
                         name="ComputeJacoArmWithArticutoolIK",
@@ -534,6 +548,7 @@ class AcquireFoodTree(MoveToTree):
                             ),
                             "group_name": "jaco_arm_with_articutool",
                             # "start_joint_state": BlackboardKey("current_joint_positions"),
+                            "constraints": BlackboardKey("wrist_constraints"),
                         },
                         outputs={
                             "ik_solution_joint_state": BlackboardKey(
