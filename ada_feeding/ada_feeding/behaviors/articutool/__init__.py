@@ -4,3 +4,6 @@
 from .execute_articutool_trajectory import (
     ExecuteArticutoolTrajectory,
 )
+from .call_set_orientation_control import (
+    CallSetOrientationControl,
+)

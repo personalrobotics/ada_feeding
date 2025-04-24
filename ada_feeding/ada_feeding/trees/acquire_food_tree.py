@@ -59,6 +59,9 @@ from ada_feeding.behaviors.ros.tf import ApplyTransform
 from ada_feeding.behaviors.articutool.execute_articutool_trajectory import (
     ExecuteArticutoolTrajectory,
 )
+from ada_feeding.behaviors.articutool.call_set_orientation_control import (
+    CallSetOrientationControl,
+)
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
     pre_moveto_config,
@@ -1027,6 +1030,17 @@ class AcquireFoodTree(MoveToTree):
                                     # Starts a new Sequence w/ Memory internally
                                     workers=[
                                         ### Move Into Food
+                                        CallSetOrientationControl(
+                                            name="SetArticutoolOrientation",
+                                            ns=name,
+                                            inputs={
+                                                "enable": True,
+                                                "target_pose": BlackboardKey("move_into_pose_stamped_base_frame"),
+                                            },
+                                            outputs={
+
+                                            },
+                                        ),
                                         # MoveInto expect F/T failure
                                         py_trees.decorators.FailureIsSuccess(
                                             name="MoveIntoJacoArmExecuteSucceed",
