@@ -62,6 +62,9 @@ from ada_feeding.behaviors.articutool.execute_articutool_trajectory import (
 from ada_feeding.behaviors.articutool.call_set_orientation_control import (
     CallSetOrientationControl,
 )
+from ada_feeding.behaviors.articutool.switch_articutool_controllers import (
+    SwitchArticutoolControllers,
+)
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
     pre_moveto_config,
@@ -1030,6 +1033,18 @@ class AcquireFoodTree(MoveToTree):
                                     # Starts a new Sequence w/ Memory internally
                                     workers=[
                                         ### Move Into Food
+                                        SwitchArticutoolControllers(
+                                            name="SwitchArticutoolToVelocity",
+                                            ns=name,
+                                            inputs={
+                                                "controllers_to_activate": ["velocity_controller"],
+                                                "controllers_to_deactivate": ["joint_trajectory_controller"],
+                                            },
+                                            outputs={
+                                                "switch_call_succeeded": None,
+                                                "switch_response_ok": None,
+                                            }
+                                        ),
                                         CallSetOrientationControl(
                                             name="SetArticutoolOrientation",
                                             ns=name,

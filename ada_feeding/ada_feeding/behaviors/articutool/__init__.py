@@ -7,3 +7,6 @@ from .execute_articutool_trajectory import (
 from .call_set_orientation_control import (
     CallSetOrientationControl,
 )
+from .switch_articutool_controllers import (
+    SwitchArticutoolControllers,
+)
