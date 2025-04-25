@@ -21,6 +21,7 @@ from overrides import override
 import py_trees
 import py_trees.blackboard
 from py_trees.common import Access, Status
+import numpy as np
 
 # Local imports (adjust paths as needed)
 from ada_feeding.helpers import BlackboardKey
@@ -43,7 +44,7 @@ class CallSetOrientationControl(BlackboardBehavior):
     def blackboard_inputs(
         self,
         enable: Union[BlackboardKey, bool],
-        target_pose: Union[BlackboardKey, PoseStamped],
+        quat_xyzw: Union[BlackboardKey, PoseStamped],
         service_name: Union[BlackboardKey, str] = DEFAULT_SERVICE_NAME,
         wait_for_server_timeout_sec: Union[BlackboardKey, float] = DEFAULT_WAIT_TIMEOUT_SEC,
     ) -> None:
@@ -53,10 +54,9 @@ class CallSetOrientationControl(BlackboardBehavior):
         Parameters
         ----------
         enable: True to enable orientation control, False to disable.
-        target_pose: The PoseStamped message. The service uses pose.orientation as the
-                     target and header.frame_id as its reference frame, transforming
-                     it internally to the controller's reference frame. Position is ignored.
-                     Provide a valid PoseStamped even when enable=False (can be default).
+        quat_xyzw: The target orientation, provided as a geometry_msgs/Quaternion
+                      message or an [x, y, z, w] list/tuple. Must be relative
+                      to the frame expected by the orientation controller node.
         service_name: Name of the SetOrientationControl service.
         wait_for_server_timeout_sec: Max time (sec) to wait for server in initial check.
                                      Use 0.0 or negative to skip check (not recommended).
@@ -127,20 +127,40 @@ class CallSetOrientationControl(BlackboardBehavior):
             try:
                 # Read inputs from blackboard
                 enable_flag = self.blackboard_get("enable")
-                target_pose_stamped = self.blackboard_get("target_pose")
+                quat_xyzw = self.blackboard_get("quat_xyzw")
 
                 # Input validation
                 if not isinstance(enable_flag, bool):
                      self.logger.error(f"[{self.name}] Input 'enable' type mismatch: expected bool, got {type(enable_flag)}.")
                      return Status.FAILURE
-                if not isinstance(target_pose_stamped, PoseStamped):
-                     self.logger.error(f"[{self.name}] Input 'target_pose' type mismatch: expected PoseStamped, got {type(target_pose_stamped)}.")
-                     return Status.FAILURE
+
+                target_quat_msg = Quaternion()
+                if isinstance(quat_xyzw, Quaternion):
+                    target_quat_msg = quat_xyzw
+                    self.logger.debug(f"[{self.name}] Using Quaternion message input.")
+                elif isinstance(quat_xyzw, (list, tuple)) and len(quat_xyzw) == 4:
+                    self.logger.debug(f"[{self.name}] Converting list/tuple input to Quaternion.")
+                    try:
+                        target_quat_msg.x = float(quat_xyzw[0])
+                        target_quat_msg.y = float(quat_xyzw[1])
+                        target_quat_msg.z = float(quat_xyzw[2])
+                        target_quat_msg.w = float(quat_xyzw[3])
+                        norm = np.linalg.norm([target_quat_msg.x, target_quat_msg.y, target_quat_msg.z, target_quat_msg.w])
+                        if not np.isclose(norm, 1.0, atol=0.01): self.logger.warning(f"Input quat norm is {norm:.3f}")
+                    except (ValueError, TypeError, IndexError) as e:
+                        self.logger.error(f"Could not convert list/tuple {quat_xyzw} to Quaternion: {e}"); return Status.FAILURE
+                else:
+                    if enable_flag: # Target is mandatory if enabling
+                        self.logger.error(f"[{self.name}] Input 'target_orientation_input' invalid type {type(quat_xyzw)} when enable=True.")
+                        return Status.FAILURE
+                    else: # Use default identity if disabling
+                        self.logger.debug(f"[{self.name}] Using default identity quaternion because enable=False.")
+                        target_quat_msg = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
 
                 # Create request
                 req = SetOrientationControl.Request()
                 req.enable = enable_flag
-                req.target_orientation = target_pose_stamped.pose.orientation
+                req.target_orientation = target_quat_msg
 
                 # Call service asynchronously
                 self.logger.info(f"[{self.name}] Calling service '{self.service_name}' (enable={req.enable})...")

@@ -1064,7 +1064,7 @@ class AcquireFoodTree(MoveToTree):
                                             ns=name,
                                             inputs={
                                                 "enable": True,
-                                                "target_pose": BlackboardKey("move_into_pose_stamped_base_frame"),
+                                                "quat_xyzw": BlackboardKey("move_into_orientation"),
                                             },
                                             outputs={
 
