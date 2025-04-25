@@ -53,6 +53,7 @@ from ada_feeding.behaviors.state import (
     ExtractJointsFromState,
     CombineJointStates,
     ExtractPoseFromPosesByLink,
+    ExtractPoseComponents,
 )
 from ada_feeding.behaviors.ros.msgs import StampPoseFromPose
 from ada_feeding.behaviors.ros.tf import ApplyTransform
@@ -1045,6 +1046,19 @@ class AcquireFoodTree(MoveToTree):
                                                 "switch_response_ok": None,
                                             }
                                         ),
+                                        ExtractPoseComponents(
+                                            name="GetMoveIntoOrientation",
+                                            ns=name,
+                                            inputs={
+                                                "input_pose_object": BlackboardKey("move_into_pose_stamped_base_frame"),
+                                            },
+                                            outputs={
+                                                "output_position": BlackboardKey("move_into_position"),
+                                                "output_orientation": BlackboardKey("move_into_orientation"),
+                                                "output_header": BlackboardKey("move_into_header"),
+                                                "success": None,
+                                            }
+                                        ),
                                         CallSetOrientationControl(
                                             name="SetArticutoolOrientation",
                                             ns=name,
@@ -1277,7 +1291,7 @@ class AcquireFoodTree(MoveToTree):
                             ],  # End OctomapAndTableCollision.workers
                         ),  # OctomapAndTableCollision
                     ]
-                    # + resting_position_behaviors,  # End Success.workers
+                    + resting_position_behaviors,  # End Success.workers
                 ),  # End Success # TableCollision
             ],  # End root_seq.children
         )  # End root_seq

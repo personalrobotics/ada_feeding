@@ -16,3 +16,6 @@ from .combine_joint_states import (
 from .extract_pose_from_poses_by_link import (
     ExtractPoseFromPosesByLink,
 )
+from .extract_pose_components import (
+    ExtractPoseComponents,
+)
