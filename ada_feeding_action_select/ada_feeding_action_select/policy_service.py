@@ -225,7 +225,8 @@ class PolicyServices(Node):
             )
             if len(pt_files) > 0:
                 with open(pt_files[-1], "rb") as ckpt_file:
-                    ckpt = torch.load(ckpt_file)
+                    ##ckpt = torch.load(ckpt_file) replaced with the below
+                    ckpt = torch.load(ckpt_file, map_location=torch.device("cpu"))
                     try:
                         if ckpt["context_cls"] != context_cls:
                             self.get_logger().warning(

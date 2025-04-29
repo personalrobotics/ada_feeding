@@ -62,7 +62,7 @@ class SPANetContext(ContextAdapter):
         ckpt_file = os.path.join(
             get_package_share_directory("ada_feeding_action_select"), "data", checkpoint
         )
-        ckpt = torch.load(ckpt_file)
+        ckpt = torch.load(ckpt_file, map_location=torch.device("cpu"))
         self.spanet.load_state_dict(ckpt["net"])
         self.spanet.eval()
         if self.use_cuda:

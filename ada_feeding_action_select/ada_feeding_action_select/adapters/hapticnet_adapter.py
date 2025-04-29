@@ -60,7 +60,7 @@ class HapticNetPosthoc(PosthocAdapter):
         ckpt_file = os.path.join(
             get_package_share_directory("ada_feeding_action_select"), "data", checkpoint
         )
-        ckpt = torch.load(ckpt_file)
+        ckpt = torch.load(ckpt_file, map_location=torch.device("cpu"))
         self.hapticnet.load_state_dict(ckpt["state_dict"])
         self.hapticnet.eval()
         if self.use_cuda:
