@@ -214,6 +214,82 @@ class AcquireFoodTree(MoveToTree):
                             wait_for_server_timeout_sec=0.0,
                         ),
                         MoveIt2JointConstraint(
+                            name="HomeArticutoolConstraint",
+                            ns=name,
+                            inputs={
+                                "joint_positions": [0.0, 0.0],
+                                "joint_names": ["atool_joint1", "atool_joint2"],
+                            },
+                            outputs={
+                                "constraints": BlackboardKey("goal_constraints"),
+                            },
+                        ),
+                        py_trees.decorators.Timeout(
+                            name="HomeArticutoolPlanTimeout",
+                            # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                            duration=10.0
+                            * self.allowed_planning_time_to_resting_configuration,
+                            child=MoveIt2Plan(
+                                name="HomeArticutoolPlan",
+                                ns=name,
+                                inputs={
+                                    "goal_constraints": BlackboardKey(
+                                        "goal_constraints"
+                                    ),
+                                    "max_velocity_scale": self.max_velocity_scaling_to_resting_configuration,
+                                    "max_acceleration_scale": self.max_acceleration_scaling_to_resting_configuration,
+                                    "allowed_planning_time": self.allowed_planning_time_to_resting_configuration,
+                                    "group_name": "articutool",
+                                },
+                                outputs={
+                                    "trajectory": BlackboardKey("home_articutool_trajectory")
+                                },
+                            ),
+                        ),
+                        ExecuteArticutoolTrajectory(
+                            name="HomeArticutool",
+                            ns=name,
+                            inputs={
+                                "trajectory": BlackboardKey(
+                                    "home_articutool_trajectory"
+                                ),
+                            },
+                            outputs={
+                                "action_goal_accepted": BlackboardKey(
+                                    "tool_goal_accepted"
+                                ),
+                                "action_result_code": BlackboardKey(
+                                    "tool_exec_result_code"
+                                ),
+                                "action_status": BlackboardKey(
+                                    "tool_action_status"
+                                ),
+                            },
+                        ),
+                        SwitchArticutoolControllers(
+                            name="SwitchArticutoolToVelocity",
+                            ns=name,
+                            inputs={
+                                "controllers_to_activate": ["velocity_controller"],
+                                "controllers_to_deactivate": ["joint_trajectory_controller"],
+                            },
+                            outputs={
+                                "switch_call_succeeded": None,
+                                "switch_response_ok": None,
+                            }
+                        ),
+                        CallSetOrientationControl(
+                            name="SetArticutoolOrientation",
+                            ns=name,
+                            inputs={
+                                "enable": True,
+                                "quat_xyzw": [0.5, 0.5, 0.5, 0.5],
+                            },
+                            outputs={
+
+                            },
+                        ),
+                        MoveIt2JointConstraint(
                             name="RestingConstraint",
                             ns=name,
                             inputs={
