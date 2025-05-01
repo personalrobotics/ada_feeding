@@ -255,7 +255,6 @@ class MoveIt2ComputeIK(BlackboardBehavior):
             except Exception as e:
                 self.logger.error(
                     f"[{self.name}] Unexpected error during IK computation: {e}",
-                    exc_info=True,
                 )
                 return py_trees.common.Status.FAILURE
 
