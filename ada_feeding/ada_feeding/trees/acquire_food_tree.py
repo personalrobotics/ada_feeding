@@ -186,7 +186,7 @@ class AcquireFoodTree(MoveToTree):
             # "j2n6s200_joint_1": np.pi * 5.0 / 6.0,
             # "j2n6s200_joint_2": np.pi / 2.0,
             "j2n6s200_joint_1": np.pi,
-            "j2n6s200_joint_2": np.pi / 2.0,
+            "j2n6s200_joint_2": np.pi / 1.5,
         }
 
         # Get the base lin to publish servo commands in
