@@ -553,34 +553,6 @@ class AcquireFoodTree(MoveToTree):
                     ),
                     # Re-Tare FT Sensor and default to 4N threshold
                     pre_moveto_config(name="PreAcquireFTTare"),
-                    # Get Current Joint State (for IK Seed)
-                    py_trees.decorators.Timeout(
-                        name="GetCurrentState",
-                        duration=1.0,
-                        child=GetJointStates(
-                            name="GetArticutoolJoints",
-                            ns=name,
-                            node=self._node,
-                            inputs={
-                                "joint_names": [
-                                    "j2n6s200_joint_1",
-                                    "j2n6s200_joint_2",
-                                    "j2n6s200_joint_3",
-                                    "j2n6s200_joint_4",
-                                    "j2n6s200_joint_5",
-                                    "j2n6s200_joint_6",
-                                    "atool_joint1",
-                                    "atool_joint2",
-                                ]
-                            },
-                            outputs={
-                                "joint_positions": BlackboardKey(
-                                    "current_joint_positions"
-                                ),
-                                "joint_names": BlackboardKey("current_joint_names"),
-                            },
-                        ),
-                    ),
                     # Convert Pose to PoseStamped using the defined frame_id
                     StampPoseFromPose(
                         name="StampMoveAbovePose",
@@ -625,6 +597,35 @@ class AcquireFoodTree(MoveToTree):
                             "constraints": BlackboardKey("wrist_constraints"),
                         }
                     ),
+                    # Get Current Joint State (for IK Seed)
+                    py_trees.decorators.Timeout(
+                        name="GetCurrentState",
+                        duration=1.0,
+                        child=GetJointStates(
+                            name="GetArticutoolJoints",
+                            ns=name,
+                            node=self._node,
+                            inputs={
+                                "joint_names": [
+                                    "j2n6s200_joint_1",
+                                    "j2n6s200_joint_2",
+                                    "j2n6s200_joint_3",
+                                    "j2n6s200_joint_4",
+                                    "j2n6s200_joint_5",
+                                    "j2n6s200_joint_6",
+                                    "atool_joint1",
+                                    "atool_joint2",
+                                ]
+                            },
+                            outputs={
+                                "joint_state": BlackboardKey("current_joint_state"),
+                                "joint_positions": BlackboardKey(
+                                    "current_joint_positions"
+                                ),
+                                "joint_names": BlackboardKey("current_joint_names"),
+                            },
+                        ),
+                    ),
                     # Compute IK for the target pose using the full jaco_arm_with_articutool planning group
                     MoveIt2ComputeIK(
                         name="ComputeJacoArmWithArticutoolIK",
@@ -634,7 +635,7 @@ class AcquireFoodTree(MoveToTree):
                                 "move_above_pose_stamped_base_frame"
                             ),
                             "group_name": "jaco_arm_with_articutool",
-                            # "start_joint_state": BlackboardKey("current_joint_positions"),
+                            "start_joint_state": BlackboardKey("current_joint_state"),
                             "constraints": BlackboardKey("wrist_constraints"),
                         },
                         outputs={

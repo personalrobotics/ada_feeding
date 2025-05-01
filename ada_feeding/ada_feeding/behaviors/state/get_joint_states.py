@@ -45,6 +45,7 @@ class GetJointStates(BlackboardBehavior):
 
     def blackboard_outputs(
         self,
+        joint_state: Union[BlackboardKey, JointState] = None,
         joint_positions: Union[BlackboardKey, List[float]] = None,
         joint_names: Union[BlackboardKey, Optional[List[str]]] = None,
     ) -> None:
@@ -84,9 +85,19 @@ class GetJointStates(BlackboardBehavior):
         ):
             joint_names = list(self.latest_joint_states.keys())
             joint_positions = list(self.latest_joint_states.values())
+
+            # Create the JointState message object
+            joint_state_msg = JointState()
+            joint_state_msg.header.stamp = self.node.get_clock().now().to_msg()
+
+            # Add frame_id if known/relevant, e.g., joint_state_msg.header.frame_id = "base_link"
+            joint_state_msg.name = joint_names
+            joint_state_msg.position = joint_positions
+
             self.node.get_logger().info(f"Received all joint states")
             self.node.get_logger().info(f"Joint Names: {joint_names}")
             self.node.get_logger().info(f"Joint Positions: {joint_positions}")
+            self.blackboard_set("joint_state", joint_state_msg)
             self.blackboard_set("joint_names", joint_names)
             self.blackboard_set("joint_positions", joint_positions)
             return py_trees.common.Status.SUCCESS
