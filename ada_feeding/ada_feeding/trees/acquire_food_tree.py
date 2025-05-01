@@ -448,6 +448,7 @@ class AcquireFoodTree(MoveToTree):
                                             "cartesian_max_step": 0.001,
                                             "cartesian_fraction_threshold": 0.92,
                                             "allowed_planning_time": self.allowed_planning_time_for_recovery,
+                                            "group_name": "jaco_arm",
                                         },
                                         outputs={
                                             "trajectory": BlackboardKey(
@@ -462,7 +463,8 @@ class AcquireFoodTree(MoveToTree):
                                     inputs={
                                         "trajectory": BlackboardKey(
                                             "recovery_trajectory"
-                                        )
+                                        ),
+                                        "group_name": "jaco_arm",
                                     },
                                     outputs={},
                                 ),
