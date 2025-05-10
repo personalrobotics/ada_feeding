@@ -330,10 +330,10 @@ def main(out_dir: Optional[str]):
     callback_group = ReentrantCallbackGroup()
     moveit2 = MoveIt2(
         node=node,
-        joint_names=kinova.joint_names() + ["atool_joint1", "atool_joint2"],
+        joint_names=kinova.joint_names(),
         base_link_name=kinova.base_link_name(),
-        end_effector_name="tool_tip",
-        group_name="jaco_arm_with_articutool",
+        end_effector_name="j2n6s200_end_effector",
+        group_name="jaco_arm",
         callback_group=callback_group,
     )
 
