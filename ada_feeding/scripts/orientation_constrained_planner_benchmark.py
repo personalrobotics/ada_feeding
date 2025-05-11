@@ -6,7 +6,8 @@
 This script is used to benchmark planner performance for reaching
 pre-defined joint configurations while enforcing a path-wide orientation
 constraint on the end-effector. It now also saves successful trajectories
-and tests planning between all pairs of defined configurations.
+and tests planning between all pairs of defined configurations by physically
+moving to start states.
 """
 
 # Standard imports
@@ -81,10 +82,8 @@ except ImportError:
             return None, None
         if len(trajectory.points) < 2:
             return 0.0, {name: 0.0 for name in trajectory.joint_names}
-
         total_len_l2_no_j6 = 0.0
         joint_lens = {name: 0.0 for name in trajectory.joint_names}
-
         j6_idx = -1
         if exclude_j6_name and exclude_j6_name in trajectory.joint_names:
             try:
@@ -94,7 +93,6 @@ except ImportError:
                     f"Joint {exclude_j6_name} for exclusion not found in trajectory joint_names."
                 )
                 j6_idx = -1
-
         prev_positions = np.array(trajectory.points[0].positions)
         for point_idx in range(1, len(trajectory.points)):
             point = trajectory.points[point_idx]
@@ -105,27 +103,21 @@ except ImportError:
                 )
                 prev_positions = curr_positions
                 continue
-
             diff = np.abs(curr_positions - prev_positions)
             diff = np.minimum(diff, 2 * np.pi - diff)
-
             current_segment_geom_dist_sq_no_j6 = 0.0
             for i in range(len(diff)):
                 joint_lens[trajectory.joint_names[i]] += diff[i]
                 if i != j6_idx:
                     current_segment_geom_dist_sq_no_j6 += diff[i] ** 2
-
             total_len_l2_no_j6 += np.sqrt(current_segment_geom_dist_sq_no_j6)
             prev_positions = curr_positions
         return total_len_l2_no_j6, joint_lens
 
     GET_PATH_LEN_METHOD = fallback_get_path_len
 
-# Represents a single named joint configuration
 BenchmarkNamedConfig = namedtuple("BenchmarkNamedConfig", ["name", "joint_values"])
-# Represents a planning problem from a start to a goal configuration
 PlanningTask = namedtuple("PlanningTask", ["start_config", "goal_config"])
-
 PlanResult = namedtuple(
     "PlanResult",
     [
@@ -163,6 +155,8 @@ class PlannerBenchmark:
         joint_names_for_group: List[str],
         planning_timeout_sec: float = 10.0,
         trajectory_save_dir: Optional[str] = None,
+        joint_state_topic: str = "/joint_states",
+        continuous_joint_indices: Optional[List[int]] = None,
     ):
         self.node = node
         self.logger = self.node.get_logger()
@@ -174,32 +168,58 @@ class PlannerBenchmark:
         self.base_link = base_link
         self.joint_names_for_group = joint_names_for_group
         self.planning_timeout_sec = planning_timeout_sec
+        self.joint_state_topic_name = joint_state_topic
 
-        # Process the hardcoded configurations into a list of BenchmarkNamedConfig
+        if continuous_joint_indices is None:
+            self.continuous_joint_indices = []
+            default_continuous = [
+                "j2n6s200_joint_1",
+                "j2n6s200_joint_4",
+                "j2n6s200_joint_5",
+                "j2n6s200_joint_6",
+            ]
+            for i, name in enumerate(self.joint_names_for_group):
+                if name in default_continuous:
+                    self.continuous_joint_indices.append(i)
+            self.logger.info(
+                f"Auto-detected continuous joint indices (0-based for group): {self.continuous_joint_indices} for joints named {default_continuous} within {self.joint_names_for_group}"
+            )
+        else:
+            self.continuous_joint_indices = continuous_joint_indices
+            self.logger.info(
+                f"Using provided continuous joint indices: {self.continuous_joint_indices}"
+            )
+
         self.all_named_configurations = self._process_hardcoded_configurations(
             hardcoded_target_configs
         )
-
-        # Generate all planning tasks (pairs of start_config, goal_config)
         self.planning_tasks = self._generate_planning_tasks(
             self.all_named_configurations
         )
         self.num_tasks = len(self.planning_tasks)
 
-        # Results stored as: self.results[(start_name, goal_name)][planner_id]
         self.results: Dict[Tuple[str, str], Dict[str, PlanResult]] = defaultdict(
             lambda: defaultdict(dict)
         )
-        self.rate = self.node.create_rate(10)  # For plan_async timeout loop
+        self.rate = self.node.create_rate(10)
 
         self.no_roll_path_constraint_kwargs = self._get_no_roll_constraint_kwargs()
-
         self.trajectory_save_dir = trajectory_save_dir
         if self.trajectory_save_dir:
             os.makedirs(self.trajectory_save_dir, exist_ok=True)
             self.logger.info(
                 f"Successful trajectories will be saved in: {self.trajectory_save_dir}"
             )
+
+        self._latest_joint_state_msg: Optional[JointState] = None
+        self._joint_state_lock = Lock()
+        self.joint_state_sub = self.node.create_subscription(
+            JointState, self.joint_state_topic_name, self._joint_state_callback, 10
+        )
+        self.logger.info(
+            f"Subscribed to '{self.joint_state_topic_name}' for current joint state information."
+        )
+        time.sleep(0.5)
 
         self.logger.info(
             f"Benchmark initialized for group '{self.planning_group}' and EE '{self.end_effector_link}'."
@@ -211,6 +231,71 @@ class PlannerBenchmark:
         self.logger.info(
             f"Using 'no roll' constraint: Target Quat (xyzw)={self.NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ}, Tol(xyz_abs)={self.NO_ROLL_CONSTRAINT_TOLERANCE_XYZ_ABS}"
         )
+
+    def _joint_state_callback(self, msg: JointState):
+        # Check if the message contains all the joints relevant to the planning group
+        # This helps filter out partial messages (e.g., only 'robot_tilt')
+        if not self.joint_names_for_group:  # Should not happen if initialized correctly
+            return
+
+        # Create a set of names in the message for efficient lookup
+        msg_joint_names_set = set(msg.name)
+
+        # Check if all required joint names are present in the message
+        all_required_joints_present = True
+        for req_joint_name in self.joint_names_for_group:
+            if req_joint_name not in msg_joint_names_set:
+                all_required_joints_present = False
+                break
+
+        if all_required_joints_present:
+            with self._joint_state_lock:
+                self._latest_joint_state_msg = msg
+
+    def get_current_joint_positions(
+        self, timeout_sec: float = 1.0
+    ) -> Optional[Dict[str, float]]:
+        """
+        Gets the current joint positions for the planning group by reading the latest JointState message.
+        Returns a dictionary mapping joint name to position, or None if timeout or error.
+        """
+        start_time = self.node.get_clock().now()
+        latest_msg_to_process: Optional[JointState] = None
+
+        while rclpy.ok() and (self.node.get_clock().now() - start_time) < Duration(
+            seconds=timeout_sec
+        ):
+            with self._joint_state_lock:
+                if self._latest_joint_state_msg is not None:
+                    latest_msg_to_process = self._latest_joint_state_msg
+                    break
+            self.node.get_clock().sleep_for(Duration(seconds=0.02))
+
+        if latest_msg_to_process:
+            current_positions_dict: Dict[str, float] = {}
+            name_to_pos_map = {
+                name: latest_msg_to_process.position[i]
+                for i, name in enumerate(latest_msg_to_process.name)
+                if i < len(latest_msg_to_process.position)
+            }
+
+            all_planning_group_joints_found = True
+            for req_name in self.joint_names_for_group:
+                if req_name in name_to_pos_map:
+                    current_positions_dict[req_name] = name_to_pos_map[req_name]
+                else:
+                    all_planning_group_joints_found = False
+                    break
+
+            if all_planning_group_joints_found:
+                return current_positions_dict
+            else:
+                return None
+        else:
+            self.logger.warn(
+                f"Timed out or no relevant JointState message received on '{self.joint_state_topic_name}' within {timeout_sec}s for get_current_joint_positions."
+            )
+            return None
 
     def _process_hardcoded_configurations(
         self, hardcoded_configs: Dict[str, List[float]]
@@ -228,7 +313,6 @@ class PlannerBenchmark:
                 self.logger.warn(
                     f"  Skipping hardcoded config '{name}'. Expected {num_expected_joints} joint values, got {len(values) if isinstance(values, list) else type(values)}."
                 )
-
         if not configs or len(configs) < 2:
             self.logger.error(
                 f"Not enough valid named configurations provided (found {len(configs)}, need at least 2 for pair-wise tasks). Exiting."
@@ -298,11 +382,12 @@ class PlannerBenchmark:
                     "/"
                 ):
                     self.logger.warn(
-                        f"FK pose for {self.end_effector_link} is in frame '{pose_stamped_ee.header.frame_id}', "
-                        f"expected '{self.base_link}'. Ensure consistency or implement TF."
+                        f"FK pose for {self.end_effector_link} is in frame '{pose_stamped_ee.header.frame_id}', expected '{self.base_link}'."
                     )
-                q = pose_stamped_ee.pose.orientation
-                actual_ee_orientation_scipy = R.from_quat([q.x, q.y, q.z, q.w])
+                q_msg = pose_stamped_ee.pose.orientation
+                actual_ee_orientation_scipy = R.from_quat(
+                    [q_msg.x, q_msg.y, q_msg.z, q_msg.w]
+                )
                 target_quat_params = self.NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ
                 target_ee_orientation_scipy = R.from_quat(target_quat_params)
                 diff_rotation = (
@@ -321,7 +406,7 @@ class PlannerBenchmark:
                 )
             except Exception as e:
                 self.logger.error(
-                    f"Error during FK for roll deviation at point {point_idx}: {e}",
+                    f"Error during FK for roll deviation at point {point_idx}: {e}"
                 )
                 return float("inf")
         return max_abs_roll_deviation
@@ -361,7 +446,7 @@ class PlannerBenchmark:
             return filename
         except Exception as e:
             self.logger.error(
-                f"    Failed to save trajectory for {start_config_name} to {goal_config_name} ({planner_id_str}): {e}",
+                f"    Failed to save trajectory for {start_config_name} to {goal_config_name} ({planner_id_str}): {e}"
             )
             return None
 
@@ -375,13 +460,13 @@ class PlannerBenchmark:
             f"  Attempting to plan with: {planner_id_str} to GOAL: {goal_joints}"
         )
         if planner_id_str.lower() == "chomp":
-            self.moveit2_interface.planning_pipeline_id = "chomp"
+            self.moveit2_interface.pipeline_id = "chomp"
             self.moveit2_interface.planner_id = "chomp"
         elif planner_id_str.lower() == "stomp":
-            self.moveit2_interface.planning_pipeline_id = "stomp"
+            self.moveit2_interface.pipeline_id = "stomp"
             self.moveit2_interface.planner_id = ""
         else:
-            self.moveit2_interface.planning_pipeline_id = "ompl"
+            self.moveit2_interface.pipeline_id = "ompl"
             self.moveit2_interface.planner_id = planner_id_str
         self.moveit2_interface.allowed_planning_time = self.planning_timeout_sec
         self.moveit2_interface.clear_goal_constraints()
@@ -408,9 +493,7 @@ class PlannerBenchmark:
             except Exception as e:
                 self.logger.error(f"    Failed to set path orientation constraint: {e}")
         start_time_ros = self.node.get_clock().now()
-        future = self.moveit2_interface.plan_async(
-            start_joint_state=None
-        )  # None means plan from current
+        future = self.moveit2_interface.plan_async(start_joint_state=None)
         joint_trajectory_for_analysis: Optional[JointTrajectory] = None
         timeout_duration_rclpy = Duration(seconds=self.planning_timeout_sec + 2.0)
         wait_start_time_rclpy = self.node.get_clock().now()
@@ -462,26 +545,39 @@ class PlannerBenchmark:
         self.moveit2_interface.clear_goal_constraints()
         return joint_trajectory_for_analysis, elapsed_time
 
+    def _normalize_angle(self, angle: float) -> float:
+        """Normalize an angle to the range [-pi, pi]."""
+        return (angle + np.pi) % (2 * np.pi) - np.pi
+
+    def _are_angles_close(
+        self, angle1: float, angle2: float, tolerance: float, is_continuous: bool
+    ) -> bool:
+        """Checks if two angles are close, handling wrap-around for continuous joints."""
+        if is_continuous:
+            diff = self._normalize_angle(angle1 - angle2)
+            return abs(diff) <= tolerance
+        else:
+            return abs(angle1 - angle2) <= tolerance
+
     def _move_to_config_blocking(
         self,
         target_config_name: str,
         target_joints: List[float],
-        move_timeout_sec: float = 20.0,
+        verification_timeout_sec: float = 10.0,
+        verification_poll_interval_sec: float = 1.0,
+        verification_tolerance: float = 0.05,
     ):
-        """Moves the robot to a specified joint configuration and waits."""
         self.logger.info(
-            f"Attempting to move to configuration: '{target_config_name}' {target_joints}"
+            f"Attempting to move to configuration: '{target_config_name}' target values: {np.round(target_joints, 4).tolist()}"
         )
-
         original_planner = self.moveit2_interface.planner_id
         original_pipeline = self.moveit2_interface.pipeline_id
         original_timeout = self.moveit2_interface.allowed_planning_time
 
-        # Use a reliable planner for setup moves
-        self.moveit2_interface.planning_pipeline_id = "ompl"
+        self.moveit2_interface.pipeline_id = "ompl"
         self.moveit2_interface.planner_id = "RRTConnectkConfigDefault"
         self.moveit2_interface.allowed_planning_time = max(
-            5.0, self.planning_timeout_sec / 2.0
+            10.0, self.planning_timeout_sec
         )
 
         self.moveit2_interface.clear_goal_constraints()
@@ -489,47 +585,112 @@ class PlannerBenchmark:
 
         try:
             self.logger.info(
-                f"  Commanding move to '{target_config_name}' for group '{self.planning_group}'"
+                f"  Commanding move to '{target_config_name}' for group '{self.planning_group}'."
             )
-            # PyMoveIt2's move_to_configuration blocks until motion is complete or failed
             self.moveit2_interface.move_to_configuration(
                 joint_positions=target_joints,
                 joint_names=self.joint_names_for_group,
                 tolerance=0.01,
             )
-            # wait_until_executed might be part of move_to_configuration or needs to be called if plan_exec is used.
-            # For move_to_configuration, it typically blocks.
-            # We can add a small sleep or check current joint state if needed for more robustness.
-            time.sleep(1.0)
+            self.logger.info(
+                f"  Move_to_configuration for '{target_config_name}' call returned. Now verifying final settled state (timeout: {verification_timeout_sec}s)."
+            )
 
-            # Verification
-            current_joints = self.moveit2_interface.get_joint_positions()
-            if current_joints:  # TODO: Replace with actual current joint state getter
-                if not np.allclose(current_joints, target_joints, atol=0.05):
-                    self.logger.warn(
-                        f"  Post-move verification: Current joints {current_joints} not close enough to target {target_joints} for '{target_config_name}'."
+            verification_loop_start_time = self.node.get_clock().now()
+            achieved_target = False
+            last_known_joints_list_ordered_str = "N/A"
+
+            for attempt in range(
+                int(verification_timeout_sec / verification_poll_interval_sec) + 2
+            ):
+                current_joint_positions_dict = self.get_current_joint_positions(
+                    timeout_sec=0.5
+                )
+
+                if current_joint_positions_dict:
+                    current_joints_list_for_comparison = []
+                    all_names_found_in_current = True
+                    for name in self.joint_names_for_group:
+                        if name in current_joint_positions_dict:
+                            current_joints_list_for_comparison.append(
+                                current_joint_positions_dict[name]
+                            )
+                        else:
+                            all_names_found_in_current = False
+                            break
+
+                    last_known_joints_list_ordered_str = (
+                        str(np.round(current_joints_list_for_comparison, 4).tolist())
+                        if all_names_found_in_current
+                        else "Partial state"
                     )
-                else:
-                    self.logger.info(
-                        f"  Successfully moved to configuration: '{target_config_name}'."
+
+                    if all_names_found_in_current:
+                        # Perform comparison joint by joint, handling continuous joints
+                        all_joints_within_tolerance = True
+                        for j_idx, (target_val, actual_val) in enumerate(
+                            zip(target_joints, current_joints_list_for_comparison)
+                        ):
+                            is_continuous = j_idx in self.continuous_joint_indices
+                            if not self._are_angles_close(
+                                target_val,
+                                actual_val,
+                                verification_tolerance,
+                                is_continuous,
+                            ):
+                                all_joints_within_tolerance = False
+                                self.logger.info(
+                                    f"    Verification attempt {attempt + 1} for '{target_config_name}': Joint '{self.joint_names_for_group[j_idx]}' (idx {j_idx}, cont: {is_continuous}) out of tolerance. Target: {target_val:.4f}, Actual: {actual_val:.4f}, Diff: {self._normalize_angle(target_val - actual_val):.4f}"
+                                )
+                                break  # No need to check other joints if one fails
+
+                        if all_joints_within_tolerance:
+                            self.logger.info(
+                                f"  Successfully verified robot reached configuration: '{target_config_name}' on attempt {attempt + 1}."
+                            )
+                            self.logger.info(
+                                f"    Final Target: {np.round(target_joints, 4).tolist()}"
+                            )
+                            self.logger.info(
+                                f"    Final Actual: {np.round(current_joints_list_for_comparison, 4).tolist()}"
+                            )
+                            achieved_target = True
+                            break
+
+                if not rclpy.ok() or (
+                    self.node.get_clock().now() - verification_loop_start_time
+                ) >= Duration(seconds=verification_timeout_sec):
+                    if not achieved_target:
+                        self.logger.warn(
+                            f"  Verification timeout for '{target_config_name}' after {verification_timeout_sec}s."
+                        )
+                    break
+
+                if not achieved_target:
+                    self.node.get_clock().sleep_for(
+                        Duration(seconds=verification_poll_interval_sec)
                     )
-            else:
-                self.logger.info(
-                    f"  Move command to '{target_config_name}' sent. Assuming success without immediate verification."
+
+            if not achieved_target:
+                self.logger.error(
+                    f"  Failed to verify robot reached '{target_config_name}' (target: {np.round(target_joints, 4).tolist()}) "
+                    f"within {verification_timeout_sec}s verification timeout. "
+                    f"Last known state from /joint_states: {last_known_joints_list_ordered_str}"
+                )
+                raise RuntimeError(
+                    f"Failed to reach and verify start configuration '{target_config_name}'."
                 )
 
         except Exception as e:
             self.logger.error(
-                f"Failed to move to configuration '{target_config_name}': {e}"
+                f"Failed during _move_to_config_blocking for '{target_config_name}': {type(e).__name__} - {e}"
             )
-            # This is a critical failure for the benchmark structure if a start state can't be reached.
-            # Depending on desired behavior, could raise, or just log and subsequent plans might fail from wrong start.
             raise RuntimeError(
                 f"Critical failure: Could not move to start configuration '{target_config_name}'."
             ) from e
         finally:
             self.moveit2_interface.planner_id = original_planner
-            self.moveit2_interface.planning_pipeline_id = original_pipeline
+            self.moveit2_interface.pipeline_id = original_pipeline
             self.moveit2_interface.allowed_planning_time = original_timeout
 
     def move_to_initial_config(self):
@@ -539,32 +700,25 @@ class PlannerBenchmark:
         start_name = task.start_config.name
         goal_name = task.goal_config.name
         goal_joints = task.goal_config.joint_values
-
         self.logger.info(f"--- Testing Task: FROM '{start_name}' TO '{goal_name}' ---")
         self.logger.info(f"  Goal Joints: {goal_joints}")
-
         task_key = (start_name, goal_name)
-
         for planner_id_str in self.planners_to_test:
-            # Current state is assumed to be task.start_config.joint_values due to prior _move_to_config_blocking
             joint_trajectory, elapsed_time = self.plan_to_target_configuration(
                 goal_joints=goal_joints,
                 planner_id_str=planner_id_str,
                 path_constraints_kwargs_to_apply=self.no_roll_path_constraint_kwargs,
             )
-
             success = joint_trajectory is not None and bool(joint_trajectory.points)
             path_len_total, joint_path_lens_map = self._get_path_length_stats(
                 joint_trajectory
             )
             max_roll_dev = self._calculate_max_roll_deviation(joint_trajectory)
-
             trajectory_filename = None
             if success and self.trajectory_save_dir:
                 trajectory_filename = self._save_trajectory_to_file(
                     joint_trajectory, start_name, goal_name, planner_id_str
                 )
-
             self.results[task_key][planner_id_str] = PlanResult(
                 joint_trajectory,
                 elapsed_time,
@@ -574,15 +728,12 @@ class PlannerBenchmark:
                 success,
                 trajectory_filename,
             )
-
             log_msg_suffix = (
                 f"| TrajFile: {trajectory_filename}" if trajectory_filename else ""
             )
             if success:
                 self.logger.info(
-                    f"  Planner: {planner_id_str} | Success: True  | Time: {elapsed_time:.3f}s "
-                    f"| PathLen: {path_len_total if path_len_total is not None else 'N/A':.3f} "
-                    f"| MaxRollDev: {max_roll_dev if max_roll_dev is not None else 'N/A':.3f} rad {log_msg_suffix}"
+                    f"  Planner: {planner_id_str} | Success: True  | Time: {elapsed_time:.3f}s | PathLen: {path_len_total if path_len_total is not None else 'N/A':.3f} | MaxRollDev: {max_roll_dev if max_roll_dev is not None else 'N/A':.3f} rad {log_msg_suffix}"
                 )
             else:
                 self.logger.warn(
@@ -593,15 +744,20 @@ class PlannerBenchmark:
         self.logger.info(
             "=== Starting Benchmark: Moving to Initial Script Configuration ==="
         )
-        self.move_to_initial_config()
+        try:
+            self.move_to_initial_config()
+        except RuntimeError as e:
+            self.logger.error(
+                f"CRITICAL FAILURE: Could not move to initial script setup configuration. Benchmark aborted. Error: {e}"
+            )
+            # Record this major failure if needed, though the script will likely exit or not proceed.
+            return  # Abort benchmark if initial setup fails
 
         for i, planning_task in enumerate(self.planning_tasks):
             self.logger.info(
                 f"\n=== Running Planning Task {i + 1}/{self.num_tasks}: "
                 f"FROM '{planning_task.start_config.name}' TO '{planning_task.goal_config.name}' ==="
             )
-
-            # Move to the start configuration for this specific task
             try:
                 self._move_to_config_blocking(
                     planning_task.start_config.name,
@@ -611,7 +767,6 @@ class PlannerBenchmark:
                 self.logger.error(
                     f"Skipping task FROM '{planning_task.start_config.name}' TO '{planning_task.goal_config.name}' due to failure to reach start state: {e}"
                 )
-                # Optionally, record this failure in results for this task pair
                 task_key = (
                     planning_task.start_config.name,
                     planning_task.goal_config.name,
@@ -628,12 +783,10 @@ class PlannerBenchmark:
                     )
                 continue
 
-            # Now run the actual benchmarked planning for this task
             self.run_benchmark_planning_task(planning_task)
 
             if log_summary_every_n_tasks and (i + 1) % log_summary_every_n_tasks == 0:
                 self.log_summary_results()
-
         self.logger.info("=== Benchmark Run Completed ===")
 
     def get_csv_header(self) -> List[str]:
@@ -656,21 +809,14 @@ class PlannerBenchmark:
 
     def write_results_to_csv(self, filename: str):
         self.logger.info(f"Writing results to {filename}")
-
         with open(filename, "w", newline="") as f:
             import csv
 
             csv_writer = csv.writer(f)
             header = self.get_csv_header()
             csv_writer.writerow(header)
-
-            # Iterate through the planning tasks to maintain order if desired,
-            # or directly through self.results.keys()
             for task_key in sorted(self.results.keys()):
                 start_name, goal_name = task_key
-
-                # Find the original BenchmarkNamedConfig objects for start and goal
-                # This is a bit inefficient but ensures data integrity if names are unique
                 start_cfg_obj = next(
                     (c for c in self.all_named_configurations if c.name == start_name),
                     None,
@@ -679,13 +825,11 @@ class PlannerBenchmark:
                     (c for c in self.all_named_configurations if c.name == goal_name),
                     None,
                 )
-
                 if not start_cfg_obj or not goal_cfg_obj:
                     self.logger.warn(
                         f"Could not find original config objects for task key {task_key}. Skipping CSV rows for this task."
                     )
                     continue
-
                 if task_key in self.results:
                     planner_runs_for_task = self.results[task_key]
                     for planner_id_str in self.planners_to_test:
@@ -696,7 +840,6 @@ class PlannerBenchmark:
                             row.extend(map(str, start_cfg_obj.joint_values))
                             row.append(str(goal_cfg_obj.name))
                             row.extend(map(str, goal_cfg_obj.joint_values))
-
                             row.append(str(planner_id_str))
                             row.append(f"{result.elapsed_time:.4f}")
                             row.append(str(1 if result.success else 0))
@@ -715,7 +858,6 @@ class PlannerBenchmark:
                                 if result.trajectory_filename
                                 else ""
                             )
-
                             if result.joint_path_lengths:
                                 for joint_name_csv in self.joint_names_for_group:
                                     length_val = result.joint_path_lengths.get(
@@ -733,22 +875,20 @@ class PlannerBenchmark:
                             self.logger.warn(
                                 f"No result for planner '{planner_id_str}' in task '{start_name}' to '{goal_name}'. Skipping CSV row."
                             )
-
         self.logger.info(f"Results successfully written to {filename}")
 
     def log_summary_results(self):
         self.logger.info("--- BENCHMARK SUMMARY (ALL TASKS) ---")
         for planner_id_str in self.planners_to_test:
-            # Collect all results for this planner across all (start, goal) pairs
             results_for_planner = []
             for task_results_dict in self.results.values():
                 if planner_id_str in task_results_dict:
                     results_for_planner.append(task_results_dict[planner_id_str])
-
             total_plans = len(results_for_planner)
             if total_plans == 0:
-                self.logger.info(f"--- Planner: {planner_id_str} ---")
-                self.logger.info("  No plans attempted or recorded for this planner.")
+                self.logger.info(
+                    f"--- Planner: {planner_id_str} ---\n  No plans attempted or recorded for this planner."
+                )
                 continue
             successful_plans = sum(1 for r in results_for_planner if r.success)
             total_planning_time = sum(r.elapsed_time for r in results_for_planner)
@@ -815,16 +955,12 @@ class PlannerBenchmark:
         valid_data = [x for x in data if isinstance(x, (int, float)) and np.isfinite(x)]
         if not valid_data:
             return "N/A (no valid data points)"
-        return (
-            f"Mean {np.mean(valid_data):.3f}, Median {np.median(valid_data):.3f}, "
-            f"Min {np.min(valid_data):.3f}, Max {np.max(valid_data):.3f}, Std {np.std(valid_data):.3f}, "
-            f"Count {len(valid_data)}"
-        )
+        return f"Mean {np.mean(valid_data):.3f}, Median {np.median(valid_data):.3f}, Min {np.min(valid_data):.3f}, Max {np.max(valid_data):.3f}, Std {np.std(valid_data):.3f}, Count {len(valid_data)}"
 
 
 def main(output_dir_arg: Optional[str]):
     rclpy.init()
-    node = Node("planner_benchmark_pairwise_constrained")
+    node = Node("planner_benchmark_pairwise_physical_moves")
     global _LOGGER_INSTANCE
     _LOGGER_INSTANCE = node.get_logger()
     executor = rclpy.executors.MultiThreadedExecutor(2)
@@ -836,7 +972,6 @@ def main(output_dir_arg: Optional[str]):
     )
     time.sleep(5.0)
 
-    # --- Hardcoded Named Configurations (used as pool for start/goal states) ---
     hardcoded_configs = {
         "MoveAbovePlate": [
             -2.4538579336877304,
@@ -847,34 +982,19 @@ def main(output_dir_arg: Optional[str]):
             -3.2123560395465063,
         ],
         "RestingAcquireFood": [-1.94672, 2.51268, 0.35653, -4.76501, 5.99991, 4.99555],
-        "StagingConfig": [
-            -2.32526,
-            4.456298,
-            4.16769,
-            1.53262,
-            -2.18359,
-            -2.19525,
-        ],
-        "StowLocation": [
-            -1.52101,
-            2.60098,
-            0.32811,
-            -4.00012,
-            0.22831,
-            3.87886,
-        ],
+        "StagingConfig": [-2.32526, 4.456298, 4.16769, 1.53262, -2.18359, -2.19525],
+        "StowLocation": [-1.52101, 2.60098, 0.32811, -4.00012, 0.22831, 3.87886],
     }
     _LOGGER_INSTANCE.info(
         f"Using {len(hardcoded_configs)} hardcoded named configurations for generating planning tasks."
     )
 
     planners = ["RRTConnectkConfigDefault", "RRTstarkConfigDefault", "CHOMP"]
-
-    # This initial_config is for the VERY FIRST robot position before any tasks begin.
-    # It could be one of the hardcoded_configs or something else.
-    # For simplicity, let's make it the first one from hardcoded_configs if available.
-    # Or use the one previously defined.
-    initial_script_setup_config = list(hardcoded_configs.values())[0]
+    initial_script_setup_config = (
+        list(hardcoded_configs.values())[0]
+        if hardcoded_configs
+        else [0.0] * len(kinova.joint_names())
+    )
 
     planning_group_name = "jaco_arm"
     ee_link_name = "j2n6s200_end_effector"
@@ -887,7 +1007,7 @@ def main(output_dir_arg: Optional[str]):
         os.makedirs(base_output_dir)
         _LOGGER_INSTANCE.info(f"Created base output directory: {base_output_dir}")
     trajectory_save_location = os.path.join(
-        base_output_dir, "saved_trajectories_pairwise"
+        base_output_dir, "saved_trajectories_pairwise_physical"
     )
 
     callback_group = ReentrantCallbackGroup()
@@ -918,13 +1038,13 @@ def main(output_dir_arg: Optional[str]):
         joint_names_for_group=group_joint_names,
         planning_timeout_sec=planning_timeout,
         trajectory_save_dir=trajectory_save_location,
+        joint_state_topic="/joint_states",
     )
 
     try:
         num_total_tasks = benchmark_runner.num_tasks
-        log_interval = max(1, num_total_tasks // 5)
+        log_interval = max(1, num_total_tasks // 5 if num_total_tasks > 0 else 1)
         benchmark_runner.run_all_tests(log_summary_every_n_tasks=log_interval)
-
         if not os.path.exists(base_output_dir) and base_output_dir != ".":
             os.makedirs(base_output_dir)
             _LOGGER_INSTANCE.info(
@@ -932,15 +1052,13 @@ def main(output_dir_arg: Optional[str]):
             )
         elif base_output_dir == "." and not os.path.exists(base_output_dir):
             os.makedirs(base_output_dir)
-
         csv_filename = os.path.join(
             base_output_dir,
             datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            + "_pairwise_constrained_benchmark.csv",
+            + "_pairwise_physical_benchmark.csv",
         )
         benchmark_runner.write_results_to_csv(csv_filename)
         benchmark_runner.log_summary_results()
-
     except Exception as e:
         _LOGGER_INSTANCE.error(f"Benchmark run failed: {e}")
     finally:
