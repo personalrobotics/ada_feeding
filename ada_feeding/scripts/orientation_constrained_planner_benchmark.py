@@ -566,6 +566,7 @@ class PlannerBenchmark:
         verification_timeout_sec: float = 10.0,
         verification_poll_interval_sec: float = 1.0,
         verification_tolerance: float = 0.05,
+        max_move_attempts: int = 3,
     ):
         self.logger.info(
             f"Attempting to move to configuration: '{target_config_name}' target values: {np.round(target_joints, 4).tolist()}"
@@ -574,59 +575,87 @@ class PlannerBenchmark:
         original_pipeline = self.moveit2_interface.pipeline_id
         original_timeout = self.moveit2_interface.allowed_planning_time
 
+        # Use a reliable planner for unconstrained moves
         self.moveit2_interface.pipeline_id = "ompl"
-        self.moveit2_interface.planner_id = "RRTConnectkConfigDefault"
+        # Consider making this configurable if needed, or even a list of planners to try
+        unconstrained_move_planner_id = "RRTConnectkConfigDefault"
+        self.moveit2_interface.planner_id = unconstrained_move_planner_id
+        # Ensure a reasonable timeout for these critical setup moves
         self.moveit2_interface.allowed_planning_time = max(
             10.0, self.planning_timeout_sec
         )
 
-        self.moveit2_interface.clear_goal_constraints()
-        self.moveit2_interface.clear_path_constraints()
+        achieved_target = False
+        last_known_joints_list_ordered_str = "N/A"
+        last_exception_detail = "No attempts made or error prior to first attempt."
 
-        try:
+        for attempt in range(max_move_attempts):
             self.logger.info(
-                f"  Commanding move to '{target_config_name}' for group '{self.planning_group}'."
+                f"Move attempt {attempt + 1}/{max_move_attempts} to '{target_config_name}' using planner '{unconstrained_move_planner_id}'."
             )
-            self.moveit2_interface.move_to_configuration(
-                joint_positions=target_joints,
-                joint_names=self.joint_names_for_group,
-                tolerance=0.01,
-            )
-            self.logger.info(
-                f"  Move_to_configuration for '{target_config_name}' call returned. Now verifying final settled state (timeout: {verification_timeout_sec}s)."
-            )
+            try:
+                self.moveit2_interface.clear_goal_constraints()
+                self.moveit2_interface.clear_path_constraints()
 
-            verification_loop_start_time = self.node.get_clock().now()
-            achieved_target = False
-            last_known_joints_list_ordered_str = "N/A"
-
-            for attempt in range(
-                int(verification_timeout_sec / verification_poll_interval_sec) + 2
-            ):
-                current_joint_positions_dict = self.get_current_joint_positions(
-                    timeout_sec=0.5
+                # Command the move
+                self.logger.info(
+                    f"  Commanding move_to_configuration for '{target_config_name}' (attempt {attempt + 1})."
+                )
+                # move_to_configuration can raise an exception if planning fails or execution is controller-aborted.
+                # It is a blocking call.
+                self.moveit2_interface.move_to_configuration(
+                    joint_positions=target_joints,
+                    joint_names=self.joint_names_for_group,
+                    tolerance=0.01,
+                )
+                self.logger.info(
+                    f"  Move_to_configuration call for '{target_config_name}' (attempt {attempt + 1}) completed by MoveIt2. "
+                    f"Now verifying final settled state (timeout: {verification_timeout_sec}s)."
                 )
 
-                if current_joint_positions_dict:
-                    current_joints_list_for_comparison = []
-                    all_names_found_in_current = True
-                    for name in self.joint_names_for_group:
-                        if name in current_joint_positions_dict:
-                            current_joints_list_for_comparison.append(
-                                current_joint_positions_dict[name]
-                            )
-                        else:
-                            all_names_found_in_current = False
-                            break
+                # Verification loop
+                verification_loop_start_time = self.node.get_clock().now()
+                achieved_target_this_attempt = False
 
-                    last_known_joints_list_ordered_str = (
-                        str(np.round(current_joints_list_for_comparison, 4).tolist())
-                        if all_names_found_in_current
-                        else "Partial state"
+                num_verification_checks = max(
+                    2,
+                    int(verification_timeout_sec / verification_poll_interval_sec) + 1,
+                )
+
+                for verify_idx in range(num_verification_checks):
+                    current_joint_positions_dict = self.get_current_joint_positions(
+                        timeout_sec=0.5
                     )
 
-                    if all_names_found_in_current:
-                        # Perform comparison joint by joint, handling continuous joints
+                    if current_joint_positions_dict:
+                        current_joints_list_for_comparison = []
+                        all_names_found_in_current = True
+                        for name in self.joint_names_for_group:
+                            if name in current_joint_positions_dict:
+                                current_joints_list_for_comparison.append(
+                                    current_joint_positions_dict[name]
+                                )
+                            else:
+                                all_names_found_in_current = False
+                                self.logger.warn(
+                                    f"    Verification (attempt {attempt + 1}, check {verify_idx + 1}): Missing joint '{name}' in current joint state."
+                                )
+                                break
+
+                        if not all_names_found_in_current:
+                            last_known_joints_list_ordered_str = (
+                                "Partial joint state received"
+                            )
+                            # Give a small pause and try next verification check
+                            self.node.get_clock().sleep_for(
+                                Duration(seconds=verification_poll_interval_sec)
+                            )
+                            continue
+
+                        last_known_joints_list_ordered_str = str(
+                            np.round(current_joints_list_for_comparison, 4).tolist()
+                        )
+
                         all_joints_within_tolerance = True
                         for j_idx, (target_val, actual_val) in enumerate(
                             zip(target_joints, current_joints_list_for_comparison)
@@ -639,14 +668,20 @@ class PlannerBenchmark:
                                 is_continuous,
                             ):
                                 all_joints_within_tolerance = False
-                                self.logger.info(
-                                    f"    Verification attempt {attempt + 1} for '{target_config_name}': Joint '{self.joint_names_for_group[j_idx]}' (idx {j_idx}, cont: {is_continuous}) out of tolerance. Target: {target_val:.4f}, Actual: {actual_val:.4f}, Diff: {self._normalize_angle(target_val - actual_val):.4f}"
-                                )
-                                break  # No need to check other joints if one fails
+                                # Log less frequently during verification to avoid spam, but ensure important info is logged
+                                if (
+                                    verify_idx % 5 == 0
+                                    or verify_idx == num_verification_checks - 1
+                                    or verification_timeout_sec < 2.0
+                                ):
+                                    self.logger.info(
+                                        f"    Verification (attempt {attempt + 1}, check {verify_idx + 1}) for '{target_config_name}': Joint '{self.joint_names_for_group[j_idx]}' (idx {j_idx}, cont: {is_continuous}) out of tolerance. Target: {target_val:.4f}, Actual: {actual_val:.4f}, NormDiff: {self._normalize_angle(target_val - actual_val):.4f}, RawDiff: {(target_val - actual_val):.4f}"
+                                    )
+                                break
 
                         if all_joints_within_tolerance:
                             self.logger.info(
-                                f"  Successfully verified robot reached configuration: '{target_config_name}' on attempt {attempt + 1}."
+                                f"  Successfully verified robot reached configuration: '{target_config_name}' on move attempt {attempt + 1}, verification check {verify_idx + 1}."
                             )
                             self.logger.info(
                                 f"    Final Target: {np.round(target_joints, 4).tolist()}"
@@ -655,43 +690,84 @@ class PlannerBenchmark:
                                 f"    Final Actual: {np.round(current_joints_list_for_comparison, 4).tolist()}"
                             )
                             achieved_target = True
+                            achieved_target_this_attempt = True
                             break
-
-                if not rclpy.ok() or (
-                    self.node.get_clock().now() - verification_loop_start_time
-                ) >= Duration(seconds=verification_timeout_sec):
-                    if not achieved_target:
-                        self.logger.warn(
-                            f"  Verification timeout for '{target_config_name}' after {verification_timeout_sec}s."
+                    else:
+                        last_known_joints_list_ordered_str = (
+                            "No joint states received for this check."
                         )
+                        self.logger.warn(
+                            f"    Verification (attempt {attempt + 1}, check {verify_idx + 1}): No relevant JointState message received."
+                        )
+
+                    # Check for overall verification timeout for this attempt
+                    if not rclpy.ok() or (
+                        self.node.get_clock().now() - verification_loop_start_time
+                    ) >= Duration(seconds=verification_timeout_sec):
+                        if not achieved_target_this_attempt:
+                            self.logger.warn(
+                                f"  Verification timeout for '{target_config_name}' on move attempt {attempt + 1} after {verification_timeout_sec}s of polling."
+                            )
+                        break
+
+                    if not achieved_target_this_attempt:
+                        self.node.get_clock().sleep_for(
+                            Duration(seconds=verification_poll_interval_sec)
+                        )
+
+                if achieved_target:
                     break
 
-                if not achieved_target:
-                    self.node.get_clock().sleep_for(
-                        Duration(seconds=verification_poll_interval_sec)
+                # If verification failed for this attempt (either by joints out of tolerance or timeout)
+                if not achieved_target_this_attempt:
+                    self.logger.warn(
+                        f"  Move attempt {attempt + 1} to '{target_config_name}' seemed to complete motion, but verification failed. "
+                        f"Last known state during verification: {last_known_joints_list_ordered_str}"
                     )
+                    last_exception_detail = f"Verification failed after move_to_configuration call. Last state: {last_known_joints_list_ordered_str}"
 
-            if not achieved_target:
+            except Exception as e:
+                self.logger.warn(
+                    f"  Move attempt {attempt + 1}/{max_move_attempts} to '{target_config_name}' failed directly during move_to_configuration. Error: {type(e).__name__} - {e}"
+                )
+                last_exception_detail = (
+                    f"Error in move_to_configuration: {type(e).__name__} - {e}"
+                )
+
+            if achieved_target:
+                break
+
+            # If this was the last attempt and still not achieved
+            if attempt == max_move_attempts - 1:
                 self.logger.error(
-                    f"  Failed to verify robot reached '{target_config_name}' (target: {np.round(target_joints, 4).tolist()}) "
-                    f"within {verification_timeout_sec}s verification timeout. "
-                    f"Last known state from /joint_states: {last_known_joints_list_ordered_str}"
+                    f"All {max_move_attempts} attempts to move to '{target_config_name}' have been exhausted and failed."
                 )
-                raise RuntimeError(
-                    f"Failed to reach and verify start configuration '{target_config_name}'."
+            # The final error will be raised outside the loop if achieved_target is still False
+            elif not achieved_target:
+                self.logger.info(
+                    f"  Pausing briefly before retry for '{target_config_name}'."
                 )
+                self.node.get_clock().sleep_for(Duration(seconds=1.5))
 
-        except Exception as e:
+        # Restore original MoveIt2 settings AFTER all attempts
+        self.moveit2_interface.planner_id = original_planner
+        self.moveit2_interface.pipeline_id = original_pipeline
+        self.moveit2_interface.allowed_planning_time = original_timeout
+
+        if not achieved_target:
             self.logger.error(
-                f"Failed during _move_to_config_blocking for '{target_config_name}': {type(e).__name__} - {e}"
+                f"CRITICAL: Failed to move AND verify robot reached '{target_config_name}' (target: {np.round(target_joints, 4).tolist()}) "
+                f"after {max_move_attempts} attempts. "
+                f"Last known state from /joint_states (during last verification): {last_known_joints_list_ordered_str}. "
+                f"Detail of last failure: {last_exception_detail}"
             )
             raise RuntimeError(
-                f"Critical failure: Could not move to start configuration '{target_config_name}'."
-            ) from e
-        finally:
-            self.moveit2_interface.planner_id = original_planner
-            self.moveit2_interface.pipeline_id = original_pipeline
-            self.moveit2_interface.allowed_planning_time = original_timeout
+                f"Failed to reach and verify start configuration '{target_config_name}' after {max_move_attempts} attempts. Last failure detail: {last_exception_detail}"
+            )
+        # If loop finished and achieved_target is True, then the move was successful.
+        self.logger.info(
+            f"Successfully moved to and verified configuration '{target_config_name}'."
+        )
 
     def move_to_initial_config(self):
         self._move_to_config_blocking("InitialScriptSetup", self.initial_joint_config)
