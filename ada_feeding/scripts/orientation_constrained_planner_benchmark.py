@@ -5,7 +5,7 @@
 """
 This script is used to benchmark planner performance for reaching
 pre-defined joint configurations while enforcing a path-wide orientation
-constraint on the end-effector.
+constraint on the end-effector. It now also saves successful trajectories.
 """
 
 # Standard imports
@@ -16,8 +16,7 @@ import sys
 import time
 from threading import Thread, Lock
 from typing import Optional, List, Dict, Tuple, Any
-
-# import yaml # Not strictly needed if hardcoding configs, but good for future
+import json
 
 # Third-party imports
 import numpy as np
@@ -32,6 +31,7 @@ from geometry_msgs.msg import Quaternion, PoseStamped
 import moveit_msgs.msg
 from sensor_msgs.msg import JointState
 from scipy.spatial.transform import Rotation as R
+from rosidl_runtime_py import message_to_ordereddict
 
 # --- Logging and Path Length Utility ---
 _LOGGER_INSTANCE = None
@@ -129,13 +129,23 @@ PlanResult = namedtuple(
         "joint_path_lengths",
         "max_roll_deviation",
         "success",
+        "trajectory_filename",
     ],
 )
 
 
 class PlannerBenchmark:
-    NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ = (0.5, 0.5, 0.5, 0.5)
-    NO_ROLL_CONSTRAINT_TOLERANCE_XYZ_ABS = (np.pi * 1.99, np.pi * 1.99, np.pi * 1.0)
+    NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ = (
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+    )
+    NO_ROLL_CONSTRAINT_TOLERANCE_XYZ_ABS = (
+        np.pi * 1.99,
+        np.pi * 1.99,
+        np.deg2rad(90.0),
+    )
     NO_ROLL_CONSTRAINT_WEIGHT = 1.0
     NO_ROLL_PARAMETERIZATION = 0
 
@@ -143,8 +153,7 @@ class PlannerBenchmark:
         self,
         node: Node,
         moveit2_interface: MoveIt2,
-        # target_configs_yaml_path: str, # Removing YAML path for now
-        hardcoded_target_configs: Dict[str, List[float]],  # New argument
+        hardcoded_target_configs: Dict[str, List[float]],
         planners_to_test: List[str],
         initial_joint_config: List[float],
         planning_group: str,
@@ -152,6 +161,7 @@ class PlannerBenchmark:
         base_link: str,
         joint_names_for_group: List[str],
         planning_timeout_sec: float = 10.0,
+        trajectory_save_dir: Optional[str] = None,
     ):
         self.node = node
         self.logger = self.node.get_logger()
@@ -173,6 +183,13 @@ class PlannerBenchmark:
         self.rate = self.node.create_rate(10)
 
         self.no_roll_path_constraint_kwargs = self._get_no_roll_constraint_kwargs()
+
+        self.trajectory_save_dir = trajectory_save_dir
+        if self.trajectory_save_dir:
+            os.makedirs(self.trajectory_save_dir, exist_ok=True)
+            self.logger.info(
+                f"Successful trajectories will be saved in: {self.trajectory_save_dir}"
+            )
 
         self.logger.info(
             f"Benchmark initialized for group '{self.planning_group}' and EE '{self.end_effector_link}'."
@@ -209,7 +226,6 @@ class PlannerBenchmark:
         return configs
 
     def _get_no_roll_constraint_kwargs(self) -> Dict[str, Any]:
-        # Returns kwargs for self.moveit2_interface.set_path_orientation_constraint
         return {
             "quat_xyzw": Quaternion(
                 x=self.NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ[0],
@@ -219,9 +235,9 @@ class PlannerBenchmark:
             ),
             "frame_id": self.base_link,
             "target_link": self.end_effector_link,
-            "tolerance": self.NO_ROLL_CONSTRAINT_TOLERANCE_XYZ_ABS,  # Tuple (x,y,z)
+            "tolerance": self.NO_ROLL_CONSTRAINT_TOLERANCE_XYZ_ABS,
             "weight": self.NO_ROLL_CONSTRAINT_WEIGHT,
-            "parameterization": self.NO_ROLL_PARAMETERIZATION,  # As used in ada_feeding OrientationConstraint
+            "parameterization": self.NO_ROLL_PARAMETERIZATION,
         }
 
     def _calculate_max_roll_deviation(
@@ -270,24 +286,50 @@ class PlannerBenchmark:
                     )
 
                 q = pose_stamped_ee.pose.orientation
-                orientation_scipy = R.from_quat([q.x, q.y, q.z, q.w])
 
-                # Target "no roll" orientation is identity w.r.t base_link.
-                # Tolerances NO_ROLL_CONSTRAINT_TOLERANCE_XYZ_ABS are (tol_ee_x, tol_ee_y, tol_ee_z_roll)
-                # applied to the EE frame's axes relative to this identity orientation.
-                # Euler angles of the EE frame w.r.t. base_link directly give deviations.
-                # If NO_ROLL_CONSTRAINT_TOLERANCE_XYZ_ABS[2] (index 2) is for roll around Z-axis of EE (when aligned):
-                euler_angles_xyz = orientation_scipy.as_euler("xyz", degrees=False)
-                current_z_axis_rotation_of_ee_wrt_base = euler_angles_xyz[2]
+                # Convert the actual EE orientation to SciPy Rotation
+                actual_ee_orientation_scipy = R.from_quat([q.x, q.y, q.z, q.w])
 
-                deviation = current_z_axis_rotation_of_ee_wrt_base
-                while deviation > np.pi:
-                    deviation -= 2 * np.pi
-                while deviation < -np.pi:
-                    deviation += 2 * np.pi
+                # Convert the target "no roll" orientation (defined by NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ)
+                # to SciPy Rotation. This quaternion is already w.r.t. base_link.
+                target_quat_params = self.NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ
+                target_ee_orientation_scipy = R.from_quat(target_quat_params)
 
-                abs_deviation = abs(deviation)
-                max_abs_roll_deviation = max(max_abs_roll_deviation, abs_deviation)
+                # Calculate the rotational difference: R_diff = R_target_inv * R_actual
+                # This R_diff represents the rotation needed to get from target to actual.
+                # Its Euler angles (especially around the Z-axis of the *target* frame)
+                # can indicate roll deviation.
+                diff_rotation = (
+                    target_ee_orientation_scipy.inv() * actual_ee_orientation_scipy
+                )
+
+                # Get Euler angles of this difference. The Z-angle of this difference,
+                # if using 'xyz' for example, would represent the roll *after* aligning X and Y.
+                # Choose an Euler sequence that makes sense for your definition of "roll".
+                # 'zyx' is common, where the first angle (z) is yaw, second (y) is pitch, third (x) is roll.
+                # If your constraint is primarily about the EE's Z-axis pointing, then 'xyz' might be more intuitive
+                # where the last angle (z) is the rotation around the new Z axis.
+                # For this 'no roll' constraint, we are interested in rotation around the target EE's Z-axis.
+                # Let's use the target frame's Z-axis as the roll axis.
+                # Euler angles of R_diff in target frame's basis:
+                euler_angles_of_diff_in_target_basis = diff_rotation.as_euler(
+                    "xyz", degrees=False
+                )  # or 'ZYX', etc.
+
+                # The roll deviation would be the rotation around the axis that corresponds to "roll"
+                # in your chosen Euler sequence. For 'xyz', euler_angles_of_diff_in_target_basis[2] is about the new Z.
+                # This should correspond to the Z-axis of the `NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ`
+                current_roll_deviation = euler_angles_of_diff_in_target_basis[2]
+
+                # Normalize to [-pi, pi]
+                while current_roll_deviation > np.pi:
+                    current_roll_deviation -= 2 * np.pi
+                while current_roll_deviation < -np.pi:
+                    current_roll_deviation += 2 * np.pi
+
+                max_abs_roll_deviation = max(
+                    max_abs_roll_deviation, abs(current_roll_deviation)
+                )
 
             except Exception as e:
                 self.logger.error(
@@ -308,6 +350,32 @@ class PlannerBenchmark:
         )
         return GET_PATH_LEN_METHOD(trajectory)
 
+    def _save_trajectory_to_file(
+        self, trajectory: JointTrajectory, condition_name: str, planner_id_str: str
+    ) -> Optional[str]:
+        if not self.trajectory_save_dir:
+            return None
+
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+            # Sanitize condition_name and planner_id_str for filename
+            safe_condition_name = condition_name.replace(" ", "_").replace("/", "_")
+            safe_planner_id_str = planner_id_str.replace(" ", "_").replace("/", "_")
+
+            filename = f"{safe_condition_name}_{safe_planner_id_str}_{timestamp}.json"
+            filepath = os.path.join(self.trajectory_save_dir, filename)
+
+            traj_dict = message_to_ordereddict(trajectory)
+            with open(filepath, "w") as f:
+                json.dump(traj_dict, f, indent=2)
+            self.logger.info(f"    Successfully saved trajectory to: {filepath}")
+            return filename
+        except Exception as e:
+            self.logger.error(
+                f"    Failed to save trajectory for {condition_name} ({planner_id_str}): {e}",
+            )
+            return None
+
     def plan_to_target_configuration(
         self,
         goal_joints: List[float],
@@ -318,7 +386,6 @@ class PlannerBenchmark:
             f"  Attempting to plan with: {planner_id_str} to {goal_joints}"
         )
 
-        # 1. Set planner_id and pipeline_id on self.moveit2_interface
         if planner_id_str.lower() == "chomp":
             self.moveit2_interface.planning_pipeline_id = "chomp"
             self.moveit2_interface.planner_id = "chomp"
@@ -331,24 +398,21 @@ class PlannerBenchmark:
 
         self.moveit2_interface.allowed_planning_time = self.planning_timeout_sec
 
-        # 2. Clear previous constraints and set new ones
         self.moveit2_interface.clear_goal_constraints()
         self.moveit2_interface.clear_path_constraints()
 
-        # --- Set the Joint Space Goal ---
         try:
             self.moveit2_interface.set_joint_goal(
                 joint_positions=goal_joints,
                 joint_names=self.joint_names_for_group,
-                tolerance=0.01,  # Example tolerance, adjust as needed
-                weight=1.0,  # Example weight, adjust as needed
+                tolerance=0.01,
+                weight=1.0,
             )
             self.logger.info(f"    Set joint goal for {planner_id_str}.")
         except Exception as e:
             self.logger.error(f"    Failed to set joint goal: {e}")
             return None, 0.0
 
-        # 3. Apply the path_constraints (if any)
         if path_constraints_kwargs_to_apply:
             try:
                 self.moveit2_interface.set_path_orientation_constraint(
@@ -359,22 +423,11 @@ class PlannerBenchmark:
                 )
             except Exception as e:
                 self.logger.error(f"    Failed to set path orientation constraint: {e}")
-                # Optionally, you might decide to not proceed if constraint setting fails
-                # return None, 0.0
 
-        # 4. Call the general planning method
         start_time_ros = self.node.get_clock().now()
-
-        # plan_async() plans to the goals and with the path constraints previously set.
-        # start_joint_state=None means plan from the current state known to MoveIt2.
         future = self.moveit2_interface.plan_async(start_joint_state=None)
-
         joint_trajectory_for_analysis: Optional[JointTrajectory] = None
-
-        # 5. Handle asynchronous result and timeout
-        timeout_duration_rclpy = Duration(
-            seconds=self.planning_timeout_sec + 2.0
-        )  # Add a small buffer
+        timeout_duration_rclpy = Duration(seconds=self.planning_timeout_sec + 2.0)
         wait_start_time_rclpy = self.node.get_clock().now()
 
         while rclpy.ok() and not future.done():
@@ -399,13 +452,10 @@ class PlannerBenchmark:
                     plan_result_srv_response.motion_plan_response.error_code.val
                     == moveit_msgs.msg.MoveItErrorCodes.SUCCESS
                 ):
-                    # Extract the JointTrajectory from the RobotTrajectory
                     trajectory_msg = (
                         plan_result_srv_response.motion_plan_response.trajectory
                     )
-                    if (
-                        trajectory_msg and trajectory_msg.joint_trajectory.points
-                    ):  # Check if it has points
+                    if trajectory_msg and trajectory_msg.joint_trajectory.points:
                         joint_trajectory_for_analysis = trajectory_msg.joint_trajectory
                         self.logger.info(f"    Planner {planner_id_str} succeeded.")
                     else:
@@ -426,11 +476,8 @@ class PlannerBenchmark:
             )
 
         elapsed_time = (self.node.get_clock().now() - start_time_ros).nanoseconds / 1e9
-
-        # 6. Clear path constraints (and goal constraints, though new goals will override)
         self.moveit2_interface.clear_path_constraints()
-        self.moveit2_interface.clear_goal_constraints()  # Good practice
-
+        self.moveit2_interface.clear_goal_constraints()
         return joint_trajectory_for_analysis, elapsed_time
 
     def move_to_initial_config(self):
@@ -451,7 +498,7 @@ class PlannerBenchmark:
         try:
             self.logger.info(
                 f"    Commanding move to configuration with {len(self.initial_joint_config)} joints for group '{self.planning_group}'"
-            )  # Use self.planning_group
+            )
             self.moveit2_interface.move_to_configuration(
                 joint_positions=self.initial_joint_config,
                 joint_names=self.joint_names_for_group,
@@ -463,48 +510,57 @@ class PlannerBenchmark:
             raise
         finally:
             self.moveit2_interface.planner_id = original_planner
-            self.moveit2_interface.pipeline_id = original_pipeline
+            self.moveit2_interface.planning_pipeline_id = original_pipeline
             self.moveit2_interface.allowed_planning_time = original_timeout
 
-    def run_benchmark_condition(
-        self, condition: BenchmarkCondition
-    ):  # Renamed from run_condition
+    def run_benchmark_condition(self, condition: BenchmarkCondition):
         self.logger.info(f"--- Testing Configuration: {condition.name} ---")
         self.logger.info(f"  Target Joints: {condition.joint_values}")
 
         for planner_id_str in self.planners_to_test:
-            trajectory, elapsed_time = self.plan_to_target_configuration(
+            joint_trajectory, elapsed_time = self.plan_to_target_configuration(
                 goal_joints=condition.joint_values,
                 planner_id_str=planner_id_str,
                 path_constraints_kwargs_to_apply=self.no_roll_path_constraint_kwargs,
             )
 
-            success = trajectory is not None and bool(trajectory.points)
+            success = joint_trajectory is not None and bool(joint_trajectory.points)
             path_len_total, joint_path_lens_map = self._get_path_length_stats(
-                trajectory
+                joint_trajectory
             )
-            max_roll_dev = self._calculate_max_roll_deviation(trajectory)
+            max_roll_dev = self._calculate_max_roll_deviation(joint_trajectory)
+
+            trajectory_filename = None
+            if success and self.trajectory_save_dir:
+                trajectory_filename = self._save_trajectory_to_file(
+                    joint_trajectory, condition.name, planner_id_str
+                )
 
             if condition.name not in self.results:
                 self.results[condition.name] = {}
 
             self.results[condition.name][planner_id_str] = PlanResult(
-                trajectory,
+                joint_trajectory,
                 elapsed_time,
                 path_len_total,
                 joint_path_lens_map,
                 max_roll_dev,
                 success,
+                trajectory_filename,
+            )
+
+            log_msg_suffix = (
+                f"| TrajFile: {trajectory_filename}" if trajectory_filename else ""
             )
             if success:
                 self.logger.info(
                     f"  Planner: {planner_id_str} | Success: True  | Time: {elapsed_time:.3f}s "
                     f"| PathLen: {path_len_total if path_len_total is not None else 'N/A':.3f} "
-                    f"| MaxRollDev: {max_roll_dev if max_roll_dev is not None else 'N/A':.3f}"
+                    f"| MaxRollDev: {max_roll_dev if max_roll_dev is not None else 'N/A':.3f} rad {log_msg_suffix}"
                 )
             else:
                 self.logger.warn(
-                    f"  Planner: {planner_id_str} | Success: False | Time: {elapsed_time:.3f}s"
+                    f"  Planner: {planner_id_str} | Success: False | Time: {elapsed_time:.3f}s {log_msg_suffix}"
                 )
 
     def run_all_tests(self, log_summary_every_n_conditions: Optional[int] = None):
@@ -535,6 +591,7 @@ class PlannerBenchmark:
                 "success",
                 "path_length_total",
                 "max_roll_deviation_rad",
+                "trajectory_filename",
             ]
         )
         header.extend([f"path_length_{name}" for name in self.joint_names_for_group])
@@ -573,6 +630,11 @@ class PlannerBenchmark:
                             row.append(
                                 f"{result.max_roll_deviation:.4f}"
                                 if result.max_roll_deviation is not None
+                                else ""
+                            )
+                            row.append(
+                                result.trajectory_filename
+                                if result.trajectory_filename
                                 else ""
                             )
 
@@ -671,11 +733,11 @@ class PlannerBenchmark:
             ]
             if valid_roll_deviations:
                 self.logger.info(
-                    f"  Max Roll Deviations (successful plans): {PlannerBenchmark._summary_stats_str(valid_roll_deviations)}"
+                    f"  Max Roll Deviations (rad, successful plans): {PlannerBenchmark._summary_stats_str(valid_roll_deviations)}"
                 )
             else:
                 self.logger.info(
-                    "  Max Roll Deviations (successful plans): N/A (or all FK failed/no valid deviations)"
+                    "  Max Roll Deviations (rad, successful plans): N/A (or all FK failed/no valid deviations)"
                 )
         self.logger.info("-------------------------")
 
@@ -697,7 +759,6 @@ def main(output_dir_arg: Optional[str]):
     rclpy.init()
     node = Node("planner_benchmark_joint_config_constrained")
 
-    # Set global logger instance once node is created
     global _LOGGER_INSTANCE
     _LOGGER_INSTANCE = node.get_logger()
 
@@ -711,8 +772,6 @@ def main(output_dir_arg: Optional[str]):
     )
     time.sleep(5.0)
 
-    # --- Hardcoded Target Configurations ---
-    # (Values taken from your YAML structure for j2n6s200 - 6 joints)
     hardcoded_targets = {
         "MoveAbovePlate": [
             -2.4538579336877304,
@@ -730,7 +789,7 @@ def main(output_dir_arg: Optional[str]):
             -4.76501,
             5.99991,
             4.99555,
-        ],  # Same as AcquireFood resting
+        ],
         "MoveToStagingConfiguration": [
             -2.32526,
             4.456298,
@@ -738,12 +797,16 @@ def main(output_dir_arg: Optional[str]):
             1.53262,
             -2.18359,
             -2.19525,
-        ],  # "Shorter" version from your YAML
+        ],
         "MoveToStowLocation": [-1.52101, 2.60098, 0.32811, -4.00012, 0.22831, 3.87886],
     }
-    # --- End Hardcoded ---
+    _LOGGER_INSTANCE.info("Using hardcoded target configurations.")
 
-    planners = ["RRTConnectkConfigDefault", "RRTstarkConfigDefault", "chomp"]
+    planners = [
+        "RRTConnectkConfigDefault",
+        "RRTstarkConfigDefault",
+        "CHOMP",
+    ]
     initial_config = [
         -2.4538579336877304,
         3.07974419938212,
@@ -758,6 +821,15 @@ def main(output_dir_arg: Optional[str]):
     group_joint_names = kinova.joint_names()
     planning_timeout = 15.0
 
+    # --- Trajectory Save Directory ---
+    base_output_dir = output_dir_arg if output_dir_arg else "."
+    # Create the base output directory here if it's specified and doesn't exist
+    if output_dir_arg and not os.path.exists(base_output_dir):
+        os.makedirs(base_output_dir)
+        _LOGGER_INSTANCE.info(f"Created base output directory: {base_output_dir}")
+
+    trajectory_save_location = os.path.join(base_output_dir, "saved_trajectories")
+
     callback_group = ReentrantCallbackGroup()
     moveit2_interface = MoveIt2(
         node=node,
@@ -767,7 +839,6 @@ def main(output_dir_arg: Optional[str]):
         group_name=planning_group_name,
         callback_group=callback_group,
     )
-    # Set defaults on the interface object
     moveit2_interface.allowed_planning_time = planning_timeout
     moveit2_interface.max_velocity_scaling_factor = 0.5
     moveit2_interface.max_acceleration_scaling_factor = 0.5
@@ -778,7 +849,6 @@ def main(output_dir_arg: Optional[str]):
     benchmark_runner = PlannerBenchmark(
         node=node,
         moveit2_interface=moveit2_interface,
-        # target_configs_yaml_path=target_configs_yaml, # Using hardcoded now
         hardcoded_target_configs=hardcoded_targets,
         planners_to_test=planners,
         initial_joint_config=initial_config,
@@ -787,18 +857,23 @@ def main(output_dir_arg: Optional[str]):
         base_link=base_link_name,
         joint_names_for_group=group_joint_names,
         planning_timeout_sec=planning_timeout,
+        trajectory_save_dir=trajectory_save_location,
     )
 
     try:
         benchmark_runner.run_all_tests(log_summary_every_n_conditions=1)
 
-        output_dir_to_use = output_dir_arg if output_dir_arg else "."
-        if not os.path.exists(output_dir_to_use):
-            os.makedirs(output_dir_to_use)
-            _LOGGER_INSTANCE.info(f"Created output directory: {output_dir_to_use}")
+        # Ensure base_output_dir exists before writing CSV
+        if not os.path.exists(base_output_dir) and base_output_dir != ".":
+            os.makedirs(base_output_dir)
+            _LOGGER_INSTANCE.info(
+                f"Created output directory for CSV: {base_output_dir}"
+            )
+        elif base_output_dir == "." and not os.path.exists(base_output_dir):
+            os.makedirs(base_output_dir)
 
         csv_filename = os.path.join(
-            output_dir_to_use,
+            base_output_dir,
             datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             + "_joint_config_constrained_benchmark.csv",
         )
