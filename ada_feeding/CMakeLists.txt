@@ -38,6 +38,7 @@ install(PROGRAMS
   scripts/joint_state_latency.py
   scripts/planner_benchmark.py
   scripts/orientation_constrained_planner_benchmark.py
+  scripts/visualize_trajectory.py
   scripts/robot_state_service.py
   scripts/save_image.py
   DESTINATION lib/${PROJECT_NAME}
