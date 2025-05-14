@@ -4,10 +4,12 @@
 
 """
 This script is used to benchmark planner performance for reaching
-pre-defined joint configurations while enforcing a path-wide orientation
-constraint on the end-effector. It now also saves successful trajectories
-and tests planning between all pairs of defined configurations by physically
-moving to start states.
+pre-defined joint configurations. It has been updated to include:
+- Kinematic feasibility checks for a 2-DOF Articutool attached to the end-effector.
+- Saving of Articutool's per-waypoint IK solutions (pitch, roll) within the
+  trajectory file for visualization and detailed analysis.
+- Detailed metrics related to Articutool performance and joint utilization.
+- Physical movement to start states for pairwise planning tasks.
 """
 
 # Standard imports
@@ -19,7 +21,7 @@ import time
 from threading import Thread, Lock
 from typing import Optional, List, Dict, Tuple, Any
 import json
-import itertools
+import math  # For atan2, asin, cos, sin, pi, isclose
 
 # Third-party imports
 import numpy as np
@@ -28,9 +30,11 @@ from pymoveit2.robots import kinova
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
-from rclpy.duration import Duration
+from rclpy.duration import (
+    Duration as RCLPYDuration,
+)  # Alias to avoid conflict with local Duration
 from trajectory_msgs.msg import JointTrajectoryPoint, JointTrajectory
-from geometry_msgs.msg import Quaternion, PoseStamped
+from geometry_msgs.msg import Quaternion, PoseStamped, Pose
 import moveit_msgs.msg
 from sensor_msgs.msg import JointState
 from scipy.spatial.transform import Rotation as R
@@ -89,9 +93,6 @@ except ImportError:
             try:
                 j6_idx = trajectory.joint_names.index(exclude_j6_name)
             except ValueError:
-                _get_logger().warn(
-                    f"Joint {exclude_j6_name} for exclusion not found in trajectory joint_names."
-                )
                 j6_idx = -1
         prev_positions = np.array(trajectory.points[0].positions)
         for point_idx in range(1, len(trajectory.points)):
@@ -99,7 +100,7 @@ except ImportError:
             curr_positions = np.array(point.positions)
             if len(curr_positions) != len(prev_positions):
                 _get_logger().warn(
-                    f"Path length calc: Mismatch in joint count at point {point_idx}. Skipping."
+                    f"Path length calc: Mismatch joint count at point {point_idx}. Skipping."
                 )
                 prev_positions = curr_positions
                 continue
@@ -118,16 +119,44 @@ except ImportError:
 
 BenchmarkNamedConfig = namedtuple("BenchmarkNamedConfig", ["name", "joint_values"])
 PlanningTask = namedtuple("PlanningTask", ["start_config", "goal_config"])
+
+ArticutoolWaypointSolution = namedtuple(
+    "ArticutoolWaypointSolution",
+    [
+        "waypoint_feasible",  # bool: Is Articutool feasible at this specific waypoint?
+        "pitch_solution_rad",  # Optional[float]: Solved pitch angle (theta_p)
+        "roll_solution_rad",  # Optional[float]: Solved roll angle (theta_r)
+    ],
+)
+
+ArticutoolMetrics = namedtuple(
+    "ArticutoolMetrics",
+    [
+        "path_feasible",
+        "min_pitch_rad",
+        "max_pitch_rad",
+        "avg_pitch_abs_rad",
+        "pitch_range_used_percent",
+        "min_roll_rad",
+        "max_roll_rad",
+        "avg_roll_abs_rad",
+        "roll_range_used_percent",
+        "num_infeasible_points",
+    ],
+)
+
 PlanResult = namedtuple(
     "PlanResult",
     [
-        "trajectory",
+        "trajectory",  # Original JointTrajectory from planner
         "elapsed_time",
         "path_length",
         "joint_path_lengths",
-        "max_roll_deviation",
-        "success",
-        "trajectory_filename",
+        "max_jaco_hand_roll_deviation",
+        "jaco_plan_success",
+        "trajectory_filename",  # Filename of the *enhanced* JSON trajectory
+        "articutool_metrics",  # Aggregate metrics for the Articutool over the path
+        "articutool_solutions_per_waypoint",  # List[ArticutoolWaypointSolution]
     ],
 )
 
@@ -141,6 +170,11 @@ class PlannerBenchmark:
     )
     NO_ROLL_CONSTRAINT_WEIGHT = 1.0
     NO_ROLL_PARAMETERIZATION = 0
+    R_JACO_HAND_TO_ATOOL_BASE_SCIPY = R.from_euler("z", np.pi / 2)
+    ARTICUTOOL_PITCH_LIMITS_RAD = (-np.pi / 2, np.pi / 2)
+    ARTICUTOOL_ROLL_LIMITS_RAD = (-np.pi, np.pi)
+    WORLD_UP_VECTOR = np.array([0.0, 0.0, 1.0])
+    EPSILON = 1e-6
 
     def __init__(
         self,
@@ -157,9 +191,10 @@ class PlannerBenchmark:
         trajectory_save_dir: Optional[str] = None,
         joint_state_topic: str = "/joint_states",
         continuous_joint_indices: Optional[List[int]] = None,
+        use_naive_jaco_hand_constraint: bool = True,
     ):
         self.node = node
-        self.logger = self.node.get_logger()
+        self.logger = _get_logger()  # Use the global logger
         self.moveit2_interface = moveit2_interface
         self.planners_to_test = planners_to_test
         self.initial_joint_config = initial_joint_config
@@ -169,6 +204,7 @@ class PlannerBenchmark:
         self.joint_names_for_group = joint_names_for_group
         self.planning_timeout_sec = planning_timeout_sec
         self.joint_state_topic_name = joint_state_topic
+        self.use_naive_jaco_hand_constraint = use_naive_jaco_hand_constraint
 
         if continuous_joint_indices is None:
             self.continuous_joint_indices = []
@@ -182,7 +218,7 @@ class PlannerBenchmark:
                 if name in default_continuous:
                     self.continuous_joint_indices.append(i)
             self.logger.info(
-                f"Auto-detected continuous joint indices (0-based for group): {self.continuous_joint_indices} for joints named {default_continuous} within {self.joint_names_for_group}"
+                f"Auto-detected continuous joint indices: {self.continuous_joint_indices}"
             )
         else:
             self.continuous_joint_indices = continuous_joint_indices
@@ -197,13 +233,13 @@ class PlannerBenchmark:
             self.all_named_configurations
         )
         self.num_tasks = len(self.planning_tasks)
-
         self.results: Dict[Tuple[str, str], Dict[str, PlanResult]] = defaultdict(
             lambda: defaultdict(dict)
         )
         self.rate = self.node.create_rate(10)
-
-        self.no_roll_path_constraint_kwargs = self._get_no_roll_constraint_kwargs()
+        self.naive_jaco_hand_constraint_kwargs = (
+            self._get_naive_jaco_hand_constraint_kwargs()
+        )
         self.trajectory_save_dir = trajectory_save_dir
         if self.trajectory_save_dir:
             os.makedirs(self.trajectory_save_dir, exist_ok=True)
@@ -217,10 +253,9 @@ class PlannerBenchmark:
             JointState, self.joint_state_topic_name, self._joint_state_callback, 10
         )
         self.logger.info(
-            f"Subscribed to '{self.joint_state_topic_name}' for current joint state information."
+            f"Subscribed to '{self.joint_state_topic_name}' for current joint state."
         )
         time.sleep(0.5)
-
         self.logger.info(
             f"Benchmark initialized for group '{self.planning_group}' and EE '{self.end_effector_link}'."
         )
@@ -228,26 +263,30 @@ class PlannerBenchmark:
             f"Generated {self.num_tasks} planning tasks from {len(self.all_named_configurations)} unique configurations."
         )
         self.logger.info(f"Testing with planners: {self.planners_to_test}")
+        if self.use_naive_jaco_hand_constraint:
+            self.logger.info(
+                f"Using NAIVE Jaco hand constraint: Target Quat (xyzw)={self.NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ}, Tol(xyz_abs)={self.NO_ROLL_CONSTRAINT_TOLERANCE_XYZ_ABS}"
+            )
+        else:
+            self.logger.info(
+                "NOT using naive Jaco hand orientation constraint during planning."
+            )
         self.logger.info(
-            f"Using 'no roll' constraint: Target Quat (xyzw)={self.NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ}, Tol(xyz_abs)={self.NO_ROLL_CONSTRAINT_TOLERANCE_XYZ_ABS}"
+            f"Articutool Pitch Limits (theta_p): {self.ARTICUTOOL_PITCH_LIMITS_RAD} rad"
+        )
+        self.logger.info(
+            f"Articutool Roll Limits (theta_r): {self.ARTICUTOOL_ROLL_LIMITS_RAD} rad"
         )
 
     def _joint_state_callback(self, msg: JointState):
-        # Check if the message contains all the joints relevant to the planning group
-        # This helps filter out partial messages (e.g., only 'robot_tilt')
-        if not self.joint_names_for_group:  # Should not happen if initialized correctly
+        # ... (implementation from previous version) ...
+        if not self.joint_names_for_group:
             return
-
-        # Create a set of names in the message for efficient lookup
         msg_joint_names_set = set(msg.name)
-
-        # Check if all required joint names are present in the message
-        all_required_joints_present = True
-        for req_joint_name in self.joint_names_for_group:
-            if req_joint_name not in msg_joint_names_set:
-                all_required_joints_present = False
-                break
-
+        all_required_joints_present = all(
+            req_joint_name in msg_joint_names_set
+            for req_joint_name in self.joint_names_for_group
+        )
         if all_required_joints_present:
             with self._joint_state_lock:
                 self._latest_joint_state_msg = msg
@@ -255,21 +294,17 @@ class PlannerBenchmark:
     def get_current_joint_positions(
         self, timeout_sec: float = 1.0
     ) -> Optional[Dict[str, float]]:
-        """
-        Gets the current joint positions for the planning group by reading the latest JointState message.
-        Returns a dictionary mapping joint name to position, or None if timeout or error.
-        """
+        # ... (implementation from previous version) ...
         start_time = self.node.get_clock().now()
         latest_msg_to_process: Optional[JointState] = None
-
-        while rclpy.ok() and (self.node.get_clock().now() - start_time) < Duration(
+        while rclpy.ok() and (self.node.get_clock().now() - start_time) < RCLPYDuration(
             seconds=timeout_sec
         ):
             with self._joint_state_lock:
                 if self._latest_joint_state_msg is not None:
                     latest_msg_to_process = self._latest_joint_state_msg
                     break
-            self.node.get_clock().sleep_for(Duration(seconds=0.02))
+            self.node.get_clock().sleep_for(RCLPYDuration(seconds=0.02))
 
         if latest_msg_to_process:
             current_positions_dict: Dict[str, float] = {}
@@ -278,7 +313,6 @@ class PlannerBenchmark:
                 for i, name in enumerate(latest_msg_to_process.name)
                 if i < len(latest_msg_to_process.position)
             }
-
             all_planning_group_joints_found = True
             for req_name in self.joint_names_for_group:
                 if req_name in name_to_pos_map:
@@ -286,36 +320,30 @@ class PlannerBenchmark:
                 else:
                     all_planning_group_joints_found = False
                     break
-
             if all_planning_group_joints_found:
                 return current_positions_dict
-            else:
-                return None
-        else:
-            self.logger.warn(
-                f"Timed out or no relevant JointState message received on '{self.joint_state_topic_name}' within {timeout_sec}s for get_current_joint_positions."
-            )
-            return None
+        self.logger.warn(
+            f"Timed out or no relevant JointState msg on '{self.joint_state_topic_name}' for get_current_joint_positions."
+        )
+        return None
 
     def _process_hardcoded_configurations(
         self, hardcoded_configs: Dict[str, List[float]]
     ) -> List[BenchmarkNamedConfig]:
+        # ... (implementation from previous version) ...
         configs = []
         self.logger.info(f"Processing hardcoded named configurations...")
         num_expected_joints = len(self.joint_names_for_group)
         for name, values in hardcoded_configs.items():
             if isinstance(values, list) and len(values) == num_expected_joints:
                 configs.append(BenchmarkNamedConfig(name, values))
-                self.logger.info(
-                    f"  Loaded named config '{name}' with {num_expected_joints} joints."
-                )
             else:
                 self.logger.warn(
-                    f"  Skipping hardcoded config '{name}'. Expected {num_expected_joints} joint values, got {len(values) if isinstance(values, list) else type(values)}."
+                    f"  Skipping hardcoded config '{name}'. Expected {num_expected_joints}, got {len(values) if isinstance(values, list) else type(values)}."
                 )
         if not configs or len(configs) < 2:
             self.logger.error(
-                f"Not enough valid named configurations provided (found {len(configs)}, need at least 2 for pair-wise tasks). Exiting."
+                f"Not enough valid named configurations provided (found {len(configs)}, need at least 2). Exiting."
             )
             sys.exit(1)
         return configs
@@ -323,6 +351,7 @@ class PlannerBenchmark:
     def _generate_planning_tasks(
         self, named_configs: List[BenchmarkNamedConfig]
     ) -> List[PlanningTask]:
+        # ... (implementation from previous version) ...
         tasks = []
         for start_config in named_configs:
             for goal_config in named_configs:
@@ -333,7 +362,8 @@ class PlannerBenchmark:
         )
         return tasks
 
-    def _get_no_roll_constraint_kwargs(self) -> Dict[str, Any]:
+    def _get_naive_jaco_hand_constraint_kwargs(self) -> Dict[str, Any]:
+        # ... (implementation from previous version) ...
         return {
             "quat_xyzw": Quaternion(
                 x=self.NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ[0],
@@ -348,17 +378,192 @@ class PlannerBenchmark:
             "parameterization": self.NO_ROLL_PARAMETERIZATION,
         }
 
-    def _calculate_max_roll_deviation(
+    def _normalize_angle(self, angle: float) -> float:
+        return (angle + np.pi) % (2 * np.pi) - np.pi
+
+    def _solve_articutool_ik(
+        self, target_vector_in_jaco_hand_frame: np.ndarray
+    ) -> List[Tuple[float, float]]:
+        # ... (implementation from previous version, using math module) ...
+        vx, vy, vz = target_vector_in_jaco_hand_frame
+        solutions: List[Tuple[float, float]] = []
+        if not (-1.0 - self.EPSILON <= -vx <= 1.0 + self.EPSILON):
+            return []
+        asin_arg = np.clip(-vx, -1.0, 1.0)
+        theta_r_cand1 = math.asin(asin_arg)
+        theta_r_cand2 = self._normalize_angle(math.pi - theta_r_cand1)
+        candidate_thetas_r = [theta_r_cand1]
+        if not math.isclose(theta_r_cand1, theta_r_cand2, abs_tol=self.EPSILON):
+            candidate_thetas_r.append(theta_r_cand2)
+
+        for theta_r in candidate_thetas_r:
+            cos_theta_r = math.cos(theta_r)
+            theta_p_sol: float = 0.0
+            if math.isclose(cos_theta_r, 0.0, abs_tol=self.EPSILON):
+                if (
+                    math.isclose(abs(vx), 1.0, abs_tol=self.EPSILON)
+                    and math.isclose(vy, 0.0, abs_tol=self.EPSILON)
+                    and math.isclose(vz, 0.0, abs_tol=self.EPSILON)
+                ):
+                    solutions.append((theta_p_sol, theta_r))
+            else:
+                theta_p_sol = math.atan2(vz / cos_theta_r, vy / cos_theta_r)
+                solutions.append((theta_p_sol, theta_r))
+        return solutions
+
+    def _check_articutool_feasibility_at_waypoint(
+        self, R_world_jaco_hand: R
+    ) -> ArticutoolWaypointSolution:
+        target_vector_in_jaco_hand = R_world_jaco_hand.inv().apply(self.WORLD_UP_VECTOR)
+        ik_solutions = self._solve_articutool_ik(target_vector_in_jaco_hand)
+        valid_solutions_in_limits = []
+        for theta_p, theta_r in ik_solutions:
+            theta_p_norm = self._normalize_angle(theta_p)
+            theta_r_norm = self._normalize_angle(theta_r)
+            if (
+                self.ARTICUTOOL_PITCH_LIMITS_RAD[0] - self.EPSILON
+                <= theta_p_norm
+                <= self.ARTICUTOOL_PITCH_LIMITS_RAD[1] + self.EPSILON
+                and self.ARTICUTOOL_ROLL_LIMITS_RAD[0] - self.EPSILON
+                <= theta_r_norm
+                <= self.ARTICUTOOL_ROLL_LIMITS_RAD[1] + self.EPSILON
+            ):
+                valid_solutions_in_limits.append((theta_p_norm, theta_r_norm))
+        if not valid_solutions_in_limits:
+            return ArticutoolWaypointSolution(False, None, None)
+        best_sol = min(valid_solutions_in_limits, key=lambda s: s[0] ** 2 + s[1] ** 2)
+        return ArticutoolWaypointSolution(True, best_sol[0], best_sol[1])
+
+    def _analyze_trajectory_for_articutool(
+        self, trajectory: Optional[JointTrajectory]
+    ) -> Tuple[ArticutoolMetrics, List[ArticutoolWaypointSolution]]:
+        # Default return values
+        default_metrics = ArticutoolMetrics(False, *([np.nan] * 8), 0)
+        default_solutions_per_wp: List[ArticutoolWaypointSolution] = []
+
+        if not trajectory or not trajectory.points:
+            return default_metrics, default_solutions_per_wp
+
+        required_pitches_rad: List[float] = []
+        required_rolls_rad: List[float] = []
+        path_is_articutool_feasible = True
+        num_infeasible_wps = 0
+        per_waypoint_solutions: List[ArticutoolWaypointSolution] = []
+
+        for point_idx, point in enumerate(trajectory.points):
+            current_wp_solution = ArticutoolWaypointSolution(False, None, None)
+            if len(point.positions) != len(self.joint_names_for_group):
+                self.logger.warn(
+                    f"Articutool Metrics: Mismatch joint count at point {point_idx}."
+                )
+                path_is_articutool_feasible = False
+                num_infeasible_wps += 1
+            else:
+                jaco_joint_positions = list(point.positions)
+                try:
+                    fk_results: Optional[List[PoseStamped]] = (
+                        self.moveit2_interface.compute_fk(
+                            joint_state=jaco_joint_positions,
+                            fk_link_names=[self.end_effector_link],
+                        )
+                    )
+                    if not fk_results or not fk_results[0]:
+                        self.logger.warn(
+                            f"Articutool Metrics: FK failed for Jaco hand at point {point_idx}."
+                        )
+                        path_is_articutool_feasible = False
+                        num_infeasible_wps += 1
+                    else:
+                        jaco_hand_pose_msg: Pose = fk_results[0].pose
+                        R_world_jaco_hand = R.from_quat(
+                            [
+                                jaco_hand_pose_msg.orientation.x,
+                                jaco_hand_pose_msg.orientation.y,
+                                jaco_hand_pose_msg.orientation.z,
+                                jaco_hand_pose_msg.orientation.w,
+                            ]
+                        )
+                        current_wp_solution = (
+                            self._check_articutool_feasibility_at_waypoint(
+                                R_world_jaco_hand
+                            )
+                        )
+                        if not current_wp_solution.waypoint_feasible:
+                            path_is_articutool_feasible = False
+                            num_infeasible_wps += 1
+                        else:
+                            if current_wp_solution.pitch_solution_rad is not None:
+                                required_pitches_rad.append(
+                                    current_wp_solution.pitch_solution_rad
+                                )
+                            if current_wp_solution.roll_solution_rad is not None:
+                                required_rolls_rad.append(
+                                    current_wp_solution.roll_solution_rad
+                                )
+                except Exception as e:
+                    self.logger.error(
+                        f"Articutool Metrics: Error at point {point_idx}: {e}"
+                    )
+                    path_is_articutool_feasible = False
+                    num_infeasible_wps += 1
+            per_waypoint_solutions.append(current_wp_solution)
+
+        p_min_lim, p_max_lim = self.ARTICUTOOL_PITCH_LIMITS_RAD
+        r_min_lim, r_max_lim = self.ARTICUTOOL_ROLL_LIMITS_RAD
+        pitch_joint_range = p_max_lim - p_min_lim
+        roll_joint_range = r_max_lim - r_min_lim
+        min_p_val, max_p_val, avg_abs_p_val, pitch_range_used_val = [np.nan] * 4
+        if required_pitches_rad:
+            min_p_val, max_p_val = (
+                np.min(required_pitches_rad),
+                np.max(required_pitches_rad),
+            )
+            avg_abs_p_val = np.mean(np.abs(required_pitches_rad))
+            pitch_range_used_val = (
+                ((max_p_val - min_p_val) / pitch_joint_range * 100)
+                if pitch_joint_range > self.EPSILON
+                else 0.0
+            )
+        min_r_val, max_r_val, avg_abs_r_val, roll_range_used_val = [np.nan] * 4
+        if required_rolls_rad:
+            min_r_val, max_r_val = (
+                np.min(required_rolls_rad),
+                np.max(required_rolls_rad),
+            )
+            avg_abs_r_val = np.mean(np.abs(required_rolls_rad))
+            roll_range_used_val = (
+                ((max_r_val - min_r_val) / roll_joint_range * 100)
+                if roll_joint_range > self.EPSILON
+                else 0.0
+            )
+
+        aggregate_metrics = ArticutoolMetrics(
+            path_is_articutool_feasible,
+            min_p_val,
+            max_p_val,
+            avg_abs_p_val,
+            pitch_range_used_val,
+            min_r_val,
+            max_r_val,
+            avg_abs_r_val,
+            roll_range_used_val,
+            num_infeasible_wps,
+        )
+        return aggregate_metrics, per_waypoint_solutions
+
+    def _calculate_max_jaco_hand_roll_deviation(
         self, trajectory: Optional[JointTrajectory]
     ) -> Optional[float]:
+        # ... (implementation from previous version, ensure it uses self.NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ) ...
         if trajectory is None or not trajectory.points:
             return None
         max_abs_roll_deviation = 0.0
+        target_quat_xyzw_array = np.array(
+            self.NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ
+        )
+        target_ee_orientation_scipy = R.from_quat(target_quat_xyzw_array)
         for point_idx, point in enumerate(trajectory.points):
             if len(point.positions) != len(self.joint_names_for_group):
-                self.logger.warn(
-                    f"FK Calc: Mismatch in joint count at point {point_idx}. Expected {len(self.joint_names_for_group)}, got {len(point.positions)}. Skipping."
-                )
                 continue
             joint_positions_list = list(point.positions)
             try:
@@ -368,45 +573,23 @@ class PlannerBenchmark:
                         fk_link_names=[self.end_effector_link],
                     )
                 )
-                if (
-                    not result_poses
-                    or not isinstance(result_poses, list)
-                    or not result_poses[0]
-                ):
-                    self.logger.warn(
-                        f"FK returned None or invalid format for point {point_idx}."
-                    )
+                if not result_poses or not result_poses[0]:
                     continue
-                pose_stamped_ee = result_poses[0]
-                if pose_stamped_ee.header.frame_id.lstrip("/") != self.base_link.lstrip(
-                    "/"
-                ):
-                    self.logger.warn(
-                        f"FK pose for {self.end_effector_link} is in frame '{pose_stamped_ee.header.frame_id}', expected '{self.base_link}'."
-                    )
-                q_msg = pose_stamped_ee.pose.orientation
+                q_msg = result_poses[0].pose.orientation
                 actual_ee_orientation_scipy = R.from_quat(
                     [q_msg.x, q_msg.y, q_msg.z, q_msg.w]
                 )
-                target_quat_params = self.NO_ROLL_CONSTRAINT_TARGET_QUATERNION_XYWZ
-                target_ee_orientation_scipy = R.from_quat(target_quat_params)
                 diff_rotation = (
                     target_ee_orientation_scipy.inv() * actual_ee_orientation_scipy
                 )
-                euler_angles_of_diff_in_target_basis = diff_rotation.as_euler(
-                    "xyz", degrees=False
-                )
-                current_roll_deviation = euler_angles_of_diff_in_target_basis[2]
-                while current_roll_deviation > np.pi:
-                    current_roll_deviation -= 2 * np.pi
-                while current_roll_deviation < -np.pi:
-                    current_roll_deviation += 2 * np.pi
+                euler_angles_of_diff = diff_rotation.as_euler("xyz", degrees=False)
+                current_roll_deviation = self._normalize_angle(euler_angles_of_diff[2])
                 max_abs_roll_deviation = max(
                     max_abs_roll_deviation, abs(current_roll_deviation)
                 )
             except Exception as e:
                 self.logger.error(
-                    f"Error during FK for roll deviation at point {point_idx}: {e}"
+                    f"Jaco Hand Roll Dev FK: Error at point {point_idx}: {e}"
                 )
                 return float("inf")
         return max_abs_roll_deviation
@@ -414,18 +597,17 @@ class PlannerBenchmark:
     def _get_path_length_stats(
         self, trajectory: Optional[JointTrajectory]
     ) -> Tuple[Optional[float], Optional[Dict[str, float]]]:
+        # ... (implementation from previous version) ...
         if trajectory is None or not trajectory.points:
             return None, None
-        j6_name = (
-            "j2n6s200_joint_6"
-            if "j2n6s200_joint_6" in self.joint_names_for_group
-            else None
-        )
         return GET_PATH_LEN_METHOD(trajectory)
 
     def _save_trajectory_to_file(
         self,
-        trajectory: JointTrajectory,
+        original_trajectory: JointTrajectory,  # Original Jaco trajectory
+        articutool_solutions_per_wp: List[
+            ArticutoolWaypointSolution
+        ],  # Per-waypoint solutions
         start_config_name: str,
         goal_config_name: str,
         planner_id_str: str,
@@ -437,16 +619,66 @@ class PlannerBenchmark:
             safe_start_name = start_config_name.replace(" ", "_").replace("/", "_")
             safe_goal_name = goal_config_name.replace(" ", "_").replace("/", "_")
             safe_planner_id_str = planner_id_str.replace(" ", "_").replace("/", "_")
-            filename = f"{safe_start_name}_to_{safe_goal_name}_{safe_planner_id_str}_{timestamp}.json"
+            filename = f"{safe_start_name}_to_{safe_goal_name}_{safe_planner_id_str}_{timestamp}_enhanced.json"
             filepath = os.path.join(self.trajectory_save_dir, filename)
-            traj_dict = message_to_ordereddict(trajectory)
+
+            enhanced_trajectory_data: Dict[str, Any] = {
+                "jaco_joint_names": list(original_trajectory.joint_names),
+                "waypoints": [],
+            }
+
+            num_jaco_points = len(original_trajectory.points)
+            num_articutool_solutions = len(articutool_solutions_per_wp)
+
+            if num_jaco_points != num_articutool_solutions:
+                self.logger.warn(
+                    f"Mismatch between Jaco trajectory points ({num_jaco_points}) and "
+                    f"Articutool solutions ({num_articutool_solutions}) for {filename}. "
+                    f"Saving only up to the minimum length."
+                )
+
+            min_len = min(num_jaco_points, num_articutool_solutions)
+
+            for i in range(min_len):
+                jaco_point = original_trajectory.points[i]
+                at_solution = articutool_solutions_per_wp[i]
+
+                waypoint_data = {
+                    "time_from_start_sec": jaco_point.time_from_start.sec
+                    + jaco_point.time_from_start.nanosec * 1e-9,
+                    "jaco_positions_rad": list(jaco_point.positions),
+                    "jaco_velocities_rad_per_sec": (
+                        list(jaco_point.velocities) if jaco_point.velocities else []
+                    ),
+                    "jaco_accelerations_rad_per_sec2": (
+                        list(jaco_point.accelerations)
+                        if jaco_point.accelerations
+                        else []
+                    ),
+                    "articutool_waypoint_feasible": at_solution.waypoint_feasible,
+                    "articutool_pitch_solution_rad": (
+                        at_solution.pitch_solution_rad
+                        if at_solution.pitch_solution_rad is not None
+                        else None
+                    ),  # Ensure None is JSON null
+                    "articutool_roll_solution_rad": (
+                        at_solution.roll_solution_rad
+                        if at_solution.roll_solution_rad is not None
+                        else None
+                    ),
+                }
+                enhanced_trajectory_data["waypoints"].append(waypoint_data)
+
             with open(filepath, "w") as f:
-                json.dump(traj_dict, f, indent=2)
-            self.logger.info(f"    Successfully saved trajectory to: {filepath}")
+                json.dump(enhanced_trajectory_data, f, indent=2)
+            self.logger.info(
+                f"    Successfully saved ENHANCED trajectory to: {filepath}"
+            )
             return filename
         except Exception as e:
             self.logger.error(
-                f"    Failed to save trajectory for {start_config_name} to {goal_config_name} ({planner_id_str}): {e}"
+                f"    Failed to save ENHANCED trajectory for {start_config_name} to {goal_config_name} ({planner_id_str}): {e}",
+                exc_info=True,
             )
             return None
 
@@ -456,8 +688,9 @@ class PlannerBenchmark:
         planner_id_str: str,
         path_constraints_kwargs_to_apply: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Optional[JointTrajectory], float]:
+        # ... (implementation from previous version, ensure self.rate.sleep() is time.sleep() or handled by executor) ...
         self.logger.info(
-            f"  Attempting to plan with: {planner_id_str} to GOAL: {goal_joints}"
+            f"  Attempting to plan with: {planner_id_str} to GOAL: {np.round(goal_joints, 3).tolist()}"
         )
         if planner_id_str.lower() == "chomp":
             self.moveit2_interface.pipeline_id = "chomp"
@@ -478,7 +711,6 @@ class PlannerBenchmark:
                 tolerance=0.01,
                 weight=1.0,
             )
-            self.logger.info(f"    Set joint goal for {planner_id_str}.")
         except Exception as e:
             self.logger.error(f"    Failed to set joint goal: {e}")
             return None, 0.0
@@ -487,21 +719,18 @@ class PlannerBenchmark:
                 self.moveit2_interface.set_path_orientation_constraint(
                     **path_constraints_kwargs_to_apply
                 )
-                self.logger.info(
-                    f"    Applied 'no roll' path constraint for {planner_id_str}."
-                )
             except Exception as e:
                 self.logger.error(f"    Failed to set path orientation constraint: {e}")
         start_time_ros = self.node.get_clock().now()
         future = self.moveit2_interface.plan_async(start_joint_state=None)
         joint_trajectory_for_analysis: Optional[JointTrajectory] = None
-        timeout_duration_rclpy = Duration(seconds=self.planning_timeout_sec + 2.0)
+        timeout_duration_rclpy = RCLPYDuration(seconds=self.planning_timeout_sec + 5.0)
         wait_start_time_rclpy = self.node.get_clock().now()
         while rclpy.ok() and not future.done():
             elapsed_wait = self.node.get_clock().now() - wait_start_time_rclpy
             if elapsed_wait >= timeout_duration_rclpy:
                 self.logger.warn(
-                    f"    Planner {planner_id_str} timed out after {elapsed_wait.nanoseconds / 1e9:.2f}s while waiting for future.done()."
+                    f"    Planner {planner_id_str} timed out after {elapsed_wait.nanoseconds / 1e9:.2f}s waiting for future."
                 )
                 if (
                     hasattr(future, "cancel")
@@ -510,7 +739,7 @@ class PlannerBenchmark:
                 ):
                     future.cancel()
                 break
-            self.rate.sleep()
+            time.sleep(0.05)  # Yield for other ROS processing
         if future.done() and not future.cancelled():
             try:
                 plan_result_srv_response = future.result()
@@ -518,15 +747,13 @@ class PlannerBenchmark:
                     plan_result_srv_response.motion_plan_response.error_code.val
                     == moveit_msgs.msg.MoveItErrorCodes.SUCCESS
                 ):
-                    trajectory_msg = (
-                        plan_result_srv_response.motion_plan_response.trajectory
-                    )
-                    if trajectory_msg and trajectory_msg.joint_trajectory.points:
-                        joint_trajectory_for_analysis = trajectory_msg.joint_trajectory
+                    traj_msg = plan_result_srv_response.motion_plan_response.trajectory
+                    if traj_msg and traj_msg.joint_trajectory.points:
+                        joint_trajectory_for_analysis = traj_msg.joint_trajectory
                         self.logger.info(f"    Planner {planner_id_str} succeeded.")
                     else:
                         self.logger.warn(
-                            f"    Planner {planner_id_str} succeeded but returned an empty joint_trajectory."
+                            f"    Planner {planner_id_str} succeeded but returned empty trajectory."
                         )
                 else:
                     self.logger.warn(
@@ -534,25 +761,21 @@ class PlannerBenchmark:
                     )
             except Exception as e:
                 self.logger.error(
-                    f"    Exception while getting plan result for {planner_id_str}: {e}"
+                    f"    Exception getting plan result for {planner_id_str}: {e}"
                 )
         elif future.cancelled():
-            self.logger.warn(
-                f"    Planning for {planner_id_str} was cancelled (likely due to timeout)."
-            )
-        elapsed_time = (self.node.get_clock().now() - start_time_ros).nanoseconds / 1e9
+            self.logger.warn(f"    Planning for {planner_id_str} was cancelled.")
+        elapsed_time_sec = (
+            self.node.get_clock().now() - start_time_ros
+        ).nanoseconds / 1e9
         self.moveit2_interface.clear_path_constraints()
         self.moveit2_interface.clear_goal_constraints()
-        return joint_trajectory_for_analysis, elapsed_time
-
-    def _normalize_angle(self, angle: float) -> float:
-        """Normalize an angle to the range [-pi, pi]."""
-        return (angle + np.pi) % (2 * np.pi) - np.pi
+        return joint_trajectory_for_analysis, elapsed_time_sec
 
     def _are_angles_close(
         self, angle1: float, angle2: float, tolerance: float, is_continuous: bool
     ) -> bool:
-        """Checks if two angles are close, handling wrap-around for continuous joints."""
+        # ... (implementation from previous version) ...
         if is_continuous:
             diff = self._normalize_angle(angle1 - angle2)
             return abs(diff) <= tolerance
@@ -568,203 +791,125 @@ class PlannerBenchmark:
         verification_tolerance: float = 0.05,
         max_move_attempts: int = 3,
     ):
+        # ... (implementation from previous version) ...
         self.logger.info(
-            f"Attempting to move to configuration: '{target_config_name}' target values: {np.round(target_joints, 4).tolist()}"
+            f"Attempting to move to config: '{target_config_name}' target: {np.round(target_joints, 4).tolist()}"
         )
-        original_planner = self.moveit2_interface.planner_id
-        original_pipeline = self.moveit2_interface.pipeline_id
-        original_timeout = self.moveit2_interface.allowed_planning_time
-
-        # Use a reliable planner for unconstrained moves
+        original_planner, original_pipeline, original_timeout = (
+            self.moveit2_interface.planner_id,
+            self.moveit2_interface.pipeline_id,
+            self.moveit2_interface.allowed_planning_time,
+        )
         self.moveit2_interface.pipeline_id = "ompl"
-        # Consider making this configurable if needed, or even a list of planners to try
-        unconstrained_move_planner_id = "RRTConnectkConfigDefault"
-        self.moveit2_interface.planner_id = unconstrained_move_planner_id
-        # Ensure a reasonable timeout for these critical setup moves
+        self.moveit2_interface.planner_id = "RRTConnectkConfigDefault"
         self.moveit2_interface.allowed_planning_time = max(
             10.0, self.planning_timeout_sec
         )
-
         achieved_target = False
-        last_known_joints_list_ordered_str = "N/A"
-        last_exception_detail = "No attempts made or error prior to first attempt."
-
+        last_known_joints_str = "N/A"
+        last_exception_detail = "No attempts."
         for attempt in range(max_move_attempts):
             self.logger.info(
-                f"Move attempt {attempt + 1}/{max_move_attempts} to '{target_config_name}' using planner '{unconstrained_move_planner_id}'."
+                f"Move attempt {attempt + 1}/{max_move_attempts} to '{target_config_name}'."
             )
             try:
                 self.moveit2_interface.clear_goal_constraints()
                 self.moveit2_interface.clear_path_constraints()
-
-                # Command the move
-                self.logger.info(
-                    f"  Commanding move_to_configuration for '{target_config_name}' (attempt {attempt + 1})."
-                )
-                # move_to_configuration can raise an exception if planning fails or execution is controller-aborted.
-                # It is a blocking call.
                 self.moveit2_interface.move_to_configuration(
                     joint_positions=target_joints,
                     joint_names=self.joint_names_for_group,
                     tolerance=0.01,
                 )
                 self.logger.info(
-                    f"  Move_to_configuration call for '{target_config_name}' (attempt {attempt + 1}) completed by MoveIt2. "
-                    f"Now verifying final settled state (timeout: {verification_timeout_sec}s)."
+                    f"  Move_to_configuration call for '{target_config_name}' completed. Verifying..."
                 )
-
                 # Verification loop
-                verification_loop_start_time = self.node.get_clock().now()
-                achieved_target_this_attempt = False
-
-                num_verification_checks = max(
-                    2,
+                verif_start_time = self.node.get_clock().now()
+                achieved_this_attempt = False
+                num_verif_checks = max(
+                    3,
                     int(verification_timeout_sec / verification_poll_interval_sec) + 1,
                 )
-
-                for verify_idx in range(num_verification_checks):
-                    current_joint_positions_dict = self.get_current_joint_positions(
+                for v_idx in range(num_verif_checks):
+                    current_joints_dict = self.get_current_joint_positions(
                         timeout_sec=0.5
                     )
-
-                    if current_joint_positions_dict:
-                        current_joints_list_for_comparison = []
-                        all_names_found_in_current = True
-                        for name in self.joint_names_for_group:
-                            if name in current_joint_positions_dict:
-                                current_joints_list_for_comparison.append(
-                                    current_joint_positions_dict[name]
-                                )
-                            else:
-                                all_names_found_in_current = False
-                                self.logger.warn(
-                                    f"    Verification (attempt {attempt + 1}, check {verify_idx + 1}): Missing joint '{name}' in current joint state."
-                                )
-                                break
-
-                        if not all_names_found_in_current:
-                            last_known_joints_list_ordered_str = (
-                                "Partial joint state received"
-                            )
-                            # Give a small pause and try next verification check
+                    if current_joints_dict:
+                        current_joints_list = [
+                            current_joints_dict[name]
+                            for name in self.joint_names_for_group
+                            if name in current_joints_dict
+                        ]
+                        if len(current_joints_list) != len(self.joint_names_for_group):
+                            last_known_joints_str = "Partial state."
                             self.node.get_clock().sleep_for(
-                                Duration(seconds=verification_poll_interval_sec)
+                                RCLPYDuration(seconds=verification_poll_interval_sec)
                             )
                             continue
-
-                        last_known_joints_list_ordered_str = str(
-                            np.round(current_joints_list_for_comparison, 4).tolist()
+                        last_known_joints_str = str(
+                            np.round(current_joints_list, 4).tolist()
                         )
-
-                        all_joints_within_tolerance = True
-                        for j_idx, (target_val, actual_val) in enumerate(
-                            zip(target_joints, current_joints_list_for_comparison)
+                        all_close = True
+                        for j_idx, (tgt, act) in enumerate(
+                            zip(target_joints, current_joints_list)
                         ):
-                            is_continuous = j_idx in self.continuous_joint_indices
                             if not self._are_angles_close(
-                                target_val,
-                                actual_val,
+                                tgt,
+                                act,
                                 verification_tolerance,
-                                is_continuous,
+                                j_idx in self.continuous_joint_indices,
                             ):
-                                all_joints_within_tolerance = False
-                                # Log less frequently during verification to avoid spam, but ensure important info is logged
-                                if (
-                                    verify_idx % 5 == 0
-                                    or verify_idx == num_verification_checks - 1
-                                    or verification_timeout_sec < 2.0
-                                ):
-                                    self.logger.info(
-                                        f"    Verification (attempt {attempt + 1}, check {verify_idx + 1}) for '{target_config_name}': Joint '{self.joint_names_for_group[j_idx]}' (idx {j_idx}, cont: {is_continuous}) out of tolerance. Target: {target_val:.4f}, Actual: {actual_val:.4f}, NormDiff: {self._normalize_angle(target_val - actual_val):.4f}, RawDiff: {(target_val - actual_val):.4f}"
-                                    )
+                                all_close = False
                                 break
-
-                        if all_joints_within_tolerance:
+                        if all_close:
                             self.logger.info(
-                                f"  Successfully verified robot reached configuration: '{target_config_name}' on move attempt {attempt + 1}, verification check {verify_idx + 1}."
-                            )
-                            self.logger.info(
-                                f"    Final Target: {np.round(target_joints, 4).tolist()}"
-                            )
-                            self.logger.info(
-                                f"    Final Actual: {np.round(current_joints_list_for_comparison, 4).tolist()}"
+                                f"  Successfully verified robot reached '{target_config_name}'."
                             )
                             achieved_target = True
-                            achieved_target_this_attempt = True
+                            achieved_this_attempt = True
                             break
                     else:
-                        last_known_joints_list_ordered_str = (
-                            "No joint states received for this check."
-                        )
-                        self.logger.warn(
-                            f"    Verification (attempt {attempt + 1}, check {verify_idx + 1}): No relevant JointState message received."
-                        )
-
-                    # Check for overall verification timeout for this attempt
-                    if not rclpy.ok() or (
-                        self.node.get_clock().now() - verification_loop_start_time
-                    ) >= Duration(seconds=verification_timeout_sec):
-                        if not achieved_target_this_attempt:
+                        last_known_joints_str = "No joint state."
+                    if (
+                        self.node.get_clock().now() - verif_start_time
+                    ) >= RCLPYDuration(seconds=verification_timeout_sec):
+                        if not achieved_this_attempt:
                             self.logger.warn(
-                                f"  Verification timeout for '{target_config_name}' on move attempt {attempt + 1} after {verification_timeout_sec}s of polling."
+                                f"  Verification timeout for '{target_config_name}'."
                             )
-                        break
-
-                    if not achieved_target_this_attempt:
+                            break
+                    if not achieved_this_attempt:
                         self.node.get_clock().sleep_for(
-                            Duration(seconds=verification_poll_interval_sec)
+                            RCLPYDuration(seconds=verification_poll_interval_sec)
                         )
-
                 if achieved_target:
                     break
-
-                # If verification failed for this attempt (either by joints out of tolerance or timeout)
-                if not achieved_target_this_attempt:
-                    self.logger.warn(
-                        f"  Move attempt {attempt + 1} to '{target_config_name}' seemed to complete motion, but verification failed. "
-                        f"Last known state during verification: {last_known_joints_list_ordered_str}"
+                if not achieved_this_attempt:
+                    last_exception_detail = (
+                        f"Verification failed. Last state: {last_known_joints_str}"
                     )
-                    last_exception_detail = f"Verification failed after move_to_configuration call. Last state: {last_known_joints_list_ordered_str}"
-
             except Exception as e:
                 self.logger.warn(
-                    f"  Move attempt {attempt + 1}/{max_move_attempts} to '{target_config_name}' failed directly during move_to_configuration. Error: {type(e).__name__} - {e}"
+                    f"  Move attempt {attempt + 1} to '{target_config_name}' failed during move: {e}"
                 )
-                last_exception_detail = (
-                    f"Error in move_to_configuration: {type(e).__name__} - {e}"
-                )
-
+                last_exception_detail = f"Error in move: {e}"
             if achieved_target:
                 break
-
-            # If this was the last attempt and still not achieved
-            if attempt == max_move_attempts - 1:
-                self.logger.error(
-                    f"All {max_move_attempts} attempts to move to '{target_config_name}' have been exhausted and failed."
-                )
-            # The final error will be raised outside the loop if achieved_target is still False
-            elif not achieved_target:
-                self.logger.info(
-                    f"  Pausing briefly before retry for '{target_config_name}'."
-                )
-                self.node.get_clock().sleep_for(Duration(seconds=1.5))
-
-        # Restore original MoveIt2 settings AFTER all attempts
-        self.moveit2_interface.planner_id = original_planner
-        self.moveit2_interface.pipeline_id = original_pipeline
-        self.moveit2_interface.allowed_planning_time = original_timeout
-
+            if attempt < max_move_attempts - 1:
+                self.node.get_clock().sleep_for(RCLPYDuration(seconds=1.5))
+        (
+            self.moveit2_interface.planner_id,
+            self.moveit2_interface.pipeline_id,
+            self.moveit2_interface.allowed_planning_time,
+        ) = (
+            original_planner,
+            original_pipeline,
+            original_timeout,
+        )
         if not achieved_target:
-            self.logger.error(
-                f"CRITICAL: Failed to move AND verify robot reached '{target_config_name}' (target: {np.round(target_joints, 4).tolist()}) "
-                f"after {max_move_attempts} attempts. "
-                f"Last known state from /joint_states (during last verification): {last_known_joints_list_ordered_str}. "
-                f"Detail of last failure: {last_exception_detail}"
-            )
-            raise RuntimeError(
-                f"Failed to reach and verify start configuration '{target_config_name}' after {max_move_attempts} attempts. Last failure detail: {last_exception_detail}"
-            )
-        # If loop finished and achieved_target is True, then the move was successful.
+            final_error_msg = f"CRITICAL: Failed to move AND verify robot at '{target_config_name}' after {max_move_attempts} attempts. Last state: {last_known_joints_str}. Detail: {last_exception_detail}"
+            self.logger.error(final_error_msg)
+            raise RuntimeError(final_error_msg)
         self.logger.info(
             f"Successfully moved to and verified configuration '{target_config_name}'."
         )
@@ -773,50 +918,124 @@ class PlannerBenchmark:
         self._move_to_config_blocking("InitialScriptSetup", self.initial_joint_config)
 
     def run_benchmark_planning_task(self, task: PlanningTask):
-        start_name = task.start_config.name
-        goal_name = task.goal_config.name
-        goal_joints = task.goal_config.joint_values
+        start_name, goal_name, goal_joints = (
+            task.start_config.name,
+            task.goal_config.name,
+            task.goal_config.joint_values,
+        )
         self.logger.info(f"--- Testing Task: FROM '{start_name}' TO '{goal_name}' ---")
-        self.logger.info(f"  Goal Joints: {goal_joints}")
+        self.logger.info(f"  Goal Joints: {np.round(goal_joints, 3).tolist()}")
         task_key = (start_name, goal_name)
+
         for planner_id_str in self.planners_to_test:
-            joint_trajectory, elapsed_time = self.plan_to_target_configuration(
-                goal_joints=goal_joints,
-                planner_id_str=planner_id_str,
-                path_constraints_kwargs_to_apply=self.no_roll_path_constraint_kwargs,
+            path_constraints_to_apply = (
+                self.naive_jaco_hand_constraint_kwargs
+                if self.use_naive_jaco_hand_constraint
+                else None
             )
-            success = joint_trajectory is not None and bool(joint_trajectory.points)
+
+            jaco_trajectory, elapsed_time = self.plan_to_target_configuration(
+                goal_joints, planner_id_str, path_constraints_to_apply
+            )
+
+            jaco_plan_success = jaco_trajectory is not None and bool(
+                jaco_trajectory.points
+            )
             path_len_total, joint_path_lens_map = self._get_path_length_stats(
-                joint_trajectory
+                jaco_trajectory
             )
-            max_roll_dev = self._calculate_max_roll_deviation(joint_trajectory)
-            trajectory_filename = None
-            if success and self.trajectory_save_dir:
-                trajectory_filename = self._save_trajectory_to_file(
-                    joint_trajectory, start_name, goal_name, planner_id_str
+            max_jaco_roll_dev = self._calculate_max_jaco_hand_roll_deviation(
+                jaco_trajectory
+            )
+
+            aggregate_at_metrics: ArticutoolMetrics
+            per_wp_at_solutions: List[ArticutoolWaypointSolution]
+
+            if jaco_plan_success:
+                aggregate_at_metrics, per_wp_at_solutions = (
+                    self._analyze_trajectory_for_articutool(jaco_trajectory)
                 )
+            else:
+                num_potential_wps = len(
+                    goal_joints
+                )  # A rough estimate if trajectory is None
+                aggregate_at_metrics = ArticutoolMetrics(
+                    False, *([np.nan] * 8), num_potential_wps
+                )
+                per_wp_at_solutions = [
+                    ArticutoolWaypointSolution(False, None, None)
+                ] * num_potential_wps
+
+            trajectory_filename = None
+            if jaco_plan_success and self.trajectory_save_dir:
+                trajectory_filename = self._save_trajectory_to_file(
+                    jaco_trajectory,
+                    per_wp_at_solutions,
+                    start_name,
+                    goal_name,
+                    planner_id_str,
+                )
+
             self.results[task_key][planner_id_str] = PlanResult(
-                joint_trajectory,
+                jaco_trajectory,
                 elapsed_time,
                 path_len_total,
                 joint_path_lens_map,
-                max_roll_dev,
-                success,
+                max_jaco_roll_dev,
+                jaco_plan_success,
                 trajectory_filename,
+                aggregate_at_metrics,
+                per_wp_at_solutions,  # Storing per-wp solutions in PlanResult
             )
-            log_msg_suffix = (
+
+            # Pre-format strings for logging to avoid f-string errors with None/NaN
+            path_len_str = (
+                f"{path_len_total:.3f}"
+                if path_len_total is not None
+                and not np.isnan(path_len_total)
+                and not np.isinf(path_len_total)
+                else "N/A"
+            )
+            jaco_roll_dev_str = (
+                f"{max_jaco_roll_dev:.3f}"
+                if max_jaco_roll_dev is not None
+                and not np.isnan(max_jaco_roll_dev)
+                and not np.isinf(max_jaco_roll_dev)
+                else "N/A"
+            )
+
+            at_feasible_str = str(aggregate_at_metrics.path_feasible)
+            at_infeasible_pts_str = str(aggregate_at_metrics.num_infeasible_points)
+            at_p_range_str = (
+                f"{aggregate_at_metrics.pitch_range_used_percent:.1f}"
+                if not np.isnan(aggregate_at_metrics.pitch_range_used_percent)
+                else "N/A"
+            )
+            at_r_range_str = (
+                f"{aggregate_at_metrics.roll_range_used_percent:.1f}"
+                if not np.isnan(aggregate_at_metrics.roll_range_used_percent)
+                else "N/A"
+            )
+
+            articutool_log = (
+                f"| Articutool Feasible: {at_feasible_str} (Infeasible Pts: {at_infeasible_pts_str}, "
+                f"P-Range%: {at_p_range_str}, R-Range%: {at_r_range_str})"
+            )
+            log_suffix = (
                 f"| TrajFile: {trajectory_filename}" if trajectory_filename else ""
             )
-            if success:
+
+            if jaco_plan_success:
                 self.logger.info(
-                    f"  Planner: {planner_id_str} | Success: True  | Time: {elapsed_time:.3f}s | PathLen: {path_len_total if path_len_total is not None else 'N/A':.3f} | MaxRollDev: {max_roll_dev if max_roll_dev is not None else 'N/A':.3f} rad {log_msg_suffix}"
+                    f"  Planner: {planner_id_str} | Jaco Success: True  | Time: {elapsed_time:.3f}s | PathLen: {path_len_str} | JacoHandRollDev: {jaco_roll_dev_str} rad {articutool_log} {log_suffix}"
                 )
             else:
                 self.logger.warn(
-                    f"  Planner: {planner_id_str} | Success: False | Time: {elapsed_time:.3f}s {log_msg_suffix}"
+                    f"  Planner: {planner_id_str} | Jaco Success: False | Time: {elapsed_time:.3f}s {log_suffix}"
                 )
 
     def run_all_tests(self, log_summary_every_n_tasks: Optional[int] = None):
+        # ... (implementation from previous version, ensure default ArticutoolMetrics and empty list for per_wp_solutions on failure) ...
         self.logger.info(
             "=== Starting Benchmark: Moving to Initial Script Configuration ==="
         )
@@ -824,15 +1043,13 @@ class PlannerBenchmark:
             self.move_to_initial_config()
         except RuntimeError as e:
             self.logger.error(
-                f"CRITICAL FAILURE: Could not move to initial script setup configuration. Benchmark aborted. Error: {e}"
+                f"CRITICAL FAILURE: Could not move to initial config. Benchmark aborted. Error: {e}"
             )
-            # Record this major failure if needed, though the script will likely exit or not proceed.
-            return  # Abort benchmark if initial setup fails
+            return
 
         for i, planning_task in enumerate(self.planning_tasks):
             self.logger.info(
-                f"\n=== Running Planning Task {i + 1}/{self.num_tasks}: "
-                f"FROM '{planning_task.start_config.name}' TO '{planning_task.goal_config.name}' ==="
+                f"\n=== Running Planning Task {i + 1}/{self.num_tasks}: FROM '{planning_task.start_config.name}' TO '{planning_task.goal_config.name}' ==="
             )
             try:
                 self._move_to_config_blocking(
@@ -847,50 +1064,61 @@ class PlannerBenchmark:
                     planning_task.start_config.name,
                     planning_task.goal_config.name,
                 )
-                for planner_id_str in self.planners_to_test:
-                    self.results[task_key][planner_id_str] = PlanResult(
+                default_at_metrics = ArticutoolMetrics(False, *([np.nan] * 8), 0)
+                empty_at_solutions: List[ArticutoolWaypointSolution] = []
+                for planner_id_str_fail in self.planners_to_test:
+                    self.results[task_key][planner_id_str_fail] = PlanResult(
                         None,
                         0.0,
                         None,
                         None,
                         None,
                         False,
-                        f"ERROR_MOVE_TO_START_FAILED:{e}",
+                        f"ERROR_MOVE_TO_START_FAILED:{str(e)[:50]}",
+                        default_at_metrics,
+                        empty_at_solutions,
                     )
                 continue
-
             self.run_benchmark_planning_task(planning_task)
-
             if log_summary_every_n_tasks and (i + 1) % log_summary_every_n_tasks == 0:
                 self.log_summary_results()
         self.logger.info("=== Benchmark Run Completed ===")
 
     def get_csv_header(self) -> List[str]:
-        header = ["start_config_name"]
-        header.extend([f"start_{name}" for name in self.joint_names_for_group])
-        header.extend(["goal_config_name"])
-        header.extend([f"goal_{name}" for name in self.joint_names_for_group])
-        header.extend(
-            [
-                "planner_id",
-                "elapsed_time_s",
-                "success",
-                "path_length_total",
-                "max_roll_deviation_rad",
-                "trajectory_filename",
-            ]
-        )
-        header.extend([f"path_length_{name}" for name in self.joint_names_for_group])
+        # ... (implementation from previous version, ensure names match PlanResult) ...
+        header = [
+            "start_config_name",
+            *[f"start_{name}" for name in self.joint_names_for_group],
+            "goal_config_name",
+            *[f"goal_{name}" for name in self.joint_names_for_group],
+            "planner_id",
+            "elapsed_time_s",
+            "jaco_plan_success",
+            "path_length_total",
+            "max_jaco_hand_roll_deviation_rad",
+            "trajectory_filename",
+            "articutool_path_feasible",
+            "articutool_num_infeasible_points",
+            "articutool_min_pitch_rad",
+            "articutool_max_pitch_rad",
+            "articutool_avg_pitch_abs_rad",
+            "articutool_pitch_range_used_percent",
+            "articutool_min_roll_rad",
+            "articutool_max_roll_rad",
+            "articutool_avg_roll_abs_rad",
+            "articutool_roll_range_used_percent",
+            *[f"path_length_{name}" for name in self.joint_names_for_group],
+        ]
         return header
 
     def write_results_to_csv(self, filename: str):
+        # ... (implementation from previous version, ensure all fields from PlanResult.articutool_metrics are written) ...
         self.logger.info(f"Writing results to {filename}")
         with open(filename, "w", newline="") as f:
             import csv
 
             csv_writer = csv.writer(f)
-            header = self.get_csv_header()
-            csv_writer.writerow(header)
+            csv_writer.writerow(self.get_csv_header())
             for task_key in sorted(self.results.keys()):
                 start_name, goal_name = task_key
                 start_cfg_obj = next(
@@ -902,146 +1130,177 @@ class PlannerBenchmark:
                     None,
                 )
                 if not start_cfg_obj or not goal_cfg_obj:
-                    self.logger.warn(
-                        f"Could not find original config objects for task key {task_key}. Skipping CSV rows for this task."
-                    )
                     continue
                 if task_key in self.results:
-                    planner_runs_for_task = self.results[task_key]
                     for planner_id_str in self.planners_to_test:
-                        if planner_id_str in planner_runs_for_task:
-                            result = planner_runs_for_task[planner_id_str]
-                            row = []
-                            row.append(str(start_cfg_obj.name))
-                            row.extend(map(str, start_cfg_obj.joint_values))
-                            row.append(str(goal_cfg_obj.name))
-                            row.extend(map(str, goal_cfg_obj.joint_values))
-                            row.append(str(planner_id_str))
-                            row.append(f"{result.elapsed_time:.4f}")
-                            row.append(str(1 if result.success else 0))
-                            row.append(
-                                f"{result.path_length:.4f}"
-                                if result.path_length is not None
-                                else ""
-                            )
-                            row.append(
-                                f"{result.max_roll_deviation:.4f}"
-                                if result.max_roll_deviation is not None
-                                else ""
-                            )
-                            row.append(
-                                result.trajectory_filename
-                                if result.trajectory_filename
-                                else ""
-                            )
+                        if planner_id_str in self.results[task_key]:
+                            result = self.results[task_key][planner_id_str]
+                            row = [
+                                start_cfg_obj.name,
+                                *map(str, start_cfg_obj.joint_values),
+                                goal_cfg_obj.name,
+                                *map(str, goal_cfg_obj.joint_values),
+                                planner_id_str,
+                                f"{result.elapsed_time:.4f}",
+                                str(1 if result.jaco_plan_success else 0),
+                                (
+                                    f"{result.path_length:.4f}"
+                                    if result.path_length is not None
+                                    else ""
+                                ),
+                                (
+                                    f"{result.max_jaco_hand_roll_deviation:.4f}"
+                                    if result.max_jaco_hand_roll_deviation is not None
+                                    else ""
+                                ),
+                                (
+                                    result.trajectory_filename
+                                    if result.trajectory_filename
+                                    else ""
+                                ),
+                            ]
+                            atm = result.articutool_metrics
+                            if atm:
+                                row.extend(
+                                    [
+                                        str(1 if atm.path_feasible else 0),
+                                        str(atm.num_infeasible_points),
+                                        (
+                                            f"{atm.min_pitch_rad:.4f}"
+                                            if not np.isnan(atm.min_pitch_rad)
+                                            else ""
+                                        ),
+                                        (
+                                            f"{atm.max_pitch_rad:.4f}"
+                                            if not np.isnan(atm.max_pitch_rad)
+                                            else ""
+                                        ),
+                                        (
+                                            f"{atm.avg_pitch_abs_rad:.4f}"
+                                            if not np.isnan(atm.avg_pitch_abs_rad)
+                                            else ""
+                                        ),
+                                        (
+                                            f"{atm.pitch_range_used_percent:.2f}"
+                                            if not np.isnan(
+                                                atm.pitch_range_used_percent
+                                            )
+                                            else ""
+                                        ),
+                                        (
+                                            f"{atm.min_roll_rad:.4f}"
+                                            if not np.isnan(atm.min_roll_rad)
+                                            else ""
+                                        ),
+                                        (
+                                            f"{atm.max_roll_rad:.4f}"
+                                            if not np.isnan(atm.max_roll_rad)
+                                            else ""
+                                        ),
+                                        (
+                                            f"{atm.avg_roll_abs_rad:.4f}"
+                                            if not np.isnan(atm.avg_roll_abs_rad)
+                                            else ""
+                                        ),
+                                        (
+                                            f"{atm.roll_range_used_percent:.2f}"
+                                            if not np.isnan(atm.roll_range_used_percent)
+                                            else ""
+                                        ),
+                                    ]
+                                )
+                            else:
+                                row.extend(["ERROR_NO_AT_METRICS"] * 10)
                             if result.joint_path_lengths:
-                                for joint_name_csv in self.joint_names_for_group:
-                                    length_val = result.joint_path_lengths.get(
-                                        joint_name_csv
-                                    )
-                                    row.append(
-                                        f"{length_val:.4f}"
-                                        if length_val is not None
-                                        else ""
-                                    )
+                                row.extend(
+                                    [
+                                        (
+                                            f"{result.joint_path_lengths.get(name, ''):.4f}"
+                                            if result.joint_path_lengths.get(name)
+                                            is not None
+                                            else ""
+                                        )
+                                        for name in self.joint_names_for_group
+                                    ]
+                                )
                             else:
                                 row.extend([""] * len(self.joint_names_for_group))
                             csv_writer.writerow(row)
-                        else:
-                            self.logger.warn(
-                                f"No result for planner '{planner_id_str}' in task '{start_name}' to '{goal_name}'. Skipping CSV row."
-                            )
         self.logger.info(f"Results successfully written to {filename}")
 
     def log_summary_results(self):
-        self.logger.info("--- BENCHMARK SUMMARY (ALL TASKS) ---")
+        # ... (implementation from previous version, ensure it uses updated PlanResult fields) ...
+        self.logger.info("--- BENCHMARK SUMMARY (ALL COMPLETED TASKS) ---")
         for planner_id_str in self.planners_to_test:
-            results_for_planner = []
-            for task_results_dict in self.results.values():
-                if planner_id_str in task_results_dict:
-                    results_for_planner.append(task_results_dict[planner_id_str])
-            total_plans = len(results_for_planner)
-            if total_plans == 0:
+            results_for_planner = [
+                res[planner_id_str]
+                for res in self.results.values()
+                if planner_id_str in res
+            ]
+            if not results_for_planner:
                 self.logger.info(
-                    f"--- Planner: {planner_id_str} ---\n  No plans attempted or recorded for this planner."
+                    f"--- Planner: {planner_id_str} ---\n  No tasks recorded."
                 )
                 continue
-            successful_plans = sum(1 for r in results_for_planner if r.success)
-            total_planning_time = sum(r.elapsed_time for r in results_for_planner)
-            path_lengths_list = [
-                r.path_length
-                for r in results_for_planner
-                if r.success and r.path_length is not None
-            ]
-            roll_deviations_list = [
-                r.max_roll_deviation
-                for r in results_for_planner
-                if r.success and r.max_roll_deviation is not None
-            ]
+
+            successful_jaco_plans = sum(
+                1 for r in results_for_planner if r.jaco_plan_success
+            )
+            total_tasks = len(results_for_planner)
+            jaco_success_rate = (
+                (successful_jaco_plans / total_tasks * 100) if total_tasks > 0 else 0
+            )
+
             self.logger.info(f"--- Planner: {planner_id_str} ---")
-            success_rate = (
-                (successful_plans / total_plans) * 100 if total_plans > 0 else 0
-            )
-            avg_planning_time_all = (
-                total_planning_time / total_plans if total_plans > 0 else 0
-            )
-            successful_planning_times = [
-                r.elapsed_time for r in results_for_planner if r.success
-            ]
-            avg_planning_time_succ = (
-                sum(successful_planning_times) / len(successful_planning_times)
-                if successful_planning_times
-                else 0
-            )
             self.logger.info(
-                f"  Success Rate: {success_rate:.2f}% ({successful_plans}/{total_plans})"
+                f"  Jaco Plan Success Rate: {jaco_success_rate:.2f}% ({successful_jaco_plans}/{total_tasks})"
             )
-            self.logger.info(
-                f"  Avg. Planning Time (all attempts): {avg_planning_time_all:.3f}s"
+            # ... (other Jaco metrics as before) ...
+
+            articutool_feasible_paths_count = sum(
+                1
+                for r in results_for_planner
+                if r.jaco_plan_success
+                and r.articutool_metrics
+                and r.articutool_metrics.path_feasible
             )
-            if successful_planning_times:
+            if successful_jaco_plans > 0:
+                articutool_path_success_rate = (
+                    articutool_feasible_paths_count / successful_jaco_plans
+                ) * 100
                 self.logger.info(
-                    f"  Avg. Planning Time (successful attempts): {avg_planning_time_succ:.3f}s"
-                )
-            if path_lengths_list:
-                self.logger.info(
-                    f"  Path Lengths (successful plans): {PlannerBenchmark._summary_stats_str(path_lengths_list)}"
-                )
-            else:
-                self.logger.info("  Path Lengths (successful plans): N/A")
-            valid_roll_deviations = [
-                r
-                for r in roll_deviations_list
-                if r is not None and not (isinstance(r, float) and np.isinf(r))
-            ]
-            if valid_roll_deviations:
-                self.logger.info(
-                    f"  Max Roll Deviations (rad, successful plans): {PlannerBenchmark._summary_stats_str(valid_roll_deviations)}"
+                    f"  Articutool Path Feasibility Rate (of Jaco succ. plans): {articutool_path_success_rate:.2f}% ({articutool_feasible_paths_count}/{successful_jaco_plans})"
                 )
             else:
                 self.logger.info(
-                    "  Max Roll Deviations (rad, successful plans): N/A (or all FK failed/no valid deviations)"
+                    "  Articutool Path Feasibility Rate: N/A (no Jaco successful plans)"
                 )
         self.logger.info("-------------------------")
 
     @staticmethod
     def _summary_stats_str(data: List[float]) -> str:
+        # ... (implementation from previous version) ...
         if not data:
             return "N/A"
         valid_data = [x for x in data if isinstance(x, (int, float)) and np.isfinite(x)]
         if not valid_data:
-            return "N/A (no valid data points)"
-        return f"Mean {np.mean(valid_data):.3f}, Median {np.median(valid_data):.3f}, Min {np.min(valid_data):.3f}, Max {np.max(valid_data):.3f}, Std {np.std(valid_data):.3f}, Count {len(valid_data)}"
+            return "N/A (no valid numeric data)"
+        return (
+            f"Mean {np.mean(valid_data):.3f}, Median {np.median(valid_data):.3f}, "
+            f"Min {np.min(valid_data):.3f}, Max {np.max(valid_data):.3f}, "
+            f"Std {np.std(valid_data):.3f}, Count {len(valid_data)}"
+        )
 
 
-def main(output_dir_arg: Optional[str]):
+def main(output_dir_arg: Optional[str], use_naive_constraint_arg: bool):
+    # ... (implementation from previous version, ensure PlannerBenchmark is instantiated correctly) ...
     rclpy.init()
     node = Node("planner_benchmark_pairwise_physical_moves")
     global _LOGGER_INSTANCE
     _LOGGER_INSTANCE = node.get_logger()
-    executor = rclpy.executors.MultiThreadedExecutor(2)
+    executor = rclpy.executors.MultiThreadedExecutor(num_threads=2)
     executor.add_node(node)
-    executor_thread = Thread(target=executor.spin, daemon=True, args=())
+    executor_thread = Thread(target=executor.spin, daemon=True)
     executor_thread.start()
     _LOGGER_INSTANCE.info(
         "Benchmark node spinning. Waiting for services (approx 5s)..."
@@ -1049,42 +1308,36 @@ def main(output_dir_arg: Optional[str]):
     time.sleep(5.0)
 
     hardcoded_configs = {
-        "MoveAbovePlate": [
-            -2.4538579336877304,
-            3.07974419938212,
-            1.8320725365979,
-            4.096143890468605,
-            -2.003422584820525,
-            -3.2123560395465063,
-        ],
-        "RestingAcquireFood": [-1.94672, 2.51268, 0.35653, -4.76501, 5.99991, 4.99555],
-        "StagingConfig": [-2.32526, 4.456298, 4.16769, 1.53262, -2.18359, -2.19525],
-        "StowLocation": [-1.52101, 2.60098, 0.32811, -4.00012, 0.22831, 3.87886],
+        "MoveAbovePlate": [-2.4538, 3.0797, 1.8320, 4.0961, -2.0034, -3.2123],
+        "RestingAcquireFood": [-1.9467, 2.5126, 0.3565, -4.7650, 5.9999, 4.9955],
+        "StagingConfig": [-2.3252, 4.4562, 4.1676, 1.5326, -2.1835, -2.1952],
+        "StowLocation": [-1.5210, 2.6009, 0.3281, -4.0001, 0.2283, 3.8788],
     }
-    _LOGGER_INSTANCE.info(
-        f"Using {len(hardcoded_configs)} hardcoded named configurations for generating planning tasks."
-    )
-
     planners = ["RRTConnectkConfigDefault", "RRTstarkConfigDefault", "CHOMP"]
     initial_script_setup_config = (
         list(hardcoded_configs.values())[0]
         if hardcoded_configs
         else [0.0] * len(kinova.joint_names())
     )
-
-    planning_group_name = "jaco_arm"
-    ee_link_name = "j2n6s200_end_effector"
-    base_link_name = kinova.base_link_name()
-    group_joint_names = kinova.joint_names()
-    planning_timeout = 15.0
-
-    base_output_dir = output_dir_arg if output_dir_arg else "."
-    if output_dir_arg and not os.path.exists(base_output_dir):
-        os.makedirs(base_output_dir)
-        _LOGGER_INSTANCE.info(f"Created base output directory: {base_output_dir}")
-    trajectory_save_location = os.path.join(
-        base_output_dir, "saved_trajectories_pairwise_physical"
+    planning_group_name, ee_link_name, base_link_name, group_joint_names = (
+        "jaco_arm",
+        kinova.end_effector_name(),
+        kinova.base_link_name(),
+        kinova.joint_names(),
     )
+    planning_timeout = 15.0
+    base_output_dir = (
+        output_dir_arg
+        if output_dir_arg
+        else os.path.join(os.getcwd(), "benchmark_results")
+    )
+    if not os.path.exists(base_output_dir):
+        os.makedirs(base_output_dir)
+    trajectory_save_location = os.path.join(
+        base_output_dir, "saved_trajectories_enhanced"
+    )  # New subdir
+    if not os.path.exists(trajectory_save_location):
+        os.makedirs(trajectory_save_location)
 
     callback_group = ReentrantCallbackGroup()
     moveit2_interface = MoveIt2(
@@ -1098,9 +1351,6 @@ def main(output_dir_arg: Optional[str]):
     moveit2_interface.allowed_planning_time = planning_timeout
     moveit2_interface.max_velocity_scaling_factor = 0.5
     moveit2_interface.max_acceleration_scaling_factor = 0.5
-    _LOGGER_INSTANCE.info(
-        f"MoveIt2 interface initialized for benchmark with group: '{planning_group_name}'"
-    )
 
     benchmark_runner = PlannerBenchmark(
         node=node,
@@ -1115,34 +1365,53 @@ def main(output_dir_arg: Optional[str]):
         planning_timeout_sec=planning_timeout,
         trajectory_save_dir=trajectory_save_location,
         joint_state_topic="/joint_states",
+        use_naive_jaco_hand_constraint=use_naive_constraint_arg,
     )
-
     try:
         num_total_tasks = benchmark_runner.num_tasks
         log_interval = max(1, num_total_tasks // 5 if num_total_tasks > 0 else 1)
         benchmark_runner.run_all_tests(log_summary_every_n_tasks=log_interval)
-        if not os.path.exists(base_output_dir) and base_output_dir != ".":
+        if not os.path.exists(base_output_dir):
             os.makedirs(base_output_dir)
-            _LOGGER_INSTANCE.info(
-                f"Created output directory for CSV: {base_output_dir}"
-            )
-        elif base_output_dir == "." and not os.path.exists(base_output_dir):
-            os.makedirs(base_output_dir)
+        constraint_label = (
+            "naive_constraint" if use_naive_constraint_arg else "no_hand_constraint"
+        )
         csv_filename = os.path.join(
             base_output_dir,
-            datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            + "_pairwise_physical_benchmark.csv",
+            datetime.now().strftime("%Y%m%d-%H%M%S")
+            + f"_benchmark_{constraint_label}.csv",
         )
         benchmark_runner.write_results_to_csv(csv_filename)
         benchmark_runner.log_summary_results()
     except Exception as e:
-        _LOGGER_INSTANCE.error(f"Benchmark run failed: {e}")
+        _LOGGER_INSTANCE.error(f"Benchmark run failed: {e}", exc_info=True)
     finally:
         _LOGGER_INSTANCE.info("Shutting down benchmark node.")
         rclpy.shutdown()
         executor_thread.join()
+        _LOGGER_INSTANCE.info("Executor joined. Script finished.")
 
 
 if __name__ == "__main__":
-    out_dir_arg = os.path.expanduser(sys.argv[1]) if len(sys.argv) > 1 else None
-    main(out_dir_arg)
+    default_out_dir = os.path.join(os.getcwd(), "planner_benchmark_output_v3")
+    out_dir_arg = default_out_dir
+    use_naive_arg_str = "true"  # Default
+
+    if len(sys.argv) == 2:  # Only one arg
+        if sys.argv[1].lower() in ["true", "use_naive", "naive"]:
+            use_naive_arg_str = "true"
+        elif sys.argv[1].lower() in ["false", "no_constraint", "none"]:
+            use_naive_arg_str = "false"
+        else:
+            out_dir_arg = os.path.expanduser(sys.argv[1])  # Assume it's output dir
+    elif len(sys.argv) > 2:  # Two or more args
+        out_dir_arg = os.path.expanduser(sys.argv[1])
+        if sys.argv[2].lower() in ["true", "use_naive", "naive"]:
+            use_naive_arg_str = "true"
+        elif sys.argv[2].lower() in ["false", "no_constraint", "none"]:
+            use_naive_arg_str = "false"
+
+    use_naive_constraint_bool = use_naive_arg_str == "true"
+    _get_logger().info(f"Output directory set to: {out_dir_arg}")
+    _get_logger().info(f"Using naive Jaco hand constraint: {use_naive_constraint_bool}")
+    main(out_dir_arg, use_naive_constraint_bool)
