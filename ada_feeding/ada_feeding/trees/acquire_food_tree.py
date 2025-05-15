@@ -244,7 +244,9 @@ class AcquireFoodTree(MoveToTree):
                                     "group_name": "articutool",
                                 },
                                 outputs={
-                                    "trajectory": BlackboardKey("home_articutool_trajectory")
+                                    "trajectory": BlackboardKey(
+                                        "home_articutool_trajectory"
+                                    )
                                 },
                             ),
                         ),
@@ -263,9 +265,7 @@ class AcquireFoodTree(MoveToTree):
                                 "action_result_code": BlackboardKey(
                                     "tool_exec_result_code"
                                 ),
-                                "action_status": BlackboardKey(
-                                    "tool_action_status"
-                                ),
+                                "action_status": BlackboardKey("tool_action_status"),
                             },
                         ),
                         SwitchArticutoolControllers(
@@ -273,12 +273,14 @@ class AcquireFoodTree(MoveToTree):
                             ns=name,
                             inputs={
                                 "controllers_to_activate": ["velocity_controller"],
-                                "controllers_to_deactivate": ["joint_trajectory_controller"],
+                                "controllers_to_deactivate": [
+                                    "joint_trajectory_controller"
+                                ],
                             },
                             outputs={
                                 "switch_call_succeeded": None,
                                 "switch_response_ok": None,
-                            }
+                            },
                         ),
                         CallSetOrientationControl(
                             name="SetArticutoolOrientation",
@@ -287,9 +289,7 @@ class AcquireFoodTree(MoveToTree):
                                 "enable": True,
                                 "quat_xyzw": [0.5, 0.5, 0.5, 0.5],
                             },
-                            outputs={
-
-                            },
+                            outputs={},
                         ),
                         MoveIt2JointConstraint(
                             name="RestingConstraint",
@@ -583,20 +583,6 @@ class AcquireFoodTree(MoveToTree):
                             )
                         },
                     ),
-                    MoveIt2OrientationConstraint(
-                        name="DefineIKWristRollConstraint",
-                        ns=name,
-                        inputs={
-                            "target_link": "j2n6s200_end_effector",
-                            "frame_id": "j2n6s200_link_base",
-                            "quat_xyzw": [0.0, 0.0, 0.0, 1.0],
-                            "tolerance": [2*np.pi, 2*np.pi, 0.5],
-                            "constraints": None,
-                        },
-                        outputs={
-                            "constraints": BlackboardKey("wrist_constraints"),
-                        }
-                    ),
                     # Get Current Joint State (for IK Seed)
                     py_trees.decorators.Timeout(
                         name="GetCurrentState",
@@ -636,7 +622,7 @@ class AcquireFoodTree(MoveToTree):
                             ),
                             "group_name": "jaco_arm_with_articutool",
                             "start_joint_state": BlackboardKey("current_joint_state"),
-                            "constraints": BlackboardKey("wrist_constraints"),
+                            "constraints": None,
                         },
                         outputs={
                             "ik_solution_joint_state": BlackboardKey(
@@ -871,7 +857,7 @@ class AcquireFoodTree(MoveToTree):
                         outputs={
                             "fk_poses": BlackboardKey("move_into_jaco_arm_ee_poses"),
                             "success": None,
-                        }
+                        },
                     ),
                     ExtractPoseFromPosesByLink(
                         name="GetJacoArmEEPose",
@@ -882,9 +868,11 @@ class AcquireFoodTree(MoveToTree):
                             "requested_link_names": ["j2n6s200_end_effector"],
                         },
                         outputs={
-                            "extracted_pose": BlackboardKey("move_into_jaco_arm_ee_pose"),
+                            "extracted_pose": BlackboardKey(
+                                "move_into_jaco_arm_ee_pose"
+                            ),
                             "success": None,
-                        }
+                        },
                     ),
                     MoveIt2PoseConstraint(
                         name="MoveIntoJacoArmEEPoseConstraint",
@@ -1119,37 +1107,49 @@ class AcquireFoodTree(MoveToTree):
                                             name="SwitchArticutoolToVelocity",
                                             ns=name,
                                             inputs={
-                                                "controllers_to_activate": ["velocity_controller"],
-                                                "controllers_to_deactivate": ["joint_trajectory_controller"],
+                                                "controllers_to_activate": [
+                                                    "velocity_controller"
+                                                ],
+                                                "controllers_to_deactivate": [
+                                                    "joint_trajectory_controller"
+                                                ],
                                             },
                                             outputs={
                                                 "switch_call_succeeded": None,
                                                 "switch_response_ok": None,
-                                            }
+                                            },
                                         ),
                                         ExtractPoseComponents(
                                             name="GetMoveIntoOrientation",
                                             ns=name,
                                             inputs={
-                                                "input_pose_object": BlackboardKey("move_into_pose_stamped_base_frame"),
+                                                "input_pose_object": BlackboardKey(
+                                                    "move_into_pose_stamped_base_frame"
+                                                ),
                                             },
                                             outputs={
-                                                "output_position": BlackboardKey("move_into_position"),
-                                                "output_orientation": BlackboardKey("move_into_orientation"),
-                                                "output_header": BlackboardKey("move_into_header"),
+                                                "output_position": BlackboardKey(
+                                                    "move_into_position"
+                                                ),
+                                                "output_orientation": BlackboardKey(
+                                                    "move_into_orientation"
+                                                ),
+                                                "output_header": BlackboardKey(
+                                                    "move_into_header"
+                                                ),
                                                 "success": None,
-                                            }
+                                            },
                                         ),
                                         CallSetOrientationControl(
                                             name="SetArticutoolOrientation",
                                             ns=name,
                                             inputs={
                                                 "enable": True,
-                                                "quat_xyzw": BlackboardKey("move_into_orientation"),
+                                                "quat_xyzw": BlackboardKey(
+                                                    "move_into_orientation"
+                                                ),
                                             },
-                                            outputs={
-
-                                            },
+                                            outputs={},
                                         ),
                                         # MoveInto expect F/T failure
                                         py_trees.decorators.FailureIsSuccess(
