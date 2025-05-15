@@ -4,6 +4,7 @@
 """
 This package contains custom py_tree behaviors for interacting with ROS.
 """
+
 from .get_joint_states import (
     GetJointStates,
 )
@@ -18,4 +19,7 @@ from .extract_pose_from_poses_by_link import (
 )
 from .extract_pose_components import (
     ExtractPoseComponents,
+)
+from .check_jaco_directional_manipulability import (
+    CheckJacoDirectionalManipulability,
 )
