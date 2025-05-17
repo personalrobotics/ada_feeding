@@ -28,9 +28,6 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2OrientationConstraint,
 )
 from ada_feeding.behaviors.state import GetJointStates
-from ada_feeding.behaviors.articutool.call_set_orientation_control import (
-    CallSetOrientationControl,
-)
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import (
@@ -209,17 +206,6 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                                 "group_name": "jaco_arm",
                             },
                             outputs={},
-                        ),
-                        CallSetOrientationControl(
-                            name="SetArticutoolOrientation",
-                            ns=name,
-                            inputs={
-                                "enable": False,
-                                "quat_xyzw": None,
-                            },
-                            outputs={
-
-                            },
                         ),
                     ],
                 ),
