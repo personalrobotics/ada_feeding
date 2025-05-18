@@ -55,6 +55,7 @@ from ada_feeding.behaviors.state import (
     ExtractPoseFromPosesByLink,
     ExtractPoseComponents,
     CheckJacoDirectionalManipulability,
+    CheckArticutoolPathOrientationFeasibility,
 )
 from ada_feeding.behaviors.ros.msgs import StampPoseFromPose
 from ada_feeding.behaviors.ros.tf import ApplyTransform
@@ -882,30 +883,49 @@ class AcquireFoodTree(MoveToTree):
                         },
                     ),
                     MoveIt2ComputeFK(
-                        name="ComputeMoveIntoJacoArmEEPose",
+                        name="ComputeMoveIntoPoses",
                         ns=name,
                         inputs={
                             "group_name": "jaco_arm_with_articutool",
                             "joint_state": BlackboardKey("move_into_ik_solution_8dof"),
-                            "fk_link_names": ["j2n6s200_end_effector"],
+                            "fk_link_names": ["j2n6s200_end_effector", "tool_tip"],
                         },
                         outputs={
-                            "fk_poses": BlackboardKey("move_into_jaco_arm_ee_poses"),
+                            "fk_poses": BlackboardKey("move_into_poses"),
                             "success": None,
                         },
                     ),
                     ExtractPoseFromPosesByLink(
-                        name="GetJacoArmEEPose",
+                        name="GetMoveIntoJacoArmEEPose",
                         ns=name,
                         inputs={
-                            "fk_poses": BlackboardKey("move_into_jaco_arm_ee_poses"),
+                            "fk_poses": BlackboardKey("move_into_poses"),
                             "target_link_name": "j2n6s200_end_effector",
-                            "requested_link_names": ["j2n6s200_end_effector"],
+                            "requested_link_names": [
+                                "j2n6s200_end_effector",
+                                "tool_tip",
+                            ],
                         },
                         outputs={
                             "extracted_pose": BlackboardKey(
                                 "move_into_jaco_arm_ee_pose"
                             ),
+                            "success": None,
+                        },
+                    ),
+                    ExtractPoseFromPosesByLink(
+                        name="GetMoveIntoToolTipPose",
+                        ns=name,
+                        inputs={
+                            "fk_poses": BlackboardKey("move_into_poses"),
+                            "target_link_name": "tool_tip",
+                            "requested_link_names": [
+                                "j2n6s200_end_effector",
+                                "tool_tip",
+                            ],
+                        },
+                        outputs={
+                            "extracted_pose": BlackboardKey("move_into_tool_tip_pose"),
                             "success": None,
                         },
                     ),
@@ -949,6 +969,44 @@ class AcquireFoodTree(MoveToTree):
                                 )
                             },
                         ),
+                    ),
+                    ExtractPoseComponents(
+                        name="ExtractMoveIntoPoseComponents",
+                        ns=name,
+                        inputs={
+                            "input_pose_object": BlackboardKey(
+                                "move_into_tool_tip_pose"
+                            ),
+                        },
+                        outputs={
+                            "output_position": None,
+                            "output_orientation": BlackboardKey(
+                                "move_into_tool_tip_orientation"
+                            ),
+                            "output_header": None,
+                            "success": None,
+                        },
+                    ),
+                    CheckArticutoolPathOrientationFeasibility(
+                        name="CheckArticutoolFeasibilityForMoveInto",
+                        ns=name,
+                        inputs={
+                            "jaco_ee_cartesian_trajectory": BlackboardKey(
+                                "move_into_jaco_arm_trajectory"
+                            ),
+                            "desired_tool_tip_world_orientation": BlackboardKey(
+                                "move_into_tool_tip_orientation"
+                            ),
+                            "articutool_joint_names": ["atool_joint1", "atool_joint2"],
+                            "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
+                            "articutool_roll_limits_rad": (-np.pi, np.pi),
+                            "num_trajectory_points_to_check": 20,
+                        },
+                        outputs={
+                            "articutool_is_orientation_feasible": BlackboardKey(
+                                "articutool_can_maintain_scoop_angle"
+                            )
+                        },
                     ),
                 ],
             )
