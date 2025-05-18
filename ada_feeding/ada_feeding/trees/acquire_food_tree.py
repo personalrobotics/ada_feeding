@@ -703,6 +703,14 @@ class AcquireFoodTree(MoveToTree):
                         name="CheckJacoManipulabilityForMoveInto",
                         ns=name,
                         inputs={
+                            "pinocchio_model": BlackboardKey("pinocchio_model"),
+                            "pinocchio_data": BlackboardKey("pinocchio_data"),
+                            "jaco_vel_indices_pin": BlackboardKey(
+                                "jaco_vel_indices_pin"
+                            ),
+                            "jaco_ee_frame_id_pin": BlackboardKey(
+                                "jaco_ee_frame_id_pin"
+                            ),
                             "current_full_robot_joint_state_MA": BlackboardKey(
                                 "move_above_ik_solution_8dof"
                             ),
@@ -712,17 +720,7 @@ class AcquireFoodTree(MoveToTree):
                             "tool_tip_move_into_pose_world": BlackboardKey(
                                 "tool_tip_move_into_pose_world"
                             ),
-                            "jaco_joint_names": [
-                                "j2n6s200_joint_1",
-                                "j2n6s200_joint_2",
-                                "j2n6s200_joint_3",
-                                "j2n6s200_joint_4",
-                                "j2n6s200_joint_5",
-                                "j2n6s200_joint_6",
-                            ],
-                            "jaco_end_effector_link_name": "j2n6s200_end_effector",
                             "directional_manipulability_threshold": 0.01,
-                            "urdf_file_path": "package://ada_moveit/config/ada.urdf.xacro",
                         },
                         outputs={
                             "jaco_directional_manipulability_score": BlackboardKey(
