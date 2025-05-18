@@ -1024,13 +1024,29 @@ class AcquireFoodTree(MoveToTree):
                         name="CheckArticutoolFeasibilityForMoveInto",
                         ns=name,
                         inputs={
-                            "jaco_ee_cartesian_trajectory": BlackboardKey(
+                            "pinocchio_model": BlackboardKey("pinocchio_model"),
+                            "pinocchio_data": BlackboardKey("pinocchio_data"),
+                            "jaco_joint_names_pin": [
+                                "j2n6s200_joint_1",
+                                "j2n6s200_joint_2",
+                                "j2n6s200_joint_3",
+                                "j2n6s200_joint_4",
+                                "j2n6s200_joint_5",
+                                "j2n6s200_joint_6",
+                            ],
+                            "jaco_ee_frame_id_pin": BlackboardKey(
+                                "jaco_ee_frame_id_pin"
+                            ),
+                            "articutool_joint_names_pin": [
+                                "atool_joint1",
+                                "atool_joint2",
+                            ],
+                            "jaco_trajectory": BlackboardKey(
                                 "move_into_jaco_arm_trajectory"
                             ),
                             "desired_tool_tip_world_orientation": BlackboardKey(
                                 "move_into_tool_tip_orientation"
                             ),
-                            "articutool_joint_names": ["atool_joint1", "atool_joint2"],
                             "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
                             "articutool_roll_limits_rad": (-np.pi, np.pi),
                             "num_trajectory_points_to_check": 20,
