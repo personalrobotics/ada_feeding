@@ -56,6 +56,7 @@ from ada_feeding.behaviors.state import (
     ExtractPoseComponents,
     CheckJacoDirectionalManipulability,
     CheckArticutoolPathOrientationFeasibility,
+    LoadPinocchioModel,
 )
 from ada_feeding.behaviors.ros.msgs import StampPoseFromPose
 from ada_feeding.behaviors.ros.tf import ApplyTransform
@@ -612,6 +613,40 @@ class AcquireFoodTree(MoveToTree):
                             "transformed_msg": BlackboardKey(
                                 "tool_tip_move_into_pose_world"
                             )
+                        },
+                    ),
+                    LoadPinocchioModel(
+                        name="LoadPinocchioModel",
+                        ns=name,
+                        inputs={
+                            "urdf_file_path": "package://ada_moveit/config/ada.urdf.xacro",
+                            "jaco_joint_names": [
+                                "j2n6s200_joint_1",
+                                "j2n6s200_joint_2",
+                                "j2n6s200_joint_3",
+                                "j2n6s200_joint_4",
+                                "j2n6s200_joint_5",
+                                "j2n6s200_joint_6",
+                            ],
+                            "articutool_joint_names": ["atool_joint1", "atool_joint2"],
+                            "jaco_end_effector_link_name": "j2n6s200_end_effector",
+                            "tool_tip_link_name": "tool_tip",
+                        },
+                        outputs={
+                            "pinocchio_model": BlackboardKey("pinocchio_model"),
+                            "pinocchio_data": BlackboardKey("pinocchio_data"),
+                            "jaco_vel_indices_pin": BlackboardKey(
+                                "jaco_vel_indices_pin"
+                            ),
+                            "articutool_vel_indices_pin": BlackboardKey(
+                                "articutool_vel_indices_pin"
+                            ),
+                            "jaco_ee_frame_id_pin": BlackboardKey(
+                                "jaco_ee_frame_id_pin"
+                            ),
+                            "tool_tip_frame_id_pin": BlackboardKey(
+                                "tool_tip_frame_id_pin"
+                            ),
                         },
                     ),
                 ],
