@@ -13,6 +13,7 @@ import os
 import subprocess
 import tempfile
 from typing import Union, Optional, List, Dict, Any
+from overrides import override
 
 # Third-party imports
 import pinocchio as pin
@@ -219,7 +220,7 @@ class LoadPinocchioModel(BlackboardBehavior):
             self.blackboard_set("pinocchio_data", data)
 
             # Optionally get and store Jaco joint velocity indices
-            jaco_joint_names_list = self.blackboard_try_get("jaco_joint_names")
+            jaco_joint_names_list = self.blackboard_get("jaco_joint_names")
             if jaco_joint_names_list:
                 jaco_vel_indices = self._get_vel_indices_for_joints(
                     model, jaco_joint_names_list, "Jaco"
@@ -232,9 +233,7 @@ class LoadPinocchioModel(BlackboardBehavior):
                 # else: return Status.FAILURE # Fail if requested but not found
 
             # Optionally get and store Articutool joint velocity indices
-            articutool_joint_names_list = self.blackboard_try_get(
-                "articutool_joint_names"
-            )
+            articutool_joint_names_list = self.blackboard_get("articutool_joint_names")
             if articutool_joint_names_list:
                 articutool_vel_indices = self._get_vel_indices_for_joints(
                     model, articutool_joint_names_list, "Articutool"
@@ -249,9 +248,7 @@ class LoadPinocchioModel(BlackboardBehavior):
                 # else: return Status.FAILURE
 
             # Optionally get and store Jaco EE frame ID
-            jaco_ee_link_name_str = self.blackboard_try_get(
-                "jaco_end_effector_link_name"
-            )
+            jaco_ee_link_name_str = self.blackboard_get("jaco_end_effector_link_name")
             if jaco_ee_link_name_str:
                 if model.existFrame(jaco_ee_link_name_str):
                     jaco_ee_id = model.getFrameId(jaco_ee_link_name_str)
@@ -266,7 +263,7 @@ class LoadPinocchioModel(BlackboardBehavior):
                     # Not failing here, as it's optional
 
             # Optionally get and store tool tip frame ID
-            tool_tip_link_name_str = self.blackboard_try_get("tool_tip_link_name")
+            tool_tip_link_name_str = self.blackboard_get("tool_tip_link_name")
             if tool_tip_link_name_str:
                 if model.existFrame(tool_tip_link_name_str):
                     tool_tip_id = model.getFrameId(tool_tip_link_name_str)
