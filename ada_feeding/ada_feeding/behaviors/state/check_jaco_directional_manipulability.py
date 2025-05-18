@@ -258,28 +258,6 @@ class CheckJacoDirectionalManipulability(BlackboardBehavior):
                 )
                 return Status.FAILURE
 
-            jaco_joint_names_bb: List[str] = self.blackboard_get(
-                "jaco_joint_names"
-            )  # For logging
-            log_jaco_q_values = []
-            for (
-                name_j
-            ) in (
-                jaco_joint_names_bb
-            ):  # Use 'name_j' to avoid conflict with outer 'name'
-                if self._pin_model.existJointName(name_j):
-                    jid = self._pin_model.getJointId(name_j)
-                    j_obj = self._pin_model.joints[jid]
-                    if j_obj.nq == 1:
-                        log_jaco_q_values.append(f"{name_j}: {q_MA[j_obj.idx_q]:.3f}")
-                    elif j_obj.nq == 2:
-                        log_jaco_q_values.append(
-                            f"{name_j}: [{q_MA[j_obj.idx_q]:.3f}, {q_MA[j_obj.idx_q + 1]:.3f}]"
-                        )
-            self.logger.info(
-                f"[{self.name}] Populated q_MA for Jaco joints: {{{', '.join(log_jaco_q_values)}}}"
-            )
-
             pin.forwardKinematics(self._pin_model, self._pin_data, q_MA)
             pin.updateFramePlacements(self._pin_model, self._pin_data)
 
