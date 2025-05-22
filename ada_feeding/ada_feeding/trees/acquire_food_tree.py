@@ -285,15 +285,6 @@ class AcquireFoodTree(MoveToTree):
                                 "switch_response_ok": None,
                             },
                         ),
-                        CallSetOrientationControl(
-                            name="SetArticutoolOrientation",
-                            ns=name,
-                            inputs={
-                                "enable": True,
-                                "quat_xyzw": [0.5, 0.5, 0.5, 0.5],
-                            },
-                            outputs={},
-                        ),
                         MoveIt2JointConstraint(
                             name="RestingConstraint",
                             ns=name,
