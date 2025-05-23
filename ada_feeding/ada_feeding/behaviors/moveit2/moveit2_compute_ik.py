@@ -52,7 +52,9 @@ class MoveIt2ComputeIK(BlackboardBehavior):
         target_pose: Union[BlackboardKey, PoseStamped],
         group_name: Union[BlackboardKey, str],
         start_joint_state: Optional[Union[BlackboardKey, JointState]] = None,
-        constraints: Optional[Union[BlackboardKey, List[Tuple[MoveIt2ConstraintType, Dict[str, Any]]]]] = None,
+        constraints: Optional[
+            Union[BlackboardKey, List[Tuple[MoveIt2ConstraintType, Dict[str, Any]]]]
+        ] = None,
     ) -> None:
         """
         Blackboard Inputs
@@ -182,38 +184,69 @@ class MoveIt2ComputeIK(BlackboardBehavior):
                     )
                     return py_trees.common.Status.FAILURE
 
-                ik_constraints_msg : Optional[Constraints] = None
+                ik_constraints_msg: Optional[Constraints] = None
                 if isinstance(constraints, list) and constraints:
                     ik_constraints_msg = Constraints()
                     ik_constraints_msg.name = "ik_constraints_from_list"
-                    self.logger.debug(f"[{self.name}] Processing {len(constraints)} constraint specifications for IK.")
+                    self.logger.debug(
+                        f"[{self.name}] Processing {len(constraints)} constraint specifications for IK."
+                    )
                     for constraint_type, constraint_kwargs in constraints:
                         try:
                             if constraint_type == MoveIt2ConstraintType.JOINT:
                                 # Assumes wrapper has create_joint_constraint(**kwargs) -> JointConstraint
-                                constraint_obj = self.moveit2_obj.create_joint_constraint(**constraint_kwargs)
-                                if constraint_obj: ik_constraints_msg.joint_constraints.append(constraint_obj)
+                                constraint_obj = (
+                                    self.moveit2_obj.create_joint_constraint(
+                                        **constraint_kwargs
+                                    )
+                                )
+                                if constraint_obj:
+                                    ik_constraints_msg.joint_constraints.append(
+                                        constraint_obj
+                                    )
                             elif constraint_type == MoveIt2ConstraintType.POSITION:
                                 # Assumes wrapper has create_position_constraint(**kwargs) -> PositionConstraint
-                                constraint_obj = self.moveit2_obj.create_position_constraint(**constraint_kwargs)
-                                if constraint_obj: ik_constraints_msg.position_constraints.append(constraint_obj)
+                                constraint_obj = (
+                                    self.moveit2_obj.create_position_constraint(
+                                        **constraint_kwargs
+                                    )
+                                )
+                                if constraint_obj:
+                                    ik_constraints_msg.position_constraints.append(
+                                        constraint_obj
+                                    )
                             elif constraint_type == MoveIt2ConstraintType.ORIENTATION:
                                 # Assumes wrapper has create_orientation_constraint(**kwargs) -> OrientationConstraint
-                                constraint_obj = self.moveit2_obj.create_orientation_constraint(**constraint_kwargs)
-                                if constraint_obj: ik_constraints_msg.orientation_constraints.append(constraint_obj)
+                                constraint_obj = (
+                                    self.moveit2_obj.create_orientation_constraint(
+                                        **constraint_kwargs
+                                    )
+                                )
+                                if constraint_obj:
+                                    ik_constraints_msg.orientation_constraints.append(
+                                        constraint_obj
+                                    )
                             else:
-                                self.logger.warning(f"[{self.name}] Unknown constraint type '{constraint_type}' in list.")
+                                self.logger.warning(
+                                    f"[{self.name}] Unknown constraint type '{constraint_type}' in list."
+                                )
 
                         except AttributeError as ae:
-                             self.logger.error(f"[{self.name}] MoveIt2 wrapper missing 'create_X_constraint' method for type {constraint_type}? Error: {ae}")
-                             return py_trees.common.Status.FAILURE
+                            self.logger.error(
+                                f"[{self.name}] MoveIt2 wrapper missing 'create_X_constraint' method for type {constraint_type}? Error: {ae}"
+                            )
+                            return py_trees.common.Status.FAILURE
                         except Exception as e_constr:
-                             self.logger.error(f"[{self.name}] Error processing constraint {constraint_type} with args {constraint_kwargs}: {e_constr}")
-                             return py_trees.common.Status.FAILURE
+                            self.logger.error(
+                                f"[{self.name}] Error processing constraint {constraint_type} with args {constraint_kwargs}: {e_constr}"
+                            )
+                            return py_trees.common.Status.FAILURE
                     # Optional: Write generated message to blackboard for debugging
                     # self.blackboard_set("generated_ik_constraints_msg", ik_constraints_msg)
                 elif constraints is not None:
-                     self.logger.warning(f"[{self.name}] Input 'constraints' is not a list, ignoring. Type: {type(constraints)}")
+                    self.logger.warning(
+                        f"[{self.name}] Input 'constraints' is not a list, ignoring. Type: {type(constraints)}"
+                    )
 
                 # --- Call the synchronous compute_ik method provided in the API ---
                 # It takes position and orientation separately.
@@ -240,6 +273,7 @@ class MoveIt2ComputeIK(BlackboardBehavior):
 
                 if ik_success:
                     self.logger.info(f"[{self.name}] IK computation successful.")
+                    self.logger.info(f"IK solution: {ik_result_state}")
                     return py_trees.common.Status.SUCCESS
                 else:
                     self.logger.warning(
