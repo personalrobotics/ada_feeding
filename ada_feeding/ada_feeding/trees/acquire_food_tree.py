@@ -35,6 +35,7 @@ from ada_feeding.behaviors.acquisition import (
     ComputeFoodFrame,
     ComputeActionConstraints,
     ComputeActionTwist,
+    AdjustFoodFrameYawForScoopingApproach,
 )
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2JointConstraint,
@@ -638,6 +639,20 @@ class AcquireFoodTree(MoveToTree):
                             "tool_tip_frame_id_pin": BlackboardKey(
                                 "tool_tip_frame_id_pin"
                             ),
+                        },
+                    ),
+                    AdjustFoodFrameYawForScoopingApproach(
+                        name="AdjustFoodYawForScooping",
+                        ns=name,
+                        inputs={
+                            "move_above_pose_food_frame": BlackboardKey(
+                                "move_above_pose_food_frame"
+                            ),
+                            "move_into_pose_food_frame": BlackboardKey(
+                                "move_into_pose_food_frame"
+                            ),
+                            "food_frame_id": "food",
+                            "robot_base_frame_id": "j2n6s200_link_base",
                         },
                     ),
                 ],
