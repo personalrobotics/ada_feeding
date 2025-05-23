@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
 
+"""
+This script is used to visualize robot trajectories or single joint states
+using Pinocchio and MeshCat. It can load:
+1. Enhanced trajectory JSON files (containing Jaco and Articutool waypoints).
+2. Single joint state JSON files (representing a sensor_msgs/msg/JointState).
+"""
+
+# Standard imports
 import pinocchio as pin
-import pinocchio.visualize  # Ensure this is imported for MeshcatVisualizer
+import pinocchio.visualize
 import meshcat
 import numpy as np
 import json
@@ -11,8 +21,7 @@ import os
 import argparse
 import time
 import sys
-
-from typing import Optional, Dict, Any, List  # Added List
+from typing import Optional, Dict, Any, List
 
 # Define Articutool joint names as they appear in the Pinocchio model
 # (Verify these names from the script's "Pinocchio Model Joint Details" printout)
@@ -28,7 +37,6 @@ def xacro_to_urdf_string(xacro_filename: str, logger_func=print) -> Optional[str
 
     logger_func(f"Processing Xacro file: {xacro_filename}")
     try:
-        # Attempt to find ros2 executable, assuming it's in PATH
         process = subprocess.run(
             ["ros2", "run", "xacro", "xacro", xacro_filename],
             check=True,
@@ -71,54 +79,54 @@ def load_pinocchio_model_from_urdf_string(urdf_xml_string: str, logger_func=prin
         if ros_package_path:
             package_dirs = [
                 p for p in ros_package_path.split(os.pathsep) if os.path.isdir(p)
-            ]  # Use os.pathsep
+            ]
 
-        # Add common workspace paths if specific package_dirs are not found or to supplement
-        # This is a heuristic and might need adjustment based on your workspace structure
         common_workspace_paths = [
-            os.path.expanduser("~/ros2_ws/src"),
+            os.path.expanduser("~/ros2_ws/src"),  # Common Foxy/Galactic/Humble
+            os.path.expanduser("~/dev_ws/src"),  # Common Iron+
             os.path.expanduser("~/workspace/src"),
-            # Add other common workspace locations if necessary
         ]
         for wsp in common_workspace_paths:
             if os.path.isdir(wsp) and wsp not in package_dirs:
-                # Pinocchio expects a list of directories containing packages, not the package directories themselves
-                # So, if wsp is like '/home/user/ros2_ws/src', it's correct.
                 package_dirs.append(wsp)
 
-        # If the current working directory's parent might be a workspace 'src'
-        # This helps if running from within a package.
-        current_ws_src_path = os.path.abspath(
-            os.path.join(os.getcwd(), "..", "..", "src")
-        )
-        if (
-            os.path.isdir(current_ws_src_path)
-            and current_ws_src_path not in package_dirs
-        ):
-            package_dirs.append(current_ws_src_path)
+        # Attempt to find the 'src' directory of the current ROS 2 workspace
+        # This is a heuristic based on typical workspace layouts.
+        current_dir = os.getcwd()
+        while current_dir != os.path.dirname(current_dir):  # Stop at root
+            if (
+                os.path.basename(current_dir) == "install"
+                or os.path.basename(current_dir) == "build"
+                or os.path.basename(current_dir) == "log"
+            ):
+                ws_root = os.path.dirname(current_dir)
+                src_path = os.path.join(ws_root, "src")
+                if os.path.isdir(src_path) and src_path not in package_dirs:
+                    package_dirs.append(src_path)
+                break
+            current_dir = os.path.dirname(current_dir)
 
         if package_dirs:
-            logger_func(
-                f"Using package_dirs for Pinocchio: {list(set(package_dirs))}"
-            )  # Show unique dirs
+            unique_package_dirs = list(set(package_dirs))  # Remove duplicates
+            logger_func(f"Using package_dirs for Pinocchio: {unique_package_dirs}")
             model = pin.buildModelFromUrdf(
-                temp_urdf_path, package_dirs=list(set(package_dirs))
+                temp_urdf_path, package_dirs=unique_package_dirs
             )
             collision_model = pin.buildGeomFromUrdf(
                 model,
                 temp_urdf_path,
                 pin.GeometryType.COLLISION,
-                package_dirs=list(set(package_dirs)),
+                package_dirs=unique_package_dirs,
             )
             visual_model = pin.buildGeomFromUrdf(
                 model,
                 temp_urdf_path,
                 pin.GeometryType.VISUAL,
-                package_dirs=list(set(package_dirs)),
+                package_dirs=unique_package_dirs,
             )
         else:
             logger_func(
-                "Warning: ROS_PACKAGE_PATH not found or empty. Mesh loading might fail if using package:// paths."
+                "Warning: ROS_PACKAGE_PATH not found or empty, and common workspace paths not found. Mesh loading might fail if using package:// paths."
             )
             model = pin.buildModelFromUrdf(temp_urdf_path)
             collision_model = pin.buildGeomFromUrdf(
@@ -138,7 +146,6 @@ def load_pinocchio_model_from_urdf_string(urdf_xml_string: str, logger_func=prin
         return None, None, None, None
     finally:
         if temp_urdf_path and os.path.exists(temp_urdf_path):
-            # logger_func(f"Temporary URDF file for debugging: {temp_urdf_path}") # Uncomment to keep file
             os.remove(temp_urdf_path)
 
 
@@ -150,7 +157,6 @@ def load_enhanced_trajectory_from_json(
         with open(filepath, "r") as f:
             traj_data = json.load(f)
         logger_func(f"Enhanced trajectory loaded from {filepath}")
-        # Basic validation for the new structure
         if "jaco_joint_names" not in traj_data or "waypoints" not in traj_data:
             logger_func(
                 "Error: Loaded JSON is missing 'jaco_joint_names' or 'waypoints'."
@@ -159,11 +165,43 @@ def load_enhanced_trajectory_from_json(
         return traj_data
     except FileNotFoundError:
         logger_func(f"Error: Trajectory file not found at {filepath}")
+        return None
     except json.JSONDecodeError:
         logger_func(f"Error: Could not decode JSON from {filepath}")
+        return None
     except Exception as e:
         logger_func(f"An unexpected error occurred loading trajectory: {e}")
-    return None
+        return None
+
+
+def load_joint_state_from_json(
+    filepath: str, logger_func=print
+) -> Optional[Dict[str, Any]]:
+    """Loads joint state data (expected sensor_msgs/msg/JointState format) from a JSON file."""
+    try:
+        with open(filepath, "r") as f:
+            joint_state_data = json.load(f)
+        logger_func(f"Joint state loaded from {filepath}")
+        if "name" not in joint_state_data or "position" not in joint_state_data:
+            logger_func(
+                "Error: Loaded JSON for joint state is missing 'name' or 'position' fields."
+            )
+            return None
+        if len(joint_state_data["name"]) != len(joint_state_data["position"]):
+            logger_func(
+                "Error: Mismatch between number of names and positions in joint state JSON."
+            )
+            return None
+        return joint_state_data
+    except FileNotFoundError:
+        logger_func(f"Error: Joint state file not found at {filepath}")
+        return None
+    except json.JSONDecodeError:
+        logger_func(f"Error: Could not decode JSON from {filepath}")
+        return None
+    except Exception as e:
+        logger_func(f"An unexpected error occurred loading joint state: {e}")
+        return None
 
 
 def get_pinocchio_joint_info(
@@ -173,7 +211,8 @@ def get_pinocchio_joint_info(
     if model.existJointName(joint_name):
         joint_id = model.getJointId(joint_name)
         joint_obj = model.joints[joint_id]
-        if joint_obj.nq > 0:  # Only consider actuated joints
+        # Consider only joints that contribute to the configuration vector q
+        if joint_obj.idx_q >= 0 and joint_obj.nq > 0:
             return {
                 "name": joint_name,
                 "q_idx_start": joint_obj.idx_q,
@@ -184,10 +223,50 @@ def get_pinocchio_joint_info(
     return None
 
 
-def main(xacro_file: str, trajectory_file: str):
-    print("--- Pinocchio + MeshCat Trajectory Visualizer (Enhanced) ---")
+def set_q_from_joint_state_data(
+    q_vector: np.ndarray,
+    model: pin.Model,
+    joint_names: List[str],
+    joint_positions: List[float],
+    logger_func=print,
+):
+    """Updates Pinocchio q_vector based on names and positions from a JointState-like structure."""
+    if len(joint_names) != len(joint_positions):
+        logger_func(
+            "Error in set_q_from_joint_state_data: name and position lists have different lengths."
+        )
+        return
 
-    urdf_string = xacro_to_urdf_string(xacro_file)
+    name_to_pos = {name: joint_positions[i] for i, name in enumerate(joint_names)}
+
+    for i in range(
+        1, model.njoints
+    ):  # Iterate through Pinocchio model joints (skip universe)
+        joint_name_in_model = model.names[i]
+        joint_info = get_pinocchio_joint_info(model, joint_name_in_model)
+
+        if joint_info and joint_name_in_model in name_to_pos:
+            theta_input = name_to_pos[joint_name_in_model]
+            q_idx_start, nq, nv = (
+                joint_info["q_idx_start"],
+                joint_info["nq"],
+                joint_info["nv"],
+            )
+
+            if nq == 1:  # Typically for prismatic or revolute if not using cos/sin
+                q_vector[q_idx_start] = theta_input
+            elif nq == 2 and nv == 1:  # Revolute joint with cos/sin representation
+                q_vector[q_idx_start] = np.cos(theta_input)
+                q_vector[q_idx_start + 1] = np.sin(theta_input)
+            # Add other joint types if necessary (e.g., free flyer)
+            # else: logger_func(f"Joint {joint_name_in_model} has nq={nq}, nv={nv} - unhandled for direct q setting from JointState.")
+        # else: logger_func(f"Joint {joint_name_in_model} from model not in provided joint state or not actuated.")
+
+
+def main(args):
+    print("--- Pinocchio + MeshCat Visualizer ---")
+
+    urdf_string = xacro_to_urdf_string(args.xacro_file)
     if not urdf_string:
         print("Exiting due to Xacro processing failure.")
         return
@@ -200,7 +279,7 @@ def main(xacro_file: str, trajectory_file: str):
 
     if model:
         print("\n--- Pinocchio Model Joint Details ---")
-        for i in range(1, model.njoints):  # Start from 1 to skip universe
+        for i in range(1, model.njoints):
             joint_name_in_model = model.names[i]
             joint_obj = model.joints[i]
             print(
@@ -212,13 +291,10 @@ def main(xacro_file: str, trajectory_file: str):
 
     print("Initializing MeshCat viewer... Waiting for connection.")
     try:
-        visualizer = (
-            meshcat.Visualizer().open()
-        )  # open=True is default if not passed to initViewer
-        # visualizer.wait() # Wait for browser to connect
+        visualizer = meshcat.Visualizer().open()
         print(f"MeshCat viewer URL: {visualizer.url()}")
         pin_viz = pin.visualize.MeshcatVisualizer(model, collision_model, visual_model)
-        pin_viz.initViewer(viewer=visualizer)  # Already opened
+        pin_viz.initViewer(viewer=visualizer)
         pin_viz.loadViewerModel(
             rootNodeName=model.name if model.name else "pinocchio_robot"
         )
@@ -227,7 +303,44 @@ def main(xacro_file: str, trajectory_file: str):
         print(f"Error initializing MeshCat or Pinocchio visualizer: {e}")
         return
 
-    trajectory_data = load_enhanced_trajectory_from_json(trajectory_file)
+    q = pin.neutral(model)
+    print(
+        f"Neutral configuration q (size {model.nq}): {q.T if model.nq > 0 else 'N/A'}"
+    )
+
+    if args.ik_solution_json:
+        print(f"\n--- Visualizing Single IK Solution from: {args.ik_solution_json} ---")
+        joint_state_data = load_joint_state_from_json(args.ik_solution_json)
+        if not joint_state_data:
+            print("Failed to load IK solution JSON. Exiting.")
+            return
+
+        # Set q from the loaded joint state
+        set_q_from_joint_state_data(
+            q, model, joint_state_data["name"], joint_state_data["position"]
+        )
+
+        print(f"Displaying configuration from IK solution: {q.T}")
+        pin_viz.display(q)
+        try:
+            input("Robot displayed. Press Enter to quit.")
+        except KeyboardInterrupt:
+            print("\nQuitting by user interrupt.")
+        return  # Exit after displaying single state
+
+    # --- Original Trajectory Visualization Logic ---
+    if not args.trajectory_file:
+        print(
+            "No trajectory file or IK solution JSON provided. Displaying neutral pose."
+        )
+        pin_viz.display(q)
+        try:
+            input("Neutral pose displayed. Press Enter to quit.")
+        except KeyboardInterrupt:
+            print("\nQuitting by user interrupt.")
+        return
+
+    trajectory_data = load_enhanced_trajectory_from_json(args.trajectory_file)
     if not trajectory_data:
         print("Failed to load valid trajectory data. Exiting.")
         return
@@ -238,25 +351,9 @@ def main(xacro_file: str, trajectory_file: str):
         print("Trajectory contains no waypoints. Exiting.")
         return
 
-    q = pin.neutral(model)
-    print(
-        f"Neutral configuration q (size {model.nq}): {q.T if model.nq > 0 else 'N/A'}"
-    )
-
-    # Map Jaco joint names from trajectory to Pinocchio model indices
-    jaco_joint_mappings: List[Optional[Dict[str, Any]]] = []
-    for name_in_traj in jaco_joint_names_from_traj:
-        jaco_joint_mappings.append(get_pinocchio_joint_info(model, name_in_traj))
-
-    if any(m is None for m in jaco_joint_mappings):
-        print(
-            "Warning: Some Jaco joints from trajectory not found or not actuated in model:"
-        )
-        for i, name in enumerate(jaco_joint_names_from_traj):
-            if jaco_joint_mappings[i] is None:
-                print(f"  - {name}")
-
-    # Get Pinocchio info for Articutool joints
+    jaco_joint_mappings: List[Optional[Dict[str, Any]]] = [
+        get_pinocchio_joint_info(model, name) for name in jaco_joint_names_from_traj
+    ]
     articutool_pitch_joint_info = get_pinocchio_joint_info(
         model, ARTICUTOOL_PITCH_JOINT_NAME
     )
@@ -264,15 +361,8 @@ def main(xacro_file: str, trajectory_file: str):
         model, ARTICUTOOL_ROLL_JOINT_NAME
     )
 
-    if not articutool_pitch_joint_info:
-        print(
-            f"Error: Articutool pitch joint '{ARTICUTOOL_PITCH_JOINT_NAME}' not found or not actuated in model. Exiting."
-        )
-        return
-    if not articutool_roll_joint_info:
-        print(
-            f"Error: Articutool roll joint '{ARTICUTOOL_ROLL_JOINT_NAME}' not found or not actuated in model. Exiting."
-        )
+    if not articutool_pitch_joint_info or not articutool_roll_joint_info:
+        print("Error: Articutool pitch or roll joint not found in model. Exiting.")
         return
 
     print("\nArticutool Joint Mappings:")
@@ -283,9 +373,7 @@ def main(xacro_file: str, trajectory_file: str):
         f"  Roll  ('{ARTICUTOOL_ROLL_JOINT_NAME}'): Maps to q[{articutool_roll_joint_info['q_idx_start']}], nq={articutool_roll_joint_info['nq']}"
     )
 
-    def set_q_from_waypoint(q_vector: np.ndarray, waypoint: Dict[str, Any]):
-        """Updates q_vector with Jaco and Articutool positions from a waypoint."""
-        # Set Jaco joints
+    def set_q_from_enhanced_waypoint(q_vector: np.ndarray, waypoint: Dict[str, Any]):
         jaco_positions = waypoint.get("jaco_positions_rad", [])
         for k, mapping_info in enumerate(jaco_joint_mappings):
             if mapping_info and k < len(jaco_positions):
@@ -297,75 +385,46 @@ def main(xacro_file: str, trajectory_file: str):
                 )
                 if nq == 1:
                     q_vector[q_idx_start] = theta_traj
-                elif nq == 2 and nv == 1:  # Continuous (cos/sin)
-                    q_vector[q_idx_start] = np.cos(theta_traj)
-                    q_vector[q_idx_start + 1] = np.sin(theta_traj)
+                elif nq == 2 and nv == 1:
+                    q_vector[q_idx_start], q_vector[q_idx_start + 1] = (
+                        np.cos(theta_traj),
+                        np.sin(theta_traj),
+                    )
 
-        # Set Articutool joints
         if waypoint.get("articutool_waypoint_feasible", False):
-            pitch_sol = waypoint.get("articutool_pitch_solution_rad")
-            roll_sol = waypoint.get("articutool_roll_solution_rad")
+            pitch_sol, roll_sol = (
+                waypoint.get("articutool_pitch_solution_rad"),
+                waypoint.get("articutool_roll_solution_rad"),
+            )
+            for sol, info in [
+                (pitch_sol, articutool_pitch_joint_info),
+                (roll_sol, articutool_roll_joint_info),
+            ]:
+                if sol is not None and info:
+                    q_idx, nq, nv = info["q_idx_start"], info["nq"], info["nv"]
+                    if nq == 1:
+                        q_vector[q_idx] = sol
+                    elif nq == 2 and nv == 1:
+                        q_vector[q_idx], q_vector[q_idx + 1] = np.cos(sol), np.sin(sol)
+        else:  # Articutool not feasible, set to neutral (0.0)
+            for info in [articutool_pitch_joint_info, articutool_roll_joint_info]:
+                if info:
+                    q_idx, nq, nv = info["q_idx_start"], info["nq"], info["nv"]
+                    if nq == 1:
+                        q_vector[q_idx] = 0.0
+                    elif nq == 2 and nv == 1:
+                        q_vector[q_idx], q_vector[q_idx + 1] = np.cos(0.0), np.sin(0.0)
 
-            if pitch_sol is not None and articutool_pitch_joint_info:
-                q_idx = articutool_pitch_joint_info["q_idx_start"]
-                # Assuming nq=1 for these revolute joints
-                if articutool_pitch_joint_info["nq"] == 1:
-                    q_vector[q_idx] = pitch_sol
-                elif (
-                    articutool_pitch_joint_info["nq"] == 2
-                    and articutool_pitch_joint_info["nv"] == 1
-                ):  # cos/sin
-                    q_vector[q_idx] = np.cos(pitch_sol)
-                    q_vector[q_idx + 1] = np.sin(pitch_sol)
-
-            if roll_sol is not None and articutool_roll_joint_info:
-                q_idx = articutool_roll_joint_info["q_idx_start"]
-                if articutool_roll_joint_info["nq"] == 1:
-                    q_vector[q_idx] = roll_sol
-                elif (
-                    articutool_roll_joint_info["nq"] == 2
-                    and articutool_roll_joint_info["nv"] == 1
-                ):  # cos/sin
-                    q_vector[q_idx] = np.cos(roll_sol)
-                    q_vector[q_idx + 1] = np.sin(roll_sol)
-        else:
-            # Articutool not feasible at this waypoint.
-            # Optionally, set Articutool joints to a default/neutral pose (e.g., 0.0)
-            # This provides a visual cue. If not set, they retain previous values.
-            if articutool_pitch_joint_info:
-                q_idx = articutool_pitch_joint_info["q_idx_start"]
-                if articutool_pitch_joint_info["nq"] == 1:
-                    q_vector[q_idx] = 0.0
-                elif (
-                    articutool_pitch_joint_info["nq"] == 2
-                    and articutool_pitch_joint_info["nv"] == 1
-                ):
-                    q_vector[q_idx] = np.cos(0.0)
-                    q_vector[q_idx + 1] = np.sin(0.0)
-            if articutool_roll_joint_info:
-                q_idx = articutool_roll_joint_info["q_idx_start"]
-                if articutool_roll_joint_info["nq"] == 1:
-                    q_vector[q_idx] = 0.0
-                elif (
-                    articutool_roll_joint_info["nq"] == 2
-                    and articutool_roll_joint_info["nv"] == 1
-                ):
-                    q_vector[q_idx] = np.cos(0.0)
-                    q_vector[q_idx + 1] = np.sin(0.0)
-            # print(f"  Articutool not feasible at this waypoint. Setting its joints to 0.")
-
-    # Initial display
-    current_q_display = q.copy()  # Start with neutral
+    current_q_display = q.copy()
     if waypoints_data:
-        set_q_from_waypoint(current_q_display, waypoints_data[0])
+        set_q_from_enhanced_waypoint(current_q_display, waypoints_data[0])
     pin_viz.display(current_q_display)
-    q[:] = current_q_display[:]  # Update main q
+    q[:] = current_q_display[:]
 
     current_point_idx = 0
     num_trajectory_points = len(waypoints_data)
     print("\n--- Trajectory Control ---")
     print("Open the MeshCat URL in your browser.")
-
     running = True
     while running:
         wp_info = waypoints_data[current_point_idx]
@@ -376,16 +435,13 @@ def main(xacro_file: str, trajectory_file: str):
             at_pitch = f"{at_pitch:.3f}"
         if isinstance(at_roll, float):
             at_roll = f"{at_roll:.3f}"
-
         print(
             f"\nPoint: {current_point_idx + 1}/{num_trajectory_points} | Articutool Feasible: {at_feasible} (P: {at_pitch}, R: {at_roll})"
         )
         print("Commands: [n]ext, [p]rev, [f]irst, [l]ast, [g <num>], [a]nimate, [q]uit")
-
         try:
             user_input = input("Enter command: ").strip().lower()
             new_q_to_display = q.copy()
-
             if user_input == "q":
                 running = False
                 print("Quitting.")
@@ -418,17 +474,23 @@ def main(xacro_file: str, trajectory_file: str):
                 try:
                     for i in range(start_anim_idx, num_trajectory_points):
                         current_point_idx = i
-                        set_q_from_waypoint(anim_q, waypoints_data[current_point_idx])
+                        set_q_from_enhanced_waypoint(
+                            anim_q, waypoints_data[current_point_idx]
+                        )
                         pin_viz.display(anim_q)
                         print(
                             f"  Displaying point {current_point_idx + 1}/{num_trajectory_points}",
                             end="\r",
                             flush=True,
                         )
-                        time.sleep(0.05)  # Animation speed
-                    print("\nAnimation finished.                                ")
+                        time.sleep(0.05)
+                    print(
+                        "\nAnimation finished.                                       "
+                    )
                 except KeyboardInterrupt:
-                    print("\nAnimation stopped.                                 ")
+                    print(
+                        "\nAnimation stopped.                                          "
+                    )
                 new_q_to_display[:] = anim_q[:]
                 q[:] = new_q_to_display[:]
                 pin_viz.display(q)
@@ -438,11 +500,11 @@ def main(xacro_file: str, trajectory_file: str):
                 continue
             else:
                 continue
-
-            set_q_from_waypoint(new_q_to_display, waypoints_data[current_point_idx])
+            set_q_from_enhanced_waypoint(
+                new_q_to_display, waypoints_data[current_point_idx]
+            )
             pin_viz.display(new_q_to_display)
             q[:] = new_q_to_display[:]
-
         except EOFError:
             print("\nEOF received, quitting.")
             running = False
@@ -456,15 +518,30 @@ def main(xacro_file: str, trajectory_file: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Visualize enhanced JointTrajectory using Pinocchio and MeshCat."
+        description="Visualize robot trajectories or single IK solutions using Pinocchio and MeshCat."
     )
-    parser.add_argument(
-        "xacro_file",
+    parser.add_argument("xacro_file", type=str, help="Path to the robot XACRO file.")
+
+    group = parser.add_mutually_exclusive_group(
+        required=False
+    )  # Make providing one of these optional
+    group.add_argument(
+        "--trajectory_file",
         type=str,
-        help="Path to the robot XACRO file (that instantiates the robot).",
+        help="Path to the .json ENHANCED trajectory file.",
     )
-    parser.add_argument(
-        "trajectory_file", type=str, help="Path to the .json ENHANCED trajectory file."
+    group.add_argument(
+        "--ik_solution_json",
+        type=str,
+        help="Path to a .json file representing a single sensor_msgs/msg/JointState for IK visualization.",
     )
+
     args = parser.parse_args()
-    main(args.xacro_file, args.trajectory_file)
+
+    if not args.trajectory_file and not args.ik_solution_json:
+        print(
+            "Neither --trajectory_file nor --ik_solution_json provided. Will display neutral pose."
+        )
+        # main will handle displaying neutral if both are None after model load.
+
+    main(args)
