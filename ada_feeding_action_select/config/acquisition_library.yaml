@@ -265,7 +265,7 @@ actions:
 - ext_angular: [0.0, 0.0, 0.0]
   ext_duration: 1.0
   ext_force: 50.0
-  ext_linear: [0.0, 0.0, 0.08]
+  ext_linear: [0.0, 0.0, 0.08] # Lift after scoop
   ext_torque: 4.0
   grasp_angular: [0.0, 0.0, 0.0]
   grasp_duration: 0.0
@@ -273,17 +273,17 @@ actions:
   grasp_linear: [0.0, 0.0, 0.0]
   grasp_torque: 4.0
   pre_force: 20.0
-  pre_offset:       # MoveInto position in food_frame
-    - 0.01          # X: 1cm into the food
-    - 0.0           # Y
-    - -0.005        # Z: 0.5cm down
-  pre_pos:          # Direction for MoveAbove standoff in food_frame
-    - -1.0          # Purely along -X of food_frame (will be normalized & scaled)
-    - 0.0
-    - 0.0
-  pre_quat:         # Tool orientation in food_frame (Pitch -20deg around Y)
-    - 0.0           # qx
-    - -0.17364818   # qy
-    - 0.0           # qz
-    - 0.98480775    # qw
+  pre_offset:                # Tool tip target position IN FOOD_FRAME at end of "MoveInto"
+    - 0.02                   # X: e.g., 2cm "into" the food along food_frame X-axis
+    - 0.0                    # Y
+    - -0.01                  # Z: e.g., 1cm down from food_frame origin
+  pre_pos:                   # Defines DIRECTION for "MoveAbove" standoff IN FOOD_FRAME
+    - -1.0                   # Approach from food_frame -X (will be normalized & scaled by move_above_dist_m)
+    - 0.0                    # Y
+    - 0.0                    # Z (can add a small positive Z for height if needed, e.g., 0.1 or 0.2)
+  pre_quat:                  # Tool tip orientation IN FOOD_FRAME
+    - 0.353453             # qx
+    - 0.6122721            # qy
+    - 0.6127465             # qz
+    - 0.3531793             # qw
   pre_torque: 4.0
