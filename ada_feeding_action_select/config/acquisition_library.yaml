@@ -262,3 +262,28 @@ actions:
   - -0.0486593
   - -0.1055426
   pre_torque: 4.0
+- ext_angular: [0.0, 0.0, 0.0]
+  ext_duration: 1.0
+  ext_force: 50.0
+  ext_linear: [0.0, 0.0, 0.08]
+  ext_torque: 4.0
+  grasp_angular: [0.0, 0.0, 0.0]
+  grasp_duration: 0.0
+  grasp_force: 15.0
+  grasp_linear: [0.0, 0.0, 0.0]
+  grasp_torque: 4.0
+  pre_force: 20.0
+  pre_offset:       # MoveInto position in food_frame
+    - 0.01          # X: 1cm into the food
+    - 0.0           # Y
+    - -0.005        # Z: 0.5cm down
+  pre_pos:          # Direction for MoveAbove standoff in food_frame
+    - -1.0          # Purely along -X of food_frame (will be normalized & scaled)
+    - 0.0
+    - 0.0
+  pre_quat:         # Tool orientation in food_frame (Pitch -20deg around Y)
+    - 0.0           # qx
+    - -0.17364818   # qy
+    - 0.0           # qz
+    - 0.98480775    # qw
+  pre_torque: 4.0
