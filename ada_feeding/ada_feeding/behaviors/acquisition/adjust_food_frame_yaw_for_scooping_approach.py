@@ -224,9 +224,7 @@ class AdjustFoodFrameYawForScoopingApproach(BlackboardBehavior):
                 ada_feeding.helpers, "set_static_tf"
             ):
                 # Call the helper, assuming it's imported or available
-                set_static_tf(
-                    t_rb_foodnew_stamped, self.node
-                )  # Pass node, and blackboard if needed by helper
+                set_static_tf(t_rb_foodnew_stamped, self.blackboard, self.node)
                 self.logger.info(
                     f"[{self.name}] Updated static TF for '{food_fid}' relative to '{robot_base_fid}'."
                 )
