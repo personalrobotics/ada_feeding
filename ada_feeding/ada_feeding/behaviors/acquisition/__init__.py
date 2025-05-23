@@ -10,6 +10,6 @@ from .compute_action_constraints import (
     ComputeActionConstraints,
     ComputeActionTwist,
 )
-from .adjust_food_frame_yaw_for_scooping_approach import (
-    AdjustFoodFrameYawForScoopingApproach,
+from .rotate_local_approach_poses import (
+    RotateLocalApproachPoses,
 )

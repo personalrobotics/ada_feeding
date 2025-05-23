@@ -35,7 +35,7 @@ from ada_feeding.behaviors.acquisition import (
     ComputeFoodFrame,
     ComputeActionConstraints,
     ComputeActionTwist,
-    AdjustFoodFrameYawForScoopingApproach,
+    RotateLocalApproachPoses,
 )
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2JointConstraint,
@@ -550,6 +550,28 @@ class AcquireFoodTree(MoveToTree):
                             },
                         ),
                     ),
+                    RotateLocalApproachPoses(
+                        name="RotateLocalFoodPosesForApproach",
+                        ns=name,
+                        inputs={
+                            "move_above_pose_in_food_frame_orig": BlackboardKey(
+                                "move_above_pose_food_frame"
+                            ),
+                            "move_into_pose_in_food_frame_orig": BlackboardKey(
+                                "move_into_pose_food_frame"
+                            ),
+                            "food_frame_id": "food",
+                            "robot_base_frame_id": "j2n6s200_link_base",
+                        },
+                        outputs={
+                            "move_above_pose_in_food_frame_rotated": BlackboardKey(
+                                "move_above_pose_final_local"
+                            ),
+                            "move_into_pose_in_food_frame_rotated": BlackboardKey(
+                                "move_into_pose_final_local"
+                            ),
+                        },
+                    ),
                     # Re-Tare FT Sensor and default to 4N threshold
                     pre_moveto_config(name="PreAcquireFTTare"),
                     # --- Prepare MoveAbove Pose for IK ---
@@ -557,7 +579,7 @@ class AcquireFoodTree(MoveToTree):
                         name="StampMoveAbovePoseFood",
                         ns=name,
                         inputs={
-                            "input_pose": BlackboardKey("move_above_pose_food_frame"),
+                            "input_pose": BlackboardKey("move_above_pose_final_local"),
                             "frame_id": "food",
                         },
                         outputs={
@@ -585,7 +607,7 @@ class AcquireFoodTree(MoveToTree):
                         name="StampMoveIntoPoseFood",
                         ns=name,
                         inputs={
-                            "input_pose": BlackboardKey("move_into_pose_food_frame"),
+                            "input_pose": BlackboardKey("move_into_pose_final_local"),
                             "frame_id": "food",
                         },
                         outputs={
@@ -639,20 +661,6 @@ class AcquireFoodTree(MoveToTree):
                             "tool_tip_frame_id_pin": BlackboardKey(
                                 "tool_tip_frame_id_pin"
                             ),
-                        },
-                    ),
-                    AdjustFoodFrameYawForScoopingApproach(
-                        name="AdjustFoodYawForScooping",
-                        ns=name,
-                        inputs={
-                            "move_above_pose_food_frame": BlackboardKey(
-                                "move_above_pose_food_frame"
-                            ),
-                            "move_into_pose_food_frame": BlackboardKey(
-                                "move_into_pose_food_frame"
-                            ),
-                            "food_frame_id": "food",
-                            "robot_base_frame_id": "j2n6s200_link_base",
                         },
                     ),
                 ],
