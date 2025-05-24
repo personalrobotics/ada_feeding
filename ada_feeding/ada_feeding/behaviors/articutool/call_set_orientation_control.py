@@ -169,11 +169,11 @@ class CallSetOrientationControl(BlackboardBehavior):
 
                 # Populate fields based on mode
                 if req.control_mode == SetOrientationControl.Request.MODE_LEVELING:
-                    pitch_deg = self.blackboard_try_get(
-                        "pitch_offset_deg", 0.0
+                    pitch_deg = self.blackboard_get(
+                        "pitch_offset_deg"
                     )  # Default to 0 if not found
-                    roll_deg = self.blackboard_try_get(
-                        "roll_offset_deg", 0.0
+                    roll_deg = self.blackboard_get(
+                        "roll_offset_deg"
                     )  # Default to 0 if not found
                     req.pitch_offset = float(math.radians(pitch_deg))
                     req.roll_offset = float(math.radians(roll_deg))
@@ -189,7 +189,7 @@ class CallSetOrientationControl(BlackboardBehavior):
                     req.control_mode
                     == SetOrientationControl.Request.MODE_FULL_ORIENTATION
                 ):
-                    target_orient_input = self.blackboard_try_get(
+                    target_orient_input = self.blackboard_get(
                         "target_orientation_robot_base_quat"
                     )
                     if target_orient_input is None:

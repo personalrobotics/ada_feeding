@@ -128,6 +128,12 @@ class TriggerArticutoolCalibration(BlackboardBehavior):
                 f"[{self.name}] Failed to create service client during setup: {e}"
             )
 
+    @override
+    def initialise(self) -> None:
+        self.service_future = None  # Reset for a new call
+        self.call_sent_time = None
+        self.logger.debug(f"[{self.name}] Initializing service call state.")
+
     def update(self) -> Status:
         """Manage the asynchronous service call state machine."""
         if not self._initialized_properly or self.client is None:
