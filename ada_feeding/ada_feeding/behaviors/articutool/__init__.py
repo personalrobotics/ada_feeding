@@ -11,3 +11,4 @@ from .switch_articutool_controllers import (
     SwitchArticutoolControllers,
 )
 from .compute_articutool_leveling_joints import ComputeArticutoolLevelingJoints
+from .trigger_articutool_calibration import TriggerArticutoolCalibration
