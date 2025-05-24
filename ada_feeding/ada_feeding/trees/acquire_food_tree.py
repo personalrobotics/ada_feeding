@@ -339,20 +339,28 @@ class AcquireFoodTree(MoveToTree):
                                 "action_status": BlackboardKey("tool_action_status"),
                             },
                         ),
-                        # SwitchArticutoolControllers(
-                        #     name="SwitchArticutoolToVelocity",
-                        #     ns=name,
-                        #     inputs={
-                        #         "controllers_to_activate": ["velocity_controller"],
-                        #         "controllers_to_deactivate": [
-                        #             "joint_trajectory_controller"
-                        #         ],
-                        #     },
-                        #     outputs={
-                        #         "switch_call_succeeded": None,
-                        #         "switch_response_ok": None,
-                        #     },
-                        # ),
+                        SwitchArticutoolControllers(
+                            name="SwitchArticutoolToVelocity",
+                            ns=name,
+                            inputs={
+                                "controllers_to_activate": ["velocity_controller"],
+                                "controllers_to_deactivate": [
+                                    "joint_trajectory_controller"
+                                ],
+                            },
+                            outputs={
+                                "switch_call_succeeded": None,
+                                "switch_response_ok": None,
+                            },
+                        ),
+                        CallSetOrientationControl(
+                            name="SetArticutoolOrientation",
+                            ns=name,
+                            inputs={
+                                "control_mode": 1,
+                            },
+                            outputs={},
+                        ),
                         MoveIt2JointConstraint(
                             name="RestingConstraint",
                             ns=name,
