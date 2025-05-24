@@ -66,6 +66,7 @@ from ada_feeding.behaviors.articutool import (
     CallSetOrientationControl,
     SwitchArticutoolControllers,
     ComputeArticutoolLevelingJoints,
+    TriggerArticutoolCalibration,
 )
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
@@ -1331,54 +1332,39 @@ class AcquireFoodTree(MoveToTree):
                                     # Starts a new Sequence w/ Memory internally
                                     workers=[
                                         ### Move Into Food
-                                        # SwitchArticutoolControllers(
-                                        #     name="SwitchArticutoolToVelocity",
-                                        #     ns=name,
-                                        #     inputs={
-                                        #         "controllers_to_activate": [
-                                        #             "velocity_controller"
-                                        #         ],
-                                        #         "controllers_to_deactivate": [
-                                        #             "joint_trajectory_controller"
-                                        #         ],
-                                        #     },
-                                        #     outputs={
-                                        #         "switch_call_succeeded": None,
-                                        #         "switch_response_ok": None,
-                                        #     },
-                                        # ),
-                                        # ExtractPoseComponents(
-                                        #     name="GetMoveIntoOrientation",
-                                        #     ns=name,
-                                        #     inputs={
-                                        #         "input_pose_object": BlackboardKey(
-                                        #             "move_into_pose_stamped_base_frame"
-                                        #         ),
-                                        #     },
-                                        #     outputs={
-                                        #         "output_position": BlackboardKey(
-                                        #             "move_into_position"
-                                        #         ),
-                                        #         "output_orientation": BlackboardKey(
-                                        #             "move_into_orientation"
-                                        #         ),
-                                        #         "output_header": BlackboardKey(
-                                        #             "move_into_header"
-                                        #         ),
-                                        #         "success": None,
-                                        #     },
-                                        # ),
-                                        # CallSetOrientationControl(
-                                        #     name="SetArticutoolOrientation",
-                                        #     ns=name,
-                                        #     inputs={
-                                        #         "enable": True,
-                                        #         "quat_xyzw": BlackboardKey(
-                                        #             "move_into_orientation"
-                                        #         ),
-                                        #     },
-                                        #     outputs={},
-                                        # ),
+                                        SwitchArticutoolControllers(
+                                            name="SwitchArticutoolToVelocity",
+                                            ns=name,
+                                            inputs={
+                                                "controllers_to_activate": [
+                                                    "velocity_controller"
+                                                ],
+                                                "controllers_to_deactivate": [
+                                                    "joint_trajectory_controller"
+                                                ],
+                                            },
+                                            outputs={
+                                                "switch_call_succeeded": None,
+                                                "switch_response_ok": None,
+                                            },
+                                        ),
+                                        TriggerArticutoolCalibration(
+                                            name="TriggerArticutoolCalibration",
+                                            ns=name,
+                                            inputs={},
+                                            outputs={},
+                                        ),
+                                        CallSetOrientationControl(
+                                            name="SetArticutoolOrientation",
+                                            ns=name,
+                                            inputs={
+                                                "control_mode": 2,
+                                                "target_orientation_robot_base_quat": BlackboardKey(
+                                                    "move_into_tool_tip_orientation"
+                                                ),
+                                            },
+                                            outputs={},
+                                        ),
                                         # MoveInto expect F/T failure
                                         py_trees.decorators.FailureIsSuccess(
                                             name="MoveIntoJacoArmExecuteSucceed",
