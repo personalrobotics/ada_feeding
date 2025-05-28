@@ -406,6 +406,14 @@ class AcquireFoodTree(MoveToTree):
                 name="PreAcquisitionSequence",
                 memory=True,
                 children=[
+                    CallSetOrientationControl(
+                        name="DisableArticutoolOrientation",
+                        ns=name,
+                        inputs={
+                            "control_mode": 0,
+                        },
+                        outputs={},
+                    ),
                     GetJointStates(
                         name="GetJacoArmStateForLeveling",
                         ns=name,
