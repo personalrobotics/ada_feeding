@@ -217,150 +217,6 @@ class AcquireFoodTree(MoveToTree):
                             # Default fail if service is down
                             wait_for_server_timeout_sec=0.0,
                         ),
-                        GetJointStates(
-                            name="GetJacoArmStateForLeveling",
-                            ns=name,
-                            node=self._node,
-                            inputs={
-                                "joint_names": [
-                                    "j2n6s200_joint_1",
-                                    "j2n6s200_joint_2",
-                                    "j2n6s200_joint_3",
-                                    "j2n6s200_joint_4",
-                                    "j2n6s200_joint_5",
-                                    "j2n6s200_joint_6",
-                                ],
-                            },
-                            outputs={
-                                "joint_state": BlackboardKey(
-                                    "current_jaco_arm_state_for_leveling_fk"
-                                ),
-                                "joint_positions": None,
-                                "joint_names": None,
-                            },
-                        ),
-                        MoveIt2ComputeFK(
-                            name="GetJacoEEPoseForLeveling",
-                            ns=name,
-                            inputs={
-                                "group_name": "jaco_arm",
-                                "joint_state": BlackboardKey(
-                                    "current_jaco_arm_state_for_leveling_fk"
-                                ),
-                                "fk_link_names": ["j2n6s200_end_effector"],
-                            },
-                            outputs={
-                                "fk_poses": BlackboardKey("current_jaco_arm_fk_poses"),
-                                "success": None,
-                            },
-                        ),
-                        ExtractPoseFromPosesByLink(
-                            name="ExtractJacoEEPoseForLeveling",
-                            ns=name,
-                            inputs={
-                                "fk_poses": BlackboardKey("current_jaco_arm_fk_poses"),
-                                "target_link_name": "j2n6s200_end_effector",
-                                "requested_link_names": ["j2n6s200_end_effector"],
-                            },
-                            outputs={
-                                "extracted_pose": BlackboardKey(
-                                    "current_jaco_ee_world_pose_stamped"
-                                ),
-                                "success": None,
-                            },
-                        ),
-                        ComputeArticutoolLevelingJoints(
-                            name="ComputeLevelingAngles",
-                            ns=name,
-                            inputs={
-                                "jaco_ee_world_pose": BlackboardKey(
-                                    "current_jaco_ee_world_pose_stamped"
-                                ),
-                            },
-                            outputs={
-                                "articutool_joint_positions": BlackboardKey(
-                                    "articutool_joint_positions"
-                                ),
-                                "articutool_leveling_ik_found": BlackboardKey(
-                                    "leveling_ik_success"
-                                ),
-                            },
-                        ),
-                        MoveIt2JointConstraint(
-                            name="SetLevelingJointGoal",
-                            ns=name,
-                            inputs={
-                                "joint_positions": BlackboardKey(
-                                    "articutool_joint_positions"
-                                ),
-                            },
-                            outputs={
-                                "constraints": BlackboardKey(
-                                    "articutool_leveling_constraints"
-                                )
-                            },
-                        ),
-                        py_trees.decorators.Timeout(
-                            name="PlanToLevelArticutoolTimeout",
-                            # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                            duration=10.0
-                            * self.allowed_planning_time_to_resting_configuration,
-                            child=MoveIt2Plan(
-                                name="PlanToLevelArticutool",
-                                ns=name,
-                                inputs={
-                                    "goal_constraints": BlackboardKey(
-                                        "articutool_leveling_constraints"
-                                    ),
-                                    "group_name": "articutool",
-                                },
-                                outputs={
-                                    "trajectory": BlackboardKey(
-                                        "level_articutool_trajectory"
-                                    )
-                                },
-                            ),
-                        ),
-                        ExecuteArticutoolTrajectory(
-                            name="LevelArticutool",
-                            ns=name,
-                            inputs={
-                                "trajectory": BlackboardKey(
-                                    "level_articutool_trajectory"
-                                ),
-                            },
-                            outputs={
-                                "action_goal_accepted": BlackboardKey(
-                                    "tool_goal_accepted"
-                                ),
-                                "action_result_code": BlackboardKey(
-                                    "tool_exec_result_code"
-                                ),
-                                "action_status": BlackboardKey("tool_action_status"),
-                            },
-                        ),
-                        SwitchArticutoolControllers(
-                            name="SwitchArticutoolToVelocity",
-                            ns=name,
-                            inputs={
-                                "controllers_to_activate": ["velocity_controller"],
-                                "controllers_to_deactivate": [
-                                    "joint_trajectory_controller"
-                                ],
-                            },
-                            outputs={
-                                "switch_call_succeeded": None,
-                                "switch_response_ok": None,
-                            },
-                        ),
-                        CallSetOrientationControl(
-                            name="SetArticutoolOrientation",
-                            ns=name,
-                            inputs={
-                                "control_mode": 1,
-                            },
-                            outputs={},
-                        ),
                         MoveIt2JointConstraint(
                             name="RestingConstraint",
                             ns=name,
@@ -544,6 +400,154 @@ class AcquireFoodTree(MoveToTree):
                 ),  # End RecoverySelector
             ],  # End RecoverySequence.children
         )  # End RecoverySequence
+
+        def post_acquisition_sequence() -> py_trees.behaviour.Behaviour:
+            return py_trees.composites.Sequence(
+                name="PreAcquisitionSequence",
+                memory=True,
+                children=[
+                    GetJointStates(
+                        name="GetJacoArmStateForLeveling",
+                        ns=name,
+                        node=self._node,
+                        inputs={
+                            "joint_names": [
+                                "j2n6s200_joint_1",
+                                "j2n6s200_joint_2",
+                                "j2n6s200_joint_3",
+                                "j2n6s200_joint_4",
+                                "j2n6s200_joint_5",
+                                "j2n6s200_joint_6",
+                            ],
+                        },
+                        outputs={
+                            "joint_state": BlackboardKey(
+                                "current_jaco_arm_state_for_leveling_fk"
+                            ),
+                            "joint_positions": None,
+                            "joint_names": None,
+                        },
+                    ),
+                    MoveIt2ComputeFK(
+                        name="GetJacoEEPoseForLeveling",
+                        ns=name,
+                        inputs={
+                            "group_name": "jaco_arm",
+                            "joint_state": BlackboardKey(
+                                "current_jaco_arm_state_for_leveling_fk"
+                            ),
+                            "fk_link_names": ["j2n6s200_end_effector"],
+                        },
+                        outputs={
+                            "fk_poses": BlackboardKey("current_jaco_arm_fk_poses"),
+                            "success": None,
+                        },
+                    ),
+                    ExtractPoseFromPosesByLink(
+                        name="ExtractJacoEEPoseForLeveling",
+                        ns=name,
+                        inputs={
+                            "fk_poses": BlackboardKey("current_jaco_arm_fk_poses"),
+                            "target_link_name": "j2n6s200_end_effector",
+                            "requested_link_names": ["j2n6s200_end_effector"],
+                        },
+                        outputs={
+                            "extracted_pose": BlackboardKey(
+                                "current_jaco_ee_world_pose_stamped"
+                            ),
+                            "success": None,
+                        },
+                    ),
+                    ComputeArticutoolLevelingJoints(
+                        name="ComputeLevelingAngles",
+                        ns=name,
+                        inputs={
+                            "jaco_ee_world_pose": BlackboardKey(
+                                "current_jaco_ee_world_pose_stamped"
+                            ),
+                        },
+                        outputs={
+                            "articutool_joint_positions": BlackboardKey(
+                                "articutool_joint_positions"
+                            ),
+                            "articutool_leveling_ik_found": BlackboardKey(
+                                "leveling_ik_success"
+                            ),
+                        },
+                    ),
+                    MoveIt2JointConstraint(
+                        name="SetLevelingJointGoal",
+                        ns=name,
+                        inputs={
+                            "joint_positions": BlackboardKey(
+                                "articutool_joint_positions"
+                            ),
+                        },
+                        outputs={
+                            "constraints": BlackboardKey(
+                                "articutool_leveling_constraints"
+                            )
+                        },
+                    ),
+                    py_trees.decorators.Timeout(
+                        name="PlanToLevelArticutoolTimeout",
+                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                        duration=10.0
+                        * self.allowed_planning_time_to_resting_configuration,
+                        child=MoveIt2Plan(
+                            name="PlanToLevelArticutool",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey(
+                                    "articutool_leveling_constraints"
+                                ),
+                                "group_name": "articutool",
+                            },
+                            outputs={
+                                "trajectory": BlackboardKey(
+                                    "level_articutool_trajectory"
+                                )
+                            },
+                        ),
+                    ),
+                    ExecuteArticutoolTrajectory(
+                        name="LevelArticutool",
+                        ns=name,
+                        inputs={
+                            "trajectory": BlackboardKey("level_articutool_trajectory"),
+                        },
+                        outputs={
+                            "action_goal_accepted": BlackboardKey("tool_goal_accepted"),
+                            "action_result_code": BlackboardKey(
+                                "tool_exec_result_code"
+                            ),
+                            "action_status": BlackboardKey("tool_action_status"),
+                        },
+                    ),
+                    SwitchArticutoolControllers(
+                        name="SwitchArticutoolToVelocity",
+                        ns=name,
+                        inputs={
+                            "controllers_to_activate": ["velocity_controller"],
+                            "controllers_to_deactivate": [
+                                "joint_trajectory_controller"
+                            ],
+                        },
+                        outputs={
+                            "switch_call_succeeded": None,
+                            "switch_response_ok": None,
+                        },
+                    ),
+                    CallSetOrientationControl(
+                        name="SetArticutoolOrientation",
+                        ns=name,
+                        inputs={
+                            "control_mode": 1,
+                        },
+                        outputs={},
+                    ),
+                ],
+            )
 
         def pre_acquisition_sequence(
             flip_food_frame: bool = False,
@@ -1591,6 +1595,7 @@ class AcquireFoodTree(MoveToTree):
                                         ),  # End MoveIt2Servo
                                     ],  # End SafeFTPreempt.workers
                                 ),  # End SafeFTPreempt
+                                post_acquisition_sequence(),
                             ],  # End OctomapAndTableCollision.workers
                         ),  # OctomapAndTableCollision
                     ]
