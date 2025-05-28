@@ -1265,17 +1265,6 @@ class AcquireFoodTree(MoveToTree):
                                 ),
                                 move_above_sequence(),
                                 move_into_sequence(),
-                                MoveIt2Execute(
-                                    name="MoveAboveJacoArm",
-                                    ns=name,
-                                    inputs={
-                                        "trajectory": BlackboardKey(
-                                            "move_above_jaco_arm_trajectory"
-                                        ),
-                                        "group_name": "jaco_arm",
-                                    },
-                                    outputs={},
-                                ),
                                 ExecuteArticutoolTrajectory(
                                     name="MoveAboveArticutool",
                                     ns=name,
@@ -1295,6 +1284,17 @@ class AcquireFoodTree(MoveToTree):
                                             "tool_action_status"
                                         ),
                                     },
+                                ),
+                                MoveIt2Execute(
+                                    name="MoveAboveJacoArm",
+                                    ns=name,
+                                    inputs={
+                                        "trajectory": BlackboardKey(
+                                            "move_above_jaco_arm_trajectory"
+                                        ),
+                                        "group_name": "jaco_arm",
+                                    },
+                                    outputs={},
                                 ),
                                 # If Anything goes wrong, reset FT to safe levels
                                 scoped_behavior(
