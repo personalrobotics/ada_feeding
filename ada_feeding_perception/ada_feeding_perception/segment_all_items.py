@@ -635,33 +635,33 @@ class SegmentAllItemsNode(Node):
 
         # Write the system and user prompts for GPT-4o
         system_query = f"""
-            You are a prompt engineer that is assigned to describe items  
-            in an image you have been queried so that a vision language model 
-            can take in your prompt as a query and use it to for classification 
-            tasks. You respond in string format and do not provide any explanation 
-            for your responses.  
+            You are a prompt engineer that is assigned to describe items
+            in an image you have been queried so that a vision language model
+            can take in your prompt as a query and use it to for classification
+            tasks. You respond in string format and do not provide any explanation
+            for your responses.
         """
         user_query = f"""
             Your objective is to generate a sentence prompt that describes the food
-            items on a plate in an image. 
-            You are given an image of a plate with food items and a list of the food items 
+            items on a plate in an image.
+            You are given an image of a plate with food items and a list of the food items
             on the plate.
             Please compile the inputs from the list into a sentence prompt that effectively
             lists the food items on the plate.
             Add qualifiers to the prompt to better visually describe the food for the VLM
             to identify. Don't add any irrelevant qualifiers.
+            Ensure that the words in the input list are included in the prompt and do not
+            get altered in the sentence. For instance the word "apple" should not be changed
+            to "apples" if "apple" is provided in the input list.
 
             Here is the input list of food items to compile into a string: {labels_list}
 
             Here are some sample responses that convey how you should format your responses:
-            
-            Food items including grapes, strawberries, blueberries, melon chunks, and 
-            carrots on a small, blue plate.
 
-            Food items including strips of grilled meat and seasoned cucumber 
-            spears arranged on a light gray plate.
+            Food items including red strawberry fruit, green kiwi slices, yellow banana slices,
+            and orange carrot sticks on a plate.
 
-            Food items including baked chicken pieces, black olives, bell pepper slices, 
+            Food items including baked chicken pieces, black olive pieces, bell pepper slices,
             and artichoke on a plate.
         """
 
