@@ -1,3 +1,8 @@
+<!--
+   Copyright (c) 2024-2025, Personal Robotics Laboratory
+   License: BSD 3-Clause. See LICENSE.md file in root directory.
+-->
+
 <launch>
   <arg name="compressed_image" default="true" description="Whether to run the compressed image version of the node, or the generic one" />
 

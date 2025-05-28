@@ -1,3 +1,6 @@
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 ada_feeding_action_servers:
   ros__parameters:

@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the SPANet context adapter.
 
@@ -7,6 +9,7 @@ This module defines the SPANet context adapter.
 
 # Standard imports
 import os
+import gdown
 
 # Third-party imports
 from ament_index_python.packages import get_package_share_directory
@@ -16,9 +19,9 @@ from overrides import override
 import torch
 
 # Local imports
-from ada_feeding_action_select.helpers import logger
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_perception.helpers import ros_msg_to_cv2_image
+from ada_feeding_action_select.helpers import logger
 from .models import SPANetConfig, SPANet
 from .base_adapters import ContextAdapter
 
@@ -31,7 +34,8 @@ class SPANetContext(ContextAdapter):
 
     def __init__(
         self,
-        checkpoint: str,
+        checkpoint_url: str,
+        checkpoint_path: str,
         n_features: int = 2048,
         gpu_index: int = 0,
     ) -> None:
@@ -47,10 +51,13 @@ class SPANetContext(ContextAdapter):
 
         # Init CUDA
         self.use_cuda = torch.cuda.is_available()
+        self.device = torch.device("cuda") if self.use_cuda else torch.device("cpu")
         if self.use_cuda:
             logger.info("Init SPANet with CUDA")
             os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
             os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_index)
+        else:
+            logger.info("Init SPANet with CPU")
 
         # Init SPANet
         self.config = SPANetConfig(n_features=n_features)
@@ -58,9 +65,24 @@ class SPANetContext(ContextAdapter):
 
         # Load Checkpoint
         ckpt_file = os.path.join(
-            get_package_share_directory("ada_feeding_action_select"), "data", checkpoint
+            get_package_share_directory("ada_feeding_action_select"),
+            "data",
+            checkpoint_path,
         )
-        ckpt = torch.load(ckpt_file)
+        if not os.path.exists(ckpt_file):
+            logger.info(
+                f"Checkpoint file not found at {ckpt_file}. Downloading from {checkpoint_url}..."
+            )
+
+            try:
+                gdown.download(checkpoint_url, ckpt_file, quiet=False)
+                logger.info(f"Checkpoint file downloaded successfully to {ckpt_file}")
+            except Exception as e:
+                raise RuntimeError(f"Error downloading checkpoint: {e}")
+        else:
+            logger.info(f"Checkpoint file found at {ckpt_file}. Loading...")
+
+        ckpt = torch.load(ckpt_file, map_location=self.device)
         self.spanet.load_state_dict(ckpt["net"])
         self.spanet.eval()
         if self.use_cuda:

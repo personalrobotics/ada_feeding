@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains a node, ReceiverNode, which subscribes to a ByteMultiArray
 topic published by SenderNode and republishes the messages to the original topics,

@@ -1,3 +1,6 @@
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This script demonstrates how to use the Segment Anything Model (SAM) to
 segment an object from an image given a point inside the object. Unlike the

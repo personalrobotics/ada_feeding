@@ -1,7 +1,9 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
-This module defines the ft_thresh_satisifed idiom.
+This module defines the ft_thresh_satisfied idiom.
 Which subscribes to the FT sensor and detects whether
 a given FT threshold is satisfied at the point of execution.
 """
@@ -32,7 +34,7 @@ def ft_thresh_satisfied(
 ) -> py_trees.behaviour.Behaviour:
     """
     Returns a behavior that subscribes to the FT sensor and checks whether threshold
-    is immediately satisifed. FAILURE if not, SUCCESS if so. RUNNING while waiting
+    is immediately satisfied. FAILURE if not, SUCCESS if so. RUNNING while waiting
     for force/torque message.
 
     Parameters

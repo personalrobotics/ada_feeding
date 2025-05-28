@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains a node that exposes a ROS service that saves the latest
 RGB image and depth image from the RealSense, at the parameter-specified filepath.

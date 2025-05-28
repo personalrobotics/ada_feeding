@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains a node, DummyForceTorqueSensor, which publishes sample data
 to mimic the force-torque sensor on the robot. By setting parameters, users can
@@ -11,7 +14,7 @@ Usage:
 - Run the node: `ros2 run ada_feeding dummy_ft_sensor`
 - Subscribe to the sensor data: `ros2 topic echo /wireless_ft/ftSensor3`
 - Turn the sensor off: `ros2 param set /dummy_ft_sensor is_on False`
-- Start publishing zero-variance data: 
+- Start publishing zero-variance data:
     `ros2 param set /dummy_ft_sensor std [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]`
 - Start publishing data where one dimension is zero-variance:
     `ros2 param set /dummy_ft_sensor std [0.0, 0.1, 0.1, 0.1, 0.1, 0.1]`

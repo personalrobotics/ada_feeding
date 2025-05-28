@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This file defines the FaceDetection class, which publishes the 3d PointStamped locations
 of the largest detected mouth with respect to camera_depth_optical_frame.
@@ -27,7 +30,6 @@ from sensor_msgs.msg import CompressedImage, CameraInfo, Image
 from skspatial.objects import Plane, Points
 from std_srvs.srv import SetBool
 
-
 # Local imports
 from ada_feeding_msgs.msg import FaceDetection
 from ada_feeding_perception.helpers import (
@@ -37,6 +39,9 @@ from ada_feeding_perception.helpers import (
     ros_msg_to_cv2_image,
 )
 from ada_feeding_perception.ada_feeding_perception_node import ADAFeedingPerceptionNode
+
+# pylint: disable=duplicate-code
+# Many perception nodes have similar subscribers/publishers.
 
 
 class DepthComputationMethod(Enum):
@@ -138,7 +143,7 @@ class FaceDetectionNode:
             FaceDetection, "~/face_detection", 1
         )
         # Currently, RVIZ2 doesn't support visualization of CompressedImage
-        # (other than as part of a Camera). Hence, for vizualization purposes
+        # (other than as part of a Camera). Hence, for visualization purposes
         # this must be an Image. https://github.com/ros2/rviz/issues/738
         self.publisher_image = self._node.create_publisher(
             CompressedImage, "~/face_detection_img/compressed", 1

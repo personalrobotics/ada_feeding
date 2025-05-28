@@ -1,7 +1,7 @@
 # This action type "inherits" from Trigger in that it has all the fields as
 # Trigger, and more.
 
-# What controller to activate. The action will deactive all other controllers.
+# What controller to activate. The action will deactivate all other controllers.
 string controller_to_activate
 
 # Whether to also re-tare the force-torque sensor

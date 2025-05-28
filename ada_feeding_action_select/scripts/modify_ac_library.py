@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 Test script for modifying the acquisition library
 """
@@ -82,7 +85,7 @@ def main(in_fname: str, out_fname: str):
     print(f"Writing to: {out_fname}")
     data["actions"] = actions
     with open(out_fname, "w", encoding="utf-8") as file:
-        file.write("# This file was modifed by modify_ac_library.py\n")
+        file.write("# This file was modified by modify_ac_library.py\n")
         yaml.dump(data, file)
 
 

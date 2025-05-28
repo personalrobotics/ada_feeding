@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines a node that launches a 2 ROS2 services.
 This service implement AcquisitionSelect and AcquisitionReport.
@@ -10,6 +13,7 @@ import argparse
 import copy
 import errno
 import os
+import threading
 import time
 from typing import Dict
 import uuid
@@ -23,11 +27,11 @@ from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 import torch
 
 # Internal imports
+from ada_feeding_msgs.srv import AcquisitionSelect, AcquisitionReport
 from ada_feeding.helpers import import_from_string
 from ada_feeding_action_select.helpers import register_logger
 from ada_feeding_action_select.policies import Policy
 from ada_feeding_action_select.adapters import ContextAdapter, PosthocAdapter
-from ada_feeding_msgs.srv import AcquisitionSelect, AcquisitionReport
 
 
 class PolicyServices(Node):
@@ -162,7 +166,7 @@ class PolicyServices(Node):
 
     def _init_checkpoints_record(self, context_cls: type, posthoc_cls: type) -> None:
         """
-        Seperate logic for checkpoint and data record
+        Separate logic for checkpoint and data record
         """
 
         # pylint: disable=too-many-branches
@@ -222,7 +226,7 @@ class PolicyServices(Node):
             )
             if len(pt_files) > 0:
                 with open(pt_files[-1], "rb") as ckpt_file:
-                    ckpt = torch.load(ckpt_file)
+                    ckpt = torch.load(ckpt_file, map_location=self.device)
                     try:
                         if ckpt["context_cls"] != context_cls:
                             self.get_logger().warning(
@@ -248,6 +252,8 @@ class PolicyServices(Node):
         super().__init__("policy_service")
         register_logger(self.get_logger())
         self._declare_parameters()
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Name of the Policy
         policy_name = self.get_parameter("policy").value
@@ -289,12 +295,14 @@ class PolicyServices(Node):
 
         # Create AcquisitionSelect cache
         # UUID -> {context, request, response}
+        self.cache_lock = threading.Lock()
         self.cache = {}
 
         # Init Checkpoints / Data Record
         self._init_checkpoints_record(context_cls, posthoc_cls)
 
         # Start ROS services
+        self.acquisition_report_threads = []
         self.ros_objs = []
         self.ros_objs.append(
             self.create_service(
@@ -336,11 +344,12 @@ class PolicyServices(Node):
             response.probabilities = list(res[0])
             response.actions = list(res[1])
             select_id = str(uuid.uuid4())
-            self.cache[select_id] = {
-                "context": np.copy(context),
-                "request": copy.deepcopy(request),
-                "response": copy.deepcopy(response),
-            }
+            with self.cache_lock:
+                self.cache[select_id] = {
+                    "context": np.copy(context),
+                    "request": copy.deepcopy(request),
+                    "response": copy.deepcopy(response),
+                }
             response.id = select_id
 
         if response.status != "Success":
@@ -362,13 +371,49 @@ class PolicyServices(Node):
             f"AcquisitionReport Request with ID: '{request.id}' and loss '{request.loss}'"
         )
 
-        # Collect cached context
-        if request.id not in self.cache:
-            response.status = "id does not map to previous select call"
-            self.get_logger().error(f"AcquistionReport: {response.status}")
-            response.success = False
-            return response
-        cache = self.cache[request.id]
+        # Remove any completed threads
+        i = 0
+        while i < len(self.acquisition_report_threads):
+            if not self.acquisition_report_threads[i].is_alive():
+                self.get_logger().info("Removing completed acquisition report thread")
+                self.acquisition_report_threads.pop(i)
+            else:
+                i += 1
+
+        # Start the asynch thread
+        request_copy = copy.deepcopy(request)
+        response_copy = copy.deepcopy(response)
+        thread = threading.Thread(
+            target=self.report_callback_work, args=(request_copy, response_copy)
+        )
+        self.acquisition_report_threads.append(thread)
+        self.get_logger().info("Starting new acquisition report thread")
+        thread.start()
+
+        # Return success immediately
+        response.status = "Success"
+        response.success = True
+        return response
+
+    # pylint: disable=too-many-statements
+    # One over is fine for this function.
+    def report_callback_work(
+        self, request: AcquisitionReport.Request, response: AcquisitionReport.Response
+    ) -> AcquisitionReport.Response:
+        """
+        Perform the work of updating the policy based on the acquisition. This is a workaround
+        to the fact that either ROSLib or rosbridge (likely the latter) cannot process a service
+        and action at the same time, so in practice the next motion waits until after the policy
+        has been updated, which adds a few seconds of unnecessary latency.
+        """
+        with self.cache_lock:
+            # Collect cached context
+            if request.id not in self.cache:
+                response.status = "id does not map to previous select call"
+                self.get_logger().error(f"AcquistionReport: {response.status}")
+                response.success = False
+                return response
+            cache = copy.deepcopy(self.cache[request.id])
         context = cache["context"]
 
         # Collect executed action
@@ -406,7 +451,9 @@ class PolicyServices(Node):
 
         # Report completed
         self.n_successful_reports += 1
-        del self.cache[request.id]
+        with self.cache_lock:
+            if request.id in self.cache:
+                del self.cache[request.id]
 
         # Save checkpoint if requested
         if (
@@ -443,7 +490,7 @@ class PolicyServices(Node):
     # TODO: Consider making get_kwargs an ada_feeding helper
     def get_kwargs(self, kws_root: str, kwarg_root: str) -> Dict:
         """
-        Pull variable keyward arguments from ROS2 parameter server.
+        Pull variable keyword arguments from ROS2 parameter server.
         Needed because RCL does not allow dictionary params.
 
         Parameters

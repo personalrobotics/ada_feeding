@@ -1,3 +1,6 @@
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This file contains helper functions for the ada_feeding_perception package.
 """
@@ -21,8 +24,8 @@ from rclpy.node import Node
 try:
     from rosbags.typesys.types import (
         sensor_msgs__msg__CompressedImage as rCompressedImage,
-        sensor_msgs__msg__Image as rImage,
     )
+    from rosbags.typesys.types import sensor_msgs__msg__Image as rImage
 except (TypeError, ModuleNotFoundError) as err:
     rclpy.logging.get_logger("ada_feeding_perception_helpers").warn(
         "rosbags is not installed, or a wrong version is installed (needs 0.9.19). "
@@ -30,7 +33,6 @@ except (TypeError, ModuleNotFoundError) as err:
     )
 from sensor_msgs.msg import CompressedImage, Image
 from skimage.morphology import flood_fill
-
 
 # The fixed header that ROS2 Humble's compressed depth image transport plugin prepends to
 # the data. The exact value was empirically determined, but the below link shows the code
@@ -42,8 +44,10 @@ __COMPRESSED_DEPTH_16UC1_HEADER = array.array(
 )
 
 try:
+    # pylint: disable=invalid-name
     generic_image_type = Union[Image, rImage, CompressedImage, rCompressedImage]
 except NameError as _:
+    # pylint: disable=invalid-name
     # This only happens if rosbags wasn't imported, which is logged above.
     generic_image_type = Union[Image, CompressedImage]
 

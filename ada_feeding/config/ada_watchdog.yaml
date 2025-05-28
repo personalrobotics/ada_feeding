@@ -1,3 +1,6 @@
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 # NOTE: You have to change this node name if you change the node name in the launchfile.
 ada_watchdog:
   ros__parameters:
@@ -12,7 +15,7 @@ ada_watchdog:
     ############################################################################
 
     # If the force_torque sensor has not published a message in this amount of time,
-    # or any of its dimensions are zero-variance in this amount of time, the watchdog 
+    # or any of its dimensions are zero-variance in this amount of time, the watchdog
     # will trigger a fault.
     ft_timeout_sec: 1.0
 
@@ -20,7 +23,7 @@ ada_watchdog:
     # Parameters for the EStopCondition of the watchdog
     ############################################################################
 
-    # The rate at which to sample fromt eh microphone (the e-stop button)
+    # The rate at which to sample from the microphone (the e-stop button)
     rate: 48000
     # The number of samples to take at a time. If you are getting overflow
     # errors, try increasing this number.
@@ -39,12 +42,12 @@ ada_watchdog:
     # If there are multiple button clicks within this time range, it is considered a
     # single click.
     time_per_click_sec: 0.5
-    
+
     # The below parameters are used to set the system microphone volume. It is
     # important for system microphone volume to be consistent, because the e-stop
     # button's signal amplitude is based on that. Since each device has different
     # controls, we specify device-specific configurations.
-    # 
+    #
     # Instructions to get the amixer parameters are here:
     #     1. `pactl_mic_name`:
     #         - Unplug the microphone.

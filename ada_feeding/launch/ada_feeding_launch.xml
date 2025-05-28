@@ -1,3 +1,8 @@
+<!--
+   Copyright (c) 2024-2025, Personal Robotics Laboratory
+   License: BSD 3-Clause. See LICENSE.md file in root directory.
+-->
+
 <launch>
   <arg name="run_web_bridge" default="false" description="Whether to run the web bridge nodes" />
   <arg name="use_estop" default="true" description="Whether to use the e-stop. Should only be set false in sim, since we don't have a way of simulating the e-stop button." />

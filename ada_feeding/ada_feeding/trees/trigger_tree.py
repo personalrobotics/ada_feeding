@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the abstract TriggerTree class, which is a behavior tree
 that implements the `Trigger.action` interface defined in `ada_feeding_msgs`.
@@ -20,7 +22,7 @@ from ada_feeding import ActionServerBT
 
 class TriggerTree(ActionServerBT, ABC):
     """
-    An abstract behvaior tree for any behavior that should get triggered and send
+    An abstract behaviour tree for any behavior that should get triggered and send
     feedback and results according to the `Trigger.action` interface defined in
     `ada_feeding_msgs`.
     """

@@ -1,3 +1,6 @@
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the PlanningSceneInitializer class, which reads the configuration
 for static mesh and primitive collision objects from the parameters and adds them to
@@ -31,7 +34,7 @@ class PlanningSceneInitializer:
     """
 
     # pylint: disable=too-few-public-methods
-    # This class only exists to intialize the planning scene, hence it only needs one
+    # This class only exists to initialize the planning scene, hence it only needs one
     # public method
 
     def __init__(

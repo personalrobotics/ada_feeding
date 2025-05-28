@@ -101,7 +101,7 @@ actions:
       ext_duration: 0.3900365829467773
       ext_force: 50.0
       ext_torque: 4.0
-    - ## 3 (Clean VS0 w/ Angle Aproach)
+    - ## 3 (Clean VS0 w/ Angle Approach)
       pre_pos: [-0.042610413948224124,0.08381169451702956,0.06859996598659442]
       pre_quat: [0.0549787, 0.9943871, -0.0646521, 0.0631807]
       pre_offset: [0.0, 0.0, -0.03]

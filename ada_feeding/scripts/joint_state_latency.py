@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines a barebones ROS2 node that subscribes to the /joint_states
 topic and logs the latency between when the message was published and when it was

@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module defines the MoveToConfigurationWithWheelchairWallTree behaviour tree.
 This tree was designed for the MoveToStagingConfiguration action, but can be
@@ -59,7 +61,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
         goal_configuration_tolerance: float = 0.001,
         orientation_constraint_quaternion: Optional[List[float]] = None,
         orientation_constraint_tolerances: Optional[List[float]] = None,
-        planner_id: str = "RRTConnectkConfigDefault",
+        planner_id: str = "RRTstarkConfigDefault",
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
         force_threshold: float = 4.0,

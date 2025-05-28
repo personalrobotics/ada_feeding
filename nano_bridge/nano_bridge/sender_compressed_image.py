@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This module contains a node, SenderCompressedImageNode, which subscribes to topics as specified
 by its parameters and publishes it to a single topic.
@@ -21,7 +24,10 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 
 # Local imports
-from nano_bridge.msg import CompressedImage as CompressedImageOutput
+# pylint: disable=import-error, no-name-in-module
+from nano_bridge.msg import (
+    CompressedImage as CompressedImageOutput,
+)
 
 
 class SenderCompressedImageNode(Node):

@@ -9,7 +9,7 @@ byte operation
 string object_id
 
 ---
-# Whether or not it was succesfully added
+# Whether or not it was successfully added
 bool success
 
 # Additional information

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 """
 This file defines the TestSegmentFromPoint class, which is a node that can be
 used to test the SegmentFromPoint action server.
