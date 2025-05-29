@@ -18,6 +18,7 @@
       <arg name="log_level" value="$(var log_level)"/>
       <arg name="sim" value="$(var sim)"/>
       <arg name="use_rviz" value="$(var use_rviz)"/>
+      <arg name="use_octomap" value="false"/>
     </include>
   </group>
 
