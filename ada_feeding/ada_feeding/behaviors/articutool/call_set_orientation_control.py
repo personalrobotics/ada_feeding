@@ -38,7 +38,7 @@ class CallSetOrientationControl(BlackboardBehavior):
     Returns RUNNING while waiting for the service response.
     """
 
-    DEFAULT_SERVICE_NAME = "/articutool/set_orientation_control"
+    DEFAULT_SERVICE_NAME = "/orientation_control/set_orientation_control_mode"
     DEFAULT_WAIT_TIMEOUT_SEC = 1.0
 
     def blackboard_inputs(
