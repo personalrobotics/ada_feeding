@@ -169,9 +169,6 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "cd ./src/feeding_web_interface/feedingwebapp",
                 "node --env-file=.env server.js",
             ],
-            "ft": [
-                "ros2 run ada_feeding dummy_ft_sensor.py",
-            ],
             "camera": [
                 (
                     "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
@@ -226,9 +223,6 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "cd ./src/feeding_web_interface/feedingwebapp",
                 "node --env-file=.env server.js",
             ],
-            "ft": [
-                "ros2 run ada_feeding dummy_ft_sensor.py",
-            ],
             "perception": [
                 (
                     "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
@@ -272,9 +266,6 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             ],
             "camera": [
                 "ssh nano@nano -t './start_nano.sh'",
-            ],
-            "ft": [
-                "ros2 run forque_sensor_hardware forque_sensor_hardware --ros-args -p host:=ft-sensor-2",
             ],
             "rosbridge": [
                 "ros2 launch rosbridge_server rosbridge_websocket_launch.xml",
