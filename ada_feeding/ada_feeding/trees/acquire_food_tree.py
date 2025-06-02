@@ -1063,6 +1063,21 @@ class AcquireFoodTree(MoveToTree):
                             "success": None,
                         },
                     ),
+                    ComputeArticutoolLevelingJoints(
+                        name="ComputeLevelingAngles",
+                        ns=name,
+                        inputs={
+                            "jaco_ee_world_pose": BlackboardKey(
+                                "move_into_jaco_arm_ee_pose"
+                            ),
+                        },
+                        outputs={
+                            "articutool_joint_positions": None,
+                            "articutool_leveling_ik_found": BlackboardKey(
+                                "move_into_leveling_ik_success"
+                            ),
+                        },
+                    ),
                     MoveIt2PoseConstraint(
                         name="MoveIntoJacoArmEEPoseConstraint",
                         ns=name,
