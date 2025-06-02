@@ -1278,8 +1278,18 @@ class AcquireFoodTree(MoveToTree):
                                         ),
                                     ],
                                 ),
-                                move_above_sequence(),
-                                move_into_sequence(),
+                                py_trees.decorators.Retry(
+                                    name="PlanAcquisitionSequenceRetry",
+                                    num_failures=3,
+                                    child=py_trees.composites.Sequence(
+                                        name="PlanAcquisitionSequence",
+                                        memory=True,
+                                        children=[
+                                            move_above_sequence(),
+                                            move_into_sequence(),
+                                        ],
+                                    ),
+                                ),
                                 ExecuteArticutoolTrajectory(
                                     name="MoveAboveArticutool",
                                     ns=name,
