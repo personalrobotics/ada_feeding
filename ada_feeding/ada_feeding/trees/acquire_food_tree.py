@@ -518,6 +518,18 @@ class AcquireFoodTree(MoveToTree):
                             },
                         ),
                     ),
+                    SwitchArticutoolControllers(
+                        name="SwitchArticutoolToJointTrajectory",
+                        ns=name,
+                        inputs={
+                            "controllers_to_activate": ["joint_trajectory_controller"],
+                            "controllers_to_deactivate": ["velocity_controller"],
+                        },
+                        outputs={
+                            "switch_call_succeeded": None,
+                            "switch_response_ok": None,
+                        },
+                    ),
                     ExecuteArticutoolTrajectory(
                         name="LevelArticutool",
                         ns=name,
@@ -1289,6 +1301,22 @@ class AcquireFoodTree(MoveToTree):
                                             move_into_sequence(),
                                         ],
                                     ),
+                                ),
+                                SwitchArticutoolControllers(
+                                    name="SwitchArticutoolToJointTrajectory",
+                                    ns=name,
+                                    inputs={
+                                        "controllers_to_activate": [
+                                            "joint_trajectory_controller"
+                                        ],
+                                        "controllers_to_deactivate": [
+                                            "velocity_controller"
+                                        ],
+                                    },
+                                    outputs={
+                                        "switch_call_succeeded": None,
+                                        "switch_response_ok": None,
+                                    },
                                 ),
                                 ExecuteArticutoolTrajectory(
                                     name="MoveAboveArticutool",

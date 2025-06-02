@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, Personal Robotics Laboratory
 # License: BSD 3-Clause. See LICENSE.md file in root directory.
-
 # (Add appropriate Copyright/License if desired)
 
 """
 Defines the ExecuteArticutoolTrajectory behavior, which sends a planned
-trajectory to the Articutool's FollowJointTrajectory action server,
-handling controller switching.
+trajectory to the Articutool's FollowJointTrajectory action server.
+It assumes controllers are already appropriately switched by another behavior.
 """
 
 # Standard imports
@@ -18,14 +17,18 @@ from enum import Enum
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.action.client import ClientGoalHandle, GoalStatus
-from rclpy.node import Node
-from rclpy.executors import Future  # For type hints
+from rclpy.node import Node as RclpyNode  # Alias for clarity
+from rclpy.executors import Future
+from rclpy.qos import (
+    qos_profile_services_default,
+    QoSProfile,
+    ReliabilityPolicy,
+    DurabilityPolicy,
+    HistoryPolicy,
+)
 
 from control_msgs.action import FollowJointTrajectory
 from trajectory_msgs.msg import JointTrajectory  # Input type
-
-# from builtin_interfaces.msg import Duration # Used internally by action goal
-# from sensor_msgs.msg import JointState # Not directly needed
 
 from overrides import override
 import py_trees
@@ -36,20 +39,15 @@ from py_trees.common import Access, Status
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.behaviors import BlackboardBehavior
 
-# Assuming ControllerSwitcher is importable and works with a passed node
-from articutool_control.controller_switcher import ControllerSwitcher
 
-
-# Define constants for action status reporting (optional but clearer)
+# Define constants for action status reporting
 class ActionExecutionStatus(Enum):
     IDLE = "IDLE"
-    SWITCHING_CONTROLLERS = "SWITCHING_CONTROLLERS"
+    CHECKING_DEPENDENCIES = "CHECKING_DEPENDENCIES"
     SENDING_GOAL = "SENDING_GOAL"
     WAITING_FOR_ACCEPTANCE = "WAITING_FOR_ACCEPTANCE"
     EXECUTING = "EXECUTING"
-    WAITING_FOR_RESULT = (
-        "WAITING_FOR_RESULT"  # If execution status isn't monitored closely
-    )
+    WAITING_FOR_RESULT = "WAITING_FOR_RESULT"
     GOAL_REJECTED = "GOAL_REJECTED"
     GOAL_CANCELLED = "GOAL_CANCELLED"
     SUCCEEDED = "SUCCEEDED"
@@ -60,8 +58,12 @@ class ActionExecutionStatus(Enum):
 class ExecuteArticutoolTrajectory(BlackboardBehavior):
     """
     Executes a JointTrajectory on the Articutool using the
-    FollowJointTrajectory action server. Handles controller switching before
-    sending the goal. Returns RUNNING while executing, SUCCESS on completion,
+    FollowJointTrajectory action server. This behavior assumes that the
+    necessary controllers (e.g., 'joint_trajectory_controller') have already
+    been activated by a separate behavior (like SwitchArticutoolControllers)
+    prior to this behavior being ticked.
+
+    Returns RUNNING while executing, SUCCESS on completion,
     FAILURE on error, rejection, or abortion.
     """
 
@@ -69,30 +71,26 @@ class ExecuteArticutoolTrajectory(BlackboardBehavior):
     DEFAULT_ACTION_SERVER = (
         "/articutool/joint_trajectory_controller/follow_joint_trajectory"
     )
-    DEFAULT_CONTROLLER_TO_ACTIVATE = ["joint_trajectory_controller"]  # Expects list
-    DEFAULT_CONTROLLERS_TO_DEACTIVATE = ["velocity_controller"]  # Expects list
 
     def __init__(self, name: str, ns: str = "/", **kwargs):
-        # Pass kwargs to parent if BlackboardBehavior supports it
         super().__init__(name=name, ns=ns, **kwargs)
         # Internal state variables
         self._action_client: Optional[ActionClient] = None
-        self.controller_switcher: Optional[ControllerSwitcher] = None
         self._send_goal_future: Optional[Future] = None
         self._get_result_future: Optional[Future] = None
         self._goal_handle: Optional[ClientGoalHandle] = None
         self._current_status: ActionExecutionStatus = ActionExecutionStatus.IDLE
         self._result_code: Optional[int] = None  # Store the final result code
 
+        self._action_client_initialized: bool = False
+        self.node: Optional[RclpyNode] = None  # Store the node instance
+        self._action_server_name_str: str = (
+            ""  # To store the resolved action server name for logging
+        )
+
     def blackboard_inputs(
         self,
         trajectory: Union[BlackboardKey, JointTrajectory],
-        controllers_to_activate: Union[
-            BlackboardKey, List[str]
-        ] = DEFAULT_CONTROLLER_TO_ACTIVATE,
-        controllers_to_deactivate: Union[
-            BlackboardKey, List[str]
-        ] = DEFAULT_CONTROLLERS_TO_DEACTIVATE,
         action_server_name: Union[BlackboardKey, str] = DEFAULT_ACTION_SERVER,
     ) -> None:
         """
@@ -101,8 +99,6 @@ class ExecuteArticutoolTrajectory(BlackboardBehavior):
         Parameters
         ----------
         trajectory: The trajectory_msgs/JointTrajectory message to execute.
-        controllers_to_activate: List of controller names to activate before sending.
-        controllers_to_deactivate: List of controller names to deactivate before sending.
         action_server_name: Name of the FollowJointTrajectory action server.
         """
         super().blackboard_inputs(
@@ -134,57 +130,59 @@ class ExecuteArticutoolTrajectory(BlackboardBehavior):
 
     @override
     def setup(self, **kwargs):
-        """Get node, create action client and controller switcher."""
-        # pylint: disable=attribute-defined-outside-init
+        """Get node and create action client."""
         try:
-            self.node: Node = kwargs["node"]
+            self.node = kwargs["node"]
         except KeyError as e:
             self.logger.error(
                 f"[{self.name}] Behaviour expects 'node' in setup kwargs. {e}"
             )
-            return  # Cannot function without node
+            return  # Critical failure
 
         try:
-            try:
-                action_server_name = self.blackboard_get("action_server_name")
-                if not isinstance(action_server_name, str) or not action_server_name:
-                    self.logger.warning(
-                        f"[{self.name}] Blackboard 'action_server_name' invalid, using default."
-                    )
-                    action_server_name = self.DEFAULT_ACTION_SERVER
-            except KeyError:
-                self.logger.info(
-                    f"[{self.name}] Input 'action_server_name' not found, using default: {self.DEFAULT_ACTION_SERVER}"
+            action_server_name_bb = self.blackboard_get("action_server_name")
+            if not isinstance(action_server_name_bb, str) or not action_server_name_bb:
+                self.logger.warning(
+                    f"[{self.name}] Blackboard 'action_server_name' invalid or not found, using default: {self.DEFAULT_ACTION_SERVER}"
                 )
-                action_server_name = self.DEFAULT_ACTION_SERVER
-
-            self._action_client = ActionClient(
-                self.node, FollowJointTrajectory, action_server_name
-            )
-            # Check server availability briefly during setup
-            timeout_sec = 1.0
-            if not self._action_client.wait_for_server(timeout_sec=timeout_sec):
-                self.logger.error(
-                    f"[{self.name}] Action server '{action_server_name}' not available after {timeout_sec}s during setup."
-                )
-                self._action_client = None  # Mark as unavailable
-                return  # Setup fails
-
-            # Instantiate Controller Switcher (pass node if its __init__ requires it)
-            try:
-                # Assuming ControllerSwitcher might take node as arg
-                self.controller_switcher = ControllerSwitcher(node=self.node)
-            except TypeError:  # If ControllerSwitcher() doesn't take node
-                self.controller_switcher = ControllerSwitcher()
-
+                self._action_server_name_str = self.DEFAULT_ACTION_SERVER
+            else:
+                self._action_server_name_str = action_server_name_bb
+        except KeyError:
             self.logger.info(
-                f"[{self.name}] Setup complete. Action client created for '{action_server_name}'."
+                f"[{self.name}] Input 'action_server_name' not found on blackboard, using default: {self.DEFAULT_ACTION_SERVER}"
             )
+            self._action_server_name_str = self.DEFAULT_ACTION_SERVER
 
-        except Exception as e:
-            self.logger.error(f"[{self.name}] Failed during setup: {e}")
-            self._action_client = None
-            self.controller_switcher = None
+        # Define QoS profiles for action client components
+        service_qos_profile = qos_profile_services_default
+        feedback_qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10,
+        )
+        status_qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+
+        self._action_client = ActionClient(
+            self.node,
+            FollowJointTrajectory,
+            self._action_server_name_str,  # Use stored name
+            goal_service_qos_profile=service_qos_profile,
+            result_service_qos_profile=service_qos_profile,
+            cancel_service_qos_profile=service_qos_profile,
+            feedback_sub_qos_profile=feedback_qos_profile,
+            status_sub_qos_profile=status_qos_profile,
+        )
+        self._action_client_initialized = True
+        self.logger.info(
+            f"[{self.name}] Action client created for '{self._action_server_name_str}' (readiness check deferred to update)."
+        )
+        self.logger.info(f"[{self.name}] Setup method complete.")
 
     @override
     def initialise(self) -> None:
@@ -193,121 +191,104 @@ class ExecuteArticutoolTrajectory(BlackboardBehavior):
         self._send_goal_future = None
         self._get_result_future = None
         self._goal_handle = None
-        self._current_status = ActionExecutionStatus.IDLE
-        self._result_code = None  # Reset result code
+        self._result_code = None
+
+        if self._action_client_initialized:
+            self._current_status = ActionExecutionStatus.CHECKING_DEPENDENCIES
+        else:
+            self.logger.error(
+                f"[{self.name}] Action client was not initialized during setup. Failing."
+            )
+            self._current_status = ActionExecutionStatus.FAILED
+
         # Clear blackboard outputs
         self.blackboard_set("action_goal_accepted", False)
-        self.blackboard_set(
-            "action_result_code", self._result_code
-        )  # Set to None or initial value
+        self.blackboard_set("action_result_code", self._result_code)
         self.blackboard_set("action_status", self._current_status.value)
+
+    def _check_dependencies(self) -> Status:
+        """Helper to check and wait for the action server."""
+        if not self._action_client_initialized:
+            self.logger.error(
+                f"[{self.name}] Action client instance not created. Critical setup failure."
+            )
+            return self._handle_failure(
+                "Action client not initialized", ActionExecutionStatus.FAILED
+            )
+
+        if not self._action_client.wait_for_server(
+            timeout_sec=0.01
+        ):  # Non-blocking check
+            self.logger.info(
+                f"[{self.name}] Waiting for action server '{self._action_server_name_str}'..."  # Use stored name
+            )
+            return Status.RUNNING
+
+        self.logger.info(
+            f"[{self.name}] Action server '{self._action_server_name_str}' is ready."
+        )  # Use stored name
+        self._current_status = ActionExecutionStatus.IDLE
+        self.blackboard_set("action_status", self._current_status.value)
+        return Status.RUNNING
 
     @override
     def update(self) -> Status:
         """Manage the action client state machine."""
-        # Update blackboard status at start of tick
         self.blackboard_set("action_status", self._current_status.value)
 
-        if self._action_client is None or self.controller_switcher is None:
-            self.logger.error(
-                f"[{self.name}] Action client or controller switcher not available. Setup failed?"
-            )
-            return Status.FAILURE  # Setup must have failed
+        if self._current_status == ActionExecutionStatus.FAILED:
+            return Status.FAILURE
 
-        # --- State 1: IDLE -> Try sending goal ---
+        if self._current_status == ActionExecutionStatus.CHECKING_DEPENDENCIES:
+            return self._check_dependencies()
+
         if self._current_status == ActionExecutionStatus.IDLE:
             try:
                 trajectory: JointTrajectory = self.blackboard_get("trajectory")
-                controllers_to_activate: List[str] = self.blackboard_get(
-                    "controllers_to_activate"
-                )
-                controllers_to_deactivate: List[str] = self.blackboard_get(
-                    "controllers_to_deactivate"
-                )
-
-                # Validate inputs
                 if not isinstance(trajectory, JointTrajectory):
                     self.logger.error(
                         f"[{self.name}] Input 'trajectory' is not a JointTrajectory message."
                     )
-                    return Status.FAILURE
+                    return self._handle_failure("Invalid trajectory input type")
                 if not trajectory.points:
                     self.logger.warning(
                         f"[{self.name}] Input 'trajectory' has no points. Succeeding trivially."
                     )
-                    self._current_status = ActionExecutionStatus.SUCCEEDED
-                    self.blackboard_set("action_status", self._current_status.value)
-                    self.blackboard_set(
-                        "action_result_code", FollowJointTrajectory.Result.SUCCESSFUL
+                    return self._handle_success(
+                        result_code=FollowJointTrajectory.Result.SUCCESSFUL
                     )
-                    return Status.SUCCESS
-                if not isinstance(controllers_to_activate, list) or not isinstance(
-                    controllers_to_deactivate, list
-                ):
-                    self.logger.error(f"[{self.name}] Controller inputs must be lists.")
-                    return Status.FAILURE
 
-                # 1a. Switch Controllers
-                self._current_status = ActionExecutionStatus.SWITCHING_CONTROLLERS
-                self.blackboard_set("action_status", self._current_status.value)
-                self.logger.info(
-                    f"[{self.name}] Requesting controller switch: start={controllers_to_activate}, stop={controllers_to_deactivate}"
-                )
-                try:
-                    # Assuming switch_controllers blocks or returns success/failure quickly
-                    self.controller_switcher.switch_controllers(
-                        activate_controllers=controllers_to_activate,
-                        deactivate_controllers=controllers_to_deactivate,
-                    )
-                except Exception as sw_e:
-                    self.logger.error(
-                        f"[{self.name}] Error during controller switch: {sw_e}"
-                    )
-                    self._current_status = ActionExecutionStatus.FAILED
-                    self.blackboard_set("action_status", self._current_status.value)
-                    return Status.FAILURE
-
-                # 1b. Construct Goal Message
                 goal_msg = FollowJointTrajectory.Goal()
-                # Important: Make sure the trajectory has correct joint names for the action server
                 goal_msg.trajectory = trajectory
-                # Optional: Add goal time tolerance, path tolerance if needed
-                # goal_msg.goal_time_tolerance = Duration(sec=1, nanosec=0).to_msg()
-
-                # 1c. Send Goal Asynchronously
                 self.logger.info(
-                    f"[{self.name}] Sending trajectory goal to action server..."
+                    f"[{self.name}] Sending trajectory goal to action server '{self._action_server_name_str}'..."  # Use stored name
                 )
                 self._send_goal_future = self._action_client.send_goal_async(goal_msg)
                 self._current_status = ActionExecutionStatus.SENDING_GOAL
                 self.blackboard_set("action_status", self._current_status.value)
                 return Status.RUNNING
-
             except KeyError as e:
-                self.logger.error(f"[{self.name}] Blackboard key error: {e}")
-                return Status.FAILURE
+                return self._handle_failure(f"Blackboard key error: {e}")
             except Exception as e:
-                self.logger.error(f"[{self.name}] Error preparing to send goal: {e}")
-                return Status.FAILURE
+                return self._handle_failure(f"Error preparing to send goal: {e}")
 
-        # --- State 2: Waiting for Goal Acceptance ---
         if self._current_status == ActionExecutionStatus.SENDING_GOAL:
             if self._send_goal_future is None:
-                return self._handle_invalid_state(
-                    "SENDING_GOAL future None"
-                )  # Should not happen
-
+                return self._handle_invalid_state("SENDING_GOAL future is None")
             if self._send_goal_future.done():
                 try:
                     goal_handle: ClientGoalHandle = self._send_goal_future.result()
                 except Exception as e:
+                    self._send_goal_future = None
                     self.logger.error(
-                        f"[{self.name}] Exception getting goal handle from future: {e}"
+                        f"[{self.name}] Exception waiting for goal handle: {e}. Server might have shut down."
                     )
-                    return self._handle_failure("Exception getting goal handle")
-
-                self._send_goal_future = None  # Clear future
-
+                    self._current_status = ActionExecutionStatus.CHECKING_DEPENDENCIES
+                    self.logger.warning(
+                        f"[{self.name}] Re-checking dependencies due to goal send error."
+                    )
+                    return Status.RUNNING
+                self._send_goal_future = None
                 if not goal_handle.accepted:
                     self.logger.warning(
                         f"[{self.name}] Goal rejected by action server."
@@ -317,37 +298,22 @@ class ExecuteArticutoolTrajectory(BlackboardBehavior):
                         "Goal rejected", ActionExecutionStatus.GOAL_REJECTED
                     )
                 else:
-                    # Convert UUID numpy array to hex string for logging
                     try:
-                        # Access the uuid field (numpy array of uint8)
-                        uuid_array = goal_handle.goal_id.uuid
-                        # Convert the numpy array to standard Python bytes
-                        uuid_bytes = bytes(uuid_array)
-                        # Convert bytes to a hex string
-                        uuid_hex = uuid_bytes.hex()
-                    except Exception as log_e:
-                        # Fallback in case something goes wrong with conversion
-                        self.logger.warning(
-                            f"[{self.name}] Could not format goal ID UUID for logging: {log_e}"
-                        )
+                        uuid_hex = bytes(goal_handle.goal_id.uuid).hex()
+                    except Exception:
                         uuid_hex = "[Error Formatting UUID]"
-
                     self.logger.info(
                         f"[{self.name}] Goal accepted by action server (ID: {uuid_hex})."
                     )
                     self._goal_handle = goal_handle
                     self.blackboard_set("action_goal_accepted", True)
                     self._get_result_future = self._goal_handle.get_result_async()
-                    self._current_status = (
-                        ActionExecutionStatus.EXECUTING
-                    )  # Or WAITING_FOR_RESULT if preferred
+                    self._current_status = ActionExecutionStatus.EXECUTING
                     self.blackboard_set("action_status", self._current_status.value)
                     return Status.RUNNING
             else:
-                # Future not done yet
                 return Status.RUNNING
 
-        # --- State 3: Waiting for Result / Monitoring Execution ---
         if (
             self._current_status == ActionExecutionStatus.EXECUTING
             or self._current_status == ActionExecutionStatus.WAITING_FOR_RESULT
@@ -356,29 +322,22 @@ class ExecuteArticutoolTrajectory(BlackboardBehavior):
                 return self._handle_invalid_state(
                     "EXECUTING/WAITING future or handle None"
                 )
-
-            # Check goal handle status
             status = self._goal_handle.status
             if status == GoalStatus.STATUS_EXECUTING:
-                self._current_status = (
-                    ActionExecutionStatus.EXECUTING
-                )  # Ensure state is correct
-                # Optional: Process feedback if needed
-                # self.logger.debug(f"[{self.name}] Goal executing...")
+                self._current_status = ActionExecutionStatus.EXECUTING
             elif status == GoalStatus.STATUS_ABORTED:
-                self.logger.warning(f"[{self.name}] Goal aborted by server.")
-                # Result future should complete soon, wait for it
-                self._current_status = (
-                    ActionExecutionStatus.WAITING_FOR_RESULT
-                )  # Move to check result
+                self.logger.warning(
+                    f"[{self.name}] Goal aborted by server (status update)."
+                )
+                self._current_status = ActionExecutionStatus.WAITING_FOR_RESULT
             elif status == GoalStatus.STATUS_CANCELED:
-                self.logger.warning(f"[{self.name}] Goal canceled.")
+                self.logger.warning(f"[{self.name}] Goal canceled (status update).")
                 self._current_status = ActionExecutionStatus.WAITING_FOR_RESULT
             elif status == GoalStatus.STATUS_SUCCEEDED:
-                self.logger.info(f"[{self.name}] Goal status reported SUCCEEDED.")
+                self.logger.info(
+                    f"[{self.name}] Goal status reported SUCCEEDED (status update)."
+                )
                 self._current_status = ActionExecutionStatus.WAITING_FOR_RESULT
-
-            # Now check if the result future is done
             if self._get_result_future.done():
                 try:
                     result_wrapper = self._get_result_future.result()
@@ -389,35 +348,34 @@ class ExecuteArticutoolTrajectory(BlackboardBehavior):
                         f"[{self.name}] Action result received: Code={self._result_code}, Msg='{result_string}'"
                     )
                     self.blackboard_set("action_result_code", self._result_code)
-
-                    # Final state determination
                     if self._result_code == FollowJointTrajectory.Result.SUCCESSFUL:
-                        return self._handle_success()
-                    elif (
-                        status == GoalStatus.STATUS_CANCELED
-                    ):  # Check status again if needed
-                        return self._handle_failure(
-                            "Goal Canceled", ActionExecutionStatus.GOAL_CANCELLED
+                        return self._handle_success(result_code=self._result_code)
+                    else:
+                        final_status_map = {
+                            GoalStatus.STATUS_ABORTED: ActionExecutionStatus.ABORTED,
+                            GoalStatus.STATUS_CANCELED: ActionExecutionStatus.GOAL_CANCELLED,
+                        }
+                        final_exec_status = final_status_map.get(
+                            status, ActionExecutionStatus.FAILED
                         )
-                    else:  # Any other error code implies failure
                         return self._handle_failure(
-                            f"Action Failed: Code={self._result_code}, Msg='{result_string}'",
-                            ActionExecutionStatus.ABORTED
-                            if status == GoalStatus.STATUS_ABORTED
-                            else ActionExecutionStatus.FAILED,
+                            f"Action Failed by server: Code={self._result_code}, Msg='{result_string}'",
+                            final_exec_status,
+                            result_code=self._result_code,
                         )
-
                 except Exception as e:
                     self.logger.error(
                         f"[{self.name}] Exception getting result from future: {e}"
                     )
-                    return self._handle_failure("Exception getting result")
+                    self._current_status = ActionExecutionStatus.CHECKING_DEPENDENCIES
+                    self.logger.warning(
+                        f"[{self.name}] Re-checking dependencies due to result error."
+                    )
+                    return Status.RUNNING
             else:
-                # Result future not done yet, goal still active (or transitioning)
                 self.blackboard_set("action_status", self._current_status.value)
                 return Status.RUNNING
 
-        # --- Handle Terminal States (Should be reached via returns above) ---
         if self._current_status == ActionExecutionStatus.SUCCEEDED:
             return Status.SUCCESS
         if self._current_status in [
@@ -427,16 +385,11 @@ class ExecuteArticutoolTrajectory(BlackboardBehavior):
             ActionExecutionStatus.ABORTED,
         ]:
             return Status.FAILURE
-
-        # Fallback if state is somehow invalid
         return self._handle_invalid_state(f"Unhandled status {self._current_status}")
 
     @override
     def terminate(self, new_status: Status) -> None:
-        """Cancel active goal if behavior is terminated unexpectedly."""
         self.logger.debug(f"[{self.name}] Terminating with status {new_status}.")
-        # If terminated INTERNALLY (SUCCESS/FAILURE), goal is already finished or failed.
-        # If terminated EXTERNALLY (INVALID), cancel the goal if it's active.
         if new_status == Status.INVALID and self._goal_handle is not None:
             status = self._goal_handle.status
             if (
@@ -446,24 +399,26 @@ class ExecuteArticutoolTrajectory(BlackboardBehavior):
                 self.logger.warning(
                     f"[{self.name}] Behavior terminated externally while action goal was active (Status: {GoalStatus(status).name}). Requesting cancellation."
                 )
-                cancel_future = self._goal_handle.cancel_goal_async()
-                # Optional: Spin briefly/add callback to ensure cancel sent? Usually not needed.
-            # else:
-            #     self.logger.debug(f"[{self.name}] Goal handle exists but not in active state ({GoalStatus(status).name}) on termination.")
-        # else:
-        # self.logger.debug(f"[{self.name}] No active goal handle or clean termination, no cancellation needed.")
-
-        # Reset internal state variables regardless
+                self._goal_handle.cancel_goal_async()
         self._send_goal_future = None
         self._get_result_future = None
         self._goal_handle = None
-        # Don't reset self._current_status here, it might be SUCCEEDED/FAILED from last update
-        # self._current_status = ActionExecutionStatus.IDLE # Resetting might hide final state
+        if self._current_status not in [
+            ActionExecutionStatus.SUCCEEDED,
+            ActionExecutionStatus.FAILED,
+            ActionExecutionStatus.GOAL_REJECTED,
+            ActionExecutionStatus.GOAL_CANCELLED,
+            ActionExecutionStatus.ABORTED,
+        ]:
+            self._current_status = ActionExecutionStatus.IDLE
 
-    # --- Helper methods for state transitions ---
-    def _handle_success(self) -> Status:
+    def _handle_success(
+        self, result_code: int = FollowJointTrajectory.Result.SUCCESSFUL
+    ) -> Status:
+        self.logger.info(f"[{self.name}] Action Succeeded. Code: {result_code}")
         self._current_status = ActionExecutionStatus.SUCCEEDED
         self.blackboard_set("action_status", self._current_status.value)
+        self.blackboard_set("action_result_code", result_code)
         self._goal_handle = None
         self._get_result_future = None
         return Status.SUCCESS
@@ -472,27 +427,31 @@ class ExecuteArticutoolTrajectory(BlackboardBehavior):
         self,
         reason: str,
         final_status: ActionExecutionStatus = ActionExecutionStatus.FAILED,
+        result_code: Optional[int] = None,
     ) -> Status:
         self.logger.error(f"[{self.name}] Failure: {reason}")
         self._current_status = final_status
         self.blackboard_set("action_status", self._current_status.value)
-        # Set result code if available and not already set failure code
-        if (
+        if result_code is not None:
+            self.blackboard_set("action_result_code", result_code)
+        elif (
             self._result_code is not None
             and self._result_code != FollowJointTrajectory.Result.SUCCESSFUL
         ):
             self.blackboard_set("action_result_code", self._result_code)
-        elif self._current_status == ActionExecutionStatus.GOAL_REJECTED:
-            # Use a convention for rejected?
-            self.blackboard_set("action_result_code", -998)  # Example arbitrary code
-        else:  # General failure
-            self.blackboard_set("action_result_code", -999)  # Example arbitrary code
-
+        elif final_status == ActionExecutionStatus.GOAL_REJECTED:
+            self.blackboard_set("action_result_code", -998)
+        else:
+            self.blackboard_set("action_result_code", -999)
         self._goal_handle = None
         self._get_result_future = None
-        self._send_goal_future = None  # Ensure this is cleared too
+        self._send_goal_future = None
         return Status.FAILURE
 
     def _handle_invalid_state(self, message: str) -> Status:
-        self.logger.error(f"[{self.name}] Reached invalid state: {message}")
-        return self._handle_failure(f"Invalid internal state: {message}")
+        self.logger.error(
+            f"[{self.name}] Reached invalid state: {message}. This is a bug."
+        )
+        return self._handle_failure(
+            f"Invalid internal state: {message}", ActionExecutionStatus.FAILED
+        )
