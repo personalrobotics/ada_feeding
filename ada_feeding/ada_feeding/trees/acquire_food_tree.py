@@ -1421,6 +1421,10 @@ class AcquireFoodTree(MoveToTree):
                                                 "switch_response_ok": None,
                                             },
                                         ),
+                                        py_trees.timers.Timer(
+                                            name="WaitForIMUToSettle",
+                                            duration=2.0,
+                                        ),
                                         TriggerArticutoolCalibration(
                                             name="TriggerArticutoolCalibration",
                                             ns=name,
