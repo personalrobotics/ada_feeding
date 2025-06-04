@@ -232,7 +232,7 @@ class SegmentAllItemsNode(Node):
             )
 
         # Initialize the OpenAI API and load environment variables
-        API_KEY = os.getenv("OPENAI_API_KEY")
+        API_KEY = ""
         self.openai = OpenAI(api_key=API_KEY)
 
     def read_params(
@@ -1244,6 +1244,12 @@ class SegmentAllItemsNode(Node):
 
         # Set the mask message as the result
         result.detected_item = mask_msg
+
+        # Save the mask message to a file
+        filename = f"segmentation_result_{item_id}.txt"
+        with open(filename, "wb") as f:
+            f.write(result.detected_item.mask.data)
+        self._node.get_logger().info(f"Saved segmentation result to {filename}")
 
         return result
 

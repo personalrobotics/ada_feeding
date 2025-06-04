@@ -188,7 +188,7 @@ def main(args=None):
     face_detection = FaceDetectionNode(node)
     food_on_fork_detection = FoodOnForkDetectionNode(node)
     segment_all_items = SegmentAllItemsNode(node)  # pylint: disable=unused-variable
-    segment_from_point = SegmentFromPointNode(node)  # pylint: disable=unused-variable
+    # segment_from_point = SegmentFromPointNode(node)  # pylint: disable=unused-variable
     table_detection = TableDetectionNode(node)
     executor = MultiThreadedExecutor(num_threads=16)
 
