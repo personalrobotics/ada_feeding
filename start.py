@@ -28,7 +28,7 @@ parser.add_argument(
     "--end_effector_tool",
     default="fork",
     help=("Which end-effector tool to use"),
-    choices=["fork", "articulable_fork"],
+    choices=["fork", "spoon"],
 )
 parser.add_argument(
     "-t",
