@@ -290,7 +290,7 @@ actions:
   pre_torque: 4.0
 # Liquid scoop with spoon
 - ext_angular: [0.0, 0.0, 0.0]
-  ext_duration: 0.5
+  ext_duration: 0.1
   ext_force: 50.0
   ext_linear: [0.0, 0.0, 0.04]
   ext_torque: 4.0
