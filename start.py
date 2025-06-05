@@ -31,6 +31,12 @@ parser.add_argument(
     choices=["fork", "spoon"],
 )
 parser.add_argument(
+    "--action",
+    default=0,
+    help=("Which action (index) to use"),
+    type=int,
+)
+parser.add_argument(
     "-t",
     "--termination_wait_secs",
     default=5,
@@ -208,7 +214,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false "
                     f"policy:={args.policy} "
-                    f"end_effector_tool:={args.end_effector_tool}"
+                    f"end_effector_tool:={args.end_effector_tool} "
+                    f"action:={args.action} "
                 ),
             ],
             "moveit": [
@@ -252,7 +259,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "run_web_bridge:=false run_food_detection:=false run_face_detection:=false "
                     "run_food_on_fork_detection:=false run_table_detection:=false "
                     "run_real_sense:=false "
-                    f"policy:={args.policy}"
+                    f"policy:={args.policy} "
+                    f"action:={args.action} "
                 ),
             ],
             "browser": [
@@ -293,7 +301,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml "
                     f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy} "
-                    f"end_effector_tool:={args.end_effector_tool}"
+                    f"end_effector_tool:={args.end_effector_tool} "
+                    f"action:={args.action} "
                 ),
             ],
             "browser": [
