@@ -25,6 +25,12 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--end_effector_tool",
+    default="fork",
+    help=("Which end-effector tool to use"),
+    choices=["fork", "articulable_fork"],
+)
+parser.add_argument(
     "-t",
     "--termination_wait_secs",
     default=5,
@@ -202,10 +208,12 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false "
                     f"policy:={args.policy}"
+                    f"end_effector_tool:={args.end_effector_tool}"
                 ),
             ],
             "moveit": [
-                "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock"
+                "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock "
+                f"end_effector_tool:={args.end_effector_tool}"
             ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
@@ -276,13 +284,16 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "moveit": [
                 # "Xvfb :5 -screen 0 800x600x24 &" if not args.dev else "",
                 # "export DISPLAY=:5" if not args.dev else "",
-                f"ros2 launch ada_planning_scene ada_moveit_launch.xml use_rviz:={'true' if args.dev else 'false'}",
+                "ros2 launch ada_planning_scene ada_moveit_launch.xml "
+                f"use_rviz:={'true' if args.dev else 'false'} "
+                f"end_effector_tool:={args.end_effector_tool}",
             ],
             "feeding": [
                 # "sudo ./src/ada_feeding/configure_lovelace.sh",
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml "
-                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy}"
+                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy} "
+                    f"end_effector_tool:={args.end_effector_tool}"
                 ),
             ],
             "browser": [
