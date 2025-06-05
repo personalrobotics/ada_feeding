@@ -262,6 +262,7 @@ actions:
   - -0.0486593
   - -0.1055426
   pre_torque: 4.0
+# Scrape / Scoop with fork
 - ext_angular: [0.0, 0.0, 0.0]
   ext_duration: 1.0
   ext_force: 50.0
@@ -286,4 +287,30 @@ actions:
     - 0.6122721            # qy
     - 0.6127465             # qz
     - 0.3531793             # qw
+  pre_torque: 4.0
+# Liquid scoop with spoon
+- ext_angular: [0.0, 0.0, 0.0]
+  ext_duration: 0.5
+  ext_force: 50.0
+  ext_linear: [0.0, 0.0, 0.04]
+  ext_torque: 4.0
+  grasp_angular: [0.0, 0.0, 0.0]
+  grasp_duration: 0.0
+  grasp_force: 15.0
+  grasp_linear: [0.0, 0.0, 0.0]
+  grasp_torque: 4.0
+  pre_force: 20.0
+  pre_offset:
+    - 0.0
+    - 0.0
+    - 0.0
+  pre_pos:
+    - 0.0
+    - 0.0
+    - 1.0
+  pre_quat:
+    - 0.353453
+    - 0.6122721
+    - 0.6127465
+    - 0.3531793
   pre_torque: 4.0
