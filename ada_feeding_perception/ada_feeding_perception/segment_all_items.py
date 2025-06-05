@@ -814,6 +814,100 @@ class SegmentAllItemsNode(Node):
         scores = predicted_iou[0, 0, :].cpu().detach().numpy()
 
         return masks, scores
+    
+    def calculate_iou(box1: npt.NDArray, box2: npt.NDArray) -> float:
+        """
+        Calculate the Intersection over Union (IoU) between two bounding boxes.
+
+        Parameters
+        ----------
+        box1: The first bounding box in the format [x1, y1, x2, y2].
+        box2: The second bounding box in the format [x1, y1, x2, y2].
+
+        Returns
+        -------
+        iou: The IoU between the two bounding boxes.
+        """
+        # Calculate the coordinates of the intersection rectangle
+        x1_inter = max(box1[0], box2[0])
+        y1_inter = max(box1[1], box2[1])
+        x2_inter = min(box1[2], box2[2])
+        y2_inter = min(box1[3], box2[3])
+
+        # Calculate the area of the intersection rectangle
+        inter_area = max(0, x2_inter - x1_inter) * max(0, y2_inter - y1_inter)
+
+        # Calculate the area of both bounding boxes
+        box1_area = (box1[2] - box1[0]) * (box1[3] - box1[1])
+        box2_area = (box2[2] - box2[0]) * (box2[3] - box2[1])
+
+        # Calculate the IoU
+        iou = inter_area / float(box1_area + box2_area - inter_area)
+
+        return iou
+
+    def non_max_suppression(self, predictions, iou_threshold: float = 0.5):
+        boxes = [p["box"] for p in predictions]
+        conf_scores = torch.tensor([p["confidence"] for p in predictions])
+        phrases = [p["phrase"] for p in predictions]
+
+        # Extract coordinates from predicted boxes
+        x0 = torch.tensor([box[0] for box in boxes])
+        y0 = torch.tensor([box[1] for box in boxes])
+        x1 = torch.tensor([box[2] for box in boxes])
+        y1 = torch.tensor([box[3] for box in boxes])
+
+        # Calculate areas of predicted boxes and sort by confidence 
+        areas = (x1 - x0) * (y1 - y0)
+        indices = conf_scores.argsort()
+
+        # Initialize a list to hold the selected boxes
+        selected_boxes = []
+
+        while len(indices) > 0:
+            # Select the box with the highest confidence score
+            current_index = indices[-1]
+            selected_boxes.append({"box": boxes[current_index], "phrase": phrases[current_index], "confidence": conf_scores[current_index]})
+
+            indices = indices[:-1]
+
+            # Select coordinates of boxes to compare with the current box
+            x0_coords = torch.index_select(x0, 0, indices)
+            y0_coords = torch.index_select(y0, 0, indices)
+            x1_coords = torch.index_select(x1, 0, indices)
+            y1_coords = torch.index_select(y1, 0, indices)
+
+            # Determine coordinates of intersection boxes
+            inter_x0 = torch.max(x0[current_index], x0_coords)
+            inter_y0 = torch.max(y0[current_index], y0_coords)
+            inter_x1 = torch.min(x1[current_index], x1_coords)
+            inter_y1 = torch.min(y1[current_index], y1_coords)
+
+            # Calculate heights and widths of the intersection boxes
+            widths = inter_x1 - inter_x0
+            heights = inter_y1 - inter_y0
+
+            # Clamp the heights and width to avoid negative values
+            widths = torch.clamp(widths, min=0.0)
+            heights = torch.clamp(heights, min=0.0)
+
+            # Calculate the intersection area
+            inter_area = widths * heights
+
+            # Calculate the regular areas of the remaining boxes
+            areas_remaining = torch.index_select(areas, 0, indices)
+
+            # Find the union ares of the predicted boxes in the current iteration
+            # with the selected box
+            union_area = areas_remaining + areas[current_index] - inter_area
+
+            # Find IoU of predicted boxes with the selected box
+            iou = inter_area / union_area
+
+            # Remove boxes with IoU below the threshold
+            indices = indices[iou < iou_threshold]
+
+        return selected_boxes
 
     def run_grounding_dino(
         self,
@@ -844,20 +938,14 @@ class SegmentAllItemsNode(Node):
         # desired image and text prompts.
         inference_time = time.time()
 
-        # Convert image to Image pillow
-        image_pil, image_transformed = self.load_image(image)
+        # Preprocess the image for GroundingDINO detection
+        _, image_transformed = self.load_image(image)
 
         # Lowercase and strip the caption
         caption = caption.lower().strip()
 
         # Run GroundingDINO on the image using the input caption
         image_transformed = image_transformed.to(device=self.device)
-
-        # Display image transformed
-        image_pil.show()
-        #cv2.imshow("transformed", image_transformed)
-        #cv2.waitKey(0)
-        
         with torch.no_grad():
             outputs = self.groundingdino(
                 image_transformed[None],
@@ -865,7 +953,6 @@ class SegmentAllItemsNode(Node):
             )
         logits = outputs["pred_logits"].sigmoid()[0]
         boxes = outputs["pred_boxes"][0]
-        self._node.get_logger().info("... Done")
 
         # Filter the output based on the box and text thresholds
         boxes_cxcywh = {}
@@ -878,42 +965,73 @@ class SegmentAllItemsNode(Node):
         # Tokenize the caption
         tokenizer = self.groundingdino.tokenizer
         caption_tokens = tokenizer(caption)
-
+            
         # Build the dictionary of bounding boxes for each food item label detected
         for logit, box in zip(logits_filt, boxes_filt):
             # Predict phrases based on the bounding boxes and the text threshold
-            phrase = get_phrases_from_posmap(
-                logit > text_threshold, caption_tokens, tokenizer
-            )
+            phrase = get_phrases_from_posmap(logit > text_threshold, caption_tokens, tokenizer)
+            confidence_score = logit.max().item()
+
+            #print(f"{phrase}")
             if phrase not in boxes_cxcywh:
                 boxes_cxcywh[phrase] = []
-            boxes_cxcywh[phrase].append(box.cpu().numpy())
+            #boxes_cxcywh[phrase].append(box.cpu().numpy())
+            boxes_cxcywh[phrase].append({"box": box.cpu().numpy(), "confidence": confidence_score})
 
         # Define height and width of image
-        height, width, _ = image.shape
+        if isinstance(image, torch.Tensor):
+            _, height, width = image.shape
+        else:
+            height, width, _ = image.shape
 
         # Convert the bounding boxes outputted by GroundingDINO to the following format
         # [top left x-value, top left y-value, bottom right x-value, bottom right y-value]
         # and unnormalize the bounding box coordinate values
-        boxes_xyxy = {}
+        # boxes_xyxy = {}
+        box_list = []
         for phrase, boxes in boxes_cxcywh.items():
-            boxes_xyxy[phrase] = []
+            # boxes_xyxy[phrase] = []
             for box in boxes:
                 # Scale the box from percentage values to pixel values
-                box = np.multiply(box, np.array([width, height, width, height]))
-                center_x, center_y, w, h = box
+                scaled_box = np.multiply(box["box"], np.array([width, height, width, height]))
+                logit = box["confidence"]
+                center_x, center_y, w, h = scaled_box
+
                 # Get the bottom left and top right coordinates of the box
                 x0 = center_x - (w / 2)
                 y0 = center_y - (h / 2)
                 x1 = x0 + w
                 y1 = y0 + h
-                boxes_xyxy[phrase].append([x0, y0, x1, y1])
+                # boxes_xyxy[phrase].append([x0, y0, x1, y1])
+                box_list.append({"phrase": phrase, "box": [x0, y0, x1, y1], "confidence": logit})
 
         # Measure the elapsed time running GroundingDINO on the image prompt
         inference_time = int(round((time.time() - inference_time) * 1000))
+        self._node.get_logger().info(f"GroundingDINO inference time: {inference_time} ms")
+        start_time = time.time()
 
-        return boxes_xyxy
+        # Perform non-maximum suppression to remove overlapping bounding boxes
+        # and select the most confident bounding boxes
+        selected_boxes = self.non_max_suppression(box_list, iou_threshold=0.8)
+        pre_nms_num_boxes = len(box_list)
 
+        predictions = {}
+        for box in selected_boxes:
+            phrase = box["phrase"]
+            box_coords = box["box"]
+            if phrase not in predictions:
+                predictions[phrase] = []
+            predictions[phrase].append(box_coords)
+        post_nms_num_boxes = len(selected_boxes)
+
+        self._node.get_logger().info(f"Pre-NMS: {pre_nms_num_boxes}, Post-NMS: {post_nms_num_boxes}")
+
+        # Measure elapsed time of running non-maximum suppression
+        nms_time = int(round((time.time() - start_time) * 1000))
+        self._node.get_logger().info(f"Non-maximum suppression time: {nms_time} ms")
+
+        return predictions
+    
     def load_image(self, image_array: npt.NDArray):
         """
         Load the image and apply transformations to it.
