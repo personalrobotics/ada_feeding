@@ -207,7 +207,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "feeding": [
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false "
-                    f"policy:={args.policy}"
+                    f"policy:={args.policy} "
                     f"end_effector_tool:={args.end_effector_tool}"
                 ),
             ],
