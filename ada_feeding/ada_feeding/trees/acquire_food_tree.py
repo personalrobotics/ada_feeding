@@ -1302,6 +1302,14 @@ class AcquireFoodTree(MoveToTree):
                                         ],
                                     ),
                                 ),
+                                CallSetOrientationControl(
+                                    name="DisableArticutoolOrientation",
+                                    ns=name,
+                                    inputs={
+                                        "control_mode": 0,
+                                    },
+                                    outputs={},
+                                ),
                                 SwitchArticutoolControllers(
                                     name="SwitchArticutoolToJointTrajectory",
                                     ns=name,
