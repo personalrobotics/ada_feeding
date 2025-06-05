@@ -8,7 +8,7 @@ using a pipeline of foundation models including GPT-4o, GroundingDINO, and Segme
 # Standard imports
 import os
 import threading
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, Dict, List
 
 # Third-party imports
 import cv2
@@ -40,6 +40,8 @@ from copy import deepcopy
 import base64
 from openai import OpenAI
 from dotenv import load_dotenv
+from transformers import BertTokenizer, BertModel
+import torch.nn.functional as F
 
 # Local imports
 from ada_feeding_msgs.action import SegmentAllItems, GenerateCaption, SegmentFromBox
@@ -179,6 +181,12 @@ class SegmentAllItemsNode(Node):
             self.initialize_efficient_sam(seg_model_name, seg_model_path)
         else:
             self.initialize_sam(seg_model_name, seg_model_path)
+
+        # Initialize the labels list to store the input labels
+        self.labels_list: list[str] = []
+
+        # Initialize BERT for label embedding
+        self.bert_tokenizer, self.bert_model = self.initialize_bert()
 
         # Convert between ROS and CV images
         self.bridge = CvBridge()
@@ -556,6 +564,19 @@ class SegmentAllItemsNode(Node):
 
         self._node.get_logger().info("...Done!")
 
+    def initialize_bert(self) -> Tuple[BertTokenizer, BertModel]:
+        """
+        Load the BERT model for label embedding.
+
+        Returns
+        -------
+        tokenizer (BertTokenizer): The BERT tokenizer.
+        model (BertModel): The BERT model.
+        """
+        tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+        model = BertModel.from_pretrained("bert-base-uncased")
+        return tokenizer, model
+
     def goal_callback(self, goal_request: SegmentAllItems.Goal) -> GoalResponse:
         """
         Accept or reject the goal request based on the availability of the latest
@@ -815,37 +836,6 @@ class SegmentAllItemsNode(Node):
 
         return masks, scores
     
-    def calculate_iou(box1: npt.NDArray, box2: npt.NDArray) -> float:
-        """
-        Calculate the Intersection over Union (IoU) between two bounding boxes.
-
-        Parameters
-        ----------
-        box1: The first bounding box in the format [x1, y1, x2, y2].
-        box2: The second bounding box in the format [x1, y1, x2, y2].
-
-        Returns
-        -------
-        iou: The IoU between the two bounding boxes.
-        """
-        # Calculate the coordinates of the intersection rectangle
-        x1_inter = max(box1[0], box2[0])
-        y1_inter = max(box1[1], box2[1])
-        x2_inter = min(box1[2], box2[2])
-        y2_inter = min(box1[3], box2[3])
-
-        # Calculate the area of the intersection rectangle
-        inter_area = max(0, x2_inter - x1_inter) * max(0, y2_inter - y1_inter)
-
-        # Calculate the area of both bounding boxes
-        box1_area = (box1[2] - box1[0]) * (box1[3] - box1[1])
-        box2_area = (box2[2] - box2[0]) * (box2[3] - box2[1])
-
-        # Calculate the IoU
-        iou = inter_area / float(box1_area + box2_area - inter_area)
-
-        return iou
-
     def non_max_suppression(self, predictions, iou_threshold: float = 0.5):
         boxes = [p["box"] for p in predictions]
         conf_scores = torch.tensor([p["confidence"] for p in predictions])
@@ -908,6 +898,82 @@ class SegmentAllItemsNode(Node):
             indices = indices[iou < iou_threshold]
 
         return selected_boxes
+    
+    def get_label_embedding(self, label: str, tokenizer: BertTokenizer, model: BertModel) -> torch.Tensor:
+        """
+        Get the label embedding for a given label using BERT.
+
+        Parameters
+        ----------
+        label (str): The label for which to get the embedding.
+        tokenizer (BertTokenizer): The BERT tokenizer.
+        model (BertModel): The BERT model.
+
+        Returns
+        -------
+        embedding (torch.Tensor): The BERT embedding of the label.
+        """
+        # Tokenize and encode the label
+        inputs = tokenizer(label, return_tensors="pt")
+        
+        # Get the embeddings from BERT
+        with torch.no_grad():
+            outputs = model(**inputs)
+        
+        final_hidden_state = outputs.last_hidden_state
+        label_embedding = torch.tensor(final_hidden_state.mean(dim=1))
+        
+        # Return the last hidden state as the embedding
+        return label_embedding
+    
+    def nearest_label_interpolation(self, predictions: Dict, gt_labels: List[str], tokenizer: BertTokenizer, model: BertModel) -> Dict:
+        """
+        Interpolate predicted labels to match ground truth labels by matching
+        labels together based on their embedding similarity. Then, create a new
+        prediction dictionary (label to masks) with the interpolated labels as keys. 
+        
+        Parameters
+        ----------
+        predictions (Dict): Dictionary of predicted masks.
+        gt_labels (List[str]): List of ground truth labels.
+
+        Returns
+        -------
+        interpolated_predictions (Dict): Dictionary of interpolated predictions.
+        """
+        if predictions is None or len(predictions) == 0:
+            print("No predictions found.")
+            return {}
+        
+        # Initialize the interpolated predictions dictionary
+        interpolated_predictions = {}
+
+        # Convert predicted labels to BERT embeddings
+        pred_labels = list(predictions.keys())
+        #print(f"Predicted labels: {pred_labels}")
+        pred_embeddings = [self.get_label_embedding(label, tokenizer, model) for label in pred_labels]
+        pred_embeddings = torch.stack(pred_embeddings)
+
+        # Convert ground truth labels to BERT embeddings
+        gt_embeddings = [self.get_label_embedding(label, tokenizer, model) for label in gt_labels]
+        gt_embeddings = torch.stack(gt_embeddings)
+
+        # Calculate the cosine similarity between predicted and ground truth embeddings
+        similarity_matrix = F.cosine_similarity(pred_embeddings.unsqueeze(1), gt_embeddings.unsqueeze(0), dim=-1)
+        #print(f"Similarity matrix shape: {similarity_matrix.shape}")
+
+        # Find the nearest ground truth label for each predicted label
+        nearest_labels = torch.max(similarity_matrix, dim=1)[1]
+        old_to_new = {pred_labels[i]: gt_labels[nearest_labels[i]] for i in range(len(pred_labels))}
+
+        # Create the new prediction dictionary with interpolated labels
+        for pred_label, boxes in predictions.items():
+            new_label = old_to_new[pred_label]
+            if new_label not in interpolated_predictions:
+                interpolated_predictions[new_label] = []
+            interpolated_predictions[new_label].extend(boxes)
+
+        return interpolated_predictions
 
     def run_grounding_dino(
         self,
@@ -1030,8 +1096,13 @@ class SegmentAllItemsNode(Node):
         nms_time = int(round((time.time() - start_time) * 1000))
         self._node.get_logger().info(f"Non-maximum suppression time: {nms_time} ms")
 
-        return predictions
-    
+        # Interpolate the predictions for each image to the nearest label
+        interpolated_predictions = {}
+        interpolated = self.nearest_label_interpolation(predictions, self.labels_list, self.bert_tokenizer, self.bert_model)
+        interpolated_predictions = interpolated
+
+        return interpolated_predictions
+
     def load_image(self, image_array: npt.NDArray):
         """
         Load the image and apply transformations to it.
@@ -1411,6 +1482,10 @@ class SegmentAllItemsNode(Node):
 
         # Get the input labels from the request
         input_labels = goal_handle.request.input_labels
+
+        # Store the input labels list
+        self.labels_list = input_labels
+        self._node.get_logger().info(f"Input labels: {self.input_labels}")
 
         # Create a rate object to control the rate at which to return feedback
         rate = self._node.create_rate(self.rate_hz)
