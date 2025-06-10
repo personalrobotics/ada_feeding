@@ -286,6 +286,42 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "camera": [
                 "ssh nano@nano -t './start_nano.sh'",
             ],
+            "articutool_stack": [
+                # This command chains several Docker commands on the remote RPi (babbage)
+                # The -t flag for SSH allocates a pseudo-terminal, which is often necessary
+                # for interactive docker commands and proper signal handling.
+                'ssh charles@babbage -t "'
+                # 1. Stop the container if it's already running. `|| true` prevents errors if it's not running.
+                "docker stop articutool_container || true; "
+                # 2. Remove the stopped container to ensure a fresh start.
+                "docker rm articutool_container || true; "
+                # 3. Run a new container.
+                "docker run "
+                # --rm: Automatically remove the container when it exits/stops.
+                "--rm "
+                # -it: Interactive TTY, allows you to attach and see logs.
+                "-it "
+                # --name: Assign a consistent name for easy management.
+                "--name articutool_container "
+                # --network=host: Shares the host's networking stack. Easiest for ROS 2 discovery.
+                "--network=host "
+                # --privileged + volumes: Provide necessary permissions and access to host devices.
+                "--privileged "
+                "--device=/dev/imu:/dev/imu "
+                "--device=/dev/u2d2:/dev/u2d2 "
+                "--device=/dev/resense_ft:/dev/resense_ft "
+                "--volume /run/udev:/run/udev:ro "
+                "--volume /etc/udev:/etc/udev:ro "
+                "--volume /dev:/dev "
+                # Pass environment variables needed for ROS 2 communication.
+                "-e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp "
+                f"-e ROS_DOMAIN_ID={args.real_domain_id} "  # Pass the domain ID to the container!
+                # The image to run.
+                "ros2_articutool:latest"
+                # The CMD from your Dockerfile will be executed, which is:
+                # ros2 launch articutool_system articutool.launch.py sim:=real
+                '"'
+            ],
             "rosbridge": [
                 "ros2 launch rosbridge_server rosbridge_websocket_launch.xml",
             ],
