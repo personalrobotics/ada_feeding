@@ -189,6 +189,9 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "run_food_on_fork_detection:=false run_table_detection:=false "
                 ),
             ],
+            "articutool": [
+                f"ros2 launch articutool_system articutool.launch.py sim:=mock end_effector_tool:={args.end_effector_tool}",
+            ],
             "nano_bridge_sender": [
                 "ros2 launch nano_bridge sender.launch.xml",
             ],
