@@ -1,0 +1,28 @@
+# The interface for an action that gets an image from the camera and a bounding
+# box of the desired item to segment, and then returns the pixel-wise mask
+# of that item
+
+# The region of interest (bounding box) to seed the segmentation algorithm with
+sensor_msgs/RegionOfInterest region_of_interest
+
+# The semantic label describing the item bounded by the region of interest 
+string label
+---
+# Possible return statuses
+uint8 STATUS_SUCCEEDED=0
+uint8 STATUS_FAILED=1
+uint8 STATUS_CANCELED=3
+uint8 STATUS_UNKNOWN=99
+
+# Whether the segmentation succeeded and if not, why
+uint8 status
+
+# The header for the image that the masks corresponds to
+std_msgs/Header header
+# The camera intrinsics
+sensor_msgs/CameraInfo camera_info
+# Top contender mask segmented given a bounding box of an item
+ada_feeding_msgs/Mask detected_item
+---
+# How much time the action has spent segmenting the food item
+builtin_interfaces/Duration elapsed_time

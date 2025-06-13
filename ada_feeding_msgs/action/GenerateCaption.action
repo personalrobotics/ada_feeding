@@ -1,0 +1,28 @@
+# The interface for an action that takes in a list of input labels
+# describing the food items on a plate and returns a sentence caption compiling
+# these labels used as a query for GroundingDINO detection.
+
+# A list of semantic labels corresponding to each of the masks of detected
+# items in the image
+string[] input_labels
+---
+# Possible return statuses
+uint8 STATUS_SUCCEEDED=0
+uint8 STATUS_FAILED=1
+uint8 STATUS_CANCELED=3
+uint8 STATUS_UNKNOWN=99
+
+# Whether the vision pipeline succeeded and if not, why
+uint8 status
+
+# The header for the image that the generated caption by GPT-4o 
+# corresponds to
+std_msgs/Header header
+# The camera intrinsics
+sensor_msgs/CameraInfo camera_info
+# A sentence caption compiling the semantic labels used as a query for 
+# GroundingDINO to perform bounding box detections.
+string caption
+---
+# How much time the action has spent running inference on GPT-4o
+builtin_interfaces/Duration elapsed_time

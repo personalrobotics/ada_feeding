@@ -2,6 +2,9 @@
 build/
 __pycache__/
 
+# Environment Variables file
+.env
+
 # Compiled Object files
 *.slo
 *.lo

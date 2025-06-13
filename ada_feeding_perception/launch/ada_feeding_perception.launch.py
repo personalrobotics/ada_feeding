@@ -107,6 +107,24 @@ def generate_launch_description():
         ),
     ]
 
+    # Load the segment all items node
+    segment_all_items_config = os.path.join(
+        ada_feeding_perception_share_dir, "config", "segment_all_items.yaml"
+    )
+    segment_all_items_params = {}
+    segment_all_items_params["model_dir"] = ParameterValue(
+        os.path.join(ada_feeding_perception_share_dir, "model"), value_type=str
+    )
+    segment_all_items = Node(
+        package="ada_feeding_perception",
+        name="segment_all_items",
+        executable="segment_all_items",
+        parameters=[segment_all_items_config, segment_all_items_params],
+        remappings=realsense_remappings + aligned_depth_remapping,
+        condition=UnlessCondition(combine_perception_nodes),
+    )
+    launch_description.add_action(segment_all_items)
+
     # Load the segment from point node
     segment_from_point_config = os.path.join(
         ada_feeding_perception_share_dir, "config", "segment_from_point.yaml"
@@ -215,6 +233,8 @@ def generate_launch_description():
         parameters=[
             segment_from_point_config,
             segment_from_point_params,
+            segment_all_items_config,
+            segment_all_items_params,
             face_detection_config,
             face_detection_params,
             table_detection_config,

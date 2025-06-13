@@ -1,6 +1,8 @@
 # The interface for an action that gets an image from the camera and returns
-# the masks of all segmented items within that image.
+# the bounding boxes of all items within that image.
 
+# The list of input semantic labels for the food items on the plate
+string caption   
 ---
 # Possible return statuses
 uint8 STATUS_SUCCEEDED=0
@@ -8,15 +10,18 @@ uint8 STATUS_FAILED=1
 uint8 STATUS_CANCELED=3
 uint8 STATUS_UNKNOWN=99
 
-# Whether the segmentation succeeded and if not, why
+# Whether the vision pipeline succeeded and if not, why
 uint8 status
 
 # The header for the image that the masks corresponds to
 std_msgs/Header header
 # The camera intrinsics
 sensor_msgs/CameraInfo camera_info
-# Masks of all the detected items in the image
-ada_feeding_msgs/Mask[] detected_items
+# Bounding boxes of all the detected items in the image
+sensor_msgs/RegionOfInterest[] detected_items
+# A list of semantic labels corresponding to each of the masks of detected
+# items in the image
+string[] item_labels
 ---
-# How much time the action has spent segmenting the food item
+# How much time the action has spent running the vision pipeline
 builtin_interfaces/Duration elapsed_time

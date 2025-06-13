@@ -178,6 +178,7 @@ def main(args=None):
     # We don't need to worry about the cyclic import because this is inside main().
     from ada_feeding_perception.face_detection import FaceDetectionNode
     from ada_feeding_perception.food_on_fork_detection import FoodOnForkDetectionNode
+    from ada_feeding_perception.segment_all_items import SegmentAllItemsNode
     from ada_feeding_perception.segment_from_point import SegmentFromPointNode
     from ada_feeding_perception.table_detection import TableDetectionNode
 
@@ -186,7 +187,8 @@ def main(args=None):
     node = ADAFeedingPerceptionNode("ada_feeding_perception")
     face_detection = FaceDetectionNode(node)
     food_on_fork_detection = FoodOnForkDetectionNode(node)
-    segment_from_point = SegmentFromPointNode(node)  # pylint: disable=unused-variable
+    segment_all_items = SegmentAllItemsNode(node)  # pylint: disable=unused-variable
+    # segment_from_point = SegmentFromPointNode(node)  # pylint: disable=unused-variable
     table_detection = TableDetectionNode(node)
     executor = MultiThreadedExecutor(num_threads=16)
 

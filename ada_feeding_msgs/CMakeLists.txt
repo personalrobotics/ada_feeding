@@ -24,10 +24,12 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
   "action/AcquireFood.action"
   "action/ActivateController.action"
+  "action/GenerateCaption.action"
   "action/MoveTo.action"
   "action/MoveToConfiguration.action"
   "action/MoveToMouth.action"
   "action/SegmentAllItems.action"
+  "action/SegmentFromBox.action"
   "action/SegmentFromPoint.action"
   "action/Teleoperate.action"
   "action/Trigger.action"

@@ -358,6 +358,7 @@ def get_img_msg_type(
 
     # Resolve the topic name (e.g., handle remappings)
     final_topic = node.resolve_topic_name(topic)
+    rclpy.logging.get_logger("ada_feeding_perception_helpers").info("Resolving topic name: " + final_topic)
 
     # Get the publishers on the topic
     topic_endpoints = node.get_publishers_info_by_topic(final_topic)
