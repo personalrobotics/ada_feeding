@@ -42,9 +42,14 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from transformers import BertTokenizer, BertModel
 import torch.nn.functional as F
+import base64
+import yaml
+import json
+from rosidl_runtime_py.convert import message_to_ordereddict
+# from rosidl_runtime_py.utilities import convert_message_to_ordereddict  # requires ROS2
 
 # Local imports
-from ada_feeding_msgs.action import SegmentAllItems, GenerateCaption, SegmentFromBox
+from ada_feeding_msgs.action import SegmentAllItems, GenerateCaption, SegmentFromBox, AcquireFood 
 from ada_feeding_msgs.msg import Mask
 from ada_feeding_perception.helpers import (
     BoundingBox,
@@ -1097,11 +1102,11 @@ class SegmentAllItemsNode(Node):
         self._node.get_logger().info(f"Non-maximum suppression time: {nms_time} ms")
 
         # Interpolate the predictions for each image to the nearest label
-        interpolated_predictions = {}
-        interpolated = self.nearest_label_interpolation(predictions, self.labels_list, self.bert_tokenizer, self.bert_model)
-        interpolated_predictions = interpolated
+        # interpolated_predictions = {}
+        # interpolated = self.nearest_label_interpolation(predictions, self.labels_list, self.bert_tokenizer, self.bert_model)
+        # interpolated_predictions = interpolated
 
-        return interpolated_predictions
+        return predictions
 
     def load_image(self, image_array: npt.NDArray):
         """
@@ -1434,11 +1439,44 @@ class SegmentAllItemsNode(Node):
         # Set the mask message as the result
         result.detected_item = mask_msg
 
-        # Save the mask message to a file
+        # self._node.get_logger().info(
+        #     f"Segmented items: {result}"
+        # )
+        # # Save the mask message to a file
         filename = f"segmentation_result_{item_id}.txt"
-        with open(filename, "wb") as f:
-            f.write(result.detected_item.mask.data)
-        self._node.get_logger().info(f"Saved segmentation result to {filename}")
+        # with open(filename, "w") as f:
+        #     base64_str = base64.b64encode(result).decode("utf-8")
+        #     f.write(base64_str)
+        # self._node.get_logger().info(f"Saved segmentation result to {filename}")
+
+        # Create an AcquireFood Goal message 
+        acquire_goal = AcquireFood.Goal()
+        acquire_goal.header = image_msg.header
+        acquire_goal.camera_info = result.camera_info
+        acquire_goal.detected_food = result.detected_item
+
+        result_dict = message_to_ordereddict(acquire_goal)
+        # with open(filename.replace(".txt", ".yaml"), "w") as f:
+        #     yaml.dump(result_dict, f, sort_keys=False)
+        # Convert OrderedDict to plain dict via JSON round-trip
+        clean_dict = json.loads(json.dumps(result_dict))
+
+        # Save to YAML
+        filename = f"segmentation_result_{item_id}.yaml"
+        with open(filename, "w") as f:
+            yaml.dump(clean_dict, f, sort_keys=False)
+
+        with open(filename, 'r') as f:
+            yaml_obj = yaml.safe_load(f)
+
+        # Convert to compact JSON string (which ROS CLI accepts)
+        goal_str = json.dumps(yaml_obj)
+        self._node.get_logger().info(f"Goal string: {goal_str}")
+
+        # Save goal_str to a text file
+        cmd_filename = f"acquire_food_goal_{item_id}.txt"
+        with open(cmd_filename, "w") as f:
+            f.write(goal_str)
 
         return result
 
