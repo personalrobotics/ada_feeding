@@ -67,6 +67,7 @@ from ada_feeding.behaviors.articutool import (
     SwitchArticutoolControllers,
     ComputeArticutoolLevelingJoints,
     TriggerArticutoolCalibration,
+    ExecuteNamedPrimitive,
 )
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
@@ -556,6 +557,17 @@ class AcquireFoodTree(MoveToTree):
                             "switch_response_ok": None,
                         },
                     ),
+                    # ExecuteNamedPrimitive(
+                    #     name="RunPostAcquisitionPrimitive",
+                    #     ns=name,
+                    #     inputs={
+                    #         "primitive_name": "VIBRATE_ROLL",
+                    #         "primitive_params": [3.0, 0.15, 1.0],
+                    #     },
+                    #     outputs={
+                    #         "primitive_status": None,
+                    #     },
+                    # ),
                     CallSetOrientationControl(
                         name="SetArticutoolOrientation",
                         ns=name,

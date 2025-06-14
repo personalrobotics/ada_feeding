@@ -12,3 +12,4 @@ from .switch_articutool_controllers import (
 )
 from .compute_articutool_leveling_joints import ComputeArticutoolLevelingJoints
 from .trigger_articutool_calibration import TriggerArticutoolCalibration
+from .execute_named_primitive import ExecuteNamedPrimitive
