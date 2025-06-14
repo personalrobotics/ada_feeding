@@ -63,3 +63,17 @@ builtin_interfaces/Duration ext_duration
 # Extraction Force/Torque Thresholds
 float64 ext_force
 float64 ext_torque
+
+# The name of the primitive to run *after* the MoveInto Cartesian push.
+# e.g., "TWIRL_CW" or "NONE".
+string post_move_into_primitive_name
+
+# Parameters for the post_move_into_primitive.
+float64[] post_move_into_primitive_params
+
+# The name of the primitive to run *after* the grasp/lift is complete.
+# e.g., "VIBRATE_ROLL" to settle food.
+string post_acquisition_primitive_name
+
+# Parameters for the post_acquisition_primitive.
+float64[] post_acquisition_primitive_params

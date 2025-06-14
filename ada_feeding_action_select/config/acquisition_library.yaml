@@ -340,3 +340,7 @@ actions:
     - 0.6517596
     - 0.2747348
   pre_torque: 4.0
+  post_move_into_primitive_name: "NONE"
+  post_move_into_primitive_params: []
+  post_acquisition_primitive_name: "VIBRATE_ROLL"
+  post_acquisition_primitive_params: [10.0, 0.1, 1.0] # [frequency_hz, amplitude_rad, duration_sec]

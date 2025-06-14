@@ -557,17 +557,21 @@ class AcquireFoodTree(MoveToTree):
                             "switch_response_ok": None,
                         },
                     ),
-                    # ExecuteNamedPrimitive(
-                    #     name="RunPostAcquisitionPrimitive",
-                    #     ns=name,
-                    #     inputs={
-                    #         "primitive_name": "VIBRATE_ROLL",
-                    #         "primitive_params": [3.0, 0.15, 1.0],
-                    #     },
-                    #     outputs={
-                    #         "primitive_status": None,
-                    #     },
-                    # ),
+                    ExecuteNamedPrimitive(
+                        name="RunPostAcquisitionPrimitive",
+                        ns=name,
+                        inputs={
+                            "primitive_name": BlackboardKey(
+                                "post_acquisition_action_name"
+                            ),
+                            "primitive_params": BlackboardKey(
+                                "post_acquisition_action_params"
+                            ),
+                        },
+                        outputs={
+                            "primitive_status": None,
+                        },
+                    ),
                     CallSetOrientationControl(
                         name="SetArticutoolOrientation",
                         ns=name,
@@ -656,6 +660,18 @@ class AcquireFoodTree(MoveToTree):
                                 "ext_thresh": BlackboardKey("ext_thresh"),
                                 "action": BlackboardKey("action"),
                                 "action_index": BlackboardKey("action_index"),
+                                "post_move_into_primitive_name": BlackboardKey(
+                                    "post_move_into_action_name"
+                                ),
+                                "post_move_into_primitive_params": BlackboardKey(
+                                    "post_move_into_action_params"
+                                ),
+                                "post_acquisition_primitive_name": BlackboardKey(
+                                    "post_acquisition_action_name"
+                                ),
+                                "post_acquisition_primitive_params": BlackboardKey(
+                                    "post_acquisition_action_params"
+                                ),
                             },
                         ),
                     ),
@@ -1473,6 +1489,29 @@ class AcquireFoodTree(MoveToTree):
                                                 },
                                                 outputs={},
                                             ),
+                                        ),
+                                        CallSetOrientationControl(
+                                            name="SetArticutoolOrientation",
+                                            ns=name,
+                                            inputs={
+                                                "control_mode": 0,
+                                            },
+                                            outputs={},
+                                        ),
+                                        ExecuteNamedPrimitive(
+                                            name="RunPostMoveIntoPrimitive",
+                                            ns=name,
+                                            inputs={
+                                                "primitive_name": BlackboardKey(
+                                                    "post_move_into_action_name"
+                                                ),
+                                                "primitive_params": BlackboardKey(
+                                                    "post_move_into_action_params"
+                                                ),
+                                            },
+                                            outputs={
+                                                "primitive_status": None,
+                                            },
                                         ),
                                         ### Scoped Behavior for Moveit2_Servo
                                         scoped_behavior(
