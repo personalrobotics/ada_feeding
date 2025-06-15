@@ -77,3 +77,7 @@ string post_acquisition_primitive_name
 
 # Parameters for the post_acquisition_primitive.
 float64[] post_acquisition_primitive_params
+
+# Determines if the food_frame should be rotated to align its X-axis
+# with the robot's approach vector.
+bool align_to_robot_base

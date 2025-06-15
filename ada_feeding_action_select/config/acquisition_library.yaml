@@ -344,3 +344,4 @@ actions:
   post_move_into_primitive_params: []
   post_acquisition_primitive_name: "VIBRATE_ROLL"
   post_acquisition_primitive_params: [10.0, 0.1, 1.0] # [frequency_hz, amplitude_rad, duration_sec]
+  align_to_robot_base: True

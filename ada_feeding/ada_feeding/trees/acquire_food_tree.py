@@ -36,6 +36,7 @@ from ada_feeding.behaviors.acquisition import (
     ComputeActionConstraints,
     ComputeActionTwist,
     RotateLocalApproachPoses,
+    ConditionallyRotateFoodFrame,
 )
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2JointConstraint,
@@ -608,12 +609,13 @@ class AcquireFoodTree(MoveToTree):
                                 # Default food_frame_id = "food"
                                 # Default world_frame = "world"
                                 "flip_food_frame": flip_food_frame,
+                                "align_to_robot_base": False,
                             },
                             outputs={
                                 "action_select_request": BlackboardKey(
                                     "action_request"
                                 ),
-                                "food_frame": None,
+                                "food_frame": BlackboardKey("initial_food_frame"),
                             },
                         ),
                     ),
@@ -672,8 +674,24 @@ class AcquireFoodTree(MoveToTree):
                                 "post_acquisition_primitive_params": BlackboardKey(
                                     "post_acquisition_action_params"
                                 ),
+                                "should_align_to_base": BlackboardKey(
+                                    "should_align_to_base"
+                                ),
                             },
                         ),
+                    ),
+                    ConditionallyRotateFoodFrame(
+                        name="ConditionallyRotateFoodFrame",
+                        ns=name,
+                        inputs={
+                            "initial_food_frame": BlackboardKey("initial_food_frame"),
+                            "should_align_to_base": BlackboardKey(
+                                "should_align_to_base"
+                            ),
+                        },
+                        outputs={
+                            "food_frame_updated": None,
+                        },
                     ),
                     # Re-Tare FT Sensor and default to 4N threshold
                     pre_moveto_config(name="PreAcquireFTTare"),

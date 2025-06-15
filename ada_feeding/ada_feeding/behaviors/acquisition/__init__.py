@@ -13,3 +13,4 @@ from .compute_action_constraints import (
 from .rotate_local_approach_poses import (
     RotateLocalApproachPoses,
 )
+from .conditionally_rotate_food_frame import ConditionallyRotateFoodFrame

@@ -130,7 +130,7 @@ def get_action_library(
         schema.post_acquisition_primitive_params = [
             float(p) for p in element.get("post_acquisition_primitive_params", [])
         ]
-
+        schema.align_to_robot_base = bool(element.get("align_to_robot_base", False))
         library.append(schema)
 
     return library

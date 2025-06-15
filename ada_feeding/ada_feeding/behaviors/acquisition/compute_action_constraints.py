@@ -97,6 +97,7 @@ class ComputeActionConstraints(BlackboardBehavior):
         post_move_into_primitive_params: Optional[BlackboardKey],
         post_acquisition_primitive_name: Optional[BlackboardKey],
         post_acquisition_primitive_params: Optional[BlackboardKey],
+        should_align_to_base: Optional[BlackboardKey],
     ) -> None:
         """
         Blackboard Outputs
@@ -242,6 +243,11 @@ class ComputeActionConstraints(BlackboardBehavior):
             )
             self.logger.info(
                 f"[{self.name}] Set Post-Acquisition Primitive to: '{post_acquisition_name}' with params: {post_acquisition_params}"
+            )
+
+            self.blackboard_set("should_align_to_base", action.align_to_robot_base)
+            self.logger.info(
+                f"[{self.name}] Set 'should_align_to_base' flag to: {action.align_to_robot_base}"
             )
 
             self.blackboard_set("action", action)
