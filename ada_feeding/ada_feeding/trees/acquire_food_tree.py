@@ -945,6 +945,24 @@ class AcquireFoodTree(MoveToTree):
                             )
                         },
                     ),
+                    MoveIt2OrientationConstraint(
+                        name="SetJacoArmPathConstraintForMoveAbove",
+                        ns=name,
+                        inputs={
+                            "constraints": None,
+                            "quat_xyzw": (0.707, 0.0, 0.0, 0.707),
+                            "tolerance": (
+                                np.pi,
+                                2.0 * np.pi,
+                                2.0 * np.pi,
+                            ),
+                        },
+                        outputs={
+                            "constraints": BlackboardKey(
+                                "move_above_jaco_arm_path_constraints"
+                            ),
+                        },
+                    ),
                     py_trees.decorators.Timeout(
                         name="MoveAboveJacoArmPlanTimeout",
                         duration=10.0 * self.allowed_planning_time_for_move_above,
@@ -954,6 +972,9 @@ class AcquireFoodTree(MoveToTree):
                             inputs={
                                 "goal_constraints": BlackboardKey(
                                     "move_above_jaco_arm_constraints"
+                                ),
+                                "path_constraints": BlackboardKey(
+                                    "move_above_jaco_arm_path_constraints"
                                 ),
                                 "max_velocity_scale": self.max_velocity_scaling_move_above,
                                 "max_acceleration_scale": self.max_acceleration_scaling_move_above,
