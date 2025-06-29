@@ -58,6 +58,7 @@ from ada_feeding.behaviors.state import (
     ExtractPoseComponents,
     CheckJacoDirectionalManipulability,
     CheckArticutoolPathOrientationFeasibility,
+    CheckArticutoolPathLevelingFeasibility,
     LoadPinocchioModel,
 )
 from ada_feeding.behaviors.ros.msgs import StampPoseFromPose
@@ -248,6 +249,36 @@ class AcquireFoodTree(MoveToTree):
                                     "trajectory": BlackboardKey("resting_trajectory")
                                 },
                             ),
+                        ),
+                        CheckArticutoolPathLevelingFeasibility(
+                            name="CheckArticutoolLevelingFeasibilityForResting",
+                            ns=name,
+                            inputs={
+                                "pinocchio_model": BlackboardKey("pinocchio_model"),
+                                "pinocchio_data": BlackboardKey("pinocchio_data"),
+                                "jaco_joint_names_pin": [
+                                    "j2n6s200_joint_1",
+                                    "j2n6s200_joint_2",
+                                    "j2n6s200_joint_3",
+                                    "j2n6s200_joint_4",
+                                    "j2n6s200_joint_5",
+                                    "j2n6s200_joint_6",
+                                ],
+                                "jaco_ee_frame_id_pin": BlackboardKey(
+                                    "jaco_ee_frame_id_pin"
+                                ),
+                                "jaco_trajectory": BlackboardKey(
+                                    "move_into_jaco_arm_trajectory"
+                                ),
+                                "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
+                                "articutool_roll_limits_rad": (-np.pi, np.pi),
+                                "num_trajectory_points_to_check": 20,
+                            },
+                            outputs={
+                                "is_leveling_path_feasible": BlackboardKey(
+                                    "articutool_can_maintain_leveling"
+                                )
+                            },
                         ),
                         MoveIt2Execute(
                             name="Resting",

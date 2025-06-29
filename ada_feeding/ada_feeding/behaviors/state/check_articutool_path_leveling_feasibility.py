@@ -34,7 +34,7 @@ from ada_feeding.helpers import BlackboardKey
 from ada_feeding.behaviors import BlackboardBehavior
 
 
-class CheckPathLevelingFeasibility(BlackboardBehavior):
+class CheckArticutoolPathLevelingFeasibility(BlackboardBehavior):
     """
     Checks Articutool's ability to maintain a level orientation for its tool tip
     throughout a Jaco arm trajectory. It verifies that a continuous, within-limits
