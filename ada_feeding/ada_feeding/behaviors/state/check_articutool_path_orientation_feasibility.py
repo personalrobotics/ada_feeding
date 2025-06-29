@@ -393,6 +393,7 @@ class CheckArticutoolPathOrientationFeasibility(BlackboardBehavior):
                 self.blackboard_set("articutool_is_orientation_feasible", True)
                 return Status.SUCCESS
 
+            last_valid_solution: Optional[np.ndarray] = None
             for traj_idx in indices_to_check:
                 jaco_ee_pose_msg: Pose = jaco_ee_world_poses[traj_idx]
                 R_World_JacoEE = Rotation.from_quat(
@@ -420,28 +421,49 @@ class CheckArticutoolPathOrientationFeasibility(BlackboardBehavior):
                     target_y_for_ik_in_atool_base
                 )
 
-                found_valid_solution_for_waypoint = False
-                for theta_p_sol, theta_r_sol in ik_solutions:
+                # Filter for solutions within joint limits
+                valid_solutions = []
+                for theta_p, theta_r in ik_solutions:
                     if (
                         self._pitch_limits_rad[0] - self.EPSILON
-                        <= theta_p_sol
+                        <= theta_p
                         <= self._pitch_limits_rad[1] + self.EPSILON
                         and self._roll_limits_rad[0] - self.EPSILON
-                        <= theta_r_sol
-                        <= self._roll_limits_rad[1] + self.EPSILON
+                        <= theta_r
+                        <= self._pitch_limits_rad[1] + self.EPSILON
                     ):
-                        found_valid_solution_for_waypoint = True
-                        break
+                        valid_solutions.append(np.array([theta_p, theta_r]))
 
-                if not found_valid_solution_for_waypoint:
-                    self.feedback_message = (
-                        f"Articutool IK failed or solution out of limits at traj point {traj_idx}. "
-                        f"Target Y_AtoolBase: {np.round(target_y_for_ik_in_atool_base, 3)}. "
-                        f"Raw IK solutions (tp,tr): {[(round(s[0], 3), round(s[1], 3)) for s in ik_solutions]}"
+                # If no valid solutions exist, the path is infeasible
+                if not valid_solutions:
+                    self.logger.warn(
+                        f"[{self.name}] No valid IK solution within joint limits at trajectory point {traj_idx}"
                     )
-                    self.logger.warn(f"[{self.name}] {self.feedback_message}")
                     self.blackboard_set("articutool_is_orientation_feasible", False)
                     return Status.FAILURE
+
+                # Select the best solution based on continuity
+                if last_valid_solution is None:
+                    # For the first point, find the solution closest to the current tool pose
+                    chosen_solution = valid_solutions[0]
+                    # current_tool_joints = self.blackboard_get(
+                    #     "current_articutool_joint_state"
+                    # )
+                    # distances = [
+                    #     np.linalg.norm(sol - current_tool_joints)
+                    #     for sol in valid_solutions
+                    # ]
+                    # chosen_solution = valid_solutions[np.argmin(distances)]
+                else:
+                    # For subsequent points, find the solution closest to the previous point's solution
+                    distances = [
+                        np.linalg.norm(sol - last_valid_solution)
+                        for sol in valid_solutions
+                    ]
+                    chosen_solution = valid_solutions[np.argmin(distances)]
+
+                # Update the state for the next iteration
+                last_valid_solution = chosen_solution
 
                 self.logger.debug(
                     f"[{self.name}] Pt {traj_idx}: Articutool IK feasible."
