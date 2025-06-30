@@ -254,7 +254,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                                 "num_trajectory_points_to_check": 20,
                             },
                             outputs={
-                                "is_leveling_path_feasible": BlackboardKey(
+                                "articutool_is_leveling_feasible": BlackboardKey(
                                     "articutool_can_maintain_leveling"
                                 )
                             },
