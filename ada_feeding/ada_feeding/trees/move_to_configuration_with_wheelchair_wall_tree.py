@@ -27,7 +27,11 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2JointConstraint,
     MoveIt2OrientationConstraint,
 )
-from ada_feeding.behaviors.state import GetJointStates
+from ada_feeding.behaviors.state import (
+    GetJointStates,
+    CheckArticutoolPathLevelingFeasibility,
+    LoadPinocchioModel,
+)
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import (
@@ -37,6 +41,8 @@ from ada_feeding.idioms.bite_transfer import (
 from ada_feeding.trees import (
     MoveToTree,
 )
+
+import numpy as np
 
 
 class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
@@ -152,6 +158,34 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
             name=name,
             memory=True,
             children=[
+                LoadPinocchioModel(
+                    name="LoadPinocchioModel",
+                    ns=name,
+                    inputs={
+                        "urdf_file_path": "package://ada_moveit/config/ada.urdf.xacro",
+                        "jaco_joint_names": [
+                            "j2n6s200_joint_1",
+                            "j2n6s200_joint_2",
+                            "j2n6s200_joint_3",
+                            "j2n6s200_joint_4",
+                            "j2n6s200_joint_5",
+                            "j2n6s200_joint_6",
+                        ],
+                        "articutool_joint_names": ["atool_joint1", "atool_joint2"],
+                        "jaco_end_effector_link_name": "j2n6s200_end_effector",
+                        "tool_tip_link_name": "tool_tip",
+                    },
+                    outputs={
+                        "pinocchio_model": BlackboardKey("pinocchio_model"),
+                        "pinocchio_data": BlackboardKey("pinocchio_data"),
+                        "jaco_vel_indices_pin": BlackboardKey("jaco_vel_indices_pin"),
+                        "articutool_vel_indices_pin": BlackboardKey(
+                            "articutool_vel_indices_pin"
+                        ),
+                        "jaco_ee_frame_id_pin": BlackboardKey("jaco_ee_frame_id_pin"),
+                        "tool_tip_frame_id_pin": BlackboardKey("tool_tip_frame_id_pin"),
+                    },
+                ),
                 # Retare the F/T sensor and set the F/T Thresholds
                 pre_moveto_config(
                     name=name + "PreMoveToConfig",
@@ -196,6 +230,34 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                                 },
                                 outputs={"trajectory": BlackboardKey("trajectory")},
                             ),
+                        ),
+                        CheckArticutoolPathLevelingFeasibility(
+                            name="CheckArticutoolLevelingFeasibilityForConfiguration",
+                            ns=name,
+                            inputs={
+                                "pinocchio_model": BlackboardKey("pinocchio_model"),
+                                "pinocchio_data": BlackboardKey("pinocchio_data"),
+                                "jaco_joint_names_pin": [
+                                    "j2n6s200_joint_1",
+                                    "j2n6s200_joint_2",
+                                    "j2n6s200_joint_3",
+                                    "j2n6s200_joint_4",
+                                    "j2n6s200_joint_5",
+                                    "j2n6s200_joint_6",
+                                ],
+                                "jaco_ee_frame_id_pin": BlackboardKey(
+                                    "jaco_ee_frame_id_pin"
+                                ),
+                                "jaco_trajectory": BlackboardKey("trajectory"),
+                                "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
+                                "articutool_roll_limits_rad": (-np.pi, np.pi),
+                                "num_trajectory_points_to_check": 20,
+                            },
+                            outputs={
+                                "is_leveling_path_feasible": BlackboardKey(
+                                    "articutool_can_maintain_leveling"
+                                )
+                            },
                         ),
                         # Execute
                         MoveIt2Execute(
