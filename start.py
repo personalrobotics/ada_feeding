@@ -286,7 +286,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "camera": [
                 "ssh nano@nano -t './start_nano.sh'",
             ],
-            "articutool_stack": [
+            "articutool": [
                 # This command chains several Docker commands on the remote RPi (babbage)
                 # The -t flag for SSH allocates a pseudo-terminal, which is often necessary
                 # for interactive docker commands and proper signal handling.
