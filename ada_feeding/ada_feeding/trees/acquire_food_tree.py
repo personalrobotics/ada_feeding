@@ -1379,7 +1379,7 @@ class AcquireFoodTree(MoveToTree):
                                 ),
                                 py_trees.decorators.Retry(
                                     name="PlanAcquisitionSequenceRetry",
-                                    num_failures=3,
+                                    num_failures=10,
                                     child=py_trees.composites.Sequence(
                                         name="PlanAcquisitionSequence",
                                         memory=True,
