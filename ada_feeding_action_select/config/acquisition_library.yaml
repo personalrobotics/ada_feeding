@@ -342,6 +342,6 @@ actions:
   pre_torque: 4.0
   post_move_into_primitive_name: "NONE"
   post_move_into_primitive_params: []
-  post_acquisition_primitive_name: "SETTLE_TOSS"
-  post_acquisition_primitive_params: [15.0, 1.0, 4.0] # [tilt_angle_deg, tilt_speed_rps, flick_speed_rps]
+  post_acquisition_primitive_name: "VIBRATE_ROLL"
+  post_acquisition_primitive_params: [5.0, 0.1, 1.0] # [frequency_hz, amplitude_rad, duration_sec]
   align_to_robot_base: True
