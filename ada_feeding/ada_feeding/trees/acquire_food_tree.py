@@ -189,7 +189,7 @@ class AcquireFoodTree(MoveToTree):
         # to reduce swivels.
         max_path_len_joint = {
             "j2n6s200_joint_1": np.pi * 5.0 / 6.0,
-            "j2n6s200_joint_2": np.pi / 2.0,
+            "j2n6s200_joint_2": np.pi / 4.0,
         }
 
         # Get the base lin to publish servo commands in
