@@ -196,12 +196,12 @@ class MoveIt2ComputeIK(BlackboardBehavior):
                             if constraint_type == MoveIt2ConstraintType.JOINT:
                                 # Assumes wrapper has create_joint_constraint(**kwargs) -> JointConstraint
                                 constraint_obj = (
-                                    self.moveit2_obj.create_joint_constraint(
+                                    self.moveit2_obj.create_joint_constraints(
                                         **constraint_kwargs
                                     )
                                 )
                                 if constraint_obj:
-                                    ik_constraints_msg.joint_constraints.append(
+                                    ik_constraints_msg.joint_constraints.extend(
                                         constraint_obj
                                     )
                             elif constraint_type == MoveIt2ConstraintType.POSITION:
