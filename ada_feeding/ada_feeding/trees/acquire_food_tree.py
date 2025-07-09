@@ -845,6 +845,18 @@ class AcquireFoodTree(MoveToTree):
                             )
                         },
                     ),
+                    MoveIt2JointConstraint(
+                        name="CreateMoveAboveArticutoolJointConstraint",
+                        ns=name,
+                        inputs={
+                            "joint_names": ["atool_joint1", "atool_joint2"],
+                            "joint_positions": [0.0, 0.0],
+                            "tolerance": 0.785,
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("move_above_ik_constraints")
+                        },
+                    ),
                     MoveIt2ComputeIK(
                         name="ComputeIKForMoveAbove",
                         ns=name,
@@ -856,6 +868,7 @@ class AcquireFoodTree(MoveToTree):
                             "start_joint_state": BlackboardKey(
                                 "current_full_joint_state_for_ik"
                             ),
+                            "constraints": BlackboardKey("move_above_ik_constraints"),
                         },
                         outputs={
                             "ik_solution_joint_state": BlackboardKey(
