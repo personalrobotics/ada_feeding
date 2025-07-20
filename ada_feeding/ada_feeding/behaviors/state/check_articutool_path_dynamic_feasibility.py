@@ -162,7 +162,9 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
             )
         return solutions
 
-    def _compute_articutool_jacobian(self, theta_p: float, theta_r: float) -> np.ndarray:
+    def _compute_articutool_jacobian(
+        self, theta_p: float, theta_r: float
+    ) -> np.ndarray:
         """
         Computes the 3x2 analytical Jacobian for the Articutool leveling task.
         This must be derived from the same FK model that the IK inverts.
@@ -175,7 +177,7 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
         j11 = 0
         j21 = -sp * cr
         j31 = cp * cr
-        
+
         # d/d(theta_r)
         j12 = -cr
         j22 = -cp * sr
@@ -212,43 +214,56 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
         try:
             trajectory_input = self.blackboard_get("jaco_trajectory")
             num_points = self.blackboard_get("num_trajectory_points_to_check")
-            
+
             jaco_points = self._get_jaco_trajectory_points(trajectory_input)
 
             if not jaco_points:
-                self.logger.warn(f"[{self.name}] Trajectory is empty. Assuming feasible.")
+                self.logger.warn(
+                    f"[{self.name}] Trajectory is empty. Assuming feasible."
+                )
                 self.blackboard_set("articutool_is_dynamic_feasible", True)
                 return Status.SUCCESS
 
             indices = np.linspace(0, len(jaco_points) - 1, num_points, dtype=int)
-            
+
             last_valid_atool_q = None
 
             for idx in indices:
                 q_jaco, v_jaco = jaco_points[idx]
-                
+
                 # --- KINEMATIC FEASIBILITY CHECK (Prerequisite) ---
-                
+
                 # 1. Get Articutool base orientation from Jaco FK
                 pin.forwardKinematics(self._pin_model, self._pin_data, q_jaco)
                 pin.updateFramePlacements(self._pin_model, self._pin_data)
                 T_world_atool_base = self._pin_data.oMf[self._jaco_ee_frame_id_pin]
                 R_world_atool_base = Rotation.from_matrix(T_world_atool_base.rotation)
-                
+
                 # 2. Transform world "up" vector to Articutool's base frame
-                target_y_in_atool_base = R_world_atool_base.inv().apply(self.WORLD_Z_UP_VECTOR)
-                
+                target_y_in_atool_base = R_world_atool_base.inv().apply(
+                    self.WORLD_Z_UP_VECTOR
+                )
+
                 # 3. Solve Articutool IK for leveling
-                ik_solutions = self._solve_articutool_ik_for_leveling(target_y_in_atool_base)
+                ik_solutions = self._solve_articutool_ik_for_leveling(
+                    target_y_in_atool_base
+                )
 
                 valid_solutions = [
-                    sol for sol in ik_solutions
-                    if self._pitch_limits_rad[0] - self.EPSILON <= sol[0] <= self._pitch_limits_rad[1] + self.EPSILON
-                    and self._roll_limits_rad[0] - self.EPSILON <= sol[1] <= self._roll_limits_rad[1] + self.EPSILON
+                    sol
+                    for sol in ik_solutions
+                    if self._pitch_limits_rad[0] - self.EPSILON
+                    <= sol[0]
+                    <= self._pitch_limits_rad[1] + self.EPSILON
+                    and self._roll_limits_rad[0] - self.EPSILON
+                    <= sol[1]
+                    <= self._roll_limits_rad[1] + self.EPSILON
                 ]
 
                 if not valid_solutions:
-                    self.feedback_message = f"Path is kinematically infeasible at point {idx}."
+                    self.feedback_message = (
+                        f"Path is kinematically infeasible at point {idx}."
+                    )
                     self.blackboard_set("articutool_is_dynamic_feasible", False)
                     return Status.FAILURE
 
@@ -256,19 +271,30 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
                 if last_valid_atool_q is None:
                     q_atool = valid_solutions[0]
                 else:
-                    distances = [np.linalg.norm(np.array(sol) - last_valid_atool_q) for sol in valid_solutions]
+                    distances = [
+                        np.linalg.norm(np.array(sol) - last_valid_atool_q)
+                        for sol in valid_solutions
+                    ]
                     q_atool = valid_solutions[np.argmin(distances)]
                 last_valid_atool_q = np.array(q_atool)
 
                 # --- DYNAMIC FEASIBILITY CHECK ---
 
                 # 1. Calculate disturbance velocity from Jaco arm
-                J_jaco_full = pin.computeFrameJacobian(self._pin_model, self._pin_data, q_jaco, self._jaco_ee_frame_id_pin, pin.ReferenceFrame.WORLD)
+                J_jaco_full = pin.computeFrameJacobian(
+                    self._pin_model,
+                    self._pin_data,
+                    q_jaco,
+                    self._jaco_ee_frame_id_pin,
+                    pin.ReferenceFrame.WORLD,
+                )
                 v_jaco_full = J_jaco_full @ v_jaco
-                omega_disturbance_world = v_jaco_full[3:6] # Angular velocity part
+                omega_disturbance_world = v_jaco_full[3:6]  # Angular velocity part
 
                 # 2. Transform disturbance to Articutool's local frame
-                omega_correction_local = -R_world_atool_base.inv().apply(omega_disturbance_world)
+                omega_correction_local = -R_world_atool_base.inv().apply(
+                    omega_disturbance_world
+                )
 
                 # 3. Compute Articutool's Jacobian at the required configuration
                 J_atool = self._compute_articutool_jacobian(q_atool[0], q_atool[1])
@@ -278,7 +304,9 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
                     J_atool_pinv = np.linalg.pinv(J_atool, rcond=1e-4)
                     q_dot_atool_required = J_atool_pinv @ omega_correction_local
                 except np.linalg.LinAlgError:
-                    self.feedback_message = f"Articutool Jacobian is singular at point {idx}."
+                    self.feedback_message = (
+                        f"Articutool Jacobian is singular at point {idx}."
+                    )
                     self.blackboard_set("articutool_is_dynamic_feasible", False)
                     return Status.FAILURE
 
