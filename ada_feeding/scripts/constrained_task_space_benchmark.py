@@ -4,11 +4,14 @@
 
 """
 This script runs a benchmark to evaluate a "constraint-driven planning"
-methodology for the Articutool system.
+methodology for the Articutool system. It features comprehensive, single-file
+logging designed for easy data analysis and plotting for publications.
+
+This version is a PURE SIMULATION. It does not move the robot. Each planning
+task starts from the end-state of the previously computed plan.
 
 It can be run in two modes:
-1.  Position-Only Goals (default): Plans to a random (x, y, z) position,
-    leaving the final orientation unconstrained.
+1.  Position-Only Goals (default): Plans to a random (x, y, z) position.
 2.  Position + Yaw Goals (`--constrain-goal-yaw`): Plans to a random
     (x, y, z) position AND a random final yaw orientation.
 
@@ -57,33 +60,25 @@ WORLD_UP_VECTOR = np.array([0.0, 0.0, 1.0])
 
 # --- Parameters for the "Smart" PATH Orientation Constraint ---
 PATH_CONSTRAINT_QUAT_XYZW = (0.707, 0.0, 0.0, 0.707)
-PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (
-    1.5,
-    3.14,
-    0.8,
-)  # (Pitch, Yaw, Roll) - Roll relaxed to 0.8
+PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (1.5, 3.14, 0.8)
 
 # --- Parameters for the optional GOAL Yaw Orientation Constraint ---
-GOAL_YAW_CONSTRAINT_TOLERANCE_XYZ_RAD = (
-    math.pi,
-    math.pi,
-    0.1,
-)  # Loose Pitch/Roll, Tight Yaw
+GOAL_YAW_CONSTRAINT_TOLERANCE_XYZ_RAD = (math.pi, math.pi, 0.1)
 
 # --- Define a reasonable workspace for sampling random positions ---
-WORKSPACE_OUTER_RADIUS = 0.7  # Max reach in meters
-WORKSPACE_INNER_RADIUS = 0.3  # Min distance to avoid singularity at base
+WORKSPACE_OUTER_RADIUS = 0.7
+WORKSPACE_INNER_RADIUS = 0.3
 
 # --- Data Structures for Clarity ---
-ArticutoolWaypointSolution = namedtuple(
-    "ArticutoolWaypointSolution",
-    ["waypoint_feasible", "pitch_solution_rad", "roll_solution_rad"],
-)
-ArticutoolMetrics = namedtuple(
-    "ArticutoolMetrics",
+TrajectoryMetrics = namedtuple(
+    "TrajectoryMetrics",
     [
-        "path_feasible",
-        "num_infeasible_points",
+        "duration_s",
+        "joint_space_path_length_rad",
+        "final_joint_positions",
+        "articutool_pitch_stats_rad",
+        "articutool_roll_stats_rad",
+        "waypoints_data",
     ],
 )
 
@@ -99,7 +94,7 @@ class ConstrainedTaskSpaceBenchmark:
         num_tasks: int = 100,
         planning_timeout: float = 5.0,
         planner_id: str = "RRTConnectkConfigDefault",
-        trajectory_save_dir: Optional[str] = None,
+        output_dir: Optional[str] = None,
         constrain_goal_yaw: bool = False,
     ):
         self.node = node
@@ -108,7 +103,7 @@ class ConstrainedTaskSpaceBenchmark:
         self.num_tasks = num_tasks
         self.planning_timeout = planning_timeout
         self.planner_id = planner_id
-        self.trajectory_save_dir = trajectory_save_dir
+        self.output_dir = output_dir
         self.constrain_goal_yaw = constrain_goal_yaw
         self.results: List[Dict[str, Any]] = []
 
@@ -116,7 +111,10 @@ class ConstrainedTaskSpaceBenchmark:
         self.pinocchio_data: Optional[pin.Data] = None
         self.jaco_ee_frame_id_pin: Optional[int] = None
         self.joint_name_to_pinocchio_id: Dict[str, int] = {}
+        self.jaco_vel_indices: List[int] = []
         self._initialize_pinocchio()
+        self.joint_limits = self._get_joint_limits()
+        self.debug_printed = False  # Flag to print debug logs only once
 
         LOGGER.info("Benchmark simulator initialized.")
         if self.constrain_goal_yaw:
@@ -125,9 +123,9 @@ class ConstrainedTaskSpaceBenchmark:
             LOGGER.info("Planning Mode: Position-Only Goals.")
         LOGGER.info(f"Applying 'smart' orientation constraint to all paths.")
 
-        if self.trajectory_save_dir:
-            os.makedirs(self.trajectory_save_dir, exist_ok=True)
-            LOGGER.info(f"Trajectories will be saved to: {self.trajectory_save_dir}")
+        if self.output_dir:
+            os.makedirs(self.output_dir, exist_ok=True)
+            LOGGER.info(f"Comprehensive results will be saved to: {self.output_dir}")
 
     def _initialize_pinocchio(self):
         """Loads the robot model from a XACRO file into Pinocchio."""
@@ -146,18 +144,40 @@ class ConstrainedTaskSpaceBenchmark:
             )
             for name in JOINT_NAMES:
                 if self.pinocchio_model.existJointName(name):
-                    self.joint_name_to_pinocchio_id[name] = (
-                        self.pinocchio_model.getJointId(name)
+                    joint_id = self.pinocchio_model.getJointId(name)
+                    self.joint_name_to_pinocchio_id[name] = joint_id
+                    # Store the velocity index for this joint
+                    self.jaco_vel_indices.append(
+                        self.pinocchio_model.joints[joint_id].idx_v
                     )
+
             LOGGER.info("Pinocchio model loaded successfully.")
         except (FileNotFoundError, subprocess.CalledProcessError, Exception) as e:
             LOGGER.error(f"Failed to initialize Pinocchio model: {e}")
             self.pinocchio_model = None
 
+    def _get_joint_limits(self) -> List[Tuple[float, float]]:
+        """Retrieves joint limits from the Pinocchio model."""
+        if self.pinocchio_model is None:
+            return [(-math.pi, math.pi)] * len(JOINT_NAMES)
+        limits = []
+        for name in JOINT_NAMES:
+            if self.pinocchio_model.existJointName(name):
+                joint_id = self.pinocchio_model.getJointId(name)
+                idx = self.pinocchio_model.joints[joint_id].idx_q
+                limits.append(
+                    (
+                        self.pinocchio_model.lowerPositionLimit[idx],
+                        self.pinocchio_model.upperPositionLimit[idx],
+                    )
+                )
+        return limits
+
     def generate_random_position_in_workspace(self) -> np.ndarray:
         """Generates a random (x, y, z) position from a half-spherical shell."""
-        r_outer, r_inner = WORKSPACE_OUTER_RADIUS, WORKSPACE_INNER_RADIUS
-        r = (np.random.uniform(r_inner**3, r_outer**3)) ** (1 / 3)
+        r = (
+            np.random.uniform(WORKSPACE_INNER_RADIUS**3, WORKSPACE_OUTER_RADIUS**3)
+        ) ** (1 / 3)
         theta = np.random.uniform(0, 2 * math.pi)
         cos_phi = np.random.uniform(0, 1)
         phi = math.acos(cos_phi)
@@ -169,9 +189,21 @@ class ConstrainedTaskSpaceBenchmark:
     def generate_random_yaw_quaternion(self) -> Tuple[float, float, float, float]:
         """Generates a quaternion representing a random yaw."""
         random_yaw_angle = np.random.uniform(-math.pi, math.pi)
-        # Scipy handles conversion from Euler angles (Z-axis for yaw) to quaternion
         quat_xyzw = R.from_euler("z", random_yaw_angle).as_quat()
         return tuple(quat_xyzw)
+
+    def _get_articutool_jacobian(self, pitch: float, roll: float) -> np.ndarray:
+        """
+        Computes the analytical Jacobian for the Articutool's 'up' vector (y-axis).
+        This relates Articutool joint velocities to the angular velocity of its y-axis.
+        J = [∂y/∂θp, ∂y/∂θr]
+        """
+        cp, sp = math.cos(pitch), math.sin(pitch)
+        cr, sr = math.cos(roll), math.sin(roll)
+        # Partial derivatives of the y-axis vector [-sr, cp*cr, sp*cr]
+        dydp = np.array([0, -sp * cr, cp * cr])
+        dydr = np.array([-cr, -cp * sr, -sp * sr])
+        return np.vstack([dydp, dydr]).T
 
     def _solve_articutool_ik_for_leveling(
         self, target_y_axis_in_atool_base: np.ndarray
@@ -205,103 +237,175 @@ class ConstrainedTaskSpaceBenchmark:
             )
         return solutions
 
-    def _verify_trajectory_feasibility(
+    def _calculate_trajectory_metrics(
         self, trajectory: JointTrajectory
-    ) -> Tuple[ArticutoolMetrics, List[ArticutoolWaypointSolution]]:
-        """Verifies if a given trajectory is feasible for the Articutool."""
-        if self.pinocchio_model is None:
-            return (ArticutoolMetrics(False, len(trajectory.points)), [])
+    ) -> TrajectoryMetrics:
+        """Calculates detailed metrics for a given trajectory."""
+        if self.pinocchio_model is None or not trajectory.points:
+            return TrajectoryMetrics(0.0, 0.0, [], {}, {}, [])
 
-        num_infeasible_wps = 0
-        per_waypoint_solutions: List[ArticutoolWaypointSolution] = []
+        joint_space_path_length = 0.0
+        waypoints_data = []
         q = pin.neutral(self.pinocchio_model)
+        prev_positions = np.array(trajectory.points[0].positions)
+        all_pitches, all_rolls = [], []
 
-        for point in trajectory.points:
-            for i, name in enumerate(JOINT_NAMES):
+        for i, point in enumerate(trajectory.points):
+            # Update Pinocchio model for current waypoint
+            for j, name in enumerate(JOINT_NAMES):
                 if name in self.joint_name_to_pinocchio_id:
                     joint_id = self.joint_name_to_pinocchio_id[name]
                     joint_obj = self.pinocchio_model.joints[joint_id]
-                    theta = point.positions[i]
-                    if joint_obj.nq == 2 and joint_obj.nv == 1:
-                        q[joint_obj.idx_q] = math.cos(theta)
-                        q[joint_obj.idx_q + 1] = math.sin(theta)
+                    theta = point.positions[j]
+                    if joint_obj.nq == 2:
+                        q[joint_obj.idx_q : joint_obj.idx_q + 2] = [
+                            math.cos(theta),
+                            math.sin(theta),
+                        ]
                     else:
                         q[joint_obj.idx_q] = theta
 
-            pin.forwardKinematics(self.pinocchio_model, self.pinocchio_data, q)
+            pin.computeAllTerms(
+                self.pinocchio_model,
+                self.pinocchio_data,
+                q,
+                np.zeros(self.pinocchio_model.nv),
+            )
             pin.updateFramePlacements(self.pinocchio_model, self.pinocchio_data)
-            ee_transform: pin.SE3 = self.pinocchio_data.oMf[self.jaco_ee_frame_id_pin]
+
+            # Get EE Pose and Articutool IK solution
+            ee_transform = self.pinocchio_data.oMf[self.jaco_ee_frame_id_pin]
             R_world_ee = R.from_matrix(ee_transform.rotation)
-            target_up_in_ee_frame = R_world_ee.inv().apply(WORLD_UP_VECTOR)
-            ik_solutions = self._solve_articutool_ik_for_leveling(target_up_in_ee_frame)
+            target_up = R_world_ee.inv().apply(WORLD_UP_VECTOR)
+            solutions = self._solve_articutool_ik_for_leveling(target_up)
 
-            valid_solutions = [
-                s
-                for s in ik_solutions
-                if (
-                    ARTICUTOOL_PITCH_LIMITS_RAD[0] - EPSILON
+            at_solution, at_velocities = None, None
+            if solutions:
+                valid_sols = [
+                    s
+                    for s in solutions
+                    if ARTICUTOOL_PITCH_LIMITS_RAD[0]
                     <= s[0]
-                    <= ARTICUTOOL_PITCH_LIMITS_RAD[1] + EPSILON
-                    and ARTICUTOOL_ROLL_LIMITS_RAD[0] - EPSILON
+                    <= ARTICUTOOL_PITCH_LIMITS_RAD[1]
+                    and ARTICUTOOL_ROLL_LIMITS_RAD[0]
                     <= s[1]
-                    <= ARTICUTOOL_ROLL_LIMITS_RAD[1] + EPSILON
-                )
-            ]
+                    <= ARTICUTOOL_ROLL_LIMITS_RAD[1]
+                ]
+                if valid_sols:
+                    pitch, roll = min(valid_sols, key=lambda s: s[0] ** 2 + s[1] ** 2)
+                    at_solution = {"pitch": pitch, "roll": roll}
+                    all_pitches.append(pitch)
+                    all_rolls.append(roll)
 
-            if not valid_solutions:
-                num_infeasible_wps += 1
-                per_waypoint_solutions.append(
-                    ArticutoolWaypointSolution(False, None, None)
-                )
-            else:
-                best_sol = min(valid_solutions, key=lambda s: s[0] ** 2 + s[1] ** 2)
-                per_waypoint_solutions.append(
-                    ArticutoolWaypointSolution(True, best_sol[0], best_sol[1])
-                )
+                    # Calculate required Articutool velocities
+                    if i > 0:
+                        dt = (
+                            point.time_from_start.sec
+                            + point.time_from_start.nanosec * 1e-9
+                        ) - (
+                            trajectory.points[i - 1].time_from_start.sec
+                            + trajectory.points[i - 1].time_from_start.nanosec * 1e-9
+                        )
+                        if dt > EPSILON:
+                            q_dot_jaco = (
+                                np.array(point.positions)
+                                - np.array(trajectory.points[i - 1].positions)
+                            ) / dt
 
-        return (
-            ArticutoolMetrics(
-                path_feasible=(num_infeasible_wps == 0),
-                num_infeasible_points=num_infeasible_wps,
-            ),
-            per_waypoint_solutions,
+                            J_jaco_full = pin.getFrameJacobian(
+                                self.pinocchio_model,
+                                self.pinocchio_data,
+                                self.jaco_ee_frame_id_pin,
+                                pin.ReferenceFrame.LOCAL,
+                            )
+                            J_jaco_arm = J_jaco_full[:, self.jaco_vel_indices]
+
+                            v_ee = J_jaco_arm @ q_dot_jaco
+                            omega_disturbance_local = v_ee[
+                                3:
+                            ]  # Angular velocity portion
+
+                            J_atool = self._get_articutool_jacobian(pitch, roll)
+                            J_atool_inv = np.linalg.pinv(J_atool)
+                            q_dot_atool = -J_atool_inv @ omega_disturbance_local
+                            at_velocities = {
+                                "pitch_vel": q_dot_atool[0],
+                                "roll_vel": q_dot_atool[1],
+                            }
+
+                            # --- START DEBUG LOGS ---
+                            if not self.debug_printed and i < 5:
+                                LOGGER.info(f"--- DEBUG WP {i} ---")
+                                LOGGER.info(f"  dt: {dt:.4f}s")
+                                LOGGER.info(f"  q_dot_jaco: {np.round(q_dot_jaco, 3)}")
+                                LOGGER.info(f"  J_jaco_full shape: {J_jaco_full.shape}")
+                                LOGGER.info(f"  J_jaco_arm shape: {J_jaco_arm.shape}")
+                                LOGGER.info(f"  v_ee (local): {np.round(v_ee, 3)}")
+                                LOGGER.info(
+                                    f"  omega_disturbance_local: {np.round(omega_disturbance_local, 3)}"
+                                )
+                                LOGGER.info(f"  J_atool:\n{np.round(J_atool, 3)}")
+                                LOGGER.info(
+                                    f"  q_dot_atool (req'd): {np.round(q_dot_atool, 3)}"
+                                )
+                            # --- END DEBUG LOGS ---
+
+            waypoints_data.append(
+                {
+                    "time_from_start_sec": point.time_from_start.sec
+                    + point.time_from_start.nanosec * 1e-9,
+                    "jaco_positions_rad": list(point.positions),
+                    "ee_pose_world": {
+                        "position": ee_transform.translation.tolist(),
+                        "quat_xyzw": R.from_matrix(ee_transform.rotation)
+                        .as_quat()
+                        .tolist(),
+                    },
+                    "articutool_solution_rad": at_solution,
+                    "articutool_velocities_rad_per_sec": at_velocities,
+                }
+            )
+            joint_space_path_length += np.linalg.norm(
+                np.array(point.positions) - prev_positions
+            )
+            prev_positions = np.array(point.positions)
+
+        self.debug_printed = (
+            True  # Ensure debug logs only print for the first trajectory
+        )
+        duration = (
+            trajectory.points[-1].time_from_start.sec
+            + trajectory.points[-1].time_from_start.nanosec * 1e-9
+        )
+        pitch_stats = (
+            {
+                "min": min(all_pitches),
+                "max": max(all_pitches),
+                "mean": np.mean(all_pitches),
+                "std_dev": np.std(all_pitches),
+            }
+            if all_pitches
+            else {}
+        )
+        roll_stats = (
+            {
+                "min": min(all_rolls),
+                "max": max(all_rolls),
+                "mean": np.mean(all_rolls),
+                "std_dev": np.std(all_rolls),
+            }
+            if all_rolls
+            else {}
         )
 
-    def _save_trajectory_to_file(
-        self,
-        original_trajectory: JointTrajectory,
-        articutool_solutions: List[ArticutoolWaypointSolution],
-        task_id: int,
-    ) -> Optional[str]:
-        """Saves the trajectory data to a JSON file."""
-        if not self.trajectory_save_dir:
-            return None
-        try:
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-            mode = "pos_yaw" if self.constrain_goal_yaw else "pos_only"
-            filename = f"task_{mode}_{task_id}_{timestamp}.json"
-            filepath = os.path.join(self.trajectory_save_dir, filename)
-            waypoints_data = [
-                {
-                    "time_from_start_sec": p.time_from_start.sec
-                    + p.time_from_start.nanosec * 1e-9,
-                    "jaco_positions_rad": list(p.positions),
-                    "articutool_waypoint_feasible": s.waypoint_feasible,
-                    "articutool_pitch_solution_rad": s.pitch_solution_rad,
-                    "articutool_roll_solution_rad": s.roll_solution_rad,
-                }
-                for p, s in zip(original_trajectory.points, articutool_solutions)
-            ]
-            enhanced_data = {
-                "jaco_joint_names": list(original_trajectory.joint_names),
-                "waypoints": waypoints_data,
-            }
-            with open(filepath, "w") as f:
-                json.dump(enhanced_data, f, indent=2)
-            return filename
-        except Exception as e:
-            LOGGER.error(f"Failed to save trajectory for task {task_id}: {e}")
-            return None
+        return TrajectoryMetrics(
+            duration,
+            joint_space_path_length,
+            list(trajectory.points[-1].positions),
+            pitch_stats,
+            roll_stats,
+            waypoints_data,
+        )
 
     def run(self):
         """Main benchmark execution loop."""
@@ -312,34 +416,27 @@ class ConstrainedTaskSpaceBenchmark:
         for i in range(self.num_tasks):
             LOGGER.info(f"--- Running Task {i + 1}/{self.num_tasks} ---")
 
-            # 1. Generate a random target position and optional yaw
-            target_position = self.generate_random_position_in_workspace()
-            target_quat_xyzw = None
-            if self.constrain_goal_yaw:
-                target_quat_xyzw = self.generate_random_yaw_quaternion()
-                LOGGER.info(
-                    f"  Target Position (x,y,z): {np.round(target_position, 3).tolist()}"
-                )
-                LOGGER.info(
-                    f"  Target Goal Yaw Quat (x,y,z,w): {np.round(target_quat_xyzw, 3).tolist()}"
-                )
-            else:
-                LOGGER.info(
-                    f"  Target Position (x,y,z): {np.round(target_position, 3).tolist()}"
-                )
+            # Get the starting joint state for this trial from the robot's current position
+            start_joint_positions = self.moveit2.joint_state.position
 
-            # 2. Set up the planning request
+            # Generate task goals
+            target_position = self.generate_random_position_in_workspace()
+            target_quat_xyzw = (
+                self.generate_random_yaw_quaternion()
+                if self.constrain_goal_yaw
+                else None
+            )
+
+            # Set up and execute planning request
             self.moveit2.clear_goal_constraints()
             self.moveit2.clear_path_constraints()
-
-            # Goal Constraint(s)
             self.moveit2.set_position_goal(
                 position=target_position.tolist(),
                 frame_id=BASE_LINK,
                 target_link=END_EFFECTOR_LINK,
                 tolerance=0.01,
             )
-            if self.constrain_goal_yaw and target_quat_xyzw is not None:
+            if self.constrain_goal_yaw:
                 self.moveit2.set_orientation_goal(
                     quat_xyzw=Quaternion(
                         x=target_quat_xyzw[0],
@@ -351,8 +448,6 @@ class ConstrainedTaskSpaceBenchmark:
                     tolerance=GOAL_YAW_CONSTRAINT_TOLERANCE_XYZ_RAD,
                     parameterization=1,
                 )
-
-            # Path is always governed by our "smart" OrientationConstraint
             self.moveit2.set_path_orientation_constraint(
                 quat_xyzw=Quaternion(
                     x=PATH_CONSTRAINT_QUAT_XYZW[0],
@@ -366,11 +461,9 @@ class ConstrainedTaskSpaceBenchmark:
                 weight=1.0,
                 parameterization=1,
             )
-
             self.moveit2.planner_id = self.planner_id
             self.moveit2.allowed_planning_time = self.planning_timeout
 
-            # 3. Plan the motion
             planning_start_time = time.perf_counter()
             plan_future = self.moveit2.plan_async()
             while rclpy.ok() and not plan_future.done():
@@ -379,60 +472,64 @@ class ConstrainedTaskSpaceBenchmark:
             planning_time = time.perf_counter() - planning_start_time
 
             plan_success = trajectory is not None and bool(trajectory.points)
-            articutool_metrics = None
+            trial_data = {
+                "task_id": i,
+                "planning_mode": "pos_yaw" if self.constrain_goal_yaw else "pos_only",
+                "start_joint_positions": list(start_joint_positions),
+                "target_position": target_position.tolist(),
+                "target_yaw_quat": target_quat_xyzw,
+                "plan_success": plan_success,
+                "planning_time_s": planning_time,
+                "verification_success": None,
+                "trajectory_metrics": None,
+            }
+
             if plan_success:
                 LOGGER.info(f"  Jaco plan SUCCEEDED in {planning_time:.4f}s.")
-                articutool_metrics, solutions = self._verify_trajectory_feasibility(
-                    trajectory
+                metrics = self._calculate_trajectory_metrics(trajectory)
+                is_feasible = all(
+                    wp["articutool_solution_rad"] is not None
+                    for wp in metrics.waypoints_data
                 )
-                LOGGER.info(
-                    f"  Verification Result: Path Feasible = {articutool_metrics.path_feasible} ({articutool_metrics.num_infeasible_points} infeasible points)"
-                )
-                self._save_trajectory_to_file(trajectory, solutions, i)
+                trial_data["verification_success"] = is_feasible
+                trial_data["trajectory_metrics"] = metrics._asdict()
+                LOGGER.info(f"  Verification Result: Path Feasible = {is_feasible}")
             else:
                 LOGGER.warn(f"  Jaco plan FAILED in {planning_time:.4f}s.")
 
-            self.results.append(
-                {
-                    "task_id": i,
-                    "target_position": target_position.tolist(),
-                    "target_yaw_quat": target_quat_xyzw,
-                    "plan_success": plan_success,
-                    "planning_time_s": planning_time,
-                    **(articutool_metrics._asdict() if articutool_metrics else {}),
-                }
-            )
+            self.results.append(trial_data)
 
-    def save_results(self, output_dir: str):
-        """Saves the benchmark results to a JSON file and prints a summary."""
-        os.makedirs(output_dir, exist_ok=True)
+    def save_results(self):
+        """Saves the comprehensive benchmark results to a single JSON file."""
+        if not self.output_dir:
+            return
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         mode = "pos_yaw" if self.constrain_goal_yaw else "pos_only"
         filename = os.path.join(
-            output_dir, f"benchmark_results_{mode}_{timestamp}.json"
+            self.output_dir, f"benchmark_results_{mode}_{timestamp}.json"
         )
-        with open(filename, "w") as f:
-            json.dump(self.results, f, indent=2)
-        LOGGER.info(f"Benchmark results saved to {filename}")
-
-        total_tasks = len(self.results)
-        jaco_successes = sum(1 for r in self.results if r["plan_success"])
-        verified_successes = sum(
-            1 for r in self.results if r.get("path_feasible", False)
+        try:
+            with open(filename, "w") as f:
+                json.dump(self.results, f, indent=2)
+            LOGGER.info(f"Comprehensive benchmark results saved to {filename}")
+        except Exception as e:
+            LOGGER.error(f"Failed to save results: {e}")
+        total_tasks, jaco_successes, verified_successes = (
+            len(self.results),
+            sum(1 for r in self.results if r["plan_success"]),
+            sum(1 for r in self.results if r.get("verification_success", False)),
         )
         jaco_success_rate = (
             (jaco_successes / total_tasks * 100) if total_tasks > 0 else 0
         )
-
         LOGGER.info(f"\n--- TASK-SPACE BENCHMARK SUMMARY ({mode.upper()}) ---")
         LOGGER.info(f"Total Tasks Attempted: {total_tasks}")
         LOGGER.info(
             f"Jaco Planner Success Rate: {jaco_success_rate:.2f}% ({jaco_successes}/{total_tasks})"
         )
         if jaco_successes > 0:
-            verification_rate = verified_successes / jaco_successes * 100
             LOGGER.info(
-                f"Verification Success Rate (of successful plans): {verification_rate:.2f}%"
+                f"Verification Success Rate (of successful plans): {(verified_successes / jaco_successes * 100):.2f}%"
             )
         LOGGER.info("-------------------------------------\n")
 
@@ -443,12 +540,13 @@ def main():
             "Usage: python3 constrained_task_space_benchmark.py /path/to/robot.urdf.xacro [--constrain-goal-yaw]"
         )
         sys.exit(1)
-    xacro_file_arg = sys.argv[1]
+    xacro_file_arg, constrain_goal_yaw_arg = (
+        sys.argv[1],
+        "--constrain-goal-yaw" in sys.argv,
+    )
     if not os.path.exists(xacro_file_arg):
         print(f"Error: XACRO file not found at '{xacro_file_arg}'")
         sys.exit(1)
-
-    constrain_goal_yaw_arg = "--constrain-goal-yaw" in sys.argv
 
     rclpy.init()
     node = Node("constrained_task_space_benchmark_node")
@@ -466,26 +564,32 @@ def main():
         callback_group=ReentrantCallbackGroup(),
     )
 
-    NUM_TASKS = 100
-    PLANNING_TIMEOUT = 10.0  # Increased slightly for more complex constrained planning
-    PLANNER_ID = "RRTConnectkConfigDefault"
-    OUTPUT_DIR = os.path.join(os.getcwd(), "constrained_task_space_benchmark_output")
+    NUM_TASKS, PLANNING_TIMEOUT, PLANNER_ID, OUTPUT_DIR = (
+        100,
+        10.0,
+        "RRTConnectkConfigDefault",
+        os.path.join(os.getcwd(), "constrained_task_space_benchmark_output"),
+    )
 
     benchmark = ConstrainedTaskSpaceBenchmark(
-        node=node,
-        moveit2=moveit2,
-        xacro_file_path=xacro_file_arg,
-        num_tasks=NUM_TASKS,
-        planning_timeout=PLANNING_TIMEOUT,
-        planner_id=PLANNER_ID,
-        trajectory_save_dir=OUTPUT_DIR,
-        constrain_goal_yaw=constrain_goal_yaw_arg,
+        node,
+        moveit2,
+        xacro_file_arg,
+        NUM_TASKS,
+        PLANNING_TIMEOUT,
+        PLANNER_ID,
+        OUTPUT_DIR,
+        constrain_goal_yaw_arg,
     )
 
     try:
         if benchmark.pinocchio_model is not None:
+            # This benchmark is now a pure simulation. It starts from the robot's
+            # current state and each subsequent plan starts from the end of the
+            # previous one, without actually moving the robot.
+            LOGGER.info("Ready to begin benchmark from current robot configuration.")
             benchmark.run()
-            benchmark.save_results(OUTPUT_DIR)
+            benchmark.save_results()
         else:
             LOGGER.error("Benchmark cannot run because Pinocchio model failed to load.")
     except Exception as e:
