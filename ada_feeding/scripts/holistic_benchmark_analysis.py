@@ -11,6 +11,7 @@ Requires: pandas, plotly
 Install with: pip install pandas plotly
 """
 
+import numpy as np
 import argparse
 import json
 import os

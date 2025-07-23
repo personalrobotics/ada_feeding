@@ -8,8 +8,9 @@ methodologies for the Jaco + Articutool system. Its goal is to generate a
 comprehensive dataset to empirically evaluate the trade-offs between planner
 success, motion flexibility, and guaranteed kinematic/dynamic feasibility.
 
-This version uses a collision-checking service to find a valid, random start
-state for each trial, ensuring a robust and diverse evaluation.
+This version uses a resilient "generate-and-test" approach, continuing to
+sample random start/goal states until the desired number of successful plans
+have been generated.
 
 The script can be run in one of four modes via the `--mode` flag:
 1.  `joint_unconstrained`: The baseline. Plans between random joint-space goals
@@ -44,9 +45,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory
 from geometry_msgs.msg import Quaternion
-from moveit_msgs.srv import GetStateValidity
 from moveit_msgs.msg import RobotState
-from sensor_msgs.msg import JointState
 from scipy.spatial.transform import Rotation as R
 import pinocchio as pin
 
@@ -97,7 +96,8 @@ class HolisticBenchmark:
         self.xacro_file_path = xacro_file_path
         self.mode = mode
         self.num_tasks = num_tasks
-        self.planning_timeout = planning_timeout
+        # Set the planning timeout on the MoveIt2 object itself
+        self.moveit2.planning_time = planning_timeout
         self.planner_id = planner_id
         self.output_dir = output_dir
         self.results: List[Dict[str, Any]] = []
@@ -108,18 +108,6 @@ class HolisticBenchmark:
         self.jaco_vel_indices: List[int] = []
         self._initialize_pinocchio()
         self.joint_limits = self._get_joint_limits()
-
-        self.service_callback_group = ReentrantCallbackGroup()
-        self.state_validity_client = self.node.create_client(
-            GetStateValidity,
-            "/check_state_validity",
-            callback_group=self.service_callback_group,
-        )
-        if not self.state_validity_client.wait_for_service(timeout_sec=5.0):
-            LOGGER.error(
-                "Could not connect to /check_state_validity service. Cannot guarantee valid start states."
-            )
-            self.state_validity_client = None
 
         LOGGER.info("Holistic Benchmark Initialized.")
         LOGGER.info(f"  - Planning Mode: {self.mode}")
@@ -173,75 +161,6 @@ class HolisticBenchmark:
     def generate_random_joint_config(self) -> List[float]:
         """Generates a random joint configuration within limits."""
         return [np.random.uniform(low, high) for low, high in self.joint_limits]
-
-    def is_state_valid(self, joint_positions: List[float]) -> bool:
-        """Checks if a joint configuration is collision-free using MoveIt's service."""
-        if (
-            not self.state_validity_client
-            or not self.state_validity_client.service_is_ready()
-        ):
-            LOGGER.warn("State validity client not available. Assuming state is valid.")
-            return True
-
-        # --- FIX: Build a complete RobotState to avoid ambiguity ---
-        # Get the current full state of the robot
-        full_joint_state = self.moveit2.joint_state
-        joint_state_map = {
-            name: pos
-            for name, pos in zip(full_joint_state.name, full_joint_state.position)
-        }
-
-        # Overwrite the Jaco arm joints with the configuration we want to test
-        for i, name in enumerate(JOINT_NAMES):
-            joint_state_map[name] = joint_positions[i]
-
-        # Build the RobotState message with all joints
-        robot_state = RobotState()
-        robot_state.joint_state.name = list(joint_state_map.keys())
-        robot_state.joint_state.position = list(joint_state_map.values())
-
-        req = GetStateValidity.Request()
-        req.group_name = PLANNING_GROUP
-        req.robot_state = robot_state
-
-        future = self.state_validity_client.call_async(req)
-
-        timeout_sec = 2.0
-        start_time = self.node.get_clock().now()
-        while (
-            rclpy.ok()
-            and (self.node.get_clock().now() - start_time).nanoseconds / 1e9
-            < timeout_sec
-        ):
-            if future.done():
-                try:
-                    response = future.result()
-                    return response.valid if response is not None else False
-                except Exception as e:
-                    LOGGER.error(
-                        f"Exception getting result from /check_state_validity: {e}"
-                    )
-                    return False
-            time.sleep(0.01)
-
-        LOGGER.error(f"Service call to /check_state_validity timed out.")
-        return False
-
-    def generate_valid_random_joint_config(
-        self, max_attempts=100
-    ) -> Optional[List[float]]:
-        """Generates a random, collision-free joint configuration."""
-        for attempt in range(max_attempts):
-            config = self.generate_random_joint_config()
-            if self.is_state_valid(config):
-                LOGGER.info(
-                    f"  Found valid start configuration on attempt {attempt + 1}."
-                )
-                return config
-        LOGGER.error(
-            f"Failed to find a valid random joint configuration after {max_attempts} attempts."
-        )
-        return None
 
     def generate_random_position_in_workspace(self) -> np.ndarray:
         """Generates a random (x, y, z) position from a half-spherical shell."""
@@ -408,28 +327,37 @@ class HolisticBenchmark:
     def run(self):
         """Main benchmark execution loop."""
         if not self.pinocchio_model:
+            LOGGER.error("Benchmark cannot run because Pinocchio model failed to load.")
             return
 
-        for i in range(self.num_tasks):
-            LOGGER.info(f"--- Running Task {i + 1}/{self.num_tasks} ---")
+        successful_tasks = 0
+        total_attempts = 0
+        # Set a generous limit on attempts to prevent an infinite loop
+        max_attempts = self.num_tasks * 25
 
-            LOGGER.info("  Searching for a valid random start configuration...")
-            start_pos = self.generate_valid_random_joint_config()
-            if start_pos is None:
-                LOGGER.warn("  Skipping task, could not find a valid start state.")
-                continue
+        LOGGER.info(
+            f"Attempting to collect {self.num_tasks} successful planning tasks..."
+        )
+
+        while successful_tasks < self.num_tasks and total_attempts < max_attempts:
+            total_attempts += 1
+            LOGGER.info(
+                f"--- Task {successful_tasks + 1}/{self.num_tasks} (Attempt {total_attempts}) ---"
+            )
+
+            # Generate a random start configuration without pre-validation
+            start_pos = self.generate_random_joint_config()
 
             self.moveit2.clear_goal_constraints()
             self.moveit2.clear_path_constraints()
 
             target_pos, target_quat, goal_joint_pos = None, None, None
             if self.mode == "joint_unconstrained":
-                goal_joint_pos = self.generate_valid_random_joint_config()
-                if goal_joint_pos is None:
-                    LOGGER.warn("  Skipping task, could not find a valid goal state.")
-                    continue
+                # Generate a random goal configuration without pre-validation
+                goal_joint_pos = self.generate_random_joint_config()
                 self.moveit2.set_joint_goal(joint_positions=goal_joint_pos)
             else:
+                # Task-space goals
                 target_pos = self.generate_random_position_in_workspace()
                 self.moveit2.set_position_goal(
                     position=target_pos.tolist(),
@@ -466,41 +394,59 @@ class HolisticBenchmark:
                     )
 
             planning_start = time.perf_counter()
+            # Use the randomly generated start state directly. The planner will
+            # fail if the start state is invalid (e.g., in collision).
             future = self.moveit2.plan_async(start_joint_state=start_pos)
-            while rclpy.ok() and not future.done():
-                time.sleep(0.01)
+
+            # Wait for the future to complete, respecting the planning timeout
+            rclpy.spin_until_future_complete(
+                self.node, future, timeout_sec=self.moveit2.planning_time + 1.0
+            )
+
             traj = self.moveit2.get_trajectory(future)
             planning_time = time.perf_counter() - planning_start
 
             success = traj is not None and bool(traj.points)
-            trial_data = {
-                "task_id": i,
-                "planning_mode": self.mode,
-                "start_joint_positions": list(start_pos),
-                "plan_success": success,
-                "planning_time_s": planning_time,
-            }
-            if goal_joint_pos:
-                trial_data["target_joint_positions"] = goal_joint_pos
-            if target_pos is not None:
-                trial_data["target_position"] = target_pos.tolist()
-            if target_quat:
-                trial_data["target_yaw_quat"] = target_quat
 
             if success:
-                LOGGER.info(f"  Plan SUCCEEDED in {planning_time:.4f}s.")
+                successful_tasks += 1
+                LOGGER.info(
+                    f"  Plan SUCCEEDED in {planning_time:.4f}s. ({successful_tasks}/{self.num_tasks} collected)"
+                )
+
                 metrics = self._calculate_trajectory_metrics(traj)
                 is_feasible = all(
                     wp["articutool_solution_rad"] is not None
                     for wp in metrics.waypoints_data
                 )
-                trial_data["verification_success"] = is_feasible
-                trial_data["trajectory_metrics"] = metrics._asdict()
-                LOGGER.info(f"  Verification Result: Feasible = {is_feasible}")
-            else:
-                LOGGER.warn(f"  Plan FAILED in {planning_time:.4f}s.")
 
-            self.results.append(trial_data)
+                trial_data = {
+                    "task_id": successful_tasks,
+                    "attempt_id": total_attempts,
+                    "planning_mode": self.mode,
+                    "start_joint_positions": list(start_pos),
+                    "plan_success": True,
+                    "planning_time_s": planning_time,
+                    "verification_success": is_feasible,
+                    "trajectory_metrics": metrics._asdict(),
+                }
+                if goal_joint_pos:
+                    trial_data["target_joint_positions"] = list(goal_joint_pos)
+                if target_pos is not None:
+                    trial_data["target_position"] = target_pos.tolist()
+                if target_quat:
+                    trial_data["target_yaw_quat"] = list(target_quat)
+
+                self.results.append(trial_data)
+            else:
+                LOGGER.warn(
+                    f"  Plan FAILED in {planning_time:.4f}s. Continuing to next attempt."
+                )
+
+        if successful_tasks < self.num_tasks:
+            LOGGER.error(
+                f"Benchmark finished due to max attempts ({max_attempts}). Only collected {successful_tasks}/{self.num_tasks} tasks."
+            )
 
     def save_results(self):
         """Saves the comprehensive benchmark results to a single JSON file."""
@@ -517,17 +463,23 @@ class HolisticBenchmark:
         except Exception as e:
             LOGGER.error(f"Failed to save results: {e}")
 
-        total = len(self.results)
-        successes = sum(1 for r in self.results if r["plan_success"])
-        verified = sum(1 for r in self.results if r.get("verification_success", False))
-        success_rate = (successes / total * 100) if total > 0 else 0
+        total_successful = len(self.results)
+        total_attempts = self.results[-1]["attempt_id"] if self.results else 0
+        success_rate = (
+            (total_successful / total_attempts * 100) if total_attempts > 0 else 0
+        )
+
         LOGGER.info(f"\n--- HOLISTIC BENCHMARK SUMMARY ({self.mode.upper()}) ---")
         LOGGER.info(
-            f"Total Tasks: {total}, Planner Success Rate: {success_rate:.2f}% ({successes}/{total})"
+            f"Collected {total_successful} successful plans out of {total_attempts} attempts. "
+            f"Overall Success Rate: {success_rate:.2f}%"
         )
-        if successes > 0:
+        if total_successful > 0:
+            verified = sum(
+                1 for r in self.results if r.get("verification_success", False)
+            )
             LOGGER.info(
-                f"Verification Success Rate (of successful plans): {(verified / successes * 100):.2f}%"
+                f"Verification Success Rate (of successful plans): {(verified / total_successful * 100):.2f}%"
             )
         LOGGER.info("---------------------------------------------------\n")
 
@@ -552,7 +504,10 @@ def main():
         help="The planning methodology to benchmark.",
     )
     parser.add_argument(
-        "--num_tasks", type=int, default=100, help="Number of random tasks to generate."
+        "--num_tasks",
+        type=int,
+        default=100,
+        help="Number of successful tasks to generate.",
     )
     parser.add_argument(
         "--timeout", type=float, default=10.0, help="Planning timeout in seconds."
@@ -597,16 +552,12 @@ def main():
     )
 
     try:
-        if benchmark.pinocchio_model is not None:
-            LOGGER.info(
-                "Ready to begin benchmark. Each trial will start from a new random, collision-free state."
-            )
-            benchmark.run()
-            benchmark.save_results()
-        else:
-            LOGGER.error("Benchmark cannot run because Pinocchio model failed to load.")
+        benchmark.run()
+        benchmark.save_results()
     except Exception as e:
-        LOGGER.error(f"An error occurred during the benchmark: {e}", exc_info=True)
+        LOGGER.error(
+            f"An unhandled error occurred during the benchmark: {e}", exc_info=True
+        )
     finally:
         LOGGER.info("Shutting down.")
         rclpy.shutdown()
