@@ -8,9 +8,8 @@ methodologies for the Jaco + Articutool system. Its goal is to generate a
 comprehensive dataset to empirically evaluate the trade-offs between planner
 success, motion flexibility, and guaranteed kinematic/dynamic feasibility.
 
-This version uses a resilient "generate-and-test" approach, continuing to
-sample random start/goal states until the desired number of successful plans
-have been generated.
+This version uses a resilient "generate-and-test" approach and implements
+granular failure logging to distinguish between different failure modes.
 
 The script can be run in one of four modes via the `--mode` flag:
 1.  `joint_unconstrained`: The baseline. Plans between random joint-space goals
@@ -24,7 +23,7 @@ The script can be run in one of four modes via the `--mode` flag:
 """
 
 # Standard imports
-from collections import namedtuple
+from collections import namedtuple, Counter
 from datetime import datetime
 import os
 import time
@@ -35,6 +34,7 @@ import math
 import subprocess
 import sys
 import argparse
+from enum import Enum
 
 # Third-party imports
 import numpy as np
@@ -45,7 +45,6 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory
 from geometry_msgs.msg import Quaternion
-from moveit_msgs.msg import RobotState
 from scipy.spatial.transform import Rotation as R
 import pinocchio as pin
 
@@ -77,6 +76,15 @@ TrajectoryMetrics = namedtuple(
 )
 
 
+class TrialStatus(Enum):
+    """Enumerates the possible outcomes of a benchmark trial."""
+
+    SUCCESS = "Success"
+    PLANNER_FAILURE = "Planner Failure"
+    START_STATE_INFEASIBLE = "Start State Infeasible"
+    PATH_VERIFICATION_FAILURE = "Path Verification Failure"
+
+
 class HolisticBenchmark:
     """Manages the holistic benchmark planning process."""
 
@@ -96,7 +104,6 @@ class HolisticBenchmark:
         self.xacro_file_path = xacro_file_path
         self.mode = mode
         self.num_tasks = num_tasks
-        # Set the planning timeout on the MoveIt2 object itself
         self.moveit2.planning_time = planning_timeout
         self.planner_id = planner_id
         self.output_dir = output_dir
@@ -162,6 +169,45 @@ class HolisticBenchmark:
         """Generates a random joint configuration within limits."""
         return [np.random.uniform(low, high) for low, high in self.joint_limits]
 
+    def _check_articutool_feasibility_at_config(
+        self, jaco_joint_config: List[float]
+    ) -> bool:
+        """Checks if the Articutool can maintain leveling at a single Jaco configuration."""
+        if self.pinocchio_model is None:
+            return False
+
+        q = pin.neutral(self.pinocchio_model)
+        for j, name in enumerate(JOINT_NAMES):
+            joint_id = self.pinocchio_model.getJointId(name)
+            joint_obj = self.pinocchio_model.joints[joint_id]
+            if joint_obj.nq == 2:  # Prismatic joint
+                q[joint_obj.idx_q : joint_obj.idx_q + 2] = [
+                    math.cos(jaco_joint_config[j]),
+                    math.sin(jaco_joint_config[j]),
+                ]
+            else:  # Revolute joint
+                q[joint_obj.idx_q] = jaco_joint_config[j]
+
+        pin.forwardKinematics(self.pinocchio_model, self.pinocchio_data, q)
+        pin.updateFramePlacements(self.pinocchio_model, self.pinocchio_data)
+
+        ee_transform = self.pinocchio_data.oMf[self.jaco_ee_frame_id_pin]
+        target_up = R.from_matrix(ee_transform.rotation).inv().apply(WORLD_UP_VECTOR)
+        solutions = self._solve_articutool_ik(target_up)
+
+        if not solutions:
+            return False
+
+        return any(
+            ARTICUTOOL_PITCH_LIMITS_RAD[0] <= s[0] <= ARTICUTOOL_PITCH_LIMITS_RAD[1]
+            and ARTICUTOOL_ROLL_LIMITS_RAD[0] <= s[1] <= ARTICUTOOL_ROLL_LIMITS_RAD[1]
+            for s in solutions
+        )
+
+    def is_start_state_feasible(self, start_joint_config: List[float]) -> bool:
+        """Checks if a given start state is kinematically feasible for the Articutool."""
+        return self._check_articutool_feasibility_at_config(start_joint_config)
+
     def generate_random_position_in_workspace(self) -> np.ndarray:
         """Generates a random (x, y, z) position from a half-spherical shell."""
         r = (
@@ -222,16 +268,27 @@ class HolisticBenchmark:
 
     def _calculate_trajectory_metrics(
         self, trajectory: JointTrajectory
-    ) -> TrajectoryMetrics:
-        """Calculates detailed metrics for a given trajectory."""
+    ) -> Tuple[bool, Optional[TrajectoryMetrics]]:
+        """
+        Calculates detailed metrics for a given trajectory and verifies its feasibility.
+        Returns a tuple: (is_feasible, metrics_object).
+        """
         if self.pinocchio_model is None or not trajectory.points:
-            return TrajectoryMetrics(0.0, 0.0, [], [])
+            return False, None
 
         q = pin.neutral(self.pinocchio_model)
         prev_pos = np.array(trajectory.points[0].positions)
         waypoints_data, path_len = [], 0.0
+        is_path_feasible = True
 
         for i, point in enumerate(trajectory.points):
+            is_waypoint_feasible = self._check_articutool_feasibility_at_config(
+                point.positions
+            )
+            if not is_waypoint_feasible:
+                is_path_feasible = False
+
+            # Continue calculating metrics even if path is infeasible to log data
             for j, name in enumerate(JOINT_NAMES):
                 joint_id = self.pinocchio_model.getJointId(name)
                 joint_obj = self.pinocchio_model.joints[joint_id]
@@ -250,6 +307,7 @@ class HolisticBenchmark:
                 np.zeros(self.pinocchio_model.nv),
             )
             ee_transform = self.pinocchio_data.oMf[self.jaco_ee_frame_id_pin]
+            # This calculation is now duplicated, but kept for velocity analysis
             target_up = (
                 R.from_matrix(ee_transform.rotation).inv().apply(WORLD_UP_VECTOR)
             )
@@ -320,20 +378,20 @@ class HolisticBenchmark:
             trajectory.points[-1].time_from_start.sec
             + 1e-9 * trajectory.points[-1].time_from_start.nanosec
         )
-        return TrajectoryMetrics(
+        metrics = TrajectoryMetrics(
             duration, path_len, list(trajectory.points[-1].positions), waypoints_data
         )
+        return is_path_feasible, metrics
 
     def run(self):
-        """Main benchmark execution loop."""
+        """Main benchmark execution loop with granular failure logging."""
         if not self.pinocchio_model:
             LOGGER.error("Benchmark cannot run because Pinocchio model failed to load.")
             return
 
         successful_tasks = 0
         total_attempts = 0
-        # Set a generous limit on attempts to prevent an infinite loop
-        max_attempts = self.num_tasks * 25
+        max_attempts = self.num_tasks * 50  # Increased max attempts
 
         LOGGER.info(
             f"Attempting to collect {self.num_tasks} successful planning tasks..."
@@ -345,19 +403,32 @@ class HolisticBenchmark:
                 f"--- Task {successful_tasks + 1}/{self.num_tasks} (Attempt {total_attempts}) ---"
             )
 
-            # Generate a random start configuration without pre-validation
             start_pos = self.generate_random_joint_config()
+
+            # 1. Check if the start state is feasible for the Articutool
+            if not self.is_start_state_feasible(start_pos):
+                LOGGER.warn(
+                    "  Attempt FAILED: Start state is kinematically infeasible for Articutool."
+                )
+                self.results.append(
+                    {
+                        "task_id": successful_tasks + 1,
+                        "attempt_id": total_attempts,
+                        "planning_mode": self.mode,
+                        "status": TrialStatus.START_STATE_INFEASIBLE.value,
+                        "start_joint_positions": list(start_pos),
+                    }
+                )
+                continue
 
             self.moveit2.clear_goal_constraints()
             self.moveit2.clear_path_constraints()
 
             target_pos, target_quat, goal_joint_pos = None, None, None
             if self.mode == "joint_unconstrained":
-                # Generate a random goal configuration without pre-validation
                 goal_joint_pos = self.generate_random_joint_config()
                 self.moveit2.set_joint_goal(joint_positions=goal_joint_pos)
             else:
-                # Task-space goals
                 target_pos = self.generate_random_position_in_workspace()
                 self.moveit2.set_position_goal(
                     position=target_pos.tolist(),
@@ -394,54 +465,55 @@ class HolisticBenchmark:
                     )
 
             planning_start = time.perf_counter()
-            # Use the randomly generated start state directly. The planner will
-            # fail if the start state is invalid (e.g., in collision).
             future = self.moveit2.plan_async(start_joint_state=start_pos)
-
-            # Wait for the future to complete, respecting the planning timeout
             rclpy.spin_until_future_complete(
                 self.node, future, timeout_sec=self.moveit2.planning_time + 1.0
             )
-
             traj = self.moveit2.get_trajectory(future)
             planning_time = time.perf_counter() - planning_start
 
-            success = traj is not None and bool(traj.points)
+            trial_data = {
+                "task_id": successful_tasks + 1,
+                "attempt_id": total_attempts,
+                "planning_mode": self.mode,
+                "start_joint_positions": list(start_pos),
+                "planning_time_s": planning_time,
+            }
+            if goal_joint_pos:
+                trial_data["target_joint_positions"] = list(goal_joint_pos)
+            if target_pos is not None:
+                trial_data["target_position"] = target_pos.tolist()
+            if target_quat:
+                trial_data["target_yaw_quat"] = list(target_quat)
 
-            if success:
-                successful_tasks += 1
-                LOGGER.info(
-                    f"  Plan SUCCEEDED in {planning_time:.4f}s. ({successful_tasks}/{self.num_tasks} collected)"
-                )
-
-                metrics = self._calculate_trajectory_metrics(traj)
-                is_feasible = all(
-                    wp["articutool_solution_rad"] is not None
-                    for wp in metrics.waypoints_data
-                )
-
-                trial_data = {
-                    "task_id": successful_tasks,
-                    "attempt_id": total_attempts,
-                    "planning_mode": self.mode,
-                    "start_joint_positions": list(start_pos),
-                    "plan_success": True,
-                    "planning_time_s": planning_time,
-                    "verification_success": is_feasible,
-                    "trajectory_metrics": metrics._asdict(),
-                }
-                if goal_joint_pos:
-                    trial_data["target_joint_positions"] = list(goal_joint_pos)
-                if target_pos is not None:
-                    trial_data["target_position"] = target_pos.tolist()
-                if target_quat:
-                    trial_data["target_yaw_quat"] = list(target_quat)
-
-                self.results.append(trial_data)
-            else:
+            # 2. Check if the planner found a solution
+            if not traj or not traj.points:
                 LOGGER.warn(
-                    f"  Plan FAILED in {planning_time:.4f}s. Continuing to next attempt."
+                    f"  Attempt FAILED: Planner did not find a solution in {planning_time:.4f}s."
                 )
+                trial_data["status"] = TrialStatus.PLANNER_FAILURE.value
+                self.results.append(trial_data)
+                continue
+
+            # 3. Verify the path and calculate metrics
+            is_feasible, metrics = self._calculate_trajectory_metrics(traj)
+            trial_data["trajectory_metrics"] = metrics._asdict() if metrics else None
+
+            if not is_feasible:
+                LOGGER.warn(
+                    f"  Attempt FAILED: Path verification failed for a {planning_time:.4f}s plan."
+                )
+                trial_data["status"] = TrialStatus.PATH_VERIFICATION_FAILURE.value
+                self.results.append(trial_data)
+                continue
+
+            # 4. If all checks pass, it's a success
+            successful_tasks += 1
+            LOGGER.info(
+                f"  Plan SUCCEEDED and VERIFIED in {planning_time:.4f}s. ({successful_tasks}/{self.num_tasks} collected)"
+            )
+            trial_data["status"] = TrialStatus.SUCCESS.value
+            self.results.append(trial_data)
 
         if successful_tasks < self.num_tasks:
             LOGGER.error(
@@ -463,24 +535,22 @@ class HolisticBenchmark:
         except Exception as e:
             LOGGER.error(f"Failed to save results: {e}")
 
-        total_successful = len(self.results)
-        total_attempts = self.results[-1]["attempt_id"] if self.results else 0
-        success_rate = (
-            (total_successful / total_attempts * 100) if total_attempts > 0 else 0
-        )
+        # New summary with granular failure counts
+        status_counts = Counter(r["status"] for r in self.results)
+        total_attempts = len(self.results)
+        total_successful = status_counts[TrialStatus.SUCCESS.value]
 
         LOGGER.info(f"\n--- HOLISTIC BENCHMARK SUMMARY ({self.mode.upper()}) ---")
+        LOGGER.info(f"Total Attempts: {total_attempts}")
         LOGGER.info(
-            f"Collected {total_successful} successful plans out of {total_attempts} attempts. "
-            f"Overall Success Rate: {success_rate:.2f}%"
+            f"  - Success: {total_successful} ({total_successful / total_attempts * 100:.2f}%)"
         )
-        if total_successful > 0:
-            verified = sum(
-                1 for r in self.results if r.get("verification_success", False)
-            )
-            LOGGER.info(
-                f"Verification Success Rate (of successful plans): {(verified / total_successful * 100):.2f}%"
-            )
+        for status in TrialStatus:
+            if status != TrialStatus.SUCCESS:
+                count = status_counts[status.value]
+                LOGGER.info(
+                    f"  - {status.name}: {count} ({count / total_attempts * 100:.2f}%)"
+                )
         LOGGER.info("---------------------------------------------------\n")
 
 
