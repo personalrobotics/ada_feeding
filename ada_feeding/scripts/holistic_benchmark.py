@@ -8,18 +8,10 @@ methodologies for the Jaco + Articutool system. Its goal is to generate a
 comprehensive dataset to empirically evaluate the trade-offs between planner
 success, motion flexibility, and guaranteed kinematic/dynamic feasibility.
 
-This version uses a resilient "generate-and-test" approach and implements
-granular failure logging to distinguish between different failure modes.
-
-The script can be run in one of four modes via the `--mode` flag:
-1.  `joint_unconstrained`: The baseline. Plans between random joint-space goals
-    with no path constraints.
-2.  `task_pos_unconstrained`: Plans to a random task-space position goal with
-    no path constraints.
-3.  `task_pos_constrained`: Plans to a random task-space position goal WITH the
-    "smart" orientation path constraint.
-4.  `task_pos_yaw_constrained`: Plans to a random task-space position AND yaw
-    goal, WITH the "smart" orientation path constraint.
+This version uses "constraint-aware" start state sampling, ensuring that each
+trial begins from a configuration that is kinematically feasible for the
+Articutool to maintain a level orientation. It also uses granular failure
+logging to distinguish between different failure modes.
 """
 
 # Standard imports
@@ -81,7 +73,7 @@ class TrialStatus(Enum):
 
     SUCCESS = "Success"
     PLANNER_FAILURE = "Planner Failure"
-    START_STATE_INFEASIBLE = "Start State Infeasible"
+    START_STATE_SEARCH_FAILED = "Start State Search Failed"
     PATH_VERIFICATION_FAILURE = "Path Verification Failure"
 
 
@@ -169,73 +161,6 @@ class HolisticBenchmark:
         """Generates a random joint configuration within limits."""
         return [np.random.uniform(low, high) for low, high in self.joint_limits]
 
-    def _check_articutool_feasibility_at_config(
-        self, jaco_joint_config: List[float]
-    ) -> bool:
-        """Checks if the Articutool can maintain leveling at a single Jaco configuration."""
-        if self.pinocchio_model is None:
-            return False
-
-        q = pin.neutral(self.pinocchio_model)
-        for j, name in enumerate(JOINT_NAMES):
-            joint_id = self.pinocchio_model.getJointId(name)
-            joint_obj = self.pinocchio_model.joints[joint_id]
-            if joint_obj.nq == 2:  # Prismatic joint
-                q[joint_obj.idx_q : joint_obj.idx_q + 2] = [
-                    math.cos(jaco_joint_config[j]),
-                    math.sin(jaco_joint_config[j]),
-                ]
-            else:  # Revolute joint
-                q[joint_obj.idx_q] = jaco_joint_config[j]
-
-        pin.forwardKinematics(self.pinocchio_model, self.pinocchio_data, q)
-        pin.updateFramePlacements(self.pinocchio_model, self.pinocchio_data)
-
-        ee_transform = self.pinocchio_data.oMf[self.jaco_ee_frame_id_pin]
-        target_up = R.from_matrix(ee_transform.rotation).inv().apply(WORLD_UP_VECTOR)
-        solutions = self._solve_articutool_ik(target_up)
-
-        if not solutions:
-            return False
-
-        return any(
-            ARTICUTOOL_PITCH_LIMITS_RAD[0] <= s[0] <= ARTICUTOOL_PITCH_LIMITS_RAD[1]
-            and ARTICUTOOL_ROLL_LIMITS_RAD[0] <= s[1] <= ARTICUTOOL_ROLL_LIMITS_RAD[1]
-            for s in solutions
-        )
-
-    def is_start_state_feasible(self, start_joint_config: List[float]) -> bool:
-        """Checks if a given start state is kinematically feasible for the Articutool."""
-        return self._check_articutool_feasibility_at_config(start_joint_config)
-
-    def generate_random_position_in_workspace(self) -> np.ndarray:
-        """Generates a random (x, y, z) position from a half-spherical shell."""
-        r = (
-            np.random.uniform(WORKSPACE_INNER_RADIUS**3, WORKSPACE_OUTER_RADIUS**3)
-        ) ** (1 / 3)
-        theta = np.random.uniform(0, 2 * math.pi)
-        cos_phi = np.random.uniform(0, 1)
-        phi = math.acos(cos_phi)
-        return np.array(
-            [
-                r * math.sin(phi) * math.cos(theta),
-                r * math.sin(phi) * math.sin(theta),
-                r * cos_phi,
-            ]
-        )
-
-    def generate_random_yaw_quaternion(self) -> Tuple[float, float, float, float]:
-        """Generates a quaternion representing a random yaw."""
-        return tuple(R.from_euler("z", np.random.uniform(-math.pi, math.pi)).as_quat())
-
-    def _get_articutool_jacobian(self, pitch: float, roll: float) -> np.ndarray:
-        """Computes the analytical Jacobian for the Articutool."""
-        cp, sp = math.cos(pitch), math.sin(pitch)
-        cr, sr = math.cos(roll), math.sin(roll)
-        dydp = np.array([0, -sp * cr, cp * cr])
-        dydr = np.array([-cr, -cp * sr, -sp * sr])
-        return np.vstack([dydp, dydr]).T
-
     def _solve_articutool_ik(
         self, target_vector: np.ndarray
     ) -> List[Tuple[float, float]]:
@@ -266,6 +191,91 @@ class HolisticBenchmark:
             )
         return solutions
 
+    def _is_config_kinematically_feasible(self, jaco_joint_config: List[float]) -> bool:
+        """
+        Checks if the Articutool can maintain leveling at a single Jaco configuration.
+        This is our "oracle" for testing membership in the true feasibility manifold.
+        """
+        if (
+            self.pinocchio_model is None
+            or self.pinocchio_data is None
+            or self.jaco_ee_frame_id_pin is None
+        ):
+            return False
+
+        q = pin.neutral(self.pinocchio_model)
+        for j, name in enumerate(JOINT_NAMES):
+            if self.pinocchio_model.existJointName(name):
+                joint_id = self.pinocchio_model.getJointId(name)
+                joint_obj = self.pinocchio_model.joints[joint_id]
+                if joint_obj.nq == 2 and not joint_obj.shortname().startswith(
+                    "JointModelRX"
+                ):
+                    q[joint_obj.idx_q : joint_obj.idx_q + 2] = [
+                        math.cos(jaco_joint_config[j]),
+                        math.sin(jaco_joint_config[j]),
+                    ]
+                else:
+                    q[joint_obj.idx_q] = jaco_joint_config[j]
+
+        pin.forwardKinematics(self.pinocchio_model, self.pinocchio_data, q)
+        pin.updateFramePlacements(self.pinocchio_model, self.pinocchio_data)
+
+        ee_transform = self.pinocchio_data.oMf[self.jaco_ee_frame_id_pin]
+        target_up_in_ee_frame = (
+            R.from_matrix(ee_transform.rotation).inv().apply(WORLD_UP_VECTOR)
+        )
+        solutions = self._solve_articutool_ik(target_up_in_ee_frame)
+
+        if not solutions:
+            return False
+
+        return any(
+            ARTICUTOOL_PITCH_LIMITS_RAD[0] <= pitch <= ARTICUTOOL_PITCH_LIMITS_RAD[1]
+            and ARTICUTOOL_ROLL_LIMITS_RAD[0] <= roll <= ARTICUTOOL_ROLL_LIMITS_RAD[1]
+            for pitch, roll in solutions
+        )
+
+    def _generate_feasible_start_config(
+        self, max_attempts=200
+    ) -> Optional[List[float]]:
+        """
+        Generates a random start configuration that lies on the true feasibility manifold.
+        """
+        for _ in range(max_attempts):
+            config = self.generate_random_joint_config()
+            if self._is_config_kinematically_feasible(config):
+                return config
+        return None
+
+    def generate_random_position_in_workspace(self) -> np.ndarray:
+        """Generates a random (x, y, z) position from a half-spherical shell."""
+        r = (
+            np.random.uniform(WORKSPACE_INNER_RADIUS**3, WORKSPACE_OUTER_RADIUS**3)
+        ) ** (1 / 3)
+        theta = np.random.uniform(0, 2 * math.pi)
+        cos_phi = np.random.uniform(0, 1)
+        phi = math.acos(cos_phi)
+        return np.array(
+            [
+                r * math.sin(phi) * math.cos(theta),
+                r * math.sin(phi) * math.sin(theta),
+                r * cos_phi,
+            ]
+        )
+
+    def generate_random_yaw_quaternion(self) -> Tuple[float, float, float, float]:
+        """Generates a quaternion representing a random yaw."""
+        return tuple(R.from_euler("z", np.random.uniform(-math.pi, math.pi)).as_quat())
+
+    def _get_articutool_jacobian(self, pitch: float, roll: float) -> np.ndarray:
+        """Computes the analytical Jacobian for the Articutool."""
+        cp, sp = math.cos(pitch), math.sin(pitch)
+        cr, sr = math.cos(roll), math.sin(roll)
+        dydp = np.array([0, -sp * cr, cp * cr])
+        dydr = np.array([-cr, -cp * sr, -sp * sr])
+        return np.vstack([dydp, dydr]).T
+
     def _calculate_trajectory_metrics(
         self, trajectory: JointTrajectory
     ) -> Tuple[bool, Optional[TrajectoryMetrics]]:
@@ -282,13 +292,11 @@ class HolisticBenchmark:
         is_path_feasible = True
 
         for i, point in enumerate(trajectory.points):
-            is_waypoint_feasible = self._check_articutool_feasibility_at_config(
-                point.positions
-            )
-            if not is_waypoint_feasible:
+            if not self._is_config_kinematically_feasible(point.positions):
                 is_path_feasible = False
+                # We can break early if we only care about the boolean result,
+                # but we continue here to gather full data for the failed path.
 
-            # Continue calculating metrics even if path is infeasible to log data
             for j, name in enumerate(JOINT_NAMES):
                 joint_id = self.pinocchio_model.getJointId(name)
                 joint_obj = self.pinocchio_model.joints[joint_id]
@@ -307,7 +315,6 @@ class HolisticBenchmark:
                 np.zeros(self.pinocchio_model.nv),
             )
             ee_transform = self.pinocchio_data.oMf[self.jaco_ee_frame_id_pin]
-            # This calculation is now duplicated, but kept for velocity analysis
             target_up = (
                 R.from_matrix(ee_transform.rotation).inv().apply(WORLD_UP_VECTOR)
             )
@@ -384,42 +391,48 @@ class HolisticBenchmark:
         return is_path_feasible, metrics
 
     def run(self):
-        """Main benchmark execution loop with granular failure logging."""
+        """Main benchmark execution loop with constraint-aware start state sampling."""
         if not self.pinocchio_model:
             LOGGER.error("Benchmark cannot run because Pinocchio model failed to load.")
             return
 
         successful_tasks = 0
         total_attempts = 0
-        max_attempts = self.num_tasks * 50  # Increased max attempts
+        max_total_attempts = self.num_tasks * 50
 
         LOGGER.info(
             f"Attempting to collect {self.num_tasks} successful planning tasks..."
         )
 
-        while successful_tasks < self.num_tasks and total_attempts < max_attempts:
+        while successful_tasks < self.num_tasks and total_attempts < max_total_attempts:
             total_attempts += 1
             LOGGER.info(
                 f"--- Task {successful_tasks + 1}/{self.num_tasks} (Attempt {total_attempts}) ---"
             )
 
-            start_pos = self.generate_random_joint_config()
-
-            # 1. Check if the start state is feasible for the Articutool
-            if not self.is_start_state_feasible(start_pos):
-                LOGGER.warn(
-                    "  Attempt FAILED: Start state is kinematically infeasible for Articutool."
+            # For modes requiring leveling, find a start state on the true manifold.
+            # For pure joint-space planning, any random start is fine.
+            if self.mode != "joint_unconstrained":
+                LOGGER.info(
+                    "  Searching for a kinematically feasible start configuration..."
                 )
-                self.results.append(
-                    {
-                        "task_id": successful_tasks + 1,
-                        "attempt_id": total_attempts,
-                        "planning_mode": self.mode,
-                        "status": TrialStatus.START_STATE_INFEASIBLE.value,
-                        "start_joint_positions": list(start_pos),
-                    }
-                )
-                continue
+                start_pos = self._generate_feasible_start_config()
+                if start_pos is None:
+                    LOGGER.warn(
+                        "  Attempt FAILED: Could not find a feasible start state within max attempts."
+                    )
+                    self.results.append(
+                        {
+                            "task_id": successful_tasks + 1,
+                            "attempt_id": total_attempts,
+                            "planning_mode": self.mode,
+                            "status": TrialStatus.START_STATE_SEARCH_FAILED.value,
+                        }
+                    )
+                    continue
+                LOGGER.info("  Found feasible start state.")
+            else:
+                start_pos = self.generate_random_joint_config()
 
             self.moveit2.clear_goal_constraints()
             self.moveit2.clear_path_constraints()
@@ -486,7 +499,6 @@ class HolisticBenchmark:
             if target_quat:
                 trial_data["target_yaw_quat"] = list(target_quat)
 
-            # 2. Check if the planner found a solution
             if not traj or not traj.points:
                 LOGGER.warn(
                     f"  Attempt FAILED: Planner did not find a solution in {planning_time:.4f}s."
@@ -495,7 +507,6 @@ class HolisticBenchmark:
                 self.results.append(trial_data)
                 continue
 
-            # 3. Verify the path and calculate metrics
             is_feasible, metrics = self._calculate_trajectory_metrics(traj)
             trial_data["trajectory_metrics"] = metrics._asdict() if metrics else None
 
@@ -507,7 +518,6 @@ class HolisticBenchmark:
                 self.results.append(trial_data)
                 continue
 
-            # 4. If all checks pass, it's a success
             successful_tasks += 1
             LOGGER.info(
                 f"  Plan SUCCEEDED and VERIFIED in {planning_time:.4f}s. ({successful_tasks}/{self.num_tasks} collected)"
@@ -517,7 +527,7 @@ class HolisticBenchmark:
 
         if successful_tasks < self.num_tasks:
             LOGGER.error(
-                f"Benchmark finished due to max attempts ({max_attempts}). Only collected {successful_tasks}/{self.num_tasks} tasks."
+                f"Benchmark finished due to max attempts ({max_total_attempts}). Only collected {successful_tasks}/{self.num_tasks} tasks."
             )
 
     def save_results(self):
@@ -535,7 +545,6 @@ class HolisticBenchmark:
         except Exception as e:
             LOGGER.error(f"Failed to save results: {e}")
 
-        # New summary with granular failure counts
         status_counts = Counter(r["status"] for r in self.results)
         total_attempts = len(self.results)
         total_successful = status_counts[TrialStatus.SUCCESS.value]
@@ -548,9 +557,10 @@ class HolisticBenchmark:
         for status in TrialStatus:
             if status != TrialStatus.SUCCESS:
                 count = status_counts[status.value]
-                LOGGER.info(
-                    f"  - {status.name}: {count} ({count / total_attempts * 100:.2f}%)"
-                )
+                if count > 0:
+                    LOGGER.info(
+                        f"  - {status.name}: {count} ({count / total_attempts * 100:.2f}%)"
+                    )
         LOGGER.info("---------------------------------------------------\n")
 
 
