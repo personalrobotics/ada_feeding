@@ -5,7 +5,8 @@
 """
 This script analyzes the output of the holistic_benchmark.py script.
 It loads one or more JSON result files, concatenates them, and generates
-a series of comparative plots to evaluate the different planning methodologies.
+a series of comparative plots to evaluate the different planning methodologies,
+including a new "Manifold Adherence" metric.
 """
 
 import argparse
@@ -44,12 +45,12 @@ def load_data(file_paths: List[str]) -> pd.DataFrame:
     return pd.json_normalize(all_data, sep="_")
 
 
-def plot_success_rates(df: pd.DataFrame, output_dir: str):
+def plot_outcomes(df: pd.DataFrame, output_dir: str):
     """
     Generates a stacked bar chart showing the proportion of each trial status
     for each planning methodology.
     """
-    print("Generating success rate plot...")
+    print("Generating trial outcomes plot...")
 
     # --- Data Preparation ---
     # Calculate the counts of each status for each planning mode
@@ -110,7 +111,7 @@ def plot_success_rates(df: pd.DataFrame, output_dir: str):
 
     output_path = os.path.join(output_dir, "comparative_outcomes.html")
     fig.write_html(output_path)
-    print(f"Saved success rate plot to {output_path}")
+    print(f"Saved outcomes plot to {output_path}")
 
 
 def plot_planning_times(df: pd.DataFrame, output_dir: str):
@@ -263,6 +264,75 @@ def plot_articutool_velocities(df: pd.DataFrame, output_dir: str):
     print(f"Saved Articutool velocity plot to {output_path}")
 
 
+def plot_manifold_adherence(df: pd.DataFrame, output_dir: str):
+    """
+    Calculates and plots the 'Manifold Adherence' for each successful trajectory.
+    Adherence is the percentage of waypoints within the preferred joint ranges
+    for joints 2 and 3, as discovered during manifold exploration.
+    """
+    print("Generating manifold adherence plot...")
+
+    success_df = df[df["status"] == "Success"].copy()
+
+    if success_df.empty:
+        print("Warning: No successful trials found. Skipping manifold adherence plot.")
+        return
+
+    adherence_scores = []
+    for _, row in success_df.iterrows():
+        waypoints = row.get("trajectory_metrics_waypoints_data")
+        if not isinstance(waypoints, list) or not waypoints:
+            continue
+
+        adherent_waypoints = 0
+        for wp in waypoints:
+            pos = wp.get("jaco_positions_rad")
+            if pos and len(pos) >= 3:
+                # FIX: Correctly check the preferred ranges based on joint distribution analysis.
+                # Joint 2 (pos[1]) preferred negative values.
+                # Joint 3 (pos[2]) preferred positive values.
+                if pos[1] < 0 and pos[2] > 0:
+                    adherent_waypoints += 1
+
+        adherence_scores.append(
+            {
+                "planning_mode": row["planning_mode"],
+                "adherence_score": (adherent_waypoints / len(waypoints)) * 100,
+            }
+        )
+
+    if not adherence_scores:
+        print("Warning: Could not calculate any adherence scores. Skipping plot.")
+        return
+
+    adherence_df = pd.DataFrame(adherence_scores)
+
+    fig = px.box(
+        adherence_df,
+        x="planning_mode",
+        y="adherence_score",
+        color="planning_mode",
+        title="<b>Manifold Adherence of Successful Trajectories</b>",
+        labels={
+            "planning_mode": "Planning Methodology",
+            "adherence_score": "Adherence Score (%)",
+        },
+        category_orders={
+            "planning_mode": [
+                "joint_unconstrained",
+                "task_pos_unconstrained",
+                "task_pos_constrained",
+                "task_pos_yaw_constrained",
+            ]
+        },
+    )
+    fig.update_yaxes(range=[-5, 105])
+
+    output_path = os.path.join(output_dir, "comparative_manifold_adherence.html")
+    fig.write_html(output_path)
+    print(f"Saved manifold adherence plot to {output_path}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Analyze results from the holistic benchmark."
@@ -280,17 +350,15 @@ def main():
     )
     args = parser.parse_args()
 
-    # Create output directory if it doesn't exist
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Load and process data
     df = load_data(args.json_files)
 
-    # Generate all plots
-    plot_success_rates(df, args.output_dir)
+    plot_outcomes(df, args.output_dir)
     plot_planning_times(df, args.output_dir)
     plot_path_lengths(df, args.output_dir)
     plot_articutool_velocities(df, args.output_dir)
+    plot_manifold_adherence(df, args.output_dir)
 
     print("\nAnalysis complete.")
 
