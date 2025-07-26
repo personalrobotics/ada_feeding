@@ -8,8 +8,10 @@ methodologies for the Jaco + Articutool system. Its goal is to generate a
 comprehensive dataset to empirically evaluate the trade-offs between planner
 success, motion flexibility, and guaranteed kinematic/dynamic feasibility.
 
-This version includes a "rigid_wrist" baseline mode to quantify the
-performance of a standard 6-DOF arm on the same leveling task.
+This version uses "constraint-aware" start state sampling, ensuring that each
+trial begins from a configuration that is kinematically feasible for the
+Articutool to maintain a level orientation. It also uses granular failure
+logging to distinguish between different failure modes.
 """
 
 # Standard imports
@@ -48,15 +50,8 @@ EPSILON = 1e-6
 ARTICUTOOL_PITCH_LIMITS_RAD = (-math.pi / 2, math.pi / 2)
 ARTICUTOOL_ROLL_LIMITS_RAD = (-math.pi, math.pi)
 WORLD_UP_VECTOR = np.array([0.0, 0.0, 1.0])
-# This quaternion represents the end-effector pointing forward and level
-LEVEL_ORIENTATION_QUAT = R.from_euler("y", 90, degrees=True).as_quat()  # [x, y, z, w]
-# For the rigid wrist, the tolerance for being "level" is tight
-RIGID_WRIST_LEVEL_TOLERANCE_RAD = math.radians(5.0)
-PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (
-    math.pi,
-    math.pi,
-    math.pi,
-)  # Loose tolerance for Articutool modes
+PATH_CONSTRAINT_QUAT_XYZW = (0.707, 0.0, 0.0, 0.707)
+PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (1.5, 3.14, 0.8)
 GOAL_YAW_CONSTRAINT_TOLERANCE_XYZ_RAD = (math.pi, math.pi, 0.1)
 WORKSPACE_OUTER_RADIUS = 0.7
 WORKSPACE_INNER_RADIUS = 0.3
@@ -69,7 +64,6 @@ TrajectoryMetrics = namedtuple(
         "joint_space_path_length_rad",
         "final_joint_positions",
         "waypoints_data",
-        "max_leveling_error_rad",  # New metric for rigid wrist mode
     ],
 )
 
@@ -114,8 +108,7 @@ class HolisticBenchmark:
         self._initialize_pinocchio()
         self.joint_limits = self._get_joint_limits()
 
-        LOGGER.info("Holistic Benchmark Initialized.")
-        LOGGER.info(f"  - Planning Mode: {self.mode}")
+        LOGGER.info(f"--- Initializing Benchmark: Mode '{self.mode}' ---")
         if self.output_dir:
             os.makedirs(self.output_dir, exist_ok=True)
             LOGGER.info(f"  - Results will be saved to: {self.output_dir}")
@@ -200,6 +193,7 @@ class HolisticBenchmark:
     def _is_config_kinematically_feasible(self, jaco_joint_config: List[float]) -> bool:
         """
         Checks if the Articutool can maintain leveling at a single Jaco configuration.
+        This is our "oracle" for testing membership in the true feasibility manifold.
         """
         if (
             self.pinocchio_model is None
@@ -295,31 +289,13 @@ class HolisticBenchmark:
         prev_pos = np.array(trajectory.points[0].positions)
         waypoints_data, path_len = [], 0.0
         is_path_feasible = True
-        max_leveling_error = 0.0
 
         for i, point in enumerate(trajectory.points):
-            # --- Verification Step ---
-            if self.mode == "rigid_wrist":
-                # For rigid wrist, "feasibility" is how well it stayed level
-                pin.forwardKinematics(self.pinocchio_model, self.pinocchio_data, q)
-                pin.updateFramePlacements(self.pinocchio_model, self.pinocchio_data)
-                ee_transform = self.pinocchio_data.oMf[self.jaco_ee_frame_id_pin]
+            if not self._is_config_kinematically_feasible(point.positions):
+                is_path_feasible = False
+                # We can break early if we only care about the boolean result,
+                # but we continue here to gather full data for the failed path.
 
-                # Get the orientation of the end-effector's "up" vector in the world
-                ee_up_vector = R.from_matrix(ee_transform.rotation).apply([0, 1, 0])
-
-                # Calculate the angle between the EE up vector and the world up vector
-                angle = np.arccos(
-                    np.clip(np.dot(ee_up_vector, WORLD_UP_VECTOR), -1.0, 1.0)
-                )
-                if angle > max_leveling_error:
-                    max_leveling_error = angle
-            else:
-                # For Articutool modes, feasibility is based on the IK solution
-                if not self._is_config_kinematically_feasible(point.positions):
-                    is_path_feasible = False
-
-            # --- Metric Calculation (continues regardless of feasibility) ---
             for j, name in enumerate(JOINT_NAMES):
                 joint_id = self.pinocchio_model.getJointId(name)
                 joint_obj = self.pinocchio_model.joints[joint_id]
@@ -338,59 +314,55 @@ class HolisticBenchmark:
                 np.zeros(self.pinocchio_model.nv),
             )
             ee_transform = self.pinocchio_data.oMf[self.jaco_ee_frame_id_pin]
+            target_up = (
+                R.from_matrix(ee_transform.rotation).inv().apply(WORLD_UP_VECTOR)
+            )
+            solutions = self._solve_articutool_ik(target_up)
 
             at_sol, at_vel = None, None
-            if self.mode != "rigid_wrist":
-                target_up = (
-                    R.from_matrix(ee_transform.rotation).inv().apply(WORLD_UP_VECTOR)
-                )
-                solutions = self._solve_articutool_ik(target_up)
-                if solutions:
-                    valid_sols = [
-                        s
-                        for s in solutions
-                        if ARTICUTOOL_PITCH_LIMITS_RAD[0]
-                        <= s[0]
-                        <= ARTICUTOOL_PITCH_LIMITS_RAD[1]
-                        and ARTICUTOOL_ROLL_LIMITS_RAD[0]
-                        <= s[1]
-                        <= ARTICUTOOL_ROLL_LIMITS_RAD[1]
-                    ]
-                    if valid_sols:
-                        pitch, roll = min(
-                            valid_sols, key=lambda s: s[0] ** 2 + s[1] ** 2
+            if solutions:
+                valid_sols = [
+                    s
+                    for s in solutions
+                    if ARTICUTOOL_PITCH_LIMITS_RAD[0]
+                    <= s[0]
+                    <= ARTICUTOOL_PITCH_LIMITS_RAD[1]
+                    and ARTICUTOOL_ROLL_LIMITS_RAD[0]
+                    <= s[1]
+                    <= ARTICUTOOL_ROLL_LIMITS_RAD[1]
+                ]
+                if valid_sols:
+                    pitch, roll = min(valid_sols, key=lambda s: s[0] ** 2 + s[1] ** 2)
+                    at_sol = {"pitch": pitch, "roll": roll}
+                    if i > 0:
+                        dt = (
+                            point.time_from_start.sec
+                            + 1e-9 * point.time_from_start.nanosec
+                        ) - (
+                            trajectory.points[i - 1].time_from_start.sec
+                            + 1e-9 * trajectory.points[i - 1].time_from_start.nanosec
                         )
-                        at_sol = {"pitch": pitch, "roll": roll}
-                        if i > 0:
-                            dt = (
-                                point.time_from_start.sec
-                                + 1e-9 * point.time_from_start.nanosec
-                            ) - (
-                                trajectory.points[i - 1].time_from_start.sec
-                                + 1e-9
-                                * trajectory.points[i - 1].time_from_start.nanosec
+                        if dt > EPSILON:
+                            q_dot = (
+                                np.array(point.positions)
+                                - np.array(trajectory.points[i - 1].positions)
+                            ) / dt
+                            J_full = pin.getFrameJacobian(
+                                self.pinocchio_model,
+                                self.pinocchio_data,
+                                self.jaco_ee_frame_id_pin,
+                                pin.ReferenceFrame.LOCAL,
                             )
-                            if dt > EPSILON:
-                                q_dot = (
-                                    np.array(point.positions)
-                                    - np.array(trajectory.points[i - 1].positions)
-                                ) / dt
-                                J_full = pin.getFrameJacobian(
-                                    self.pinocchio_model,
-                                    self.pinocchio_data,
-                                    self.jaco_ee_frame_id_pin,
-                                    pin.ReferenceFrame.LOCAL,
-                                )
-                                J_arm = J_full[:, self.jaco_vel_indices]
-                                omega = (J_arm @ q_dot)[3:]
-                                J_atool_inv = np.linalg.pinv(
-                                    self._get_articutool_jacobian(pitch, roll)
-                                )
-                                q_dot_atool = -J_atool_inv @ omega
-                                at_vel = {
-                                    "pitch_vel": q_dot_atool[0],
-                                    "roll_vel": q_dot_atool[1],
-                                }
+                            J_arm = J_full[:, self.jaco_vel_indices]
+                            omega = (J_arm @ q_dot)[3:]
+                            J_atool_inv = np.linalg.pinv(
+                                self._get_articutool_jacobian(pitch, roll)
+                            )
+                            q_dot_atool = -J_atool_inv @ omega
+                            at_vel = {
+                                "pitch_vel": q_dot_atool[0],
+                                "roll_vel": q_dot_atool[1],
+                            }
 
             waypoints_data.append(
                 {
@@ -408,24 +380,17 @@ class HolisticBenchmark:
             path_len += np.linalg.norm(np.array(point.positions) - prev_pos)
             prev_pos = np.array(point.positions)
 
-        if self.mode == "rigid_wrist":
-            is_path_feasible = max_leveling_error <= RIGID_WRIST_LEVEL_TOLERANCE_RAD
-
         duration = (
             trajectory.points[-1].time_from_start.sec
             + 1e-9 * trajectory.points[-1].time_from_start.nanosec
         )
         metrics = TrajectoryMetrics(
-            duration,
-            path_len,
-            list(trajectory.points[-1].positions),
-            waypoints_data,
-            max_leveling_error,
+            duration, path_len, list(trajectory.points[-1].positions), waypoints_data
         )
         return is_path_feasible, metrics
 
     def run(self):
-        """Main benchmark execution loop."""
+        """Main benchmark execution loop with constraint-aware start state sampling."""
         if not self.pinocchio_model:
             LOGGER.error("Benchmark cannot run because Pinocchio model failed to load.")
             return
@@ -444,8 +409,9 @@ class HolisticBenchmark:
                 f"--- Task {successful_tasks + 1}/{self.num_tasks} (Attempt {total_attempts}) ---"
             )
 
-            start_pos = None
-            if self.mode not in ["joint_unconstrained", "rigid_wrist"]:
+            # For modes requiring leveling, find a start state on the true manifold.
+            # For pure joint-space planning, any random start is fine.
+            if self.mode != "joint_unconstrained":
                 LOGGER.info(
                     "  Searching for a kinematically feasible start configuration..."
                 )
@@ -465,7 +431,6 @@ class HolisticBenchmark:
                     continue
                 LOGGER.info("  Found feasible start state.")
             else:
-                # For joint space and rigid wrist, any random start is fine.
                 start_pos = self.generate_random_joint_config()
 
             self.moveit2.clear_goal_constraints()
@@ -483,38 +448,7 @@ class HolisticBenchmark:
                     target_link=END_EFFECTOR_LINK,
                     tolerance=0.01,
                 )
-
-                if self.mode == "rigid_wrist":
-                    self.moveit2.set_orientation_goal(
-                        quat_xyzw=Quaternion(
-                            x=LEVEL_ORIENTATION_QUAT[0],
-                            y=LEVEL_ORIENTATION_QUAT[1],
-                            z=LEVEL_ORIENTATION_QUAT[2],
-                            w=LEVEL_ORIENTATION_QUAT[3],
-                        ),
-                        target_link=END_EFFECTOR_LINK,
-                        tolerance=(
-                            RIGID_WRIST_LEVEL_TOLERANCE_RAD,
-                            RIGID_WRIST_LEVEL_TOLERANCE_RAD,
-                            math.pi,
-                        ),
-                    )
-                    self.moveit2.set_path_orientation_constraint(
-                        quat_xyzw=Quaternion(
-                            x=LEVEL_ORIENTATION_QUAT[0],
-                            y=LEVEL_ORIENTATION_QUAT[1],
-                            z=LEVEL_ORIENTATION_QUAT[2],
-                            w=LEVEL_ORIENTATION_QUAT[3],
-                        ),
-                        target_link=END_EFFECTOR_LINK,
-                        tolerance=(
-                            RIGID_WRIST_LEVEL_TOLERANCE_RAD,
-                            RIGID_WRIST_LEVEL_TOLERANCE_RAD,
-                            math.pi,
-                        ),
-                        weight=1.0,
-                    )
-                elif self.mode == "task_pos_yaw_constrained":
+                if self.mode == "task_pos_yaw_constrained":
                     target_quat = self.generate_random_yaw_quaternion()
                     self.moveit2.set_orientation_goal(
                         quat_xyzw=Quaternion(
@@ -528,14 +462,12 @@ class HolisticBenchmark:
                         parameterization=1,
                     )
                 if "constrained" in self.mode:
-                    # This is the original, looser constraint for the Articutool modes
-                    path_constraint_quat = R.from_euler("y", 90, degrees=True).as_quat()
                     self.moveit2.set_path_orientation_constraint(
                         quat_xyzw=Quaternion(
-                            x=path_constraint_quat[0],
-                            y=path_constraint_quat[1],
-                            z=path_constraint_quat[2],
-                            w=path_constraint_quat[3],
+                            x=PATH_CONSTRAINT_QUAT_XYZW[0],
+                            y=PATH_CONSTRAINT_QUAT_XYZW[1],
+                            z=PATH_CONSTRAINT_QUAT_XYZW[2],
+                            w=PATH_CONSTRAINT_QUAT_XYZW[3],
                         ),
                         frame_id=BASE_LINK,
                         target_link=END_EFFECTOR_LINK,
@@ -638,6 +570,7 @@ def main():
     parser.add_argument(
         "xacro_file", type=str, help="Path to the robot URDF/XACRO file."
     )
+    # MODIFICATION: Add 'all' to choices and update help text
     parser.add_argument(
         "--mode",
         type=str,
@@ -647,15 +580,15 @@ def main():
             "task_pos_unconstrained",
             "task_pos_constrained",
             "task_pos_yaw_constrained",
-            "rigid_wrist",  # New baseline mode
+            "all",
         ],
-        help="The planning methodology to benchmark.",
+        help="The planning methodology to benchmark, or 'all' to run every mode.",
     )
     parser.add_argument(
         "--num_tasks",
         type=int,
         default=100,
-        help="Number of successful tasks to generate.",
+        help="Number of successful tasks to generate per mode.",
     )
     parser.add_argument(
         "--timeout", type=float, default=10.0, help="Planning timeout in seconds."
@@ -671,6 +604,18 @@ def main():
     if not os.path.exists(args.xacro_file):
         print(f"Error: XACRO file not found at '{args.xacro_file}'")
         sys.exit(1)
+
+    # MODIFICATION: Logic to handle running a single mode or all modes
+    scenarios_to_run = []
+    if args.mode == "all":
+        scenarios_to_run = [
+            "joint_unconstrained",
+            "task_pos_unconstrained",
+            "task_pos_constrained",
+            "task_pos_yaw_constrained",
+        ]
+    else:
+        scenarios_to_run.append(args.mode)
 
     rclpy.init()
     node = Node("holistic_benchmark_node")
@@ -688,28 +633,37 @@ def main():
         callback_group=ReentrantCallbackGroup(),
     )
 
-    benchmark = HolisticBenchmark(
-        node,
-        moveit2,
-        args.xacro_file,
-        args.mode,
-        args.num_tasks,
-        args.timeout,
-        "RRTConnectkConfigDefault",
-        args.output_dir,
-    )
+    # MODIFICATION: Loop through the selected scenarios
+    for mode in scenarios_to_run:
+        LOGGER.info(f"\n\n===== STARTING BENCHMARK FOR MODE: {mode.upper()} =====\n")
 
-    try:
-        benchmark.run()
-        benchmark.save_results()
-    except Exception as e:
-        LOGGER.error(
-            f"An unhandled error occurred during the benchmark: {e}", exc_info=True
+        # Instantiate a new benchmark object for each mode to ensure clean state
+        benchmark = HolisticBenchmark(
+            node,
+            moveit2,
+            args.xacro_file,
+            mode,
+            args.num_tasks,
+            args.timeout,
+            "RRTConnectkConfigDefault",
+            args.output_dir,
         )
-    finally:
-        LOGGER.info("Shutting down.")
-        rclpy.shutdown()
-        executor_thread.join()
+
+        try:
+            benchmark.run()
+            benchmark.save_results()
+        except Exception as e:
+            LOGGER.error(
+                f"An unhandled error occurred during the benchmark for mode '{mode}': {e}",
+                exc_info=True,
+            )
+
+        # A brief pause can help separate logs if running multiple modes
+        time.sleep(2)
+
+    LOGGER.info("All benchmark scenarios complete.")
+    rclpy.shutdown()
+    executor_thread.join()
 
 
 if __name__ == "__main__":
