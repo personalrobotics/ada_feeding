@@ -427,6 +427,18 @@ class EndToEndBenchmark:
 
             # 1. Generate a new scene
             scene = self._generate_scene(base_z_offset=0.1)
+            LOGGER.info(
+                f"""
+                Generated Scene Parameters for Trial {i + 1}:
+                - Robot Base Z Offset: {scene["base_z_offset"]:.3f}m
+                - Food Pose:
+                    Position: [x={scene["food_pose"].position.x:.3f}, y={scene["food_pose"].position.y:.3f}, z={scene["food_pose"].position.z:.3f}]
+                    Orientation: [x={scene["food_pose"].orientation.x:.3f}, y={scene["food_pose"].orientation.y:.3f}, z={scene["food_pose"].orientation.z:.3f}, w={scene["food_pose"].orientation.w:.3f}]
+                - Mouth Pose:
+                    Position: [x={scene["mouth_pose"].position.x:.3f}, y={scene["mouth_pose"].position.y:.3f}, z={scene["mouth_pose"].position.z:.3f}]
+                    Orientation: [x={scene["mouth_pose"].orientation.x:.3f}, y={scene["mouth_pose"].orientation.y:.3f}, z={scene["mouth_pose"].orientation.z:.3f}, w={scene["mouth_pose"].orientation.w:.3f}]
+            """
+            )
 
             # 2. Simulate the feeding cycle state machine
             food_on_tool = False
