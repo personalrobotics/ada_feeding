@@ -446,17 +446,25 @@ class EndToEndBenchmark:
 
             # Stage 1: Home -> AbovePlate (P1)
             LOGGER.info("Stage 1: Home -> AbovePlate")
-            # This would be a plan to an IK solution for the pose
-            # For now, we just log it as a placeholder
+            above_plate_config = self.moveit2_jaco.compute_ik(
+                position=scene["move_above_pose"].position,
+                quat_xyzw=scene["move_above_pose"].orientation,
+                start_joint_state=current_jaco_state,
+            )
+            ik_status = (
+                TrialStatus.SUCCESS if above_plate_config else TrialStatus.IK_FAILURE
+            )
             self.results.append(
                 {
                     "trial_id": i,
                     "stage": "HomeToAbovePlate",
-                    "status": TrialStatus.SKIPPED.value,
+                    "primitive": "IK",
+                    "status": ik_status.value,
                 }
             )
-            # TODO: Replace placeholder for the actual joint state after moving
-            current_jaco_state = scene["home_config"]
+            if ik_status != TrialStatus.SUCCESS:
+                continue
+            current_jaco_state = list(above_plate_config.position)
 
             # Stage 2: AbovePlate -> MoveAbove (P2, P4)
             LOGGER.info("Stage 2: AbovePlate -> MoveAbove")
@@ -467,12 +475,13 @@ class EndToEndBenchmark:
                 {
                     "trial_id": i,
                     "stage": "AbovePlateToMoveAbove",
+                    "primitive": "S2",
                     "status": status_s1.value,
                 }
             )
             if status_s1 != TrialStatus.SUCCESS:
                 continue  # End trial on failure
-            current_jaco_state = traj_s1.points[-1].positions
+            current_jaco_state = list(traj_s1.points[-1].positions)
 
             # Stage 3: MoveToStaging
             LOGGER.info("Stage 3: MoveToStaging (Food on tool!)")
@@ -492,7 +501,7 @@ class EndToEndBenchmark:
             )
             if status_s2 != TrialStatus.SUCCESS:
                 continue
-            current_jaco_state = traj_s2.points[-1].positions
+            current_jaco_state = list(traj_s2.points[-1].positions)
 
         self.save_results()
 
