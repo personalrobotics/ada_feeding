@@ -366,10 +366,40 @@ class EndToEndBenchmark:
 
     def _plan_s2_guided(
         self, goal_pose: Pose, start_state: Any
-    ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
+    ) -> Tuple[TrialStatus, Optional[JointTrajectory], float]:
         LOGGER.info("  Planning with S2 (6-DOF Guided)...")
-        # TODO: Implement MoveIt2 call with smart constraint and verification
-        return TrialStatus.SKIPPED, None
+        self.moveit2_jaco.clear_goal_constraints()
+        self.moveit2_jaco.clear_path_constraints()
+
+        self.moveit2_jaco.set_pose_goal(goal_pose, END_EFFECTOR_LINK_JACO)
+        self.moveit2_jaco.set_path_orientation_constraint(
+            quat_xyzw=Quaternion(
+                x=PATH_CONSTRAINT_QUAT_XYZW[0],
+                y=PATH_CONSTRAINT_QUAT_XYZW[1],
+                z=PATH_CONSTRAINT_QUAT_XYZW[2],
+                w=PATH_CONSTRAINT_QUAT_XYZW[3],
+            ),
+            target_link=END_EFFECTOR_LINK_JACO,
+            tolerance=PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
+            weight=1.0,
+        )
+
+        future = self.moveit2_jaco.plan_async(
+            start_joint_state=start_state,
+        )
+        rclpy.spin_until_future_complete(
+            self.node, future, timeout_sec=self.planning_timeout
+        )
+        traj = self.moveit2_jaco.get_trajectory(future)
+
+        if not traj or not traj.points:
+            return TrialStatus.PLANNER_FAILURE, None, 0.0
+
+        feasibility_percent = self._verify_trajectory(traj)
+        if feasibility_percent < 99.0:
+            return TrialStatus.VERIFICATION_FAILURE, traj, feasibility_percent
+
+        return TrialStatus.SUCCESS, traj, feasibility_percent
 
     def _plan_s3_coordinated(
         self, goal_pose: Pose, start_state: Any
@@ -400,7 +430,7 @@ class EndToEndBenchmark:
 
             # 2. Simulate the feeding cycle state machine
             food_on_tool = False
-            current_state = scene["home_config"]
+            current_jaco_state = scene["home_config"]
 
             # Stage 1: Home -> AbovePlate (P1)
             LOGGER.info("Stage 1: Home -> AbovePlate")
@@ -413,42 +443,44 @@ class EndToEndBenchmark:
                     "status": TrialStatus.SKIPPED.value,
                 }
             )
+            # TODO: Replace placeholder for the actual joint state after moving
+            current_jaco_state = scene["home_config"]
 
             # Stage 2: AbovePlate -> MoveAbove (P2, P4)
             LOGGER.info("Stage 2: AbovePlate -> MoveAbove")
-            status, traj = self._plan_s2_guided(scene["move_above_pose"], current_state)
+            status_s1, traj_s1 = self._plan_s1_unconstrained(
+                scene["move_above_pose"], current_jaco_state
+            )
             self.results.append(
                 {
                     "trial_id": i,
                     "stage": "AbovePlateToMoveAbove",
-                    "status": status.value,
+                    "status": status_s1.value,
                 }
             )
-            if status != TrialStatus.SUCCESS:
+            if status_s1 != TrialStatus.SUCCESS:
                 continue  # End trial on failure
+            current_jaco_state = traj_s1.points[-1].positions
 
             # Stage 3: MoveToStaging
             LOGGER.info("Stage 3: MoveToStaging (Food on tool!)")
             food_on_tool = True
-            status, traj = self._plan_s2_guided(scene["staging_pose"], current_state)
-
-            # The real verification would happen inside the planning primitive
-            feasibility = self._verify_trajectory(traj) if traj else 0.0
-
-            final_status = status
-            if status == TrialStatus.SUCCESS and feasibility < 99.0:
-                final_status = TrialStatus.VERIFICATION_FAILURE
+            status_s2, traj_s2, feasibility_percent = self._plan_s2_guided(
+                scene["staging_pose"], current_jaco_state
+            )
 
             self.results.append(
                 {
                     "trial_id": i,
                     "stage": "AcquiredToStaging",
-                    "status": final_status.value,
-                    "leveling_feasibility": feasibility,
+                    "primitive": "S2",
+                    "status": status_s2.value,
+                    "leveling_feasibility": feasibility_percent,
                 }
             )
-            if final_status != TrialStatus.SUCCESS:
+            if status_s2 != TrialStatus.SUCCESS:
                 continue
+            current_jaco_state = traj_s2.points[-1].positions
 
         self.save_results()
 
