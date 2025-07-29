@@ -55,6 +55,8 @@ EPSILON = 1e-6
 ARTICUTOOL_PITCH_LIMITS_RAD = (-math.pi / 2, math.pi / 2)
 ARTICUTOOL_ROLL_LIMITS_RAD = (-math.pi, math.pi)
 WORLD_UP_VECTOR = np.array([0.0, 0.0, 1.0])
+PATH_CONSTRAINT_QUAT_XYZW = (0.707, 0.0, 0.0, 0.707)
+PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (1.5, 3.14, 0.8)
 
 
 # --- Data Structures ---
@@ -346,8 +348,21 @@ class EndToEndBenchmark:
         self, goal_pose: Pose, start_state: Any
     ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
         LOGGER.info("  Planning with S1 (6-DOF Unconstrained)...")
-        # TODO: Implement MoveIt2 call for unconstrained planning
-        return TrialStatus.SKIPPED, None
+        self.moveit2_jaco.clear_goal_constraints()
+        self.moveit2_jaco.clear_path_constraints()
+
+        self.moveit2_jaco.set_pose_goal(goal_pose, END_EFFECTOR_LINK_JACO)
+
+        future = self.moveit2_jaco.plan_async(start_joint_state=start_state)
+        rclpy.spin_until_future_complete(
+            self.node, future, timeout_sec=self.planning_timeout
+        )
+        traj = self.moveit2_jaco.get_trajectory(future)
+
+        if not traj or not traj.points:
+            return TrialStatus.PLANNER_FAILURE, None
+
+        return TrialStatus.SUCCESS, traj
 
     def _plan_s2_guided(
         self, goal_pose: Pose, start_state: Any
