@@ -148,8 +148,8 @@ class EndToEndBenchmark:
 
         # Sample position
         r = np.random.uniform(inner_radius**3, outer_radius**3) ** (1 / 3)
-        theta = np.random.uniform(-np.pi / 2, np.pi / 2)  # Front half-space
-        phi = np.random.uniform(0, np.pi)
+        theta = np.random.uniform(0, 2 * np.pi)
+        phi = np.random.uniform(0, np.pi / 2)
         x = r * np.cos(theta) * np.sin(phi)
         y = r * np.sin(theta) * np.sin(phi)
         z = r * np.cos(phi)
