@@ -429,14 +429,37 @@ class EndToEndBenchmark:
             scene = self._generate_scene(base_z_offset=0.1)
             LOGGER.info(
                 f"""
-                Generated Scene Parameters for Trial {i + 1}:
+                --- Generated Scene Parameters for Trial {i + 1} ---
                 - Robot Base Z Offset: {scene["base_z_offset"]:.3f}m
-                - Food Pose:
-                    Position: [x={scene["food_pose"].position.x:.3f}, y={scene["food_pose"].position.y:.3f}, z={scene["food_pose"].position.z:.3f}]
-                    Orientation: [x={scene["food_pose"].orientation.x:.3f}, y={scene["food_pose"].orientation.y:.3f}, z={scene["food_pose"].orientation.z:.3f}, w={scene["food_pose"].orientation.w:.3f}]
-                - Mouth Pose:
-                    Position: [x={scene["mouth_pose"].position.x:.3f}, y={scene["mouth_pose"].position.y:.3f}, z={scene["mouth_pose"].position.z:.3f}]
-                    Orientation: [x={scene["mouth_pose"].orientation.x:.3f}, y={scene["mouth_pose"].orientation.y:.3f}, z={scene["mouth_pose"].orientation.z:.3f}, w={scene["mouth_pose"].orientation.w:.3f}]
+
+                - Initial State:
+                  - Home Config: [{", ".join(f"{j:.4f}" for j in scene["home_config"])}]
+
+                - Core Sampled Poses:
+                  - Food Pose:
+                      Position:    [x={scene["food_pose"].position.x:.3f}, y={scene["food_pose"].position.y:.3f}, z={scene["food_pose"].position.z:.3f}]
+                      Orientation: [x={scene["food_pose"].orientation.x:.3f}, y={scene["food_pose"].orientation.y:.3f}, z={scene["food_pose"].orientation.z:.3f}, w={scene["food_pose"].orientation.w:.3f}]
+                  - Mouth Pose:
+                      Position:    [x={scene["mouth_pose"].position.x:.3f}, y={scene["mouth_pose"].position.y:.3f}, z={scene["mouth_pose"].position.z:.3f}]
+                      Orientation: [x={scene["mouth_pose"].orientation.x:.3f}, y={scene["mouth_pose"].orientation.y:.3f}, z={scene["mouth_pose"].orientation.z:.3f}, w={scene["mouth_pose"].orientation.w:.3f}]
+
+                - Derived Poses for Feeding Cycle:
+                  - Above Plate Pose:
+                      Position:    [x={scene["above_plate_pose"].position.x:.3f}, y={scene["above_plate_pose"].position.y:.3f}, z={scene["above_plate_pose"].position.z:.3f}]
+                      Orientation: [x={scene["above_plate_pose"].orientation.x:.3f}, y={scene["above_plate_pose"].orientation.y:.3f}, z={scene["above_plate_pose"].orientation.z:.3f}, w={scene["above_plate_pose"].orientation.w:.3f}]
+                  - Move Above Pose:
+                      Position:    [x={scene["move_above_pose"].position.x:.3f}, y={scene["move_above_pose"].position.y:.3f}, z={scene["move_above_pose"].position.z:.3f}]
+                      Orientation: [x={scene["move_above_pose"].orientation.x:.3f}, y={scene["move_above_pose"].orientation.y:.3f}, z={scene["move_above_pose"].orientation.z:.3f}, w={scene["move_above_pose"].orientation.w:.3f}]
+                  - Move Into Pose:
+                      Position:    [x={scene["move_into_pose"].position.x:.3f}, y={scene["move_into_pose"].position.y:.3f}, z={scene["move_into_pose"].position.z:.3f}]
+                      Orientation: [x={scene["move_into_pose"].orientation.x:.3f}, y={scene["move_into_pose"].orientation.y:.3f}, z={scene["move_into_pose"].orientation.z:.3f}, w={scene["move_into_pose"].orientation.w:.3f}]
+                  - Staging Pose:
+                      Position:    [x={scene["staging_pose"].position.x:.3f}, y={scene["staging_pose"].position.y:.3f}, z={scene["staging_pose"].position.z:.3f}]
+                      Orientation: [x={scene["staging_pose"].orientation.x:.3f}, y={scene["staging_pose"].orientation.y:.3f}, z={scene["staging_pose"].orientation.z:.3f}, w={scene["staging_pose"].orientation.w:.3f}]
+                  - Resting Pose:
+                      Position:    [x={scene["resting_pose"].position.x:.3f}, y={scene["resting_pose"].position.y:.3f}, z={scene["resting_pose"].position.z:.3f}]
+                      Orientation: [x={scene["resting_pose"].orientation.x:.3f}, y={scene["resting_pose"].orientation.y:.3f}, z={scene["resting_pose"].orientation.z:.3f}, w={scene["resting_pose"].orientation.w:.3f}]
+                -------------------------------------------------
             """
             )
 
