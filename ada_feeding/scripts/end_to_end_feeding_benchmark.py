@@ -36,6 +36,10 @@ from trajectory_msgs.msg import JointTrajectory
 from geometry_msgs.msg import Pose, Point, Quaternion
 from scipy.spatial.transform import Rotation as R
 import pinocchio as pin
+from moveit_msgs.msg import PlanningScene, AllowedCollisionEntry, AllowedCollisionMatrix
+from moveit_msgs.srv import GetPlanningScene
+from moveit_msgs.msg import CollisionObject
+from shape_msgs.msg import SolidPrimitive
 
 # --- Constants ---
 LOGGER = rclpy.logging.get_logger("end_to_end_benchmark")
@@ -57,6 +61,7 @@ ARTICUTOOL_ROLL_LIMITS_RAD = (-math.pi, math.pi)
 WORLD_UP_VECTOR = np.array([0.0, 0.0, 1.0])
 PATH_CONSTRAINT_QUAT_XYZW = (0.707, 0.0, 0.0, 0.707)
 PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (1.5, 3.14, 0.8)
+ARTICUTOOL_LENGTH_M = 0.14
 
 
 # --- Data Structures ---
@@ -120,6 +125,125 @@ class EndToEndBenchmark:
         except Exception as e:
             LOGGER.error(f"Failed to initialize Pinocchio model: {e}", exc_info=True)
             self.pinocchio_model = None
+
+    def add_articutool_bounding_cylinder(self):
+        """
+        Adds a cylindrical collision object to represent the Articutool
+        and updates the ACM to prevent spurious collisions.
+        """
+        # Create a publisher to the planning scene topic if it doesn't exist
+        if not hasattr(self, "planning_scene_publisher"):
+            self.planning_scene_publisher = self.node.create_publisher(
+                PlanningScene, "/planning_scene", 10
+            )
+
+        # --- Step 1: Define and add the CollisionObject ---
+        collision_object = CollisionObject()
+        collision_object.header.frame_id = (
+            END_EFFECTOR_LINK_JACO  # Attach to Jaco wrist
+        )
+        collision_object.id = "articutool_bounding_cylinder"
+        collision_object.operation = CollisionObject.ADD
+
+        # Define the cylinder's dimensions and pose relative to the wrist link
+        cylinder = SolidPrimitive()
+        cylinder.type = SolidPrimitive.CYLINDER
+        cylinder.dimensions = [
+            0.04,  # height
+            ARTICUTOOL_LENGTH_M,  # radius
+        ]
+        cylinder_pose = Pose()
+        cylinder_pose.position = Point(x=0.0, y=0.0, z=0.132)
+        cylinder_pose.orientation = Quaternion(x=0.0, y=0.707, z=0.0, w=0.707)
+
+        collision_object.primitives.append(cylinder)
+        collision_object.primitive_poses.append(cylinder_pose)
+
+        # Create a PlanningScene message to add the object
+        planning_scene_msg = PlanningScene()
+        planning_scene_msg.world.collision_objects.append(collision_object)
+        planning_scene_msg.is_diff = True
+        self.planning_scene_publisher.publish(planning_scene_msg)
+        self.node.get_logger().info("Published bounding cylinder to planning scene.")
+
+        # Short delay to ensure the scene is updated
+        time.sleep(1.0)
+
+        # --- Step 2: Modify the Allowed Collision Matrix (ACM) ---
+        # Create a client to get the planning scene
+        scene_client = self.node.create_client(GetPlanningScene, "/get_planning_scene")
+        while not scene_client.wait_for_service(timeout_sec=1.0):
+            self.node.get_logger().info(
+                'Service "/get_planning_scene" not available, waiting...'
+            )
+
+        # Request the full scene, including the ACM
+        req = GetPlanningScene.Request()
+        req.components.components = req.components.ALLOWED_COLLISION_MATRIX
+        future = scene_client.call_async(req)
+
+        # Add a callback to the future, which will be executed by the executor thread
+        future.add_done_callback(self._update_acm_callback)
+
+    def _update_acm_callback(self, future):
+        """
+        This callback is executed once the GetPlanningScene service returns a result.
+        """
+        try:
+            result = future.result()
+            if result is None:
+                self.node.get_logger().error("Failed to get planning scene")
+                return
+
+            acm = result.scene.allowed_collision_matrix
+            object_name = "articutool_bounding_cylinder"
+            links_to_allow = [
+                "j2n6s200_link_6",
+                "atool_base",
+                "atool_electronics_holder_bottom_plate",
+                "atool_electronics_holder_upper_plate",
+                "atool_electronics_holder_wire_guard",
+                "atool_ft_adapter",
+                "atool_handle",
+                "atool_handle_cover",
+                "atool_link1",
+                "atool_link2",
+                "atool_motor_link",
+                "atool_u2d2",
+                "tool",
+                "j2n6s200_link_finger_tip_1",
+                "j2n6s200_link_finger_tip_2",
+            ]
+
+            if object_name not in acm.entry_names:
+                for row in acm.entry_values:
+                    row.enabled.append(False)
+                acm.entry_names.append(object_name)
+                new_row = AllowedCollisionEntry()
+                new_row.enabled = [False] * len(acm.entry_names)
+                acm.entry_values.append(new_row)
+
+            obj_idx = acm.entry_names.index(object_name)
+            link_indices = []
+            for name in links_to_allow:
+                try:
+                    link_indices.append(acm.entry_names.index(name))
+                except ValueError:
+                    self.node.get_logger().warning(
+                        f"Link '{name}' not in ACM, skipping."
+                    )
+
+            for link_idx in link_indices:
+                acm.entry_values[obj_idx].enabled[link_idx] = True
+                acm.entry_values[link_idx].enabled[obj_idx] = True
+
+            scene_update = PlanningScene(is_diff=True)
+            scene_update.allowed_collision_matrix = acm
+            self.planning_scene_publisher.publish(scene_update)
+            self.node.get_logger().info("Successfully updated ACM via callback.")
+
+        except Exception as e:
+            self.node.get_logger().error(f"Error in ACM callback: {e}")
 
     # --- Scene Generation ---
     def _generate_scene(self, base_z_offset: float) -> Dict[str, Any]:
@@ -421,7 +545,7 @@ class EndToEndBenchmark:
         if not self.pinocchio_model:
             LOGGER.error("Benchmark cannot run because Pinocchio model failed to load.")
             return
-
+        self.add_articutool_bounding_cylinder()
         for i in range(self.num_trials):
             LOGGER.info(f"--- Running Trial {i + 1}/{self.num_trials} ---")
 
