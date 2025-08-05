@@ -595,23 +595,40 @@ class EndToEndBenchmark:
 
             # Stage 1: Home -> AbovePlate (P1)
             LOGGER.info("Stage 1: Home -> AbovePlate")
-            above_plate_config = self.moveit2_jaco.compute_ik(
-                position=scene["move_above_pose"].position,
-                quat_xyzw=scene["move_above_pose"].orientation,
-                start_joint_state=current_jaco_state,
-            )
-            ik_status = (
-                TrialStatus.SUCCESS if above_plate_config else TrialStatus.IK_FAILURE
-            )
+            max_ik_attempts = 5
+            ik_attempts = 0
+            above_plate_config = None
+            ik_status = TrialStatus.IK_FAILURE
+            for attempt in range(max_ik_attempts):
+                ik_attempts = ik_attempts + 1
+                LOGGER.info(
+                    f"  Attempting IK solve ({ik_attempts}/{max_ik_attempts})..."
+                )
+                start_joint_state = current_jaco_state
+                above_plate_config = self.moveit2_jaco.compute_ik(
+                    position=scene["move_above_pose"].position,
+                    quat_xyzw=scene["move_above_pose"].orientation,
+                    start_joint_state=start_joint_state,
+                )
+                if above_plate_config:
+                    ik_status = TrialStatus.SUCCESS
+                    LOGGER.info(f"  IK solution found on attempt {ik_attempts}.")
+                    break
+                else:
+                    LOGGER.warning(f"  IK attempt {ik_attempts} failed.")
             self.results.append(
                 {
                     "trial_id": i,
                     "stage": "HomeToAbovePlate",
                     "primitive": "IK",
                     "status": ik_status.value,
+                    "ik_attempts": ik_attempts,
                 }
             )
             if ik_status != TrialStatus.SUCCESS:
+                LOGGER.error(
+                    f"  IK failed after {ik_attempts} attempts. Skipping trial."
+                )
                 continue
             # --- Robustly extract the 6 Jaco joints by name ---
             # Create a dictionary mapping joint names to their positions from the IK solution
