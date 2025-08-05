@@ -639,43 +639,20 @@ class EndToEndBenchmark:
             # Reconstruct the current_jaco_state in the correct order using JOINT_NAMES_JACO
             # This ensures we get the right 6 joints in the expected order.
             current_jaco_state = [solution_joint_map[name] for name in JOINT_NAMES_JACO]
-
-            # Stage 2: AbovePlate -> MoveAbove (P2, P4)
-            LOGGER.info("Stage 2: AbovePlate -> MoveAbove")
             status_s1, traj_s1 = self._plan_s1_unconstrained(
                 scene["move_above_pose"], current_jaco_state
             )
             self.results.append(
                 {
                     "trial_id": i,
-                    "stage": "AbovePlateToMoveAbove",
-                    "primitive": "S2",
+                    "stage": "HomeToAbovePlate",
+                    "primitive": "S1",
                     "status": status_s1.value,
                 }
             )
             if status_s1 != TrialStatus.SUCCESS:
-                continue  # End trial on failure
-            current_jaco_state = list(traj_s1.points[-1].positions)
-
-            # Stage 3: MoveToStaging
-            LOGGER.info("Stage 3: MoveToStaging (Food on tool!)")
-            food_on_tool = True
-            status_s2, traj_s2, feasibility_percent = self._plan_s2_guided(
-                scene["staging_pose"], current_jaco_state
-            )
-
-            self.results.append(
-                {
-                    "trial_id": i,
-                    "stage": "AcquiredToStaging",
-                    "primitive": "S2",
-                    "status": status_s2.value,
-                    "leveling_feasibility": feasibility_percent,
-                }
-            )
-            if status_s2 != TrialStatus.SUCCESS:
                 continue
-            current_jaco_state = list(traj_s2.points[-1].positions)
+            current_jaco_state = list(traj_s1.points[-1].positions)
 
         self.save_results()
 
