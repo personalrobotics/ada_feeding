@@ -211,6 +211,8 @@ class EndToEndBenchmark:
                 "atool_motor_link",
                 "atool_u2d2",
                 "tool",
+                "j2n6s200_link_finger_1",
+                "j2n6s200_link_finger_2",
                 "j2n6s200_link_finger_tip_1",
                 "j2n6s200_link_finger_tip_2",
             ]
