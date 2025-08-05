@@ -611,7 +611,15 @@ class EndToEndBenchmark:
             )
             if ik_status != TrialStatus.SUCCESS:
                 continue
-            current_jaco_state = list(above_plate_config.position)
+            # --- Robustly extract the 6 Jaco joints by name ---
+            # Create a dictionary mapping joint names to their positions from the IK solution
+            solution_joint_map = dict(
+                zip(above_plate_config.name, above_plate_config.position)
+            )
+
+            # Reconstruct the current_jaco_state in the correct order using JOINT_NAMES_JACO
+            # This ensures we get the right 6 joints in the expected order.
+            current_jaco_state = [solution_joint_map[name] for name in JOINT_NAMES_JACO]
 
             # Stage 2: AbovePlate -> MoveAbove (P2, P4)
             LOGGER.info("Stage 2: AbovePlate -> MoveAbove")
