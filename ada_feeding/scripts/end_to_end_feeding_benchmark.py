@@ -469,6 +469,30 @@ class EndToEndBenchmark:
 
         return (feasible_waypoints / len(trajectory.points)) * 100.0
 
+    def _serialize_trajectory(
+        self, trajectory: JointTrajectory
+    ) -> Optional[Dict[str, Any]]:
+        """Converts a JointTrajectory message to a JSON-serializable dictionary."""
+        if not trajectory or not trajectory.points:
+            return None
+
+        serialized_points = []
+        for point in trajectory.points:
+            serialized_points.append(
+                {
+                    "positions": list(point.positions),
+                    "velocities": list(point.velocities),
+                    "accelerations": list(point.accelerations),
+                    "time_from_start_sec": point.time_from_start.sec,
+                    "time_from_start_nanosec": point.time_from_start.nanosec,
+                }
+            )
+
+        return {
+            "joint_names": list(trajectory.joint_names),
+            "points": serialized_points,
+        }
+
     # --- Planning Primitive Placeholders ---
     def _plan_s1_unconstrained(
         self, goal_pose: Pose, start_state: Any
@@ -593,66 +617,71 @@ class EndToEndBenchmark:
             food_on_tool = False
             current_jaco_state = scene["home_config"]
 
-            # Stage 1: Home -> AbovePlate (P1)
+            # --- Stage 1: Home -> AbovePlate (P1 with S1) ---
             LOGGER.info("Stage 1: Home -> AbovePlate")
+
+            # --- IK with Retries ---
             max_ik_attempts = 5
             ik_attempts = 0
             above_plate_config = None
-            ik_status = TrialStatus.IK_FAILURE
             for attempt in range(max_ik_attempts):
-                ik_attempts = ik_attempts + 1
+                ik_attempts += 1
                 LOGGER.info(
                     f"  Attempting IK solve ({ik_attempts}/{max_ik_attempts})..."
                 )
-                start_joint_state = current_jaco_state
-                above_plate_config = self.moveit2_jaco.compute_ik(
-                    position=scene["move_above_pose"].position,
-                    quat_xyzw=scene["move_above_pose"].orientation,
-                    start_joint_state=start_joint_state,
+
+                # Using moveit2_jaco for IK as per your latest code
+                config = self.moveit2_jaco.compute_ik(
+                    position=scene["above_plate_pose"].position,
+                    quat_xyzw=scene["above_plate_pose"].orientation,
+                    start_joint_state=current_jaco_state,
                 )
-                if above_plate_config:
-                    ik_status = TrialStatus.SUCCESS
+
+                if config:
+                    above_plate_config = config
                     LOGGER.info(f"  IK solution found on attempt {ik_attempts}.")
                     break
                 else:
                     LOGGER.warning(f"  IK attempt {ik_attempts} failed.")
-            self.results.append(
-                {
-                    "trial_id": i,
-                    "stage": "HomeToAbovePlate",
-                    "primitive": "IK",
-                    "status": ik_status.value,
-                    "ik_attempts": ik_attempts,
-                }
-            )
-            if ik_status != TrialStatus.SUCCESS:
-                LOGGER.error(
-                    f"  IK failed after {ik_attempts} attempts. Skipping trial."
-                )
-                continue
-            # --- Robustly extract the 6 Jaco joints by name ---
-            # Create a dictionary mapping joint names to their positions from the IK solution
-            solution_joint_map = dict(
-                zip(above_plate_config.name, above_plate_config.position)
-            )
 
-            # Reconstruct the current_jaco_state in the correct order using JOINT_NAMES_JACO
-            # This ensures we get the right 6 joints in the expected order.
-            current_jaco_state = [solution_joint_map[name] for name in JOINT_NAMES_JACO]
-            status_s1, traj_s1 = self._plan_s1_unconstrained(
-                scene["move_above_pose"], current_jaco_state
-            )
+            # --- Planning ---
+            status = TrialStatus.IK_FAILURE  # Default status
+            trajectory = None
+            if above_plate_config:
+                # IK succeeded, now attempt to plan
+                solution_joint_map = dict(
+                    zip(above_plate_config.name, above_plate_config.position)
+                )
+                ik_solution_for_planning = [
+                    solution_joint_map[name] for name in JOINT_NAMES_JACO
+                ]
+
+                status, trajectory = self._plan_s1_unconstrained(
+                    scene["above_plate_pose"], ik_solution_for_planning
+                )
+
+            # --- Result Logging for Stage 1 ---
+            # Consolidate all metrics for this stage into a single record.
             self.results.append(
                 {
                     "trial_id": i,
                     "stage": "HomeToAbovePlate",
                     "primitive": "S1",
-                    "status": status_s1.value,
+                    "status": status.value,
+                    "ik_attempts": ik_attempts,
+                    # Serialize the trajectory for visualization, will be None on failure
+                    "trajectory": self._serialize_trajectory(trajectory),
                 }
             )
-            if status_s1 != TrialStatus.SUCCESS:
+
+            if status != TrialStatus.SUCCESS:
+                LOGGER.error(
+                    f"  Stage 1 failed with status: {status.value}. Skipping trial."
+                )
                 continue
-            current_jaco_state = list(traj_s1.points[-1].positions)
+
+            # Update state for the next stage
+            current_jaco_state = list(trajectory.points[-1].positions)
 
         self.save_results()
 
