@@ -270,7 +270,11 @@ class EndToEndBenchmark:
         return scene
 
     def _sample_pose_in_spherical_shell(self) -> Pose:
-        """Samples a random pose within a spherical shell in front of the robot."""
+        """
+        Samples a random pose within a spherical shell in front of the robot.
+        The frame's Z-axis is constrained to be world up, and its X-axis is
+        oriented to point towards the robot base with some random variability.
+        """
         inner_radius, outer_radius = 0.3, 0.7
 
         # Sample position
@@ -282,27 +286,35 @@ class EndToEndBenchmark:
         z = r * np.cos(phi)
         position = Point(x=x, y=y, z=z)
 
-        # Enforce "look-at-robot" constraint for orientation
-        direction_vector = -np.array([x, y, z])
-        direction_vector /= np.linalg.norm(direction_vector)
+        # --- Corrected Orientation Logic ---
+        # 1. Define the primary Z-axis constraint (world up).
+        z_axis = np.array([0.0, 0.0, 1.0])
 
-        # Create rotation that aligns a frame's X-axis with this vector
-        # With some variability
-        rand_axis = np.random.randn(3)
-        rand_axis /= np.linalg.norm(rand_axis)
-        rand_angle = np.random.uniform(-np.deg2rad(30), np.deg2rad(30))
-        variability_rot = R.from_rotvec(rand_angle * rand_axis)
+        # 2. Define the vector pointing from the sampled point to the robot base (origin).
+        look_at_vector = -np.array([x, y, z])
 
-        # Main rotation to look at origin
-        up_vector = np.array([0, 0, 1])
-        x_axis = direction_vector
-        y_axis = np.cross(up_vector, x_axis)
-        y_axis /= np.linalg.norm(y_axis)
-        z_axis = np.cross(x_axis, y_axis)
+        # 3. Project the look-at vector onto the XY plane to get the direction for the X-axis.
+        #    This ensures the final X-axis will be perpendicular to the world Z-axis.
+        x_axis_direction = np.array([look_at_vector[0], look_at_vector[1], 0.0])
 
-        rotation_matrix = np.array([x_axis, y_axis, z_axis]).T
+        # Normalize the direction vector. Handle the case where the point is directly above the origin.
+        if np.linalg.norm(x_axis_direction) < 1e-6:
+            x_axis_direction = np.array(
+                [1.0, 0.0, 0.0]
+            )  # Default to pointing along world X
+        x_axis_direction /= np.linalg.norm(x_axis_direction)
+
+        # 4. Create a base rotation where the X-axis points in the desired direction and Z is up.
+        #    The Y-axis is derived from the cross product to form a right-handed frame.
+        y_axis = np.cross(z_axis, x_axis_direction)
+        rotation_matrix = np.array([x_axis_direction, y_axis, z_axis]).T
         main_rot = R.from_matrix(rotation_matrix)
 
+        # 5. Add a small random rotational variability around the Z-axis.
+        rand_yaw_angle = np.random.uniform(-np.deg2rad(30), np.deg2rad(30))
+        variability_rot = R.from_euler("z", rand_yaw_angle)
+
+        # 6. Combine the main rotation with the variability.
         final_rot = main_rot * variability_rot
         quat = final_rot.as_quat()
 
