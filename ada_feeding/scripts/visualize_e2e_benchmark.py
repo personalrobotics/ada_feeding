@@ -202,9 +202,9 @@ def draw_scene_frames(pin_viz, scene_poses: Dict[str, Any], frame_scale: float =
     print("Drawing scene frames and markers...")
     for name, pose_data in scene_poses.items():
         position = np.array(pose_data["position"])
-        quat_xyzw = pose_data["orientation_xyzw"]
-        quat_wxyz = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
-        transform = pin.SE3(pin.Quaternion(quat_wxyz), position)
+        quat_xyzw = np.array(pose_data["orientation_xyzw"])
+
+        transform = pin.SE3(pin.Quaternion(quat_xyzw), position)
 
         # Create a parent path for the frame and its marker
         frame_path = f"scene/frames/{name}"
@@ -213,7 +213,6 @@ def draw_scene_frames(pin_viz, scene_poses: Dict[str, Any], frame_scale: float =
         pin_viz.viewer[f"{frame_path}/triad"].set_object(g.triad(frame_scale))
 
         # Draw a small sphere as a visual marker/label
-        # This can be clicked in the viewer to identify the frame by its name
         material = g.MeshLambertMaterial(color=0x5555FF, transparent=True, opacity=0.6)
         pin_viz.viewer[f"{frame_path}/marker"].set_object(g.Sphere(0.02), material)
 
