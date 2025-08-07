@@ -22,6 +22,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 import meshcat
+import meshcat.geometry as g
 import numpy as np
 import pandas as pd
 import pinocchio as pin
@@ -194,19 +195,29 @@ def select_trajectory(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
 
 
 def draw_scene_frames(pin_viz, scene_poses: Dict[str, Any], frame_scale: float = 0.2):
-    """Draws coordinate frames for all poses generated in the scene."""
+    """Draws coordinate frames and identifying markers for all poses in the scene."""
     if not scene_poses:
         return
 
-    print("Drawing scene frames...")
+    print("Drawing scene frames and markers...")
     for name, pose_data in scene_poses.items():
         position = np.array(pose_data["position"])
         quat_xyzw = pose_data["orientation_xyzw"]
         quat_wxyz = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
         transform = pin.SE3(pin.Quaternion(quat_wxyz), position)
 
+        # Create a parent path for the frame and its marker
         frame_path = f"scene/frames/{name}"
-        pin_viz.viewer[frame_path].set_object(meshcat.geometry.triad(frame_scale))
+
+        # Draw the coordinate frame (triad)
+        pin_viz.viewer[f"{frame_path}/triad"].set_object(g.triad(frame_scale))
+
+        # Draw a small sphere as a visual marker/label
+        # This can be clicked in the viewer to identify the frame by its name
+        material = g.MeshLambertMaterial(color=0x5555FF, transparent=True, opacity=0.6)
+        pin_viz.viewer[f"{frame_path}/marker"].set_object(g.Sphere(0.02), material)
+
+        # Apply the same transform to the parent path
         pin_viz.viewer[frame_path].set_transform(transform.homogeneous)
 
 
@@ -244,7 +255,6 @@ def visualization_loop(pin_viz, model, data, selected_trial, args):
                     q[model.joints[joint_id].idx_q] = np.cos(pos)
                     q[model.joints[joint_id].idx_q + 1] = np.sin(pos)
 
-        # Explicitly update kinematics before displaying to prevent rendering artifacts
         pin.forwardKinematics(model, data, q)
         pin_viz.display(q)
 
@@ -280,7 +290,6 @@ def visualization_loop(pin_viz, model, data, selected_trial, args):
                                 q[model.joints[joint_id].idx_q] = np.cos(pos)
                                 q[model.joints[joint_id].idx_q + 1] = np.sin(pos)
 
-                    # Explicitly update kinematics in animation loop
                     pin.forwardKinematics(model, data, q)
                     pin_viz.display(q)
                     print(f"  Displaying frame {i + 1}/{len(waypoints)}", end="\r")
@@ -328,7 +337,6 @@ def main(args):
         if selected_trial is None:
             break
 
-        # Pass the 'data' object to the visualization loop
         action = visualization_loop(pin_viz, model, data, selected_trial, args)
         if action == "quit":
             break
