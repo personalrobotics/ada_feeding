@@ -315,7 +315,7 @@ class EndToEndBenchmark:
         # For now, a simplified version. A real implementation would be more complex.
         p = food_pose.position
         pose = Pose()
-        pose.position = Point(x=p.x, y=p.y, z=p.z + 0.3)
+        pose.position = Point(x=p.x, y=p.y, z=p.z + ARTICUTOOL_LENGTH_M)
         # Orientation looking down with some variability
         r = R.from_euler("y", np.deg2rad(-90 + np.random.uniform(-15, 15)))
         q = r.as_quat()
@@ -468,6 +468,18 @@ class EndToEndBenchmark:
                 feasible_waypoints += 1
 
         return (feasible_waypoints / len(trajectory.points)) * 100.0
+
+    def _serialize_pose(self, pose: Pose) -> Dict[str, List[float]]:
+        """Converts a Pose message to a JSON-serializable dictionary."""
+        return {
+            "position": [pose.position.x, pose.position.y, pose.position.z],
+            "orientation_xyzw": [
+                pose.orientation.x,
+                pose.orientation.y,
+                pose.orientation.z,
+                pose.orientation.w,
+            ],
+        }
 
     def _serialize_trajectory(
         self, trajectory: JointTrajectory
@@ -660,6 +672,17 @@ class EndToEndBenchmark:
                     scene["above_plate_pose"], ik_solution_for_planning
                 )
 
+            # Create a dictionary of all generated poses for this trial
+            scene_poses = {
+                "food_pose": self._serialize_pose(scene["food_pose"]),
+                "mouth_pose": self._serialize_pose(scene["mouth_pose"]),
+                "above_plate_pose": self._serialize_pose(scene["above_plate_pose"]),
+                "move_above_pose": self._serialize_pose(scene["move_above_pose"]),
+                "move_into_pose": self._serialize_pose(scene["move_into_pose"]),
+                "staging_pose": self._serialize_pose(scene["staging_pose"]),
+                "resting_pose": self._serialize_pose(scene["resting_pose"]),
+            }
+
             # --- Result Logging for Stage 1 ---
             # Consolidate all metrics for this stage into a single record.
             self.results.append(
@@ -671,6 +694,7 @@ class EndToEndBenchmark:
                     "ik_attempts": ik_attempts,
                     # Serialize the trajectory for visualization, will be None on failure
                     "trajectory": self._serialize_trajectory(trajectory),
+                    "scene_poses": scene_poses,
                 }
             )
 
