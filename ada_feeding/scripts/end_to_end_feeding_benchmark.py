@@ -211,6 +211,7 @@ class EndToEndBenchmark:
                 "atool_motor_link",
                 "atool_u2d2",
                 "tool",
+                "ft",
                 "j2n6s200_link_finger_1",
                 "j2n6s200_link_finger_2",
                 "j2n6s200_link_finger_tip_1",
@@ -661,15 +662,8 @@ class EndToEndBenchmark:
             trajectory = None
             if above_plate_config:
                 # IK succeeded, now attempt to plan
-                solution_joint_map = dict(
-                    zip(above_plate_config.name, above_plate_config.position)
-                )
-                ik_solution_for_planning = [
-                    solution_joint_map[name] for name in JOINT_NAMES_JACO
-                ]
-
                 status, trajectory = self._plan_s1_unconstrained(
-                    scene["above_plate_pose"], ik_solution_for_planning
+                    scene["above_plate_pose"], current_jaco_state
                 )
 
             # Create a dictionary of all generated poses for this trial
