@@ -324,16 +324,67 @@ class EndToEndBenchmark:
         )
 
     def _calculate_above_plate_pose(self, food_pose: Pose) -> Pose:
-        """Calculate a camera pose that looks down at the food."""
-        # For now, a simplified version. A real implementation would be more complex.
-        p = food_pose.position
-        pose = Pose()
-        pose.position = Point(x=p.x, y=p.y, z=p.z + ARTICUTOOL_LENGTH_M)
-        # Orientation looking down with some variability
-        r = R.from_euler("y", np.deg2rad(-90 + np.random.uniform(-15, 15)))
-        q = r.as_quat()
-        pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
-        return pose
+        """
+        Calculates a camera pose for the Jaco end-effector that looks at the food.
+
+        The position is sampled from a spherical cap above the food pose,
+        and the orientation is constrained to look at the food with no roll.
+        """
+        # --- Position Calculation using Spherical Coordinates ---
+        # 1. Define the spherical coordinate parameters
+        radial_distance = 0.3  # Constant distance from the food
+
+        # Azimuthal angle (around Z-axis): sample from a full circle
+        azimuthal_angle = np.random.uniform(0, 2 * np.pi)
+
+        # Polar angle (from Z-axis): 0 is directly above, up to 45 degrees away
+        polar_angle = np.random.uniform(0, np.deg2rad(45))
+
+        # 2. Calculate the position offset in a frame aligned with the world
+        x_offset = radial_distance * np.sin(polar_angle) * np.cos(azimuthal_angle)
+        y_offset = radial_distance * np.sin(polar_angle) * np.sin(azimuthal_angle)
+        z_offset = radial_distance * np.cos(polar_angle)
+
+        # 3. Calculate the final camera position relative to the food pose
+        food_position = np.array(
+            [food_pose.position.x, food_pose.position.y, food_pose.position.z]
+        )
+        camera_position = food_position + np.array([x_offset, y_offset, z_offset])
+
+        # --- Orientation Calculation (Look-at with no roll) ---
+        # 1. The end-effector's Z-axis must point from its position to the food's origin.
+        z_axis = food_position - camera_position
+        z_axis /= np.linalg.norm(z_axis)
+
+        # 2. The end-effector's Y-axis should be aligned with the world's "up" to prevent roll.
+        world_up = np.array([0.0, 0.0, 1.0])
+
+        # 3. Calculate the X-axis (left) and handle the singularity when looking straight down.
+        if np.abs(np.dot(z_axis, world_up)) > 0.999:
+            # Looking straight down, the cross product is ill-defined.
+            # We can define the camera's "left" (X-axis) to be the world's Y-axis in this case.
+            x_axis = np.array([0.0, 1.0, 0.0])
+        else:
+            x_axis = np.cross(world_up, z_axis)
+            x_axis /= np.linalg.norm(x_axis)
+
+        # 4. Re-calculate the Y-axis to ensure the frame is perfectly orthonormal.
+        y_axis = np.cross(z_axis, x_axis)
+
+        # 5. Construct the final rotation matrix from the basis vectors.
+        # Jaco EE frame convention: [x_left, y_up, z_forward]
+        rotation_matrix = np.array([x_axis, y_axis, z_axis]).T
+        rotation = R.from_matrix(rotation_matrix)
+        quat = rotation.as_quat()
+
+        # Create and return the final Pose message
+        final_pose = Pose()
+        final_pose.position = Point(
+            x=camera_position[0], y=camera_position[1], z=camera_position[2]
+        )
+        final_pose.orientation = Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3])
+
+        return final_pose
 
     def _calculate_move_above_pose(self, food_pose: Pose) -> Pose:
         """Calculate the pre-acquisition pose based on ADA action schema."""
