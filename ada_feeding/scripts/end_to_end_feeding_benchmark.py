@@ -254,8 +254,18 @@ class EndToEndBenchmark:
         scene = {"base_z_offset": base_z_offset}
 
         # Sample food and mouth poses
-        scene["food_pose"] = self._sample_pose_in_spherical_shell()
-        scene["mouth_pose"] = self._sample_pose_in_spherical_shell()
+        scene["food_pose"] = self._sample_pose_in_cylindrical_shell(
+            inner_radius=0.4,
+            outer_radius=0.7,
+            min_height=0.0,
+            max_height=0.3,
+        )
+        scene["mouth_pose"] = self._sample_pose_in_cylindrical_shell(
+            inner_radius=0.3,
+            outer_radius=0.6,
+            min_height=0.0,
+            max_height=0.6,
+        )
 
         # Define derived poses
         scene["home_config"] = [-1.47568, 2.92779, 1.00845, -2.0847, 1.43588, 1.32575]
@@ -268,6 +278,52 @@ class EndToEndBenchmark:
         scene["resting_pose"] = Pose(position=Point(x=0.4, y=-0.4, z=0.3))
 
         return scene
+
+    def _sample_pose_in_cylindrical_shell(
+        self,
+        inner_radius: float,
+        outer_radius: float,
+        min_height: float,
+        max_height: float,
+    ) -> Pose:
+        """
+        Samples a random pose within a cylindrical shell
+
+        The frame's Z-axis is constrained to be world up, and its X-axis is
+        oriented to point towards the robot base with some random variability.
+        """
+        # --- Position Sampling in a Cylindrical Shell ---
+        # 1. Sample the radius and angle
+        radius = np.sqrt(np.random.uniform(inner_radius**2, outer_radius**2))
+        theta = np.random.uniform(0, 2 * np.pi)
+
+        # 2. Convert to Cartesian coordinates
+        x = radius * np.cos(theta)
+        y = radius * np.sin(theta)
+        z = np.random.uniform(min_height, max_height)
+        position = Point(x=x, y=y, z=z)
+
+        # --- Orientation Calculation  ---
+        z_axis = np.array([0.0, 0.0, 1.0])
+        look_at_vector = -np.array([x, y, 0.0])  # Project to XY plane
+        if np.linalg.norm(look_at_vector) < 1e-6:
+            look_at_vector = np.array([1.0, 0.0, 0.0])
+        x_axis_direction = look_at_vector / np.linalg.norm(look_at_vector)
+
+        y_axis = np.cross(z_axis, x_axis_direction)
+        rotation_matrix = np.array([x_axis_direction, y_axis, z_axis]).T
+        main_rot = R.from_matrix(rotation_matrix)
+
+        rand_yaw_angle = np.random.uniform(-np.deg2rad(30), np.deg2rad(30))
+        variability_rot = R.from_euler("z", rand_yaw_angle)
+
+        final_rot = main_rot * variability_rot
+        quat = final_rot.as_quat()
+
+        return Pose(
+            position=position,
+            orientation=Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3]),
+        )
 
     def _sample_pose_in_spherical_shell(self) -> Pose:
         """
