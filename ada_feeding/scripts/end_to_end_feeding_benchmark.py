@@ -381,30 +381,31 @@ class EndToEndBenchmark:
 
     def _calculate_above_plate_pose(self, food_pose: Pose) -> Pose:
         """
-        Calculates a camera pose for the Jaco end-effector that looks at the food.
-
-        The position is sampled from a spherical cap above the food pose,
-        and the orientation is constrained to look at the food with no roll.
+        Calculates a camera pose for the Jaco end-effector that looks at the food,
+        with a yaw constraint that keeps the arm aligned with the robot base.
         """
-        # --- Position Calculation using Spherical Coordinates ---
-        # 1. Define the spherical coordinate parameters
-        radial_distance = 0.3  # Constant distance from the food
-
-        # Azimuthal angle (around Z-axis): sample from a full circle
-        azimuthal_angle = np.random.uniform(0, 2 * np.pi)
-
-        # Polar angle (from Z-axis): 0 is directly above, up to 45 degrees away
-        polar_angle = np.random.uniform(0, np.deg2rad(45))
-
-        # 2. Calculate the position offset in a frame aligned with the world
-        x_offset = radial_distance * np.sin(polar_angle) * np.cos(azimuthal_angle)
-        y_offset = radial_distance * np.sin(polar_angle) * np.sin(azimuthal_angle)
-        z_offset = radial_distance * np.cos(polar_angle)
-
-        # 3. Calculate the final camera position relative to the food pose
         food_position = np.array(
             [food_pose.position.x, food_pose.position.y, food_pose.position.z]
         )
+
+        # --- Position Calculation with Yaw Constraint ---
+        # 1. Determine the base yaw angle from the robot's origin to the food's XY position.
+        base_yaw_angle = np.arctan2(food_position[1], food_position[0])
+
+        # 2. Add random variability to this base angle.
+        yaw_variability = np.random.uniform(-np.deg2rad(45), np.deg2rad(45))
+        final_azimuthal_angle = base_yaw_angle + yaw_variability + np.pi
+
+        # 3. Use spherical coordinates relative to the food pose to find the camera position.
+        radial_distance = 0.3  # Constant distance from the food
+        polar_angle = np.random.uniform(0, np.deg2rad(45))  # Angle from vertical
+
+        # Calculate the offset from the food pose.
+        x_offset = radial_distance * np.sin(polar_angle) * np.cos(final_azimuthal_angle)
+        y_offset = radial_distance * np.sin(polar_angle) * np.sin(final_azimuthal_angle)
+        z_offset = radial_distance * np.cos(polar_angle)
+
+        # The final camera position is the food position plus this offset.
         camera_position = food_position + np.array([x_offset, y_offset, z_offset])
 
         # --- Orientation Calculation (Look-at with no roll) ---
@@ -417,8 +418,7 @@ class EndToEndBenchmark:
 
         # 3. Calculate the X-axis (left) and handle the singularity when looking straight down.
         if np.abs(np.dot(z_axis, world_up)) > 0.999:
-            # Looking straight down, the cross product is ill-defined.
-            # We can define the camera's "left" (X-axis) to be the world's Y-axis in this case.
+            # Looking straight down, define "left" relative to the world frame.
             x_axis = np.array([0.0, 1.0, 0.0])
         else:
             x_axis = np.cross(world_up, z_axis)
@@ -428,7 +428,6 @@ class EndToEndBenchmark:
         y_axis = np.cross(z_axis, x_axis)
 
         # 5. Construct the final rotation matrix from the basis vectors.
-        # Jaco EE frame convention: [x_left, y_up, z_forward]
         rotation_matrix = np.array([x_axis, y_axis, z_axis]).T
         rotation = R.from_matrix(rotation_matrix)
         quat = rotation.as_quat()
