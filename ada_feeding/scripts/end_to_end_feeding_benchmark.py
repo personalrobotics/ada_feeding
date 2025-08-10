@@ -309,9 +309,16 @@ class EndToEndBenchmark:
         # Define derived poses
         scene["home_config"] = [-1.47568, 2.92779, 1.00845, -2.0847, 1.43588, 1.32575]
         scene["above_plate_pose"] = self._calculate_above_plate_pose(scene["food_pose"])
-        scene["move_above_pose"] = self._calculate_move_above_pose(scene["food_pose"])
-        scene["move_into_pose"] = self._calculate_move_into_pose(
-            scene["food_pose"], scene["move_above_pose"]
+        scene["move_into_pose"], approach_vector = self._calculate_move_into_pose(
+            food_pose=scene["food_pose"],
+            recipe=ActionRecipe(
+                AcquisitionStrategy.SKEWER,
+                MotionAxis.VERTICAL,
+                ToolAlignment.PERPENDICULAR,
+            ),
+        )
+        scene["move_above_pose"] = self._calculate_move_above_pose(
+            move_into_pose=scene["move_into_pose"], approach_vector=approach_vector
         )
         scene["staging_pose"] = self._calculate_staging_pose(scene["mouth_pose"])
         scene["resting_pose"] = Pose(position=Point(x=0.4, y=-0.4, z=0.3))
@@ -480,45 +487,96 @@ class EndToEndBenchmark:
 
         return final_pose
 
-    def _calculate_move_above_pose(self, food_pose: Pose) -> Pose:
-        """Calculate the pre-acquisition pose based on ADA action schema."""
-        # Parameterize with approach vector (polar and azimuthal angles)
-        polar_angle = np.random.uniform(np.deg2rad(30), np.deg2rad(60))
-        azimuthal_angle = np.random.uniform(-np.deg2rad(45), np.deg2rad(45))
-        offset_dist = 0.1
+    # --- Semantic Pose Calculation ---
+    def _calculate_move_into_pose(
+        self, food_pose: Pose, recipe: ActionRecipe
+    ) -> Tuple[Pose, np.ndarray]:
+        """
+        Calculates the MoveInto tool tip pose based on a semantic ActionRecipe.
+        Returns the pose and the calculated approach vector (the tool's Z-axis).
+        """
+        # Default to identity rotation and a vertical approach vector
+        final_rotation = R.identity()
+        approach_vector = np.array([0.0, 0.0, -1.0])
 
-        # Calculate offset in a frame aligned with the food pose
-        x_offset = offset_dist * np.sin(polar_angle) * np.cos(azimuthal_angle)
-        y_offset = offset_dist * np.sin(polar_angle) * np.sin(azimuthal_angle)
-        z_offset = offset_dist * np.cos(polar_angle)
+        # --- SKEWER Strategy Logic ---
+        if recipe.strategy == AcquisitionStrategy.SKEWER:
+            # Get the food's principal axes from its orientation
+            food_orientation = R.from_quat(
+                [
+                    food_pose.orientation.x,
+                    food_pose.orientation.y,
+                    food_pose.orientation.z,
+                    food_pose.orientation.w,
+                ]
+            )
+            major_axis_food = food_orientation.apply(
+                [1.0, 0.0, 0.0]
+            )  # Food's X (longer)
+            minor_axis_food = food_orientation.apply(
+                [0.0, 1.0, 0.0]
+            )  # Food's Y (shorter)
 
-        # Create rotation from angles
-        rot = R.from_euler("zy", [-azimuthal_angle, -polar_angle])
+            # 1. Align Tines: The tool's X-axis (tines) must align with the
+            #    food's minor axis for a stable skewer.
+            tool_x_final = minor_axis_food
 
-        # Apply this transform to the food pose
-        food_rot = R.from_quat(
-            [
-                food_pose.orientation.x,
-                food_pose.orientation.y,
-                food_pose.orientation.z,
-                food_pose.orientation.w,
-            ]
-        )
-        final_rot = food_rot * rot
-        q = final_rot.as_quat()
+            # 2. Define Approach & Tilt: The approach is along the food's major axis,
+            #    tilted by a random polar angle. We find the tool's Z-axis by rotating
+            #    a downward vector around the tool's new X-axis.
+            sampled_polar_angle = np.random.uniform(
+                0, np.deg2rad(60)
+            )  # Angle from vertical
+            rotation = R.from_rotvec(sampled_polar_angle * tool_x_final)
+            tool_z_final = rotation.apply(
+                np.array([0.0, 0.0, -1.0])
+            )  # Rotate a downward vector
 
-        p = food_pose.position
-        final_pos = Point(x=p.x - x_offset, y=p.y - y_offset, z=p.z + z_offset)
+            # 3. Complete the Frame: The tool's Y-axis is derived from the cross product.
+            tool_y_final = np.cross(tool_z_final, tool_x_final)
 
-        return Pose(
-            position=final_pos, orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
-        )
+            # 4. The final rotation is constructed from these basis vectors.
+            rotation_matrix = np.array([tool_x_final, tool_y_final, tool_z_final]).T
+            final_rotation = R.from_matrix(rotation_matrix)
+            approach_vector = tool_z_final
 
-    def _calculate_move_into_pose(self, food_pose: Pose, move_above_pose: Pose) -> Pose:
-        """The MoveInto pose has the same orientation as MoveAbove."""
-        return Pose(
-            position=food_pose.position, orientation=move_above_pose.orientation
-        )
+        # --- SCOOP Strategy Logic (Placeholder) ---
+        elif recipe.strategy == AcquisitionStrategy.SCOOP:
+            # This logic will be implemented next.
+            base_rotation = R.from_euler("y", -60, degrees=True)
+            final_rotation = base_rotation
+            # TODO: Add alignment logic based on food's principal axes.
+
+        # --- Construct the final pose ---
+        q = final_rotation.as_quat()
+        move_into_pose = Pose()
+        move_into_pose.position = food_pose.position
+        move_into_pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+
+        return move_into_pose, approach_vector
+
+    def _calculate_move_above_pose(
+        self, move_into_pose: Pose, approach_vector: np.ndarray
+    ) -> Pose:
+        """
+        Calculates the MoveAbove pose by offsetting from MoveInto along the
+        calculated approach vector.
+        """
+        # 1. Inherit the orientation directly from the target pose
+        final_orientation = move_into_pose.orientation
+
+        # 2. The motion vector for the linear path IS the approach vector (tool's Z-axis)
+        motion_vector = approach_vector
+
+        # 3. Calculate the offset position
+        offset_dist = 0.1  # 10 cm
+        p = move_into_pose.position
+        # We add the offset because the approach_vector is already pointing "down".
+        # To get the "above" pose, we move in the opposite direction of the approach.
+        offset = motion_vector * -offset_dist
+        final_position = Point(x=p.x + offset[0], y=p.y + offset[1], z=p.z + offset[2])
+
+        return Pose(position=final_position, orientation=final_orientation)
 
     def _calculate_staging_pose(self, mouth_pose: Pose) -> Pose:
         """Calculate the staging pose relative to the mouth."""
