@@ -746,7 +746,7 @@ class EndToEndBenchmark:
             LOGGER.info(f"--- Running Trial {i + 1}/{self.num_trials} ---")
 
             # 1. Generate a new scene
-            scene = self._generate_scene)
+            scene = self._generate_scene()
             LOGGER.info(
                 f"""
                 --- Generated Scene Parameters for Trial {i + 1} ---
