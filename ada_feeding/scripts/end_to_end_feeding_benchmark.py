@@ -48,7 +48,7 @@ PLANNING_GROUP_JACO = "jaco_arm"
 PLANNING_GROUP_ATOOL = "articutool"
 PLANNING_GROUP_FULL = "jaco_arm_with_articutool"
 JOINT_NAMES_JACO = [f"j2n6s200_joint_{i + 1}" for i in range(6)]
-JOINT_NAMES_ATOOL = [f"atool_joint_{i + 1}" for i in range(2)]
+JOINT_NAMES_ATOOL = [f"atool_joint{i + 1}" for i in range(2)]
 JOINT_NAMES_FULL = JOINT_NAMES_JACO + JOINT_NAMES_ATOOL
 BASE_LINK_JACO = "j2n6s200_link_base"
 BASE_LINK_ATOOL = "atool_link_base"
@@ -722,6 +722,67 @@ class EndToEndBenchmark:
         }
 
     # --- Planning Primitive Placeholders ---
+    def _plan_to_joint_config(
+        self,
+        moveit_planner: MoveIt2,
+        target_config: List[float],
+        start_config: List[float],
+    ) -> Optional[JointTrajectory]:
+        """Plans a joint-space trajectory for a given planner and target."""
+        moveit_planner.set_joint_goal(target_config)
+        future = moveit_planner.plan_async(start_joint_state=start_config)
+        rclpy.spin_until_future_complete(
+            self.node, future, timeout_sec=self.planning_timeout
+        )
+        return moveit_planner.get_trajectory(future)
+
+    def _plan_to_move_above(
+        self,
+        move_above_pose: Pose,
+        start_state_jaco: List[float],
+        start_state_atool: List[float],
+    ) -> Tuple[TrialStatus, Optional[JointTrajectory], Optional[JointTrajectory]]:
+        """
+        Plans to the MoveAbove configuration by solving 8-DOF IK and then
+        planning for each subgroup separately.
+        """
+        LOGGER.info("  Solving 8-DOF IK for MoveAbove pose...")
+        start_state_full = start_state_jaco + start_state_atool
+
+        # 1. Solve 8-DOF IK for the target pose
+        ik_solution = self.moveit2_full.compute_ik(
+            position=move_above_pose.position,
+            quat_xyzw=move_above_pose.orientation,
+            start_joint_state=start_state_full,
+        )
+
+        if not ik_solution:
+            LOGGER.warning("  IK solution for 8-DOF system not found.")
+            return TrialStatus.IK_FAILURE, None, None
+
+        LOGGER.info("  8-DOF IK solution found. Planning for subgroups.")
+        target_jaco_config = ik_solution[:6]
+        target_atool_config = ik_solution[6:]
+
+        # 2. Plan for Jaco arm (6-DOF)
+        traj_jaco = self._plan_to_joint_config(
+            self.moveit2_jaco, target_jaco_config, start_state_jaco
+        )
+        if not traj_jaco or not traj_jaco.points:
+            LOGGER.warning("  Jaco arm planning failed.")
+            return TrialStatus.PLANNER_FAILURE, None, None
+
+        # 3. Plan for Articutool wrist (2-DOF)
+        traj_atool = self._plan_to_joint_config(
+            self.moveit2_atool, target_atool_config, start_state_atool
+        )
+        if not traj_atool or not traj_atool.points:
+            LOGGER.warning("  Articutool planning failed.")
+            return TrialStatus.PLANNER_FAILURE, traj_jaco, None
+
+        LOGGER.info("  Subgroup planning successful.")
+        return TrialStatus.SUCCESS, traj_jaco, traj_atool
+
     def _plan_s1_unconstrained(
         self, goal_pose: Pose, start_state: Any
     ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
@@ -843,6 +904,7 @@ class EndToEndBenchmark:
             # 2. Simulate the feeding cycle state machine
             food_on_tool = False
             current_jaco_state = scene["home_config"]
+            current_atool_state = [0.0, 0.0]  # Assume atool starts at zero
 
             # --- Stage 1: Home -> AbovePlate (P1 with S1) ---
             LOGGER.info("Stage 1: Home -> AbovePlate")
@@ -914,6 +976,30 @@ class EndToEndBenchmark:
 
             # Update state for the next stage
             current_jaco_state = list(trajectory.points[-1].positions)
+            LOGGER.info("  Stage 1 successful.")
+
+            # --- Stage 2: AbovePlate -> MoveAbove (P2 with SX) ---
+            LOGGER.info("Stage 2: AbovePlate -> MoveAbove")
+
+            # Plan to the MoveAbove configuration
+            status, traj_jaco_to_above, traj_atool_to_above = self._plan_to_move_above(
+                scene["move_above_pose"], current_jaco_state, current_atool_state
+            )
+
+            # Log the results for this stage and recipe
+            self.results.append(
+                {
+                    "trial_id": i,
+                    "stage": "AbovePlateToMoveAbove",
+                    "status": status.value,
+                }
+            )
+
+            if status != TrialStatus.SUCCESS:
+                LOGGER.error(
+                    f"  Stage 2 failed with status: {status.value}. Skipping trial."
+                )
+                continue
 
         self.save_results()
 
