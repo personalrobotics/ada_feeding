@@ -288,9 +288,9 @@ class EndToEndBenchmark:
             self.node.get_logger().error(f"Error in ACM callback: {e}")
 
     # --- Scene Generation ---
-    def _generate_scene(self, base_z_offset: float) -> Dict[str, Any]:
+    def _generate_scene(self) -> Dict[str, Any]:
         """Generates a randomized, robot-centric planning scene."""
-        scene = {"base_z_offset": base_z_offset}
+        scene = {}
 
         # Sample food and mouth poses
         scene["food_pose"] = self._sample_pose_in_cylindrical_shell(
@@ -746,11 +746,10 @@ class EndToEndBenchmark:
             LOGGER.info(f"--- Running Trial {i + 1}/{self.num_trials} ---")
 
             # 1. Generate a new scene
-            scene = self._generate_scene(base_z_offset=0.1)
+            scene = self._generate_scene)
             LOGGER.info(
                 f"""
                 --- Generated Scene Parameters for Trial {i + 1} ---
-                - Robot Base Z Offset: {scene["base_z_offset"]:.3f}m
 
                 - Initial State:
                   - Home Config: [{", ".join(f"{j:.4f}" for j in scene["home_config"])}]
