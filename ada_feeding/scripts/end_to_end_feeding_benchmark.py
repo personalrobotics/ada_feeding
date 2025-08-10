@@ -23,7 +23,8 @@ import math
 import subprocess
 import sys
 import argparse
-from enum import Enum
+from enum import Enum, auto
+from dataclasses import dataclass
 
 # Third-party imports
 import numpy as np
@@ -71,6 +72,44 @@ class TrialStatus(Enum):
     PLANNER_FAILURE = "Planner Failure"
     VERIFICATION_FAILURE = "Path Verification Failure"
     SKIPPED = "Skipped"
+
+
+# --- Semantic Schema for Acquisition Actions ---
+class AcquisitionStrategy(Enum):
+    """High-level choice of physical interaction"""
+
+    SKEWER = auto()
+    SCOOP = auto()
+    CUT = auto()
+
+
+class MotionAxis(Enum):
+    """The primary axis for the arm's linear motion"""
+
+    MAJOR_AXIS = auto()
+    MINOR_AXIS = auto()
+    VERTICAL = auto()
+
+
+class ToolAlignment(Enum):
+    """How the tool is oriented relative to the food's structure"""
+
+    PARALLEL = auto()
+    PERPENDICULAR = auto()
+
+
+@dataclass
+class ActionRecipe:
+    """Holds the semantic parameters for a single acquisition action"""
+
+    strategy: AcquisitionStrategy
+    motion_axis: MotionAxis
+    tool_alignment: ToolAlignment
+
+    def __str__(self):
+        return (
+            f"{self.strategy.name}-{self.motion_axis.name}-{self.tool_alignment.name}"
+        )
 
 
 class EndToEndBenchmark:
