@@ -909,38 +909,9 @@ class EndToEndBenchmark:
             # --- Stage 1: Home -> AbovePlate (P1 with S1) ---
             LOGGER.info("Stage 1: Home -> AbovePlate")
 
-            # --- IK with Retries ---
-            max_ik_attempts = 5
-            ik_attempts = 0
-            above_plate_config = None
-            for attempt in range(max_ik_attempts):
-                ik_attempts += 1
-                LOGGER.info(
-                    f"  Attempting IK solve ({ik_attempts}/{max_ik_attempts})..."
-                )
-
-                # Using moveit2_jaco for IK as per your latest code
-                config = self.moveit2_jaco.compute_ik(
-                    position=scene["above_plate_pose"].position,
-                    quat_xyzw=scene["above_plate_pose"].orientation,
-                    start_joint_state=current_jaco_state,
-                )
-
-                if config:
-                    above_plate_config = config
-                    LOGGER.info(f"  IK solution found on attempt {ik_attempts}.")
-                    break
-                else:
-                    LOGGER.warning(f"  IK attempt {ik_attempts} failed.")
-
-            # --- Planning ---
-            status = TrialStatus.IK_FAILURE  # Default status
-            trajectory = None
-            if above_plate_config:
-                # IK succeeded, now attempt to plan
-                status, trajectory = self._plan_s1_unconstrained(
-                    scene["above_plate_pose"], current_jaco_state
-                )
+            status, trajectory = self._plan_s1_unconstrained(
+                scene["above_plate_pose"], current_jaco_state
+            )
 
             # Create a dictionary of all generated poses for this trial
             scene_poses = {
@@ -961,8 +932,6 @@ class EndToEndBenchmark:
                     "stage": "HomeToAbovePlate",
                     "primitive": "S1",
                     "status": status.value,
-                    "ik_attempts": ik_attempts,
-                    # Serialize the trajectory for visualization, will be None on failure
                     "trajectory": self._serialize_trajectory(trajectory),
                     "scene_poses": scene_poses,
                 }
