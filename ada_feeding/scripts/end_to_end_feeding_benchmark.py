@@ -113,6 +113,52 @@ class ActionRecipe:
         )
 
 
+class MoveIt2ConstraintType(Enum):
+    """Specifies the type of constraint to be applied."""
+
+    JOINT = "joint"
+    POSITION = "position"
+    ORIENTATION = "orientation"
+    POSE = "pose"
+
+
+def create_pose_constraint(
+    pose: Pose, tolerance_position: float = 0.001, tolerance_orientation: float = 0.001
+) -> Tuple[MoveIt2ConstraintType, Dict]:
+    """Creates a standard pose goal constraint."""
+    return (
+        MoveIt2ConstraintType.POSE,
+        {
+            "pose": pose,
+            "tolerance_position": tolerance_position,
+            "tolerance_orientation": tolerance_orientation,
+        },
+    )
+
+
+def create_orientation_path_constraint(
+    quat_xyzw: Tuple, tolerance_rad: Tuple
+) -> Tuple[MoveIt2ConstraintType, Dict]:
+    """Creates an orientation path constraint, useful for keeping the tool level."""
+    return (
+        MoveIt2ConstraintType.ORIENTATION,
+        {
+            "quat_xyzw": Quaternion(
+                x=quat_xyzw[0], y=quat_xyzw[1], z=quat_xyzw[2], w=quat_xyzw[3]
+            ),
+            "tolerance": tolerance_rad,
+            "weight": 1.0,
+        },
+    )
+
+
+def create_joint_constraint(
+    joint_positions: List[float],
+) -> Tuple[MoveIt2ConstraintType, Dict]:
+    """Creates a joint goal constraint."""
+    return (MoveIt2ConstraintType.JOINT, {"joint_positions": joint_positions})
+
+
 class MotionPlanner:
     """A wrapper for MoveIt2 to provide a seamless, synchronous API for planning."""
 
@@ -165,12 +211,12 @@ class MotionPlanner:
     def plan(
         self,
         group_name: str,
-        goal_pose: Optional[Pose] = None,
-        goal_joints: Optional[List[float]] = None,
-        start_state: Optional[List[float]] = None,
+        start_state: Optional[List[float]],
+        goal_constraints: List[Tuple[MoveIt2ConstraintType, Dict]],
+        path_constraints: Optional[List[Tuple[MoveIt2ConstraintType, Dict]]] = None,
     ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
         """
-        Plans a trajectory for a given group to a target pose or joint state.
+        Plans a trajectory for a given group based on a list of goal and path constraints.
 
         Returns:
             A status and the resulting trajectory, or None on failure.
@@ -178,17 +224,36 @@ class MotionPlanner:
         planner = self._get_planner(group_name)
         future = None
 
+        if not goal_constraints:
+            LOGGER.error("Planning failed: At least one goal constraint is required.")
+            return TrialStatus.IK_FAILURE, None
+
         with self._lock:
             planner.clear_goal_constraints()
             planner.clear_path_constraints()
 
-            if goal_pose:
-                planner.set_pose_goal(goal_pose, planner.end_effector_name)
-            elif goal_joints:
-                planner.set_joint_goal(goal_joints)
-            else:
-                return TrialStatus.IK_FAILURE, None  # No goal provided
+            # --- Process Goal Constraints ---
+            for constraint_type, kwargs in goal_constraints:
+                if constraint_type == MoveIt2ConstraintType.JOINT:
+                    planner.set_joint_goal(**kwargs)
+                elif constraint_type == MoveIt2ConstraintType.POSITION:
+                    planner.set_position_goal(**kwargs)
+                elif constraint_type == MoveIt2ConstraintType.ORIENTATION:
+                    planner.set_orientation_goal(**kwargs)
+                elif constraint_type == MoveIt2ConstraintType.POSE:
+                    planner.set_pose_goal(**kwargs)
 
+            # --- Process Path Constraints ---
+            if path_constraints:
+                for constraint_type, kwargs in path_constraints:
+                    if constraint_type == MoveIt2ConstraintType.JOINT:
+                        planner.set_path_joint_constraint(**kwargs)
+                    elif constraint_type == MoveIt2ConstraintType.POSITION:
+                        planner.set_path_position_constraint(**kwargs)
+                    elif constraint_type == MoveIt2ConstraintType.ORIENTATION:
+                        planner.set_path_orientation_constraint(**kwargs)
+
+            # --- Initiate Asynchronous Planning ---
             future = planner.plan_async(start_joint_state=start_state)
 
         # Wait for the future to complete outside the lock
@@ -844,10 +909,11 @@ class EndToEndBenchmark:
         target_atool_config = [solution_map[name] for name in JOINT_NAMES_ATOOL]
 
         # 2. Plan for the Jaco arm
+        jaco_goal_constraints = [create_joint_constraint(target_jaco_config)]
         status_jaco, traj_jaco = self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
-            goal_joints=target_jaco_config,
             start_state=start_state_jaco,
+            goal_constraints=jaco_goal_constraints,
         )
 
         if status_jaco != TrialStatus.SUCCESS:
@@ -855,10 +921,11 @@ class EndToEndBenchmark:
             return TrialStatus.PLANNER_FAILURE, None, None
 
         # 3. Plan for the Articutool
+        atool_goal_constraints = [create_joint_constraint(target_atool_config)]
         status_atool, traj_atool = self.motion_planner.plan(
             group_name=PLANNING_GROUP_ATOOL,
-            goal_joints=target_atool_config,
             start_state=start_state_atool,
+            goal_constraints=atool_goal_constraints,
         )
 
         if status_atool != TrialStatus.SUCCESS:
@@ -871,10 +938,12 @@ class EndToEndBenchmark:
         self, goal_pose: Pose, start_state: Any
     ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
         LOGGER.info("  Planning with S1 (6-DOF Unconstrained)...")
+        goal_constraints = [create_pose_constraint(goal_pose)]
+
         return self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
-            goal_pose=goal_pose,
             start_state=start_state,
+            goal_constraints=goal_constraints,
         )
 
     def _plan_s2_guided(
