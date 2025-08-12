@@ -16,7 +16,7 @@ from collections import namedtuple
 from datetime import datetime
 import os
 import time
-from threading import Thread
+from threading import Thread, Lock
 from typing import Optional, List, Dict, Tuple, Any
 import json
 import math
@@ -135,6 +135,7 @@ class EndToEndBenchmark:
         self.planning_timeout = planning_timeout
         self.output_dir = output_dir
         self.results: List[Dict[str, Any]] = []
+        self.moveit2_lock = Lock()
 
         # Pinocchio model for feasibility checks
         self.pinocchio_model: Optional[pin.Model] = None
@@ -729,11 +730,26 @@ class EndToEndBenchmark:
         start_config: List[float],
     ) -> Optional[JointTrajectory]:
         """Plans a joint-space trajectory for a given planner and target."""
-        moveit_planner.set_joint_goal(target_config)
-        future = moveit_planner.plan_async(start_joint_state=start_config)
-        rclpy.spin_until_future_complete(
-            self.node, future, timeout_sec=self.planning_timeout
-        )
+
+        future = None
+        # --- Lock the MoveIt2 interaction ---
+        with self.moveit2_lock:
+            moveit_planner.set_joint_goal(target_config)
+            future = moveit_planner.plan_async(start_joint_state=start_config)
+
+        # The lock is released here, while we wait for the future to complete.
+        # This is safe because the action goal has already been sent.
+
+        start_time = time.time()
+        while rclpy.ok() and not future.done():
+            if time.time() - start_time > self.planning_timeout:
+                LOGGER.error("Planning timed out.")
+                # We don't need to re-acquire the lock to cancel
+                future.cancel()
+                return None
+            time.sleep(0.1)
+
+        # No lock needed to get the result
         return moveit_planner.get_trajectory(future)
 
     def _plan_to_move_above(
@@ -748,23 +764,33 @@ class EndToEndBenchmark:
         """
         LOGGER.info("  Solving 8-DOF IK for MoveAbove pose...")
         start_state_full = start_state_jaco + start_state_atool
+        ik_solution = None
 
-        # 1. Solve 8-DOF IK for the target pose
-        ik_solution = self.moveit2_full.compute_ik(
-            position=move_above_pose.position,
-            quat_xyzw=move_above_pose.orientation,
-            start_joint_state=start_state_full,
-        )
+        with self.moveit2_lock:
+            # 1. Solve 8-DOF IK for the target pose
+            ik_solution = self.moveit2_full.compute_ik(
+                position=move_above_pose.position,
+                quat_xyzw=move_above_pose.orientation,
+                start_joint_state=start_state_full,
+            )
 
         if not ik_solution:
             LOGGER.warning("  IK solution for 8-DOF system not found.")
             return TrialStatus.IK_FAILURE, None, None
 
-        LOGGER.info("  8-DOF IK solution found. Planning for subgroups.")
-        target_jaco_config = ik_solution[:6]
-        target_atool_config = ik_solution[6:]
+        LOGGER.info(
+            f"  8-DOF IK solution found ({ik_solution}. Planning for subgroups."
+        )
 
-        # 2. Plan for Jaco arm (6-DOF)
+        # 1. Create a dictionary mapping joint names to their solved positions.
+        solution_map = dict(zip(ik_solution.name, ik_solution.position))
+
+        # 2. Build the target list for the Jaco arm by looking up each required joint.
+        target_jaco_config = [solution_map[name] for name in JOINT_NAMES_JACO]
+
+        # 3. Build the target list for the Articutool wrist.
+        target_atool_config = [solution_map[name] for name in JOINT_NAMES_ATOOL]
+
         traj_jaco = self._plan_to_joint_config(
             self.moveit2_jaco, target_jaco_config, start_state_jaco
         )
@@ -772,7 +798,7 @@ class EndToEndBenchmark:
             LOGGER.warning("  Jaco arm planning failed.")
             return TrialStatus.PLANNER_FAILURE, None, None
 
-        # 3. Plan for Articutool wrist (2-DOF)
+        # 4. Plan for Articutool wrist (2-DOF)
         traj_atool = self._plan_to_joint_config(
             self.moveit2_atool, target_atool_config, start_state_atool
         )
@@ -787,15 +813,23 @@ class EndToEndBenchmark:
         self, goal_pose: Pose, start_state: Any
     ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
         LOGGER.info("  Planning with S1 (6-DOF Unconstrained)...")
-        self.moveit2_jaco.clear_goal_constraints()
-        self.moveit2_jaco.clear_path_constraints()
 
-        self.moveit2_jaco.set_pose_goal(goal_pose, END_EFFECTOR_LINK_JACO)
+        future = None
+        # --- Lock the MoveIt2 interaction ---
+        with self.moveit2_lock:
+            self.moveit2_jaco.clear_goal_constraints()
+            self.moveit2_jaco.clear_path_constraints()
+            self.moveit2_jaco.set_pose_goal(goal_pose, END_EFFECTOR_LINK_JACO)
+            future = self.moveit2_jaco.plan_async(start_joint_state=start_state)
 
-        future = self.moveit2_jaco.plan_async(start_joint_state=start_state)
-        rclpy.spin_until_future_complete(
-            self.node, future, timeout_sec=self.planning_timeout
-        )
+        # Wait for future outside the lock
+        start_time = time.time()
+        while rclpy.ok() and not future.done():
+            if time.time() - start_time > self.planning_timeout:
+                future.cancel()
+                return TrialStatus.PLANNER_FAILURE, None
+            time.sleep(0.1)
+
         traj = self.moveit2_jaco.get_trajectory(future)
 
         if not traj or not traj.points:
@@ -807,28 +841,38 @@ class EndToEndBenchmark:
         self, goal_pose: Pose, start_state: Any
     ) -> Tuple[TrialStatus, Optional[JointTrajectory], float]:
         LOGGER.info("  Planning with S2 (6-DOF Guided)...")
-        self.moveit2_jaco.clear_goal_constraints()
-        self.moveit2_jaco.clear_path_constraints()
 
-        self.moveit2_jaco.set_pose_goal(goal_pose, END_EFFECTOR_LINK_JACO)
-        self.moveit2_jaco.set_path_orientation_constraint(
-            quat_xyzw=Quaternion(
-                x=PATH_CONSTRAINT_QUAT_XYZW[0],
-                y=PATH_CONSTRAINT_QUAT_XYZW[1],
-                z=PATH_CONSTRAINT_QUAT_XYZW[2],
-                w=PATH_CONSTRAINT_QUAT_XYZW[3],
-            ),
-            target_link=END_EFFECTOR_LINK_JACO,
-            tolerance=PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
-            weight=1.0,
-        )
+        future = None
+        # --- Lock the entire MoveIt2 configuration and planning block ---
+        with self.moveit2_lock:
+            self.moveit2_jaco.clear_goal_constraints()
+            self.moveit2_jaco.clear_path_constraints()
 
-        future = self.moveit2_jaco.plan_async(
-            start_joint_state=start_state,
-        )
-        rclpy.spin_until_future_complete(
-            self.node, future, timeout_sec=self.planning_timeout
-        )
+            self.moveit2_jaco.set_pose_goal(goal_pose, END_EFFECTOR_LINK_JACO)
+            self.moveit2_jaco.set_path_orientation_constraint(
+                quat_xyzw=Quaternion(
+                    x=PATH_CONSTRAINT_QUAT_XYZW[0],
+                    y=PATH_CONSTRAINT_QUAT_XYZW[1],
+                    z=PATH_CONSTRAINT_QUAT_XYZW[2],
+                    w=PATH_CONSTRAINT_QUAT_XYZW[3],
+                ),
+                target_link=END_EFFECTOR_LINK_JACO,
+                tolerance=PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
+                weight=1.0,
+            )
+
+            future = self.moveit2_jaco.plan_async(
+                start_joint_state=start_state,
+            )
+
+        # Wait for future outside the lock
+        start_time = time.time()
+        while rclpy.ok() and not future.done():
+            if time.time() - start_time > self.planning_timeout:
+                future.cancel()
+                return TrialStatus.PLANNER_FAILURE, None, 0.0
+            time.sleep(0.1)
+
         traj = self.moveit2_jaco.get_trajectory(future)
 
         if not traj or not traj.points:
