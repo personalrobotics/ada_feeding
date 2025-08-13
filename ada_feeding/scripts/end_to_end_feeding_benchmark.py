@@ -964,7 +964,19 @@ class EndToEndBenchmark:
             "points": serialized_points,
         }
 
-    # --- Planning Primitive Placeholders ---
+    # --- Planning Primitive ---
+    def _plan_to_above_plate(
+        self, goal_pose: Pose, start_state: Any
+    ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
+        LOGGER.info("  Planning with S1 (6-DOF Unconstrained)...")
+        goal_constraints = [create_pose_constraint(goal_pose)]
+
+        return self.motion_planner.plan(
+            group_name=PLANNING_GROUP_JACO,
+            start_state=start_state,
+            goal_constraints=goal_constraints,
+        )
+
     def _plan_to_above_food(
         self,
         above_food_pose: Pose,
@@ -1015,18 +1027,6 @@ class EndToEndBenchmark:
 
         return TrialStatus.SUCCESS, traj_jaco, traj_atool
 
-    def _plan_to_above_plate(
-        self, goal_pose: Pose, start_state: Any
-    ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
-        LOGGER.info("  Planning with S1 (6-DOF Unconstrained)...")
-        goal_constraints = [create_pose_constraint(goal_pose)]
-
-        return self.motion_planner.plan(
-            group_name=PLANNING_GROUP_JACO,
-            start_state=start_state,
-            goal_constraints=goal_constraints,
-        )
-
     def _plan_s2_guided(
         self, goal_pose: Pose, start_state: Any
     ) -> Tuple[TrialStatus, Optional[JointTrajectory], float]:
@@ -1073,20 +1073,6 @@ class EndToEndBenchmark:
             return TrialStatus.VERIFICATION_FAILURE, traj, feasibility_percent
 
         return TrialStatus.SUCCESS, traj, feasibility_percent
-
-    def _plan_s3_coordinated(
-        self, goal_pose: Pose, start_state: Any
-    ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
-        LOGGER.info("  Planning with S3 (8-DOF Coordinated)...")
-        # TODO: Implement 8-DOF IK solve and sequential planning
-        return TrialStatus.SKIPPED, None
-
-    def _plan_s4_cartesian(
-        self, goal_pose: Pose, start_state: Any
-    ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
-        LOGGER.info("  Planning with S4 (6-DOF Cartesian)...")
-        # TODO: Implement MoveIt2 call for Cartesian planning
-        return TrialStatus.SKIPPED, None
 
     # --- Main Benchmark Loop ---
     def run(self):
