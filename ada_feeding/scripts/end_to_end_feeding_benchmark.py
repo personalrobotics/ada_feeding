@@ -253,6 +253,25 @@ class MotionPlanner:
 
         return ik_solution
 
+    def compute_fk(
+        self, group_name: str, joint_state: JointState, fk_link_names: List[str]
+    ) -> Optional[List[PoseStamped]]:
+        """
+        Computes Forward Kinematics for a given set of links.
+
+        Returns:
+            A list of PoseStamped messages, one for each requested link.
+        """
+        planner = self._get_planner(group_name)
+        fk_poses = None
+
+        with self._lock:
+            fk_poses = planner.compute_fk(
+                joint_state=joint_state, fk_link_names=fk_link_names
+            )
+
+        return fk_poses
+
     def plan(
         self,
         group_name: str,
@@ -966,14 +985,14 @@ class EndToEndBenchmark:
 
     # --- Planning Primitive ---
     def _plan_to_above_plate(
-        self, goal_pose: Pose, start_state: Any
+        self, above_plate_pose: Pose, start_state_jaco: Any
     ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
-        LOGGER.info("  Planning with S1 (6-DOF Unconstrained)...")
-        goal_constraints = [create_pose_constraint(goal_pose)]
+        LOGGER.info("  Planning to AbovePlate pose...")
+        goal_constraints = [create_pose_constraint(above_plate_pose)]
 
         return self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
-            start_state=start_state,
+            start_state=start_state_jaco,
             goal_constraints=goal_constraints,
         )
 
@@ -1026,6 +1045,58 @@ class EndToEndBenchmark:
             return TrialStatus.PLANNER_FAILURE, traj_jaco, None
 
         return TrialStatus.SUCCESS, traj_jaco, traj_atool
+
+    def _plan_to_in_food(
+        self,
+        in_food_pose: Pose,
+        start_state_jaco: List[float],
+        start_state_atool: List[float],
+    ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
+        LOGGER.info("  Solving 8-DOF IK for InFood pose...")
+
+        # 1. Compute the 8-DOF IK solution for the target tool tip pose
+        ik_solution = self.motion_planner.compute_ik(
+            group_name=PLANNING_GROUP_FULL,
+            target_pose=in_food_pose,
+            start_joint_state=(start_state_jaco + start_state_atool),
+        )
+
+        if not ik_solution:
+            LOGGER.warning("  IK solution for 8-DOF system not found.")
+            return TrialStatus.IK_FAILURE, None
+
+        LOGGER.info(f"  8-DOF IK solution found. Calculating wrist pose via FK.")
+
+        # 2. Use FK to find the Jaco wrist pose from the 8-DOF solution
+        fk_poses = self.motion_planner.compute_fk(
+            group_name=PLANNING_GROUP_FULL,
+            joint_state=ik_solution,
+            fk_link_names=[END_EFFECTOR_LINK_JACO],
+        )
+
+        if not fk_poses:
+            LOGGER.warning("  FK calculation for Jaco wrist failed.")
+            return TrialStatus.IK_FAILURE, None
+
+        # The goal for the Jaco arm is the calculated pose of its wrist
+        jaco_wrist_goal_pose = fk_poses[0].pose
+
+        # 3. Create a pose constraint for the Cartesian plan
+        jaco_goal_constraints = [create_pose_constraint(jaco_wrist_goal_pose)]
+
+        # 4. Plan a Cartesian motion for the Jaco arm to the wrist pose
+        status_jaco, traj_jaco = self.motion_planner.plan(
+            group_name=PLANNING_GROUP_JACO,
+            start_state=start_state_jaco,
+            goal_constraints=jaco_goal_constraints,
+            cartesian=True,
+        )
+
+        if status_jaco != TrialStatus.SUCCESS:
+            LOGGER.warning("  Jaco arm planning failed.")
+            return TrialStatus.PLANNER_FAILURE, None
+
+        return TrialStatus.SUCCESS, traj_jaco
 
     def _plan_s2_guided(
         self, goal_pose: Pose, start_state: Any
@@ -1149,6 +1220,7 @@ class EndToEndBenchmark:
                     "primitive": "S1",
                     "status": status.value,
                     "traj_jaco": self._serialize_trajectory(traj_jaco_to_above_plate),
+                    "traj_atool": None,
                 }
             )
             if status != TrialStatus.SUCCESS:
