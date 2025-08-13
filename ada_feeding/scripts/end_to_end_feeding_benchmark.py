@@ -1017,7 +1017,7 @@ class EndToEndBenchmark:
         for i in range(self.num_trials):
             LOGGER.info(f"--- Running Trial {i + 1}/{self.num_trials} ---")
 
-            # 1. Generate a new scene
+            # 1. Generate a new scene and create the top-level dictionary for this trial
             scene = self._generate_scene()
             LOGGER.info(
                 f"""
@@ -1053,6 +1053,19 @@ class EndToEndBenchmark:
                 -------------------------------------------------
             """
             )
+            trial_data = {
+                "trial_id": i,
+                "scene_poses": {
+                    "food_pose": self._serialize_pose(scene["food_pose"]),
+                    "mouth_pose": self._serialize_pose(scene["mouth_pose"]),
+                    "above_plate_pose": self._serialize_pose(scene["above_plate_pose"]),
+                    "move_above_pose": self._serialize_pose(scene["move_above_pose"]),
+                    "move_into_pose": self._serialize_pose(scene["move_into_pose"]),
+                    "staging_pose": self._serialize_pose(scene["staging_pose"]),
+                    "resting_pose": self._serialize_pose(scene["resting_pose"]),
+                },
+                "stages": [],
+            }
 
             # 2. Simulate the feeding cycle state machine
             food_on_tool = False
@@ -1066,27 +1079,14 @@ class EndToEndBenchmark:
                 scene["above_plate_pose"], current_jaco_state
             )
 
-            # Create a dictionary of all generated poses for this trial
-            scene_poses = {
-                "food_pose": self._serialize_pose(scene["food_pose"]),
-                "mouth_pose": self._serialize_pose(scene["mouth_pose"]),
-                "above_plate_pose": self._serialize_pose(scene["above_plate_pose"]),
-                "move_above_pose": self._serialize_pose(scene["move_above_pose"]),
-                "move_into_pose": self._serialize_pose(scene["move_into_pose"]),
-                "staging_pose": self._serialize_pose(scene["staging_pose"]),
-                "resting_pose": self._serialize_pose(scene["resting_pose"]),
-            }
-
             # --- Result Logging for Stage 1 ---
             # Consolidate all metrics for this stage into a single record.
-            self.results.append(
+            trial_data["stages"].append(
                 {
-                    "trial_id": i,
                     "stage": "HomeToAbovePlate",
                     "primitive": "S1",
                     "status": status.value,
                     "trajectory": self._serialize_trajectory(trajectory),
-                    "scene_poses": scene_poses,
                 }
             )
 
@@ -1109,9 +1109,8 @@ class EndToEndBenchmark:
             )
 
             # Log the results for this stage and recipe
-            self.results.append(
+            trial_data["stages"].append(
                 {
-                    "trial_id": i,
                     "stage": "AbovePlateToMoveAbove",
                     "status": status.value,
                 }
@@ -1122,6 +1121,8 @@ class EndToEndBenchmark:
                     f"  Stage 2 failed with status: {status.value}. Skipping trial."
                 )
                 continue
+
+            self.results.append(trial_data)
 
         self.save_results()
 
