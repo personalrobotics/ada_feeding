@@ -34,7 +34,7 @@ import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory
-from geometry_msgs.msg import Pose, Point, Quaternion
+from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped
 from sensor_msgs.msg import JointState
 from scipy.spatial.transform import Rotation as R
 import pinocchio as pin
@@ -42,6 +42,7 @@ from moveit_msgs.msg import PlanningScene, AllowedCollisionEntry, AllowedCollisi
 from moveit_msgs.srv import GetPlanningScene
 from moveit_msgs.msg import CollisionObject
 from shape_msgs.msg import SolidPrimitive
+import tf2_ros
 
 # --- Constants ---
 LOGGER = rclpy.logging.get_logger("end_to_end_benchmark")
@@ -168,10 +169,13 @@ class MotionPlanner:
         moveit2_jaco: MoveIt2,
         moveit2_atool: MoveIt2,
         moveit2_full: MoveIt2,
+        tf_buffer: tf2_ros.Buffer,
         planning_timeout: float,
     ):
         self._node = node
         self._planning_timeout = planning_timeout
+
+        self._tf_buffer = tf_buffer
 
         # Manages all moveit2 objects and the shared lock
         self._moveit2_objects = {
@@ -186,6 +190,47 @@ class MotionPlanner:
         if group_name not in self._moveit2_objects:
             raise ValueError(f"Unknown planning group: {group_name}")
         return self._moveit2_objects[group_name]
+
+    @staticmethod
+    def _scale_cartesian_trajectory_velocity(
+        traj: JointTrajectory, scale_factor: float
+    ):
+        """Scales the velocity of a Cartesian trajectory"""
+        for point in traj.points:
+            nsec = (point.time_from_start.sec * 1e9) + point.time_from_start.nanosec
+            nsec /= scale_factor
+            sec = int(math.floor(nsec / 1e9))
+            point.time_from_start.sec = sec
+            point.time_from_start.nanosec = int(nsec - (sec * 1e9))
+            for i in range(len(point.velocities)):
+                point.velocities[i] *= scale_factor
+            for i in range(len(point.accelerations)):
+                point.accelerations[i] *= scale_factor**2
+
+    def _transform_goal_to_base_link(
+        self, planner: MoveIt2, constraint: Tuple[MoveIt2ConstraintType, Dict]
+    ):
+        """Transforms a pose-based goal constraint to the robot's base frame."""
+        constraint_type, kwargs = constraint
+
+        # Only transform pose constraints and only if a frame_id is specified
+        if (
+            constraint_type != MoveIt2ConstraintType.POSE
+            or "frame_id" not in kwargs
+            or kwargs["frame_id"] is None
+        ):
+            return
+
+        pose_stamped = PoseStamped()
+        pose_stamped.header.frame_id = kwargs["frame_id"]
+        pose_stamped.pose = kwargs["pose"]
+
+        transformed_pose = self._tf_buffer.transform(
+            pose_stamped, planner.base_link_name
+        )
+
+        kwargs["pose"] = transformed_pose.pose
+        kwargs["frame_id"] = planner.base_link_name
 
     def compute_ik(
         self, group_name: str, target_pose: Pose, start_joint_state: List[float]
@@ -214,6 +259,10 @@ class MotionPlanner:
         start_state: Optional[List[float]],
         goal_constraints: List[Tuple[MoveIt2ConstraintType, Dict]],
         path_constraints: Optional[List[Tuple[MoveIt2ConstraintType, Dict]]] = None,
+        cartesian: bool = False,
+        cartesian_max_step: float = 0.005,
+        cartesian_jump_threshold: float = 0.0,
+        cartesian_fraction_threshold: float = 0.9,
     ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
         """
         Plans a trajectory for a given group based on a list of goal and path constraints.
@@ -231,6 +280,17 @@ class MotionPlanner:
         with self._lock:
             planner.clear_goal_constraints()
             planner.clear_path_constraints()
+
+            # If cartesian, transform pose goals to the base link frame
+            if cartesian:
+                try:
+                    for constraint in goal_constraints:
+                        self._transform_goal_to_base_link(planner, constraint)
+                except Exception as e:
+                    LOGGER.error(
+                        f"Failed to transform Cartesian goal to base link: {e}"
+                    )
+                    return TrialStatus.IK_FAILURE, None
 
             # --- Process Goal Constraints ---
             for constraint_type, kwargs in goal_constraints:
@@ -254,7 +314,11 @@ class MotionPlanner:
                         planner.set_path_orientation_constraint(**kwargs)
 
             # --- Initiate Asynchronous Planning ---
-            future = planner.plan_async(start_joint_state=start_state)
+            future = planner.plan_async(
+                start_joint_state=start_state,
+                cartesian=cartesian,
+                max_step=cartesian_max_step,
+            )
 
         # Wait for the future to complete outside the lock
         start_time = time.time()
@@ -264,9 +328,19 @@ class MotionPlanner:
                 return TrialStatus.PLANNER_FAILURE, None
             time.sleep(0.1)
 
-        traj = planner.get_trajectory(future)
+        traj = planner.get_trajectory(
+            future,
+            cartesian=cartesian,
+            cartesian_fraction_threshold=cartesian_fraction_threshold,
+        )
         if not traj or not traj.points:
             return TrialStatus.PLANNER_FAILURE, None
+
+        # Scale velocity for cartesian plans, as pymoveit2 doesn't do this automatically
+        if cartesian and planner.max_velocity > 0.0:
+            MotionPlanner._scale_cartesian_trajectory_velocity(
+                traj, planner.max_velocity
+            )
 
         return TrialStatus.SUCCESS, traj
 
@@ -294,8 +368,15 @@ class EndToEndBenchmark:
         self.planning_timeout = planning_timeout
         self.output_dir = output_dir
         self.results: List[Dict[str, Any]] = []
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self.node)
         self.motion_planner = MotionPlanner(
-            node, moveit2_jaco, moveit2_atool, moveit2_full, planning_timeout
+            node,
+            moveit2_jaco,
+            moveit2_atool,
+            moveit2_full,
+            self.tf_buffer,
+            planning_timeout,
         )
 
         # Pinocchio model for feasibility checks
