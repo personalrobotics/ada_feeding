@@ -552,7 +552,7 @@ class EndToEndBenchmark:
         # Define derived poses
         scene["home_config"] = [-1.47568, 2.92779, 1.00845, -2.0847, 1.43588, 1.32575]
         scene["above_plate_pose"] = self._calculate_above_plate_pose(scene["food_pose"])
-        scene["move_into_pose"], approach_vector = self._calculate_move_into_pose(
+        scene["in_food_pose"], approach_vector = self._calculate_in_food_pose(
             food_pose=scene["food_pose"],
             recipe=ActionRecipe(
                 AcquisitionStrategy.SKEWER,
@@ -560,8 +560,8 @@ class EndToEndBenchmark:
                 ToolAlignment.PERPENDICULAR,
             ),
         )
-        scene["move_above_pose"] = self._calculate_move_above_pose(
-            move_into_pose=scene["move_into_pose"], approach_vector=approach_vector
+        scene["above_food_pose"] = self._calculate_above_food_pose(
+            in_food_pose=scene["in_food_pose"], approach_vector=approach_vector
         )
         scene["staging_pose"] = self._calculate_staging_pose(scene["mouth_pose"])
         scene["resting_pose"] = Pose(position=Point(x=0.4, y=-0.4, z=0.3))
@@ -731,11 +731,11 @@ class EndToEndBenchmark:
         return final_pose
 
     # --- Semantic Pose Calculation ---
-    def _calculate_move_into_pose(
+    def _calculate_in_food_pose(
         self, food_pose: Pose, recipe: ActionRecipe
     ) -> Tuple[Pose, np.ndarray]:
         """
-        Calculates the MoveInto tool tip pose based on a semantic ActionRecipe.
+        Calculates the InFood tool tip pose based on a semantic ActionRecipe.
         Returns the pose and the calculated approach vector (the tool's Z-axis).
         """
         # Default to identity rotation and a vertical approach vector
@@ -792,28 +792,28 @@ class EndToEndBenchmark:
 
         # --- Construct the final pose ---
         q = final_rotation.as_quat()
-        move_into_pose = Pose()
-        move_into_pose.position = food_pose.position
-        move_into_pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+        in_food_pose = Pose()
+        in_food_pose.position = food_pose.position
+        in_food_pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
 
-        return move_into_pose, approach_vector
+        return in_food_pose, approach_vector
 
-    def _calculate_move_above_pose(
-        self, move_into_pose: Pose, approach_vector: np.ndarray
+    def _calculate_above_food_pose(
+        self, in_food_pose: Pose, approach_vector: np.ndarray
     ) -> Pose:
         """
-        Calculates the MoveAbove pose by offsetting from MoveInto along the
+        Calculates the AboveFood pose by offsetting from InFood along the
         calculated approach vector.
         """
         # 1. Inherit the orientation directly from the target pose
-        final_orientation = move_into_pose.orientation
+        final_orientation = in_food_pose.orientation
 
         # 2. The motion vector for the linear path IS the approach vector (tool's Z-axis)
         motion_vector = approach_vector
 
         # 3. Calculate the offset position
         offset_dist = 0.1  # 10 cm
-        p = move_into_pose.position
+        p = in_food_pose.position
         # We add the offset because the approach_vector is already pointing "down".
         # To get the "above" pose, we move in the opposite direction of the approach.
         offset = motion_vector * -offset_dist
@@ -965,18 +965,18 @@ class EndToEndBenchmark:
         }
 
     # --- Planning Primitive Placeholders ---
-    def _plan_to_move_above(
+    def _plan_to_above_food(
         self,
-        move_above_pose: Pose,
+        above_food_pose: Pose,
         start_state_jaco: List[float],
         start_state_atool: List[float],
     ) -> Tuple[TrialStatus, Optional[JointTrajectory], Optional[JointTrajectory]]:
-        LOGGER.info("  Solving 8-DOF IK for MoveAbove pose...")
+        LOGGER.info("  Solving 8-DOF IK for AboveFood pose...")
 
         # 1. Compute IK using the planner
         ik_solution = self.motion_planner.compute_ik(
             group_name=PLANNING_GROUP_FULL,
-            target_pose=move_above_pose,
+            target_pose=above_food_pose,
             start_joint_state=(start_state_jaco + start_state_atool),
         )
 
@@ -1015,7 +1015,7 @@ class EndToEndBenchmark:
 
         return TrialStatus.SUCCESS, traj_jaco, traj_atool
 
-    def _plan_s1_unconstrained(
+    def _plan_to_above_plate(
         self, goal_pose: Pose, start_state: Any
     ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
         LOGGER.info("  Planning with S1 (6-DOF Unconstrained)...")
@@ -1119,12 +1119,12 @@ class EndToEndBenchmark:
                   - Above Plate Pose:
                       Position:    [x={scene["above_plate_pose"].position.x:.3f}, y={scene["above_plate_pose"].position.y:.3f}, z={scene["above_plate_pose"].position.z:.3f}]
                       Orientation: [x={scene["above_plate_pose"].orientation.x:.3f}, y={scene["above_plate_pose"].orientation.y:.3f}, z={scene["above_plate_pose"].orientation.z:.3f}, w={scene["above_plate_pose"].orientation.w:.3f}]
-                  - Move Above Pose:
-                      Position:    [x={scene["move_above_pose"].position.x:.3f}, y={scene["move_above_pose"].position.y:.3f}, z={scene["move_above_pose"].position.z:.3f}]
-                      Orientation: [x={scene["move_above_pose"].orientation.x:.3f}, y={scene["move_above_pose"].orientation.y:.3f}, z={scene["move_above_pose"].orientation.z:.3f}, w={scene["move_above_pose"].orientation.w:.3f}]
-                  - Move Into Pose:
-                      Position:    [x={scene["move_into_pose"].position.x:.3f}, y={scene["move_into_pose"].position.y:.3f}, z={scene["move_into_pose"].position.z:.3f}]
-                      Orientation: [x={scene["move_into_pose"].orientation.x:.3f}, y={scene["move_into_pose"].orientation.y:.3f}, z={scene["move_into_pose"].orientation.z:.3f}, w={scene["move_into_pose"].orientation.w:.3f}]
+                  - Above Food Pose:
+                      Position:    [x={scene["above_food_pose"].position.x:.3f}, y={scene["above_food_pose"].position.y:.3f}, z={scene["above_food_pose"].position.z:.3f}]
+                      Orientation: [x={scene["above_food_pose"].orientation.x:.3f}, y={scene["above_food_pose"].orientation.y:.3f}, z={scene["above_food_pose"].orientation.z:.3f}, w={scene["above_food_pose"].orientation.w:.3f}]
+                  - In Food Pose:
+                      Position:    [x={scene["in_food_pose"].position.x:.3f}, y={scene["in_food_pose"].position.y:.3f}, z={scene["in_food_pose"].position.z:.3f}]
+                      Orientation: [x={scene["in_food_pose"].orientation.x:.3f}, y={scene["in_food_pose"].orientation.y:.3f}, z={scene["in_food_pose"].orientation.z:.3f}, w={scene["in_food_pose"].orientation.w:.3f}]
                   - Staging Pose:
                       Position:    [x={scene["staging_pose"].position.x:.3f}, y={scene["staging_pose"].position.y:.3f}, z={scene["staging_pose"].position.z:.3f}]
                       Orientation: [x={scene["staging_pose"].orientation.x:.3f}, y={scene["staging_pose"].orientation.y:.3f}, z={scene["staging_pose"].orientation.z:.3f}, w={scene["staging_pose"].orientation.w:.3f}]
@@ -1140,8 +1140,8 @@ class EndToEndBenchmark:
                     "food_pose": self._serialize_pose(scene["food_pose"]),
                     "mouth_pose": self._serialize_pose(scene["mouth_pose"]),
                     "above_plate_pose": self._serialize_pose(scene["above_plate_pose"]),
-                    "move_above_pose": self._serialize_pose(scene["move_above_pose"]),
-                    "move_into_pose": self._serialize_pose(scene["move_into_pose"]),
+                    "above_food_pose": self._serialize_pose(scene["above_food_pose"]),
+                    "in_food_pose": self._serialize_pose(scene["in_food_pose"]),
                     "staging_pose": self._serialize_pose(scene["staging_pose"]),
                     "resting_pose": self._serialize_pose(scene["resting_pose"]),
                 },
@@ -1149,28 +1149,22 @@ class EndToEndBenchmark:
             }
 
             # 2. Simulate the feeding cycle state machine
-            food_on_tool = False
             current_jaco_state = scene["home_config"]
             current_atool_state = [0.0, 0.0]  # Assume atool starts at zero
 
-            # --- Stage 1: Home -> AbovePlate (P1 with S1) ---
+            # --- Stage 1: Home -> AbovePlate ---
             LOGGER.info("Stage 1: Home -> AbovePlate")
-
-            status, trajectory = self._plan_s1_unconstrained(
+            status, traj_jaco_to_above_plate = self._plan_to_above_plate(
                 scene["above_plate_pose"], current_jaco_state
             )
-
-            # --- Result Logging for Stage 1 ---
-            # Consolidate all metrics for this stage into a single record.
             trial_data["stages"].append(
                 {
                     "stage": "HomeToAbovePlate",
                     "primitive": "S1",
                     "status": status.value,
-                    "trajectory": self._serialize_trajectory(trajectory),
+                    "traj_jaco": self._serialize_trajectory(traj_jaco_to_above_plate),
                 }
             )
-
             if status != TrialStatus.SUCCESS:
                 LOGGER.error(
                     f"  Stage 1 failed with status: {status.value}. Skipping trial."
@@ -1178,25 +1172,21 @@ class EndToEndBenchmark:
                 continue
 
             # Update state for the next stage
-            current_jaco_state = list(trajectory.points[-1].positions)
-            LOGGER.info("  Stage 1 successful.")
+            current_jaco_state = list(traj_jaco_to_above_plate.points[-1].positions)
 
-            # --- Stage 2: AbovePlate -> MoveAbove (P2 with SX) ---
-            LOGGER.info("Stage 2: AbovePlate -> MoveAbove")
-
-            # Plan to the MoveAbove configuration
-            status, traj_jaco_to_above, traj_atool_to_above = self._plan_to_move_above(
-                scene["move_above_pose"], current_jaco_state, current_atool_state
+            # --- Stage 2: AbovePlate -> AboveFood ---
+            LOGGER.info("Stage 2: AbovePlate -> AboveFood")
+            status, traj_jaco_to_above_food, traj_atool_to_above_food = (
+                self._plan_to_above_food(
+                    scene["above_food_pose"], current_jaco_state, current_atool_state
+                )
             )
-
-            # Log the results for this stage and recipe
             trial_data["stages"].append(
                 {
-                    "stage": "AbovePlateToMoveAbove",
+                    "stage": "AbovePlateToAboveFood",
                     "status": status.value,
                 }
             )
-
             if status != TrialStatus.SUCCESS:
                 LOGGER.error(
                     f"  Stage 2 failed with status: {status.value}. Skipping trial."
