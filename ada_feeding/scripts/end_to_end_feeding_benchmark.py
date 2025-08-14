@@ -76,6 +76,17 @@ class TrialStatus(Enum):
     SKIPPED = "Skipped"
 
 
+class ExecutionMode(Enum):
+    """Defines how trajectories for a stage should be interpreted."""
+
+    SEQUENTIAL = "Sequential"  # Jaco and Articutool move one after the other.
+    SYNCHRONOUS = "Synchronous"  # Jaco and Articutool move at the same time.
+    JACO_ONLY = "Jaco Only"  # Only a Jaco trajectory exists for this stage.
+    ATOOL_ONLY = (
+        "Articutool Only"  # Only an Articutool trajectory exists for this stage.
+    )
+
+
 # --- Semantic Schema for Acquisition Actions ---
 class AcquisitionStrategy(Enum):
     """High-level choice of physical interaction"""
@@ -1297,6 +1308,7 @@ class EndToEndBenchmark:
                 {
                     "stage_name": "HomeToAbovePlate",
                     "status": status.value,
+                    "execution_mode": ExecutionMode.JACO_ONLY.value,
                     "traj_jaco": self._serialize_trajectory(traj_jaco),
                     "traj_atool": None,
                 }
@@ -1316,6 +1328,7 @@ class EndToEndBenchmark:
                 {
                     "stage_name": "AbovePlateToAboveFood",
                     "status": status.value,
+                    "execution_mode": ExecutionMode.SEQUENTIAL.value,
                     "traj_jaco": self._serialize_trajectory(traj_jaco),
                     "traj_atool": self._serialize_trajectory(traj_atool),
                 }
@@ -1336,6 +1349,7 @@ class EndToEndBenchmark:
                 {
                     "stage_name": "AboveFoodToInFood",
                     "status": status.value,
+                    "execution_mode": ExecutionMode.JACO_ONLY.value,
                     "traj_jaco": self._serialize_trajectory(traj_jaco),
                     "traj_atool": None,
                 }
@@ -1355,6 +1369,7 @@ class EndToEndBenchmark:
                 {
                     "stage_name": "LevelArticutool",
                     "status": status.value,
+                    "execution_mode": ExecutionMode.ATOOL_ONLY.value,
                     "traj_jaco": None,
                     "traj_atool": self._serialize_trajectory(traj_atool),
                 }
