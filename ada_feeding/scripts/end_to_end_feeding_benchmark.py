@@ -889,6 +889,49 @@ class EndToEndBenchmark:
             )
         return solutions
 
+    def _compute_leveling_joints(self, jaco_wrist_pose: Pose) -> Optional[List[float]]:
+        """
+        Calculates the Articutool joint angles required to point the tool's Y-axis up.
+        This now uses the original `_solve_articutool_ik` method.
+        """
+        # 1. Get the rotation of the Jaco wrist in the world frame
+        R_world_jacoee = R.from_quat(
+            [
+                jaco_wrist_pose.orientation.x,
+                jaco_wrist_pose.orientation.y,
+                jaco_wrist_pose.orientation.z,
+                jaco_wrist_pose.orientation.w,
+            ]
+        )
+
+        # 2. Transform the world "up" vector into the wrist's frame
+        world_z_up_vector = np.array([0.0, 0.0, 1.0])
+        target_up_in_wrist_frame = R_world_jacoee.inv().apply(world_z_up_vector)
+
+        # 3. Solve the Articutool IK for the transformed vector using the original solver
+        #    The solver's math is correct for this specific leveling task.
+        ik_solutions = self._solve_articutool_ik(target_up_in_wrist_frame)
+
+        if not ik_solutions:
+            return None
+
+        # 4. Find the first valid solution within joint limits
+        for theta_p, theta_r in ik_solutions:
+            if (
+                ARTICUTOOL_PITCH_LIMITS_RAD[0]
+                <= theta_p
+                <= ARTICUTOOL_PITCH_LIMITS_RAD[1]
+                and ARTICUTOOL_ROLL_LIMITS_RAD[0]
+                <= theta_r
+                <= ARTICUTOOL_ROLL_LIMITS_RAD[1]
+            ):
+                LOGGER.info(
+                    f"  Found valid leveling solution: Pitch={math.degrees(theta_p):.1f}, Roll={math.degrees(theta_r):.1f}"
+                )
+                return [theta_p, theta_r]
+
+        return None
+
     # --- Feasibility Checking ---
     def _is_config_kinematically_feasible(self, jaco_joint_config: List[float]) -> bool:
         """
@@ -1097,6 +1140,41 @@ class EndToEndBenchmark:
             return TrialStatus.PLANNER_FAILURE, None
 
         return TrialStatus.SUCCESS, traj_jaco
+
+    def _plan_to_level_articutool(
+        self,
+        jaco_wrist_pose: Pose,
+        start_state_atool: List[float],
+    ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
+        """
+        Calculates the required joint angles for the Articutool to achieve a level
+        pose and plans a trajectory to that configuration.
+        """
+        LOGGER.info("  Calculating Articutool leveling configuration...")
+
+        # 1. Compute the target joint angles for leveling based on the wrist's pose
+        target_leveling_joints = self._compute_leveling_joints(jaco_wrist_pose)
+
+        if target_leveling_joints is None:
+            LOGGER.warning("  Could not find an IK solution for Articutool leveling.")
+            return TrialStatus.IK_FAILURE, None
+
+        # 2. Create a joint goal constraint for the Articutool
+        goal_constraints = [create_joint_constraint(target_leveling_joints)]
+
+        # 3. Plan a joint-space motion for the Articutool group
+        status, trajectory = self.motion_planner.plan(
+            group_name=PLANNING_GROUP_ATOOL,
+            start_state=start_state_atool,
+            goal_constraints=goal_constraints,
+        )
+
+        if status != TrialStatus.SUCCESS:
+            LOGGER.warning("  Articutool leveling plan failed.")
+            return TrialStatus.PLANNER_FAILURE, None
+
+        LOGGER.info("  Articutool leveling plan successful.")
+        return TrialStatus.SUCCESS, trajectory
 
     def _plan_s2_guided(
         self, goal_pose: Pose, start_state: Any
