@@ -1094,7 +1094,7 @@ class EndToEndBenchmark:
         in_food_pose: Pose,
         start_state_jaco: List[float],
         start_state_atool: List[float],
-    ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
+    ) -> Tuple[TrialStatus, Optional[JointTrajectory], Optional[Pose]]:
         LOGGER.info("  Solving 8-DOF IK for InFood pose...")
 
         # 1. Compute the 8-DOF IK solution for the target tool tip pose
@@ -1106,7 +1106,7 @@ class EndToEndBenchmark:
 
         if not ik_solution:
             LOGGER.warning("  IK solution for 8-DOF system not found.")
-            return TrialStatus.IK_FAILURE, None
+            return TrialStatus.IK_FAILURE, None, None
 
         LOGGER.info(f"  8-DOF IK solution found. Calculating wrist pose via FK.")
 
@@ -1119,7 +1119,7 @@ class EndToEndBenchmark:
 
         if not fk_poses:
             LOGGER.warning("  FK calculation for Jaco wrist failed.")
-            return TrialStatus.IK_FAILURE, None
+            return TrialStatus.IK_FAILURE, None, None
 
         # The goal for the Jaco arm is the calculated pose of its wrist
         jaco_wrist_goal_pose = fk_poses[0].pose
@@ -1137,9 +1137,9 @@ class EndToEndBenchmark:
 
         if status_jaco != TrialStatus.SUCCESS:
             LOGGER.warning("  Jaco arm planning failed.")
-            return TrialStatus.PLANNER_FAILURE, None
+            return TrialStatus.PLANNER_FAILURE, None, None
 
-        return TrialStatus.SUCCESS, traj_jaco
+        return TrialStatus.SUCCESS, traj_jaco, jaco_wrist_goal_pose
 
     def _plan_to_level_articutool(
         self,
@@ -1230,10 +1230,11 @@ class EndToEndBenchmark:
             LOGGER.error("Benchmark cannot run because Pinocchio model failed to load.")
             return
         self.add_articutool_bounding_cylinder()
+
         for i in range(self.num_trials):
             LOGGER.info(f"--- Running Trial {i + 1}/{self.num_trials} ---")
 
-            # 1. Generate a new scene and create the top-level dictionary for this trial
+            # 1. Generate scene and create the top-level dictionary for the trial
             scene = self._generate_scene()
             LOGGER.info(
                 f"""
@@ -1283,52 +1284,88 @@ class EndToEndBenchmark:
                 "stages": [],
             }
 
-            # 2. Simulate the feeding cycle state machine
+            # 2. Initialize the robot's state for the trial
             current_jaco_state = scene["home_config"]
-            current_atool_state = [0.0, 0.0]  # Assume atool starts at zero
+            current_atool_state = [0.0, 0.0]
 
             # --- Stage 1: Home -> AbovePlate ---
             LOGGER.info("Stage 1: Home -> AbovePlate")
-            status, traj_jaco_to_above_plate = self._plan_to_above_plate(
+            status, traj_jaco = self._plan_to_above_plate(
                 scene["above_plate_pose"], current_jaco_state
             )
             trial_data["stages"].append(
                 {
-                    "stage": "HomeToAbovePlate",
-                    "primitive": "S1",
+                    "stage_name": "HomeToAbovePlate",
                     "status": status.value,
-                    "traj_jaco": self._serialize_trajectory(traj_jaco_to_above_plate),
+                    "traj_jaco": self._serialize_trajectory(traj_jaco),
                     "traj_atool": None,
                 }
             )
             if status != TrialStatus.SUCCESS:
-                LOGGER.error(
-                    f"  Stage 1 failed with status: {status.value}. Skipping trial."
-                )
+                LOGGER.error(f"  Stage 1 failed. Skipping trial.")
+                self.results.append(trial_data)
                 continue
-
-            # Update state for the next stage
-            current_jaco_state = list(traj_jaco_to_above_plate.points[-1].positions)
+            current_jaco_state = list(traj_jaco.points[-1].positions)
 
             # --- Stage 2: AbovePlate -> AboveFood ---
             LOGGER.info("Stage 2: AbovePlate -> AboveFood")
-            status, traj_jaco_to_above_food, traj_atool_to_above_food = (
-                self._plan_to_above_food(
-                    scene["above_food_pose"], current_jaco_state, current_atool_state
-                )
+            status, traj_jaco, traj_atool = self._plan_to_above_food(
+                scene["above_food_pose"], current_jaco_state, current_atool_state
             )
             trial_data["stages"].append(
                 {
-                    "stage": "AbovePlateToAboveFood",
+                    "stage_name": "AbovePlateToAboveFood",
                     "status": status.value,
+                    "traj_jaco": self._serialize_trajectory(traj_jaco),
+                    "traj_atool": self._serialize_trajectory(traj_atool),
                 }
             )
             if status != TrialStatus.SUCCESS:
-                LOGGER.error(
-                    f"  Stage 2 failed with status: {status.value}. Skipping trial."
-                )
+                LOGGER.error(f"  Stage 2 failed. Skipping trial.")
+                self.results.append(trial_data)
                 continue
+            current_jaco_state = list(traj_jaco.points[-1].positions)
+            current_atool_state = list(traj_atool.points[-1].positions)
 
+            # --- Stage 3: AboveFood -> InFood ---
+            LOGGER.info("Stage 3: AboveFood -> InFood (Cartesian)")
+            status, traj_jaco, jaco_wrist_pose = self._plan_to_in_food(
+                scene["in_food_pose"], current_jaco_state, current_atool_state
+            )
+            trial_data["stages"].append(
+                {
+                    "stage_name": "AboveFoodToInFood",
+                    "status": status.value,
+                    "traj_jaco": self._serialize_trajectory(traj_jaco),
+                    "traj_atool": None,
+                }
+            )
+            if status != TrialStatus.SUCCESS:
+                LOGGER.error(f"  Stage 3 failed. Skipping trial.")
+                self.results.append(trial_data)
+                continue
+            current_jaco_state = list(traj_jaco.points[-1].positions)
+
+            # --- Stage 4: InFood -> LevelArticutool ---
+            LOGGER.info("Stage 4: Level Articutool")
+            status, traj_atool = self._plan_to_level_articutool(
+                jaco_wrist_pose, current_atool_state
+            )
+            trial_data["stages"].append(
+                {
+                    "stage_name": "LevelArticutool",
+                    "status": status.value,
+                    "traj_jaco": None,
+                    "traj_atool": self._serialize_trajectory(traj_atool),
+                }
+            )
+            if status != TrialStatus.SUCCESS:
+                LOGGER.error(f"  Stage 4 failed. Skipping trial.")
+                self.results.append(trial_data)
+                continue
+            current_atool_state = list(traj_atool.points[-1].positions)
+
+            # At the end of a successful trial, append the complete trial data
             self.results.append(trial_data)
 
         self.save_results()
