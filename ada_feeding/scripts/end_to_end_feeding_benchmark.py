@@ -290,9 +290,9 @@ class MotionPlanner:
         goal_constraints: List[Tuple[MoveIt2ConstraintType, Dict]],
         path_constraints: Optional[List[Tuple[MoveIt2ConstraintType, Dict]]] = None,
         cartesian: bool = False,
-        cartesian_max_step: float = 0.005,
+        cartesian_max_step: float = 0.001,
         cartesian_jump_threshold: float = 0.0,
-        cartesian_fraction_threshold: float = 0.9,
+        cartesian_fraction_threshold: float = 0.92,
     ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
         """
         Plans a trajectory for a given group based on a list of goal and path constraints.
