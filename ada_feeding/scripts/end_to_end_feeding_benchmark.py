@@ -291,7 +291,7 @@ class MotionPlanner:
         path_constraints: Optional[List[Tuple[MoveIt2ConstraintType, Dict]]] = None,
         cartesian: bool = False,
         cartesian_max_step: float = 0.001,
-        cartesian_jump_threshold: float = 0.0,
+        cartesian_jump_threshold: float = 5.0,
         cartesian_fraction_threshold: float = 0.92,
     ) -> Tuple[TrialStatus, Optional[JointTrajectory]]:
         """
@@ -306,6 +306,10 @@ class MotionPlanner:
         if not goal_constraints:
             LOGGER.error("Planning failed: At least one goal constraint is required.")
             return TrialStatus.IK_FAILURE, None
+
+        if cartesian:
+            planner.cartesian_jump_threshold = cartesian_jump_threshold
+            # Note: Other properties like prismatic/revolute jump thresholds could also be set here
 
         with self._lock:
             planner.clear_goal_constraints()
