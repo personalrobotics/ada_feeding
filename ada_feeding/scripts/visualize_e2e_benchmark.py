@@ -8,8 +8,11 @@ output files using Pinocchio and MeshCat.
 
 It allows a user to load a benchmark result file, choose a specific
 planning stage and trial, and then inspect the resulting trajectory
-frame-by-frame or animate it. This version includes robust mesh path finding
-and explicit kinematic updates to prevent rendering artifacts.
+frame-by-frame or animate it.
+
+This version automatically handles different execution modes (sequential, synchronous)
+and includes robust mesh path finding and explicit kinematic updates to prevent
+rendering artifacts.
 """
 
 # Standard imports
@@ -120,75 +123,116 @@ def load_pinocchio_model_from_urdf_string(
 
 
 def load_benchmark_data(file_paths: List[str], logger_func=print) -> pd.DataFrame:
-    """Loads and concatenates data from multiple benchmark JSON files."""
-    all_data = []
+    """
+    Loads and flattens data from one or more benchmark JSON files into a pandas DataFrame.
+    The new hierarchical structure (trial -> stages) is flattened so that each
+    stage with a valid trajectory becomes a single row in the DataFrame.
+    """
+    all_stages_flat = []
     for file_path in file_paths:
         try:
             with open(file_path, "r") as f:
-                data = json.load(f)
-                valid_entries = [
-                    entry for entry in data if entry.get("trajectory") is not None
-                ]
-                all_data.extend(valid_entries)
+                trials = json.load(f)
+                for trial in trials:
+                    for stage in trial.get("stages", []):
+                        flat_record = {
+                            "trial_id": trial.get("trial_id"),
+                            "scene_poses": trial.get("scene_poses"),
+                            "stage_name": stage.get("stage_name"),
+                            "status": stage.get("status"),
+                            "execution_mode": stage.get("execution_mode"),
+                            "traj_jaco": stage.get("traj_jaco"),
+                            "traj_atool": stage.get("traj_atool"),
+                        }
+                        if flat_record["traj_jaco"] or flat_record["traj_atool"]:
+                            all_stages_flat.append(flat_record)
         except Exception as e:
             logger_func(f"Warning: Could not load or parse {file_path}. Error: {e}")
 
-    if not all_data:
+    if not all_stages_flat:
         return pd.DataFrame()
 
-    logger_func(
-        f"Successfully loaded {len(all_data)} trials with trajectories from {len(file_paths)} file(s)."
-    )
-    return pd.DataFrame(all_data)
+    logger_func(f"Successfully loaded {len(all_stages_flat)} stages with trajectories.")
+    return pd.DataFrame(all_stages_flat)
 
 
 def select_trajectory(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """Interactively prompts the user to select a stage and a specific trial."""
+    """
+    Interactively prompts the user to select a stage and a trial. It then finds
+    the static pose of the Jaco arm from the previous stage to ensure
+    visual continuity.
+    """
+    stage_order = [
+        "HomeToAbovePlate",
+        "AbovePlateToAboveFood",
+        "AboveFoodToInFood",
+        "LevelArticutool",
+    ]
+
     while True:
-        stages = df["stage"].unique()
+        stages = df["stage_name"].unique()
         print("\n--- Please Select a Stage to Visualize ---")
         for i, stage in enumerate(stages):
             print(f"  [{i + 1}] {stage}")
         print("  [q] Quit")
-
         try:
             choice_str = input(f"Enter choice (1-{len(stages)} or q): ").strip().lower()
             if choice_str == "q":
                 return None
-            stage_choice = int(choice_str) - 1
-            if not 0 <= stage_choice < len(stages):
-                raise ValueError
-            selected_stage = stages[stage_choice]
+            selected_stage_name = stages[int(choice_str) - 1]
         except (ValueError, IndexError):
             print("Invalid choice.")
             continue
 
         stage_df = df[
-            (df["stage"] == selected_stage) & (df["status"] == "Success")
+            (df["stage_name"] == selected_stage_name) & (df["status"] == "Success")
         ].sort_values("trial_id")
 
         if stage_df.empty:
-            print(f"No successful trials found for stage: {selected_stage}")
+            print(f"No successful trials found for stage: {selected_stage_name}")
             continue
 
-        trajectories = stage_df.to_dict("records")
-        print(f"\n--- Select a Successful Trial from Stage '{selected_stage}' ---")
-        for i, trial in enumerate(trajectories):
+        trials_for_stage = stage_df.to_dict("records")
+        print(f"\n--- Select a Successful Trial from Stage '{selected_stage_name}' ---")
+        for i, trial in enumerate(trials_for_stage):
             print(
-                f"  [{i + 1}] Trial ID: {trial['trial_id']} (IK Attempts: {trial['ik_attempts']})"
+                f"  [{i + 1}] Trial ID: {trial['trial_id']} (Mode: {trial['execution_mode']})"
             )
         print("  [m] Back to Stage Selection")
-
         try:
             choice_str = (
-                input(f"Enter choice (1-{len(trajectories)} or m): ").strip().lower()
+                input(f"Enter choice (1-{len(trials_for_stage)} or m): ")
+                .strip()
+                .lower()
             )
             if choice_str == "m":
                 continue
-            traj_choice = int(choice_str) - 1
-            if not 0 <= traj_choice < len(trajectories):
-                raise ValueError
-            return trajectories[traj_choice]
+
+            selected_record = trials_for_stage[int(choice_str) - 1]
+            trial_id = selected_record["trial_id"]
+
+            try:
+                current_stage_index = stage_order.index(selected_stage_name)
+                if current_stage_index > 0:
+                    previous_stage_name = stage_order[current_stage_index - 1]
+                    previous_stage_df = df[
+                        (df["trial_id"] == trial_id)
+                        & (df["stage_name"] == previous_stage_name)
+                    ]
+                    if not previous_stage_df.empty:
+                        prev_traj_jaco = previous_stage_df.iloc[0]["traj_jaco"]
+                        if prev_traj_jaco and prev_traj_jaco["points"]:
+                            last_waypoint = prev_traj_jaco["points"][-1]
+                            selected_record["static_jaco_config"] = {
+                                "positions": last_waypoint["positions"],
+                                "joint_names": prev_traj_jaco["joint_names"],
+                            }
+            except ValueError:
+                print(
+                    f"Warning: Stage '{selected_stage_name}' not in defined stage order for state carryover."
+                )
+
+            return selected_record
         except (ValueError, IndexError):
             print("Invalid choice.")
             continue
@@ -220,46 +264,143 @@ def draw_scene_frames(pin_viz, scene_poses: Dict[str, Any], frame_scale: float =
         pin_viz.viewer[frame_path].set_transform(transform.homogeneous)
 
 
-def visualization_loop(pin_viz, model, data, selected_trial, args):
-    """Runs the interactive UI for a single selected trajectory."""
-    # Clear previous frames and draw the ones for the current trial
-    try:
-        pin_viz.viewer["scene/frames"].delete()
-    except KeyError:
-        pass  # It's okay if the path doesn't exist on the first run
-
-    if "scene_poses" in selected_trial:
-        draw_scene_frames(pin_viz, selected_trial["scene_poses"])
-
-    q = pin.neutral(model)
-    trajectory = selected_trial["trajectory"]
-    joint_names_from_traj = trajectory["joint_names"]
-    waypoints = trajectory["points"]
-
-    joint_map = {
+def get_joint_map(model, joint_names):
+    """Helper to map joint names to their indices in Pinocchio's q vector."""
+    if not joint_names:
+        return {}
+    return {
         name: model.getJointId(name)
-        for name in joint_names_from_traj
+        for name in joint_names
         if model.existJointName(name)
     }
 
+
+def update_q_from_waypoint(q, model, waypoint, joint_names, joint_map):
+    """Helper to update the robot configuration from a single waypoint."""
+    if not waypoint:
+        return
+    for name, pos in zip(joint_names, waypoint["positions"]):
+        if name in joint_map:
+            joint_id = joint_map[name]
+            if model.joints[joint_id].nq == 1:
+                q[model.joints[joint_id].idx_q] = pos
+            elif model.joints[joint_id].nq == 2:
+                q[model.joints[joint_id].idx_q] = np.cos(pos)
+                q[model.joints[joint_id].idx_q + 1] = np.sin(pos)
+
+
+def visualization_loop(pin_viz, model, data, selected_stage, args):
+    """Runs the interactive UI, handling different execution modes and frame-by-frame controls."""
+    try:
+        pin_viz.viewer["scene/frames"].delete()
+    except KeyError:
+        pass
+    if "scene_poses" in selected_stage:
+        draw_scene_frames(pin_viz, selected_stage["scene_poses"])
+
+    execution_mode = selected_stage["execution_mode"]
+    traj_jaco = selected_stage.get("traj_jaco")
+    traj_atool = selected_stage.get("traj_atool")
+    static_jaco_config = selected_stage.get("static_jaco_config")
+
+    jaco_joint_map = get_joint_map(
+        model, (traj_jaco or static_jaco_config or {}).get("joint_names", [])
+    )
+    atool_joint_map = get_joint_map(model, (traj_atool or {}).get("joint_names", []))
+
+    # --- Prepare a unified list of waypoints for consistent navigation ---
+    waypoints = []
+    if execution_mode in ["Jaco Only", "Articutool Only"]:
+        traj = traj_jaco if execution_mode == "Jaco Only" else traj_atool
+        waypoints = traj["points"]
+    elif execution_mode == "Sequential":
+        waypoints.extend(traj_jaco["points"])
+        waypoints.extend(traj_atool["points"])
+    elif execution_mode == "Synchronous":
+        waypoints = traj_jaco["points"] if traj_jaco else []  # Default to Jaco
+
+    if not waypoints:
+        print("No waypoints to display for this stage.")
+        return "menu"
+
     current_idx = 0
+    q = pin.neutral(model)
+
     while True:
-        waypoint_positions = waypoints[current_idx]["positions"]
-        for name, pos in zip(joint_names_from_traj, waypoint_positions):
-            if name in joint_map:
-                joint_id = joint_map[name]
-                if model.joints[joint_id].nq == 1:
-                    q[model.joints[joint_id].idx_q] = pos
-                elif model.joints[joint_id].nq == 2:
-                    q[model.joints[joint_id].idx_q] = np.cos(pos)
-                    q[model.joints[joint_id].idx_q + 1] = np.sin(pos)
+        # --- Update robot configuration `q` for the current frame ---
+        # 1. Start with the static Jaco pose from the previous stage, if available.
+        if static_jaco_config:
+            update_q_from_waypoint(
+                q,
+                model,
+                {"positions": static_jaco_config["positions"]},
+                static_jaco_config["joint_names"],
+                jaco_joint_map,
+            )
+
+        # 2. Layer on the animated joint positions for the current waypoint.
+        if execution_mode == "Sequential":
+            # For sequential, we need to know the final pose of the first trajectory
+            jaco_end_waypoint = traj_jaco["points"][-1]
+            if current_idx >= len(traj_jaco["points"]):  # We are in the Articutool part
+                update_q_from_waypoint(
+                    q,
+                    model,
+                    jaco_end_waypoint,
+                    traj_jaco["joint_names"],
+                    jaco_joint_map,
+                )
+                update_q_from_waypoint(
+                    q,
+                    model,
+                    waypoints[current_idx],
+                    traj_atool["joint_names"],
+                    atool_joint_map,
+                )
+            else:  # We are in the Jaco part
+                update_q_from_waypoint(
+                    q,
+                    model,
+                    waypoints[current_idx],
+                    traj_jaco["joint_names"],
+                    jaco_joint_map,
+                )
+                # Keep atool at its starting position
+                update_q_from_waypoint(
+                    q,
+                    model,
+                    traj_atool["points"][0],
+                    traj_atool["joint_names"],
+                    atool_joint_map,
+                )
+        else:  # For all other modes, just update from the single relevant trajectory
+            if traj_jaco:
+                update_q_from_waypoint(
+                    q,
+                    model,
+                    traj_jaco["points"][min(current_idx, len(traj_jaco["points"]) - 1)],
+                    traj_jaco["joint_names"],
+                    jaco_joint_map,
+                )
+            if traj_atool:
+                update_q_from_waypoint(
+                    q,
+                    model,
+                    traj_atool["points"][
+                        min(current_idx, len(traj_atool["points"]) - 1)
+                    ],
+                    traj_atool["joint_names"],
+                    atool_joint_map,
+                )
 
         pin.forwardKinematics(model, data, q)
         pin_viz.display(q)
 
         print(f"\nDisplaying Frame: {current_idx + 1}/{len(waypoints)}")
+        print(
+            f"--- Stage: {selected_stage['stage_name']} | Trial: {selected_stage['trial_id']} | Mode: {execution_mode} ---"
+        )
         print("Commands: [n]ext, [p]rev, [f]irst, [l]ast, [a]nimate, [m]enu, [q]uit")
-
         user_input = input("Enter command: ").strip().lower()
 
         if user_input == "q":
@@ -279,15 +420,68 @@ def visualization_loop(pin_viz, model, data, selected_trial, args):
             print("Animating... Press Ctrl+C to stop.")
             try:
                 for i in range(current_idx, len(waypoints)):
-                    waypoint_positions = waypoints[i]["positions"]
-                    for name, pos in zip(joint_names_from_traj, waypoint_positions):
-                        if name in joint_map:
-                            joint_id = joint_map[name]
-                            if model.joints[joint_id].nq == 1:
-                                q[model.joints[joint_id].idx_q] = pos
-                            elif model.joints[joint_id].nq == 2:
-                                q[model.joints[joint_id].idx_q] = np.cos(pos)
-                                q[model.joints[joint_id].idx_q + 1] = np.sin(pos)
+                    # The same update logic as above is used for animation frames
+                    if static_jaco_config:
+                        update_q_from_waypoint(
+                            q,
+                            model,
+                            {"positions": static_jaco_config["positions"]},
+                            static_jaco_config["joint_names"],
+                            jaco_joint_map,
+                        )
+                    if execution_mode == "Sequential":
+                        jaco_end_waypoint = traj_jaco["points"][-1]
+                        if i >= len(traj_jaco["points"]):
+                            update_q_from_waypoint(
+                                q,
+                                model,
+                                jaco_end_waypoint,
+                                traj_jaco["joint_names"],
+                                jaco_joint_map,
+                            )
+                            update_q_from_waypoint(
+                                q,
+                                model,
+                                waypoints[i],
+                                traj_atool["joint_names"],
+                                atool_joint_map,
+                            )
+                        else:
+                            update_q_from_waypoint(
+                                q,
+                                model,
+                                waypoints[i],
+                                traj_jaco["joint_names"],
+                                jaco_joint_map,
+                            )
+                            update_q_from_waypoint(
+                                q,
+                                model,
+                                traj_atool["points"][0],
+                                traj_atool["joint_names"],
+                                atool_joint_map,
+                            )
+                    else:
+                        if traj_jaco:
+                            update_q_from_waypoint(
+                                q,
+                                model,
+                                traj_jaco["points"][
+                                    min(i, len(traj_jaco["points"]) - 1)
+                                ],
+                                traj_jaco["joint_names"],
+                                jaco_joint_map,
+                            )
+                        if traj_atool:
+                            update_q_from_waypoint(
+                                q,
+                                model,
+                                traj_atool["points"][
+                                    min(i, len(traj_atool["points"]) - 1)
+                                ],
+                                traj_atool["joint_names"],
+                                atool_joint_map,
+                            )
 
                     pin.forwardKinematics(model, data, q)
                     pin_viz.display(q)
@@ -332,14 +526,12 @@ def main(args):
         return
 
     while True:
-        selected_trial = select_trajectory(df)
-        if selected_trial is None:
+        selected_stage = select_trajectory(df)
+        if selected_stage is None:
             break
-
-        action = visualization_loop(pin_viz, model, data, selected_trial, args)
+        action = visualization_loop(pin_viz, model, data, selected_stage, args)
         if action == "quit":
             break
-
     print("Visualizer finished.")
 
 
