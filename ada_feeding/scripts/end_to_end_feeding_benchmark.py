@@ -741,13 +741,7 @@ class EndToEndBenchmark:
             target_y_in_wrist_frame = R_World_JacoEE.inv().apply(
                 y_axis_TipTarget_InWorld
             )
-
-            # The IK solver expects a vector pre-rotated from our target.
-            # A vector (x, y, z) becomes (-y, x, z).
-            x, y, z = target_y_in_wrist_frame
-            ik_input_vector = np.array([-y, x, z])
-
-            ik_solutions = self._solve_articutool_ik(ik_input_vector)
+            ik_solutions = self._solve_articutool_ik(target_y_in_wrist_frame)
 
             valid_solutions = [
                 np.array(sol)
