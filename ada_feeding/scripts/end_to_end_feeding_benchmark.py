@@ -808,9 +808,19 @@ class EndToEndBenchmark:
 
         for point in traj_jaco.points:
             q = pin.neutral(self.pinocchio_model)
-            for i, name in enumerate(traj_jaco.joint_names):
-                joint_id = self.pinocchio_model.getJointId(name)
-                q[self.pinocchio_model.joints[joint_id].idx_q] = point.positions[i]
+            for j, name in enumerate(traj_jaco.joint_names):
+                if self.pinocchio_model.existJointName(name):
+                    joint_id = self.pinocchio_model.getJointId(name)
+                    joint_obj = self.pinocchio_model.joints[joint_id]
+                    angle = point.positions[j]
+                    # Check if the joint is a standard revolute joint (nq=2)
+                    if joint_obj.nq == 2:
+                        q[joint_obj.idx_q : joint_obj.idx_q + 2] = [
+                            np.cos(angle),
+                            np.sin(angle),
+                        ]
+                    else:
+                        q[joint_obj.idx_q] = angle
 
             pin.forwardKinematics(self.pinocchio_model, self.pinocchio_data, q)
             pin.updateFramePlacements(self.pinocchio_model, self.pinocchio_data)
