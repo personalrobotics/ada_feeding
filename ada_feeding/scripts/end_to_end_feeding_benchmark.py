@@ -702,6 +702,86 @@ class EndToEndBenchmark:
             orientation=Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3]),
         )
 
+    def _normalize_angle(self, angle: float) -> float:
+        """Normalize an angle to [-pi, pi]."""
+        return (angle + math.pi) % (2 * math.pi) - math.pi
+
+    def _test_articutool_ik_solver(self):
+        """
+        Performs a round-trip test of the Articutool's analytical IK solver.
+        """
+        LOGGER.info("--- Running Articutool IK Solver Test ---")
+
+        test_cases_deg = {
+            "Zero": (0, 0),
+            "Pitch_Positive": (30, 0),
+            "Pitch_Negative": (-45, 0),
+            "Roll_Positive": (0, 30),
+            "Roll_Negative": (0, -45),
+            "Combined_1": (30, 45),
+            "Combined_2": (-20, -60),
+            "Limit_Pitch": (90, 0),  # A singularity case
+            "Limit_Roll": (0, 90),
+        }
+
+        all_passed = True
+        for name, (pitch_deg, roll_deg) in test_cases_deg.items():
+            # --- 1. START: Convert test case to radians ---
+            theta_p = np.deg2rad(pitch_deg)
+            theta_r = np.deg2rad(roll_deg)
+
+            # --- 2. FORWARD KINEMATICS: Calculate the target Y-axis vector ---
+            # Note the swapped sin/cos for y_y due to kinematic conventions
+            y_x = np.cos(theta_p) * np.cos(theta_r)
+            y_y = np.sin(theta_r)
+            y_z = np.sin(theta_p) * np.cos(theta_r)
+            target_y_in_wrist_frame = np.array([y_x, y_y, y_z])
+
+            # --- 3. PRE-ROTATION: Apply the necessary R_z(+pi/2) rotation ---
+            # This is the crucial step that mimics what our trajectory generator does.
+            ik_input_vector = np.array(
+                [
+                    -target_y_in_wrist_frame[1],
+                    target_y_in_wrist_frame[0],
+                    target_y_in_wrist_frame[2],
+                ]
+            )
+
+            # --- 4. INVERSE KINEMATICS: Call the solver ---
+            ik_solutions_rad = self._solve_articutool_ik(ik_input_vector)
+
+            # --- 5. VERIFICATION: Check if the original angles are in the solution set ---
+            found_match = False
+            for sol_p, sol_r in ik_solutions_rad:
+                # Check if a solution is close to the original input, accounting for angle wrapping
+                if np.isclose(
+                    self._normalize_angle(sol_p), self._normalize_angle(theta_p)
+                ) and np.isclose(
+                    self._normalize_angle(sol_r), self._normalize_angle(theta_r)
+                ):
+                    found_match = True
+                    break
+
+            status = "✅ SUCCESS" if found_match else "❌ FAILURE"
+            if not found_match:
+                all_passed = False
+
+            print(f"\n- Test Case: {name} ({pitch_deg}°, {roll_deg}°)")
+            print(
+                f"  - FK Target Vector (y_axis): {np.round(target_y_in_wrist_frame, 3)}"
+            )
+            print(f"  - IK Input Vector (pre-rotated): {np.round(ik_input_vector, 3)}")
+            print(
+                f"  - IK Solutions Found (deg): {[(np.rad2deg(p), np.rad2deg(r)) for p, r in ik_solutions_rad]}"
+            )
+            print(f"  - Result: {status}")
+
+        LOGGER.info("--- IK Solver Test Finished ---")
+        if all_passed:
+            LOGGER.info("✅ All test cases passed!")
+        else:
+            LOGGER.error("❌ One or more test cases failed!")
+
     def _generate_orientation_holding_atool_trajectory(
         self, traj_jaco: JointTrajectory, desired_tool_tip_world_orientation: Quaternion
     ) -> Optional[JointTrajectory]:
