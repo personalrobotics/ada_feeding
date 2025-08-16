@@ -379,6 +379,96 @@ class MotionPlanner:
         return TrialStatus.SUCCESS, traj
 
 
+class PinocchioModel:
+    """A wrapper for Pinocchio to provide a seamless interface for kinematic queries."""
+
+    def __init__(self, xacro_file_path: str):
+        """Loads the robot model from a XACRO file."""
+        self.model: Optional[pin.Model] = None
+        self.data: Optional[pin.Data] = None
+        self._is_ready = False
+
+        try:
+            # Convert XACRO to URDF string
+            process = subprocess.run(
+                ["ros2", "run", "xacro", "xacro", xacro_file_path],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            urdf_xml_string = process.stdout
+
+            # Load model from string
+            self.model = pin.buildModelFromXML(urdf_xml_string)
+            self.data = self.model.createData()
+            self._is_ready = True
+            LOGGER.info("Pinocchio model loaded successfully.")
+        except Exception as e:
+            LOGGER.error(f"Failed to initialize Pinocchio model: {e}", exc_info=True)
+
+    def is_ready(self) -> bool:
+        """Returns True if the model was loaded successfully."""
+        return self._is_ready
+
+    def _update_configuration(
+        self, jaco_joints: List[float], atool_joints: Optional[List[float]] = None
+    ) -> np.ndarray:
+        """
+        Populates Pinocchio's configuration vector `q` from joint lists.
+        Handles the sin/cos representation for revolute joints correctly using the
+        python `math` library to ensure type compatibility with Pinocchio's bindings.
+        """
+        q = pin.neutral(self.model)
+
+        all_joints = jaco_joints + (atool_joints if atool_joints is not None else [])
+        all_names = JOINT_NAMES_JACO + (
+            JOINT_NAMES_ATOOL if atool_joints is not None else []
+        )
+
+        for i, name in enumerate(all_names):
+            if self.model.existJointName(name):
+                joint_id = self.model.getJointId(name)
+                joint_obj = self.model.joints[joint_id]
+                angle = all_joints[i]
+
+                idx = joint_obj.idx_q
+                if joint_obj.nq == 2:
+                    q[idx : idx + 2] = [math.cos(angle), math.sin(angle)]
+                else:
+                    q[idx] = angle
+        return q
+
+    def get_frame_transform(
+        self,
+        frame_name: str,
+        jaco_joints: List[float],
+        atool_joints: Optional[List[float]] = None,
+    ) -> Optional[pin.SE3]:
+        """
+        Performs Forward Kinematics to get the transform of a specific frame.
+
+        Returns:
+            A Pinocchio SE3 transform object, or None on failure.
+        """
+        if not self.is_ready():
+            return None
+
+        try:
+            # Update the model's configuration vector
+            q = self._update_configuration(jaco_joints, atool_joints)
+
+            # Run Forward Kinematics
+            pin.forwardKinematics(self.model, self.data, q)
+            pin.updateFramePlacements(self.model, self.data)
+
+            # Get and return the transform
+            frame_id = self.model.getFrameId(frame_name)
+            return self.data.oMf[frame_id]
+        except Exception as e:
+            LOGGER.error(f"Pinocchio FK failed for frame '{frame_name}': {e}")
+            return None
+
+
 class EndToEndBenchmark:
     """Manages the end-to-end benchmark planning process."""
 
@@ -414,33 +504,10 @@ class EndToEndBenchmark:
         )
 
         # Pinocchio model for feasibility checks
-        self.pinocchio_model: Optional[pin.Model] = None
-        self.pinocchio_data: Optional[pin.Data] = None
-        self.jaco_ee_frame_id_pin: Optional[int] = None
-        self._initialize_pinocchio()
+        self.kinematics_model = PinocchioModel(self.xacro_file_path)
 
         if self.output_dir:
             os.makedirs(self.output_dir, exist_ok=True)
-
-    def _initialize_pinocchio(self):
-        """Loads the robot model from a XACRO file into Pinocchio."""
-        try:
-            process = subprocess.run(
-                ["ros2", "run", "xacro", "xacro", self.xacro_file_path],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            urdf_xml_string = process.stdout
-            self.pinocchio_model = pin.buildModelFromXML(urdf_xml_string)
-            self.pinocchio_data = self.pinocchio_model.createData()
-            self.jaco_ee_frame_id_pin = self.pinocchio_model.getFrameId(
-                END_EFFECTOR_LINK_FULL
-            )
-            LOGGER.info("Pinocchio model loaded successfully.")
-        except Exception as e:
-            LOGGER.error(f"Failed to initialize Pinocchio model: {e}", exc_info=True)
-            self.pinocchio_model = None
 
     def add_articutool_bounding_cylinder(self):
         """
@@ -801,31 +868,18 @@ class EndToEndBenchmark:
             ]
         )
         y_axis_TipTarget_InWorld = R_World_TipTarget.apply(np.array([0.0, 1.0, 0.0]))
-        jaco_wrist_frame_id = self.pinocchio_model.getFrameId(END_EFFECTOR_LINK_JACO)
 
         atool_solutions = []
         last_valid_solution = None
 
         for point in traj_jaco.points:
-            q = pin.neutral(self.pinocchio_model)
-            for j, name in enumerate(traj_jaco.joint_names):
-                if self.pinocchio_model.existJointName(name):
-                    joint_id = self.pinocchio_model.getJointId(name)
-                    joint_obj = self.pinocchio_model.joints[joint_id]
-                    angle = point.positions[j]
-                    # Check if the joint is a standard revolute joint (nq=2)
-                    if joint_obj.nq == 2:
-                        q[joint_obj.idx_q : joint_obj.idx_q + 2] = [
-                            np.cos(angle),
-                            np.sin(angle),
-                        ]
-                    else:
-                        q[joint_obj.idx_q] = angle
-
-            pin.forwardKinematics(self.pinocchio_model, self.pinocchio_data, q)
-            pin.updateFramePlacements(self.pinocchio_model, self.pinocchio_data)
-
-            jaco_wrist_transform = self.pinocchio_data.oMf[jaco_wrist_frame_id]
+            jaco_points = list(point.positions)
+            jaco_wrist_transform = self.kinematics_model.get_frame_transform(
+                frame_name=END_EFFECTOR_LINK_JACO, jaco_joints=jaco_points
+            )
+            if jaco_wrist_transform is None:
+                LOGGER.error("  Pinocchio FK failed for a waypoint.")
+                return None
             R_World_JacoEE = R.from_matrix(jaco_wrist_transform.rotation)
 
             target_y_in_wrist_frame = R_World_JacoEE.inv().apply(
@@ -1121,35 +1175,22 @@ class EndToEndBenchmark:
     # --- Feasibility Checking ---
     def _is_config_kinematically_feasible(self, jaco_joint_config: List[float]) -> bool:
         """
-        Checks if the Articutool can maintain leveling at a single Jaco configuration.
-        This is our "oracle" for testing membership in the true feasibility manifold.
+        Checks if the Articutool can maintain leveling at a single Jaco configuration
+        by using the PinocchioModel to perform forward kinematics.
         """
-        if (
-            self.pinocchio_model is None
-            or self.pinocchio_data is None
-            or self.jaco_ee_frame_id_pin is None
-        ):
+        if not self.kinematics_model.is_ready():
             return False
 
-        q = pin.neutral(self.pinocchio_model)
-        for j, name in enumerate(JOINT_NAMES_FULL):
-            if self.pinocchio_model.existJointName(name):
-                joint_id = self.pinocchio_model.getJointId(name)
-                joint_obj = self.pinocchio_model.joints[joint_id]
-                if joint_obj.nq == 2 and not joint_obj.shortname().startswith(
-                    "JointModelRX"
-                ):
-                    q[joint_obj.idx_q : joint_obj.idx_q + 2] = [
-                        math.cos(jaco_joint_config[j]),
-                        math.sin(jaco_joint_config[j]),
-                    ]
-                else:
-                    q[joint_obj.idx_q] = jaco_joint_config[j]
+        # Get the Jaco end-effector's transform for the given joint configuration.
+        # We don't need to specify atool_joints, as they don't affect the Jaco wrist's pose.
+        ee_transform = self.kinematics_model.get_frame_transform(
+            frame_name=END_EFFECTOR_LINK_JACO, jaco_joints=jaco_joint_config
+        )
 
-        pin.forwardKinematics(self.pinocchio_model, self.pinocchio_data, q)
-        pin.updateFramePlacements(self.pinocchio_model, self.pinocchio_data)
+        if ee_transform is None:
+            # The FK calculation failed.
+            return False
 
-        ee_transform = self.pinocchio_data.oMf[self.jaco_ee_frame_id_pin]
         target_up_in_ee_frame = (
             R.from_matrix(ee_transform.rotation).inv().apply(WORLD_UP_VECTOR)
         )
@@ -1427,9 +1468,6 @@ class EndToEndBenchmark:
     # --- Main Benchmark Loop ---
     def run(self):
         """Main benchmark execution loop."""
-        if not self.pinocchio_model:
-            LOGGER.error("Benchmark cannot run because Pinocchio model failed to load.")
-            return
         self.add_articutool_bounding_cylinder()
 
         for i in range(self.num_trials):
