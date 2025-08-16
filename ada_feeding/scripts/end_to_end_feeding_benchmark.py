@@ -33,7 +33,7 @@ from pymoveit2.robots import kinova
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
-from trajectory_msgs.msg import JointTrajectory
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped
 from sensor_msgs.msg import JointState
 from scipy.spatial.transform import Rotation as R
@@ -702,6 +702,93 @@ class EndToEndBenchmark:
             orientation=Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3]),
         )
 
+    def _generate_orientation_holding_atool_trajectory(
+        self, traj_jaco: JointTrajectory, desired_tool_tip_world_orientation: Quaternion
+    ) -> Optional[JointTrajectory]:
+        """
+        Generates a synchronized Articutool trajectory that maintains a fixed world
+        orientation, including the necessary kinematic pre-rotation for the IK solver.
+        """
+        if not traj_jaco or not traj_jaco.points:
+            return None
+
+        R_World_TipTarget = R.from_quat(
+            [
+                desired_tool_tip_world_orientation.x,
+                desired_tool_tip_world_orientation.y,
+                desired_tool_tip_world_orientation.z,
+                desired_tool_tip_world_orientation.w,
+            ]
+        )
+        y_axis_TipTarget_InWorld = R_World_TipTarget.apply(np.array([0.0, 1.0, 0.0]))
+        jaco_wrist_frame_id = self.pinocchio_model.getFrameId(END_EFFECTOR_LINK_JACO)
+
+        atool_solutions = []
+        last_valid_solution = None
+
+        for point in traj_jaco.points:
+            q = pin.neutral(self.pinocchio_model)
+            for i, name in enumerate(traj_jaco.joint_names):
+                joint_id = self.pinocchio_model.getJointId(name)
+                q[self.pinocchio_model.joints[joint_id].idx_q] = point.positions[i]
+
+            pin.forwardKinematics(self.pinocchio_model, self.pinocchio_data, q)
+            pin.updateFramePlacements(self.pinocchio_model, self.pinocchio_data)
+
+            jaco_wrist_transform = self.pinocchio_data.oMf[jaco_wrist_frame_id]
+            R_World_JacoEE = R.from_matrix(jaco_wrist_transform.rotation)
+
+            target_y_in_wrist_frame = R_World_JacoEE.inv().apply(
+                y_axis_TipTarget_InWorld
+            )
+
+            # The IK solver expects a vector pre-rotated from our target.
+            # A vector (x, y, z) becomes (-y, x, z).
+            x, y, z = target_y_in_wrist_frame
+            ik_input_vector = np.array([-y, x, z])
+
+            ik_solutions = self._solve_articutool_ik(ik_input_vector)
+
+            valid_solutions = [
+                np.array(sol)
+                for sol in ik_solutions
+                if (
+                    ARTICUTOOL_PITCH_LIMITS_RAD[0]
+                    <= sol[0]
+                    <= ARTICUTOOL_PITCH_LIMITS_RAD[1]
+                    and ARTICUTOOL_ROLL_LIMITS_RAD[0]
+                    <= sol[1]
+                    <= ARTICUTOOL_ROLL_LIMITS_RAD[1]
+                )
+            ]
+
+            if not valid_solutions:
+                LOGGER.warning(
+                    "  Failed to find valid IK solution for an Articutool waypoint."
+                )
+                return None
+
+            if last_valid_solution is None:
+                chosen_solution = valid_solutions[0]
+            else:
+                distances = [
+                    np.linalg.norm(sol - last_valid_solution) for sol in valid_solutions
+                ]
+                chosen_solution = valid_solutions[np.argmin(distances)]
+
+            atool_solutions.append(chosen_solution)
+            last_valid_solution = chosen_solution
+
+        traj_atool = JointTrajectory()
+        traj_atool.joint_names = JOINT_NAMES_ATOOL
+        for i, pos in enumerate(atool_solutions):
+            point = JointTrajectoryPoint()
+            point.positions = pos.tolist()
+            point.time_from_start = traj_jaco.points[i].time_from_start
+            traj_atool.points.append(point)
+
+        return traj_atool
+
     def _calculate_above_plate_pose(self, food_pose: Pose) -> Pose:
         """
         Calculates a camera pose for the Jaco end-effector that looks at the food,
@@ -1109,7 +1196,12 @@ class EndToEndBenchmark:
         in_food_pose: Pose,
         start_state_jaco: List[float],
         start_state_atool: List[float],
-    ) -> Tuple[TrialStatus, Optional[JointTrajectory], Optional[Pose]]:
+    ) -> Tuple[
+        TrialStatus,
+        Optional[JointTrajectory],
+        Optional[JointTrajectory],
+        Optional[Pose],
+    ]:
         LOGGER.info("  Solving 8-DOF IK for InFood pose...")
 
         # 1. Compute the 8-DOF IK solution for the target tool tip pose
@@ -1121,7 +1213,7 @@ class EndToEndBenchmark:
 
         if not ik_solution:
             LOGGER.warning("  IK solution for 8-DOF system not found.")
-            return TrialStatus.IK_FAILURE, None, None
+            return TrialStatus.IK_FAILURE, None, None, None
 
         LOGGER.info(f"  8-DOF IK solution found. Calculating wrist pose via FK.")
 
@@ -1134,12 +1226,12 @@ class EndToEndBenchmark:
 
         if not fk_poses:
             LOGGER.warning("  FK calculation for Jaco wrist failed.")
-            return TrialStatus.IK_FAILURE, None, None
+            return TrialStatus.IK_FAILURE, None, None, None
 
         # The goal for the Jaco arm is the calculated pose of its wrist
         jaco_wrist_goal_pose = fk_poses[0].pose
 
-        # 3. Create a pose constraint for the Cartesian plan
+        # 3. Plan a Cartesian motion for the Jaco arm to the wrist pose
         jaco_goal_constraints = [create_pose_constraint(jaco_wrist_goal_pose)]
 
         # 4. Plan a Cartesian motion for the Jaco arm to the wrist pose
@@ -1152,9 +1244,19 @@ class EndToEndBenchmark:
 
         if status_jaco != TrialStatus.SUCCESS:
             LOGGER.warning("  Jaco arm planning failed.")
-            return TrialStatus.PLANNER_FAILURE, None, None
+            return TrialStatus.PLANNER_FAILURE, None, None, None
 
-        return TrialStatus.SUCCESS, traj_jaco, jaco_wrist_goal_pose
+        # 4. Generate the corresponding synchronous Articutool trajectory
+        LOGGER.info("  Generating synchronous Articutool trajectory...")
+        traj_atool = self._generate_orientation_holding_atool_trajectory(
+            traj_jaco, in_food_pose.orientation
+        )
+
+        if traj_atool is None:
+            LOGGER.error("  Failed to generate synchronous Articutool trajectory.")
+            return TrialStatus.IK_FAILURE, traj_jaco, None, None
+
+        return TrialStatus.SUCCESS, traj_jaco, traj_atool, jaco_wrist_goal_pose
 
     def _plan_to_level_articutool(
         self,
@@ -1346,16 +1448,16 @@ class EndToEndBenchmark:
 
             # --- Stage 3: AboveFood -> InFood ---
             LOGGER.info("Stage 3: AboveFood -> InFood (Cartesian)")
-            status, traj_jaco, jaco_wrist_pose = self._plan_to_in_food(
+            status, traj_jaco, traj_atool, jaco_wrist_pose = self._plan_to_in_food(
                 scene["in_food_pose"], current_jaco_state, current_atool_state
             )
             trial_data["stages"].append(
                 {
                     "stage_name": "AboveFoodToInFood",
                     "status": status.value,
-                    "execution_mode": ExecutionMode.JACO_ONLY.value,
+                    "execution_mode": ExecutionMode.SYNCHRONOUS.value,
                     "traj_jaco": self._serialize_trajectory(traj_jaco),
-                    "traj_atool": None,
+                    "traj_atool": self._serialize_trajectory(traj_atool),
                 }
             )
             if status != TrialStatus.SUCCESS:
@@ -1363,6 +1465,7 @@ class EndToEndBenchmark:
                 self.results.append(trial_data)
                 continue
             current_jaco_state = list(traj_jaco.points[-1].positions)
+            current_atool_state = list(traj_atool.points[-1].positions)
 
             # --- Stage 4: InFood -> LevelArticutool ---
             LOGGER.info("Stage 4: Level Articutool")
