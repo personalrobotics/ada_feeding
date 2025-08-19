@@ -1045,7 +1045,7 @@ class EndToEndBenchmark:
 
     # --- Semantic Pose Calculation ---
     def _calculate_in_food_pose(
-        self, food_pose: Pose, recipe: ActionRecipe
+        self, food_pose: Pose, recipe: ActionRecipe, tool_roll_angle_deg: float = 180.0
     ) -> Tuple[Pose, np.ndarray]:
         """
         Calculates the InFood tool tip pose based on a semantic ActionRecipe.
@@ -1092,8 +1092,14 @@ class EndToEndBenchmark:
             tool_y_final = np.cross(tool_z_final, tool_x_final)
 
             # 4. The final rotation is constructed from these basis vectors.
-            rotation_matrix = np.array([tool_x_final, tool_y_final, tool_z_final]).T
-            final_rotation = R.from_matrix(rotation_matrix)
+            base_rotation_matrix = np.array(
+                [tool_x_final, tool_y_final, tool_z_final]
+            ).T
+            base_orientation = R.from_matrix(base_rotation_matrix)
+            roll_rotation = R.from_rotvec(
+                np.deg2rad(tool_roll_angle_deg) * tool_z_final
+            )
+            final_rotation = roll_rotation * base_orientation
             approach_vector = tool_z_final
 
         # --- SCOOP Strategy Logic (Placeholder) ---
