@@ -927,6 +927,60 @@ class EndToEndBenchmark:
 
         return traj_atool
 
+    def _generate_leveling_atool_trajectory(
+        self, traj_jaco: JointTrajectory
+    ) -> Optional[JointTrajectory]:
+        """
+        Generates a synchronized Articutool trajectory that maintains a level-to-gravity
+        orientation during a Jaco arm motion.
+        """
+        if not traj_jaco or not traj_jaco.points:
+            return None
+
+        atool_solutions = []
+
+        # 1. Iterate through each waypoint of the Jaco trajectory
+        for point in traj_jaco.points:
+            jaco_joint_config = list(point.positions)
+
+            # 2. For each arm configuration, find the pose of the wrist using FK
+            jaco_wrist_transform = self.kinematics_model.get_frame_transform(
+                frame_name=END_EFFECTOR_LINK_JACO, jaco_joints=jaco_joint_config
+            )
+            if jaco_wrist_transform is None:
+                LOGGER.error(
+                    "  Pinocchio FK failed for a waypoint while generating leveling trajectory."
+                )
+                return None
+
+            q = R.from_matrix(jaco_wrist_transform.rotation).as_quat()
+            p = jaco_wrist_transform.translation
+            jaco_wrist_pose = Pose(
+                position=Point(x=p[0], y=p[1], z=p[2]),
+                orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3]),
+            )
+
+            # 3. Calculate the Articutool joints needed to be level at that wrist pose
+            atool_leveling_joints = self._compute_leveling_joints(jaco_wrist_pose)
+            if atool_leveling_joints is None:
+                LOGGER.warning(
+                    "  Failed to find leveling IK solution for an Articutool waypoint."
+                )
+                return None
+
+            atool_solutions.append(atool_leveling_joints)
+
+        # 4. Compile the solutions into a JointTrajectory message
+        traj_atool = JointTrajectory()
+        traj_atool.joint_names = JOINT_NAMES_ATOOL
+        for i, pos in enumerate(atool_solutions):
+            point_msg = JointTrajectoryPoint()
+            point_msg.positions = pos
+            point_msg.time_from_start = traj_jaco.points[i].time_from_start
+            traj_atool.points.append(point_msg)
+
+        return traj_atool
+
     def _calculate_above_plate_pose(self, food_pose: Pose) -> Pose:
         """
         Calculates a camera pose for the Jaco end-effector that looks at the food,
@@ -1418,6 +1472,60 @@ class EndToEndBenchmark:
         LOGGER.info("  Articutool leveling plan successful.")
         return TrialStatus.SUCCESS, trajectory
 
+    def _plan_to_resting(
+        self,
+        resting_wrist_pose: Pose,
+        start_state_jaco: List[float],
+    ) -> Tuple[
+        TrialStatus, Optional[JointTrajectory], Optional[JointTrajectory], float
+    ]:
+        """
+        Plans a 6-DOF guided motion for the Jaco arm to a resting wrist pose
+        and measures its leveling feasibility.
+        """
+        LOGGER.info("  Planning to Resting pose (S2-Heuristic)...")
+
+        # 1. Define goal and path constraints for the Jaco arm's wrist
+        goal_constraints = [create_pose_constraint(resting_wrist_pose)]
+        path_constraints = [
+            create_orientation_path_constraint(
+                quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
+                tolerance_rad=PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
+            )
+        ]
+
+        # 2. Plan the guided 6-DOF trajectory for the Jaco arm
+        status, traj_jaco = self.motion_planner.plan(
+            group_name=PLANNING_GROUP_JACO,
+            start_state=start_state_jaco,
+            goal_constraints=goal_constraints,
+            path_constraints=path_constraints,
+        )
+        if status != TrialStatus.SUCCESS:
+            return TrialStatus.PLANNER_FAILURE, None, None, 0.0
+
+        # 3. VERIFY the Jaco trajectory for leveling feasibility
+        feasibility_percent = self._verify_trajectory(traj_jaco)
+        if feasibility_percent < 99.0:
+            LOGGER.warning(
+                f"  Path to Resting failed verification ({feasibility_percent:.1f}% feasible)."
+            )
+            return (
+                TrialStatus.VERIFICATION_FAILURE,
+                traj_jaco,
+                None,
+                feasibility_percent,
+            )
+
+        # 4. Generate the corresponding synchronous Articutool trajectory
+        LOGGER.info("  Generating synchronous Articutool trajectory...")
+        traj_atool = self._generate_leveling_atool_trajectory(traj_jaco)
+
+        if traj_atool is None:
+            LOGGER.error("  Failed to generate synchronous Articutool trajectory.")
+            return TrialStatus.IK_FAILURE, traj_jaco, None, feasibility_percent
+        return TrialStatus.SUCCESS, traj_jaco, traj_atool, feasibility_percent
+
     def _plan_s2_guided(
         self, goal_pose: Pose, start_state: Any
     ) -> Tuple[TrialStatus, Optional[JointTrajectory], float]:
@@ -1607,6 +1715,27 @@ class EndToEndBenchmark:
                 LOGGER.error(f"  Stage 4 failed. Skipping trial.")
                 self.results.append(trial_data)
                 continue
+            current_atool_state = list(traj_atool.points[-1].positions)
+
+            # --- Stage 5: LevelArticutool -> Resting ---
+            LOGGER.info("Stage 5: Resting")
+            status, traj_jaco, traj_atool, leveling_feasibility = self._plan_to_resting(
+                scene["resting_pose"], current_jaco_state
+            )
+            trial_data["stages"].append(
+                {
+                    "stage_name": "Resting",
+                    "status": status.value,
+                    "execution_mode": ExecutionMode.SYNCHRONOUS.value,
+                    "traj_jaco": traj_jaco,
+                    "traj_atool": traj_atool,
+                }
+            )
+            if status != TrialStatus.SUCCESS:
+                LOGGER.error(f"  Stage 5 failed. Skipping trial.")
+                self.results.append(trial_data)
+                continue
+            current_jaco_state = list(traj_jaco.points[-1].positions)
             current_atool_state = list(traj_atool.points[-1].positions)
 
             # At the end of a successful trial, append the complete trial data
