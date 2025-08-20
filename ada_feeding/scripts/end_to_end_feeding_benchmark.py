@@ -141,7 +141,7 @@ class SceneGenerationParams:
     """Holds all parameters that define the random scene generation."""
 
     food_sampling: CylindricalSamplingParams = CylindricalSamplingParams(
-        name="food", inner_radius=0.0, outer_radius=1.0, min_height=0.0, max_height=0.6
+        name="food", inner_radius=0.4, outer_radius=0.8, min_height=0.0, max_height=0.3
     )
     mouth_sampling: CylindricalSamplingParams = CylindricalSamplingParams(
         name="mouth", inner_radius=0.0, outer_radius=1.0, min_height=0.0, max_height=0.6
