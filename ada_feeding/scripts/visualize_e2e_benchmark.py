@@ -6,13 +6,10 @@
 This script interactively visualizes trajectories from end_to_end_benchmark.py
 output files using Pinocchio and MeshCat.
 
-It allows a user to load a benchmark result file, choose a specific
-planning stage and trial, and then inspect the resulting trajectory
-frame-by-frame or animate it.
-
-This version automatically handles different execution modes (sequential, synchronous)
-and includes robust mesh path finding and explicit kinematic updates to prevent
-rendering artifacts.
+This refactored version uses a "trial-centric" workflow. A user first selects
+a Trial ID, which immediately displays the static scene for that trial. The user
+can then choose to play back any of the available (successful) stage
+trajectories from within that trial's context.
 """
 
 # Standard imports
@@ -144,6 +141,7 @@ def load_benchmark_data(file_paths: List[str], logger_func=print) -> pd.DataFram
                             "traj_jaco": stage.get("traj_jaco"),
                             "traj_atool": stage.get("traj_atool"),
                         }
+                        # We only care about stages that have a trajectory to visualize
                         if flat_record["traj_jaco"] or flat_record["traj_atool"]:
                             all_stages_flat.append(flat_record)
         except Exception as e:
@@ -156,92 +154,40 @@ def load_benchmark_data(file_paths: List[str], logger_func=print) -> pd.DataFram
     return pd.DataFrame(all_stages_flat)
 
 
-def select_trajectory(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """
-    Interactively prompts the user to select a stage and a trial. It then finds
-    the static pose of the Jaco arm from the previous stage to ensure
-    visual continuity.
-    """
-    stage_order = [
-        "HomeToAbovePlate",
-        "AbovePlateToAboveFood",
-        "AboveFoodToInFood",
-        "LevelArticutool",
-    ]
+def select_trial(df: pd.DataFrame) -> Optional[pd.DataFrame]:
+    """Interactively prompts the user to select a Trial ID."""
+    unique_trials = sorted(df["trial_id"].unique())
+    if not unique_trials:
+        print("No trials found in the loaded data.")
+        return None
 
     while True:
-        stages = df["stage_name"].unique()
-        print("\n--- Please Select a Stage to Visualize ---")
-        for i, stage in enumerate(stages):
-            print(f"  [{i + 1}] {stage}")
+        print("\n--- Please Select a Trial to Visualize ---")
+        for i, trial_id in enumerate(unique_trials):
+            print(f"  [{i + 1}] Trial ID: {trial_id}")
         print("  [q] Quit")
         try:
-            choice_str = input(f"Enter choice (1-{len(stages)} or q): ").strip().lower()
+            choice_str = (
+                input(f"Enter choice (1-{len(unique_trials)} or q): ").strip().lower()
+            )
             if choice_str == "q":
                 return None
-            selected_stage_name = stages[int(choice_str) - 1]
+            selected_trial_id = unique_trials[int(choice_str) - 1]
+            return df[df["trial_id"] == selected_trial_id].copy()
         except (ValueError, IndexError):
             print("Invalid choice.")
-            continue
-
-        stage_df = df[
-            (df["stage_name"] == selected_stage_name) & (df["status"] == "Success")
-        ].sort_values("trial_id")
-
-        if stage_df.empty:
-            print(f"No successful trials found for stage: {selected_stage_name}")
-            continue
-
-        trials_for_stage = stage_df.to_dict("records")
-        print(f"\n--- Select a Successful Trial from Stage '{selected_stage_name}' ---")
-        for i, trial in enumerate(trials_for_stage):
-            print(
-                f"  [{i + 1}] Trial ID: {trial['trial_id']} (Mode: {trial['execution_mode']})"
-            )
-        print("  [m] Back to Stage Selection")
-        try:
-            choice_str = (
-                input(f"Enter choice (1-{len(trials_for_stage)} or m): ")
-                .strip()
-                .lower()
-            )
-            if choice_str == "m":
-                continue
-
-            selected_record = trials_for_stage[int(choice_str) - 1]
-            trial_id = selected_record["trial_id"]
-
-            try:
-                current_stage_index = stage_order.index(selected_stage_name)
-                if current_stage_index > 0:
-                    previous_stage_name = stage_order[current_stage_index - 1]
-                    previous_stage_df = df[
-                        (df["trial_id"] == trial_id)
-                        & (df["stage_name"] == previous_stage_name)
-                    ]
-                    if not previous_stage_df.empty:
-                        prev_traj_jaco = previous_stage_df.iloc[0]["traj_jaco"]
-                        if prev_traj_jaco and prev_traj_jaco["points"]:
-                            last_waypoint = prev_traj_jaco["points"][-1]
-                            selected_record["static_jaco_config"] = {
-                                "positions": last_waypoint["positions"],
-                                "joint_names": prev_traj_jaco["joint_names"],
-                            }
-            except ValueError:
-                print(
-                    f"Warning: Stage '{selected_stage_name}' not in defined stage order for state carryover."
-                )
-
-            return selected_record
-        except (ValueError, IndexError):
-            print("Invalid choice.")
-            continue
 
 
 def draw_scene_frames(pin_viz, scene_poses: Dict[str, Any], frame_scale: float = 0.2):
     """Draws coordinate frames and identifying markers for all poses in the scene."""
     if not scene_poses:
         return
+
+    # Clear any previous frames before drawing new ones
+    try:
+        pin_viz.viewer["scene/frames"].delete()
+    except KeyError:
+        pass  # It's okay if it doesn't exist
 
     print("Drawing scene frames and markers...")
     for name, pose_data in scene_poses.items():
@@ -264,6 +210,7 @@ def draw_scene_frames(pin_viz, scene_poses: Dict[str, Any], frame_scale: float =
         pin_viz.viewer[frame_path].set_transform(transform.homogeneous)
 
 
+# --- Helper functions for robot state updates ---
 def get_joint_map(model, joint_names):
     """Helper to map joint names to their indices in Pinocchio's q vector."""
     if not joint_names:
@@ -289,15 +236,11 @@ def update_q_from_waypoint(q, model, waypoint, joint_names, joint_map):
                 q[model.joints[joint_id].idx_q + 1] = np.sin(pos)
 
 
-def visualization_loop(pin_viz, model, data, selected_stage, args):
-    """Runs the interactive UI, handling different execution modes and frame-by-frame controls."""
-    try:
-        pin_viz.viewer["scene/frames"].delete()
-    except KeyError:
-        pass
-    if "scene_poses" in selected_stage:
-        draw_scene_frames(pin_viz, selected_stage["scene_poses"])
-
+def trajectory_playback_loop(pin_viz, model, data, selected_stage, args):
+    """
+    Runs the interactive UI for a SINGLE trajectory.
+    Handles different execution modes and frame-by-frame controls.
+    """
     execution_mode = selected_stage["execution_mode"]
     traj_jaco = selected_stage.get("traj_jaco")
     traj_atool = selected_stage.get("traj_atool")
@@ -311,23 +254,24 @@ def visualization_loop(pin_viz, model, data, selected_stage, args):
     # --- Prepare a unified list of waypoints for consistent navigation ---
     waypoints = []
     if execution_mode in ["Jaco Only", "Articutool Only"]:
-        traj = traj_jaco if execution_mode == "Jaco Only" else traj_atool
-        waypoints = traj["points"]
-    elif execution_mode == "Sequential":
+        waypoints = (traj_jaco or traj_atool).get("points", [])
+    elif execution_mode == "Sequential" and traj_jaco and traj_atool:
         waypoints.extend(traj_jaco["points"])
         waypoints.extend(traj_atool["points"])
-    elif execution_mode == "Synchronous":
-        waypoints = traj_jaco["points"] if traj_jaco else []  # Default to Jaco
+    elif execution_mode == "Synchronous" and traj_jaco:
+        waypoints = traj_jaco["points"]
 
     if not waypoints:
         print("No waypoints to display for this stage.")
-        return "menu"
+        input("Press Enter to continue...")
+        return "back"
 
     current_idx = 0
-    q = pin.neutral(model)
 
     while True:
-        # --- Update robot configuration `q` for the current frame ---
+        # This ensures a clean slate and prevents state from bleeding over.
+        q = pin.neutral(model)
+
         # 1. Start with the static Jaco pose from the previous stage, if available.
         if static_jaco_config:
             update_q_from_waypoint(
@@ -342,7 +286,7 @@ def visualization_loop(pin_viz, model, data, selected_stage, args):
         if execution_mode == "Sequential":
             # For sequential, we need to know the final pose of the first trajectory
             jaco_end_waypoint = traj_jaco["points"][-1]
-            if current_idx >= len(traj_jaco["points"]):  # We are in the Articutool part
+            if current_idx >= len(traj_jaco["points"]):  # Articutool part
                 update_q_from_waypoint(
                     q,
                     model,
@@ -357,7 +301,7 @@ def visualization_loop(pin_viz, model, data, selected_stage, args):
                     traj_atool["joint_names"],
                     atool_joint_map,
                 )
-            else:  # We are in the Jaco part
+            else:  # Jaco part
                 update_q_from_waypoint(
                     q,
                     model,
@@ -365,15 +309,15 @@ def visualization_loop(pin_viz, model, data, selected_stage, args):
                     traj_jaco["joint_names"],
                     jaco_joint_map,
                 )
-                # Keep atool at its starting position
-                update_q_from_waypoint(
-                    q,
-                    model,
-                    traj_atool["points"][0],
-                    traj_atool["joint_names"],
-                    atool_joint_map,
-                )
-        else:  # For all other modes, just update from the single relevant trajectory
+                if traj_atool and traj_atool["points"]:
+                    update_q_from_waypoint(
+                        q,
+                        model,
+                        traj_atool["points"][0],
+                        traj_atool["joint_names"],
+                        atool_joint_map,
+                    )
+        else:  # For Synchronous, Jaco Only, Articutool Only
             if traj_jaco:
                 update_q_from_waypoint(
                     q,
@@ -393,20 +337,21 @@ def visualization_loop(pin_viz, model, data, selected_stage, args):
                     atool_joint_map,
                 )
 
+        # 3. Update and display the final calculated pose
         pin.forwardKinematics(model, data, q)
         pin_viz.display(q)
 
         print(f"\nDisplaying Frame: {current_idx + 1}/{len(waypoints)}")
+        print(f"--- Stage: {selected_stage['stage_name']} ---")
         print(
-            f"--- Stage: {selected_stage['stage_name']} | Trial: {selected_stage['trial_id']} | Mode: {execution_mode} ---"
+            "Commands: [n]ext, [p]rev, [f]irst, [l]ast, [a]nimate, [b]ack to stage selection, [q]uit"
         )
-        print("Commands: [n]ext, [p]rev, [f]irst, [l]ast, [a]nimate, [m]enu, [q]uit")
         user_input = input("Enter command: ").strip().lower()
 
         if user_input == "q":
             return "quit"
-        if user_input == "m":
-            return "menu"
+        if user_input == "b":
+            return "back"
 
         if user_input == "n":
             current_idx = min(current_idx + 1, len(waypoints) - 1)
@@ -420,27 +365,29 @@ def visualization_loop(pin_viz, model, data, selected_stage, args):
             print("Animating... Press Ctrl+C to stop.")
             try:
                 for i in range(current_idx, len(waypoints)):
-                    # The same update logic as above is used for animation frames
+                    # Also reset q inside the animation loop for consistency
+                    q_anim = pin.neutral(model)
                     if static_jaco_config:
                         update_q_from_waypoint(
-                            q,
+                            q_anim,
                             model,
                             {"positions": static_jaco_config["positions"]},
                             static_jaco_config["joint_names"],
                             jaco_joint_map,
                         )
+
                     if execution_mode == "Sequential":
                         jaco_end_waypoint = traj_jaco["points"][-1]
                         if i >= len(traj_jaco["points"]):
                             update_q_from_waypoint(
-                                q,
+                                q_anim,
                                 model,
                                 jaco_end_waypoint,
                                 traj_jaco["joint_names"],
                                 jaco_joint_map,
                             )
                             update_q_from_waypoint(
-                                q,
+                                q_anim,
                                 model,
                                 waypoints[i],
                                 traj_atool["joint_names"],
@@ -448,23 +395,24 @@ def visualization_loop(pin_viz, model, data, selected_stage, args):
                             )
                         else:
                             update_q_from_waypoint(
-                                q,
+                                q_anim,
                                 model,
                                 waypoints[i],
                                 traj_jaco["joint_names"],
                                 jaco_joint_map,
                             )
-                            update_q_from_waypoint(
-                                q,
-                                model,
-                                traj_atool["points"][0],
-                                traj_atool["joint_names"],
-                                atool_joint_map,
-                            )
+                            if traj_atool and traj_atool["points"]:
+                                update_q_from_waypoint(
+                                    q_anim,
+                                    model,
+                                    traj_atool["points"][0],
+                                    traj_atool["joint_names"],
+                                    atool_joint_map,
+                                )
                     else:
                         if traj_jaco:
                             update_q_from_waypoint(
-                                q,
+                                q_anim,
                                 model,
                                 traj_jaco["points"][
                                     min(i, len(traj_jaco["points"]) - 1)
@@ -474,7 +422,7 @@ def visualization_loop(pin_viz, model, data, selected_stage, args):
                             )
                         if traj_atool:
                             update_q_from_waypoint(
-                                q,
+                                q_anim,
                                 model,
                                 traj_atool["points"][
                                     min(i, len(traj_atool["points"]) - 1)
@@ -483,20 +431,109 @@ def visualization_loop(pin_viz, model, data, selected_stage, args):
                                 atool_joint_map,
                             )
 
-                    pin.forwardKinematics(model, data, q)
-                    pin_viz.display(q)
+                    pin.forwardKinematics(model, data, q_anim)
+                    pin_viz.display(q_anim)
                     print(f"  Displaying frame {i + 1}/{len(waypoints)}", end="\r")
                     time.sleep(1.0 / args.fps)
                 current_idx = len(waypoints) - 1
                 print("\nAnimation finished.")
             except KeyboardInterrupt:
                 print("\nAnimation stopped.")
-        elif user_input:
-            print("Invalid command.")
+
+
+def trial_visualization_loop(pin_viz, model, data, trial_df, args):
+    """
+    NEW: The main menu loop for an individual trial.
+    Displays the scene and lists available trajectories to visualize.
+    """
+    trial_id = trial_df.iloc[0]["trial_id"]
+    scene_poses = trial_df.iloc[0]["scene_poses"]
+
+    # 1. Immediately visualize the scene for this trial
+    draw_scene_frames(pin_viz, scene_poses)
+
+    # 2. Prepare a map of all trajectories in this trial for state carry-over
+    stage_data_map = {row["stage_name"]: row for row in trial_df.to_dict("records")}
+    stage_order = [
+        "HomeToAbovePlate",
+        "AbovePlateToAboveFood",
+        "AboveFoodToInFood",
+        "LevelArticutool",
+        "Resting",
+    ]
+
+    while True:
+        print(f"\n--- Visualizing Trial ID: {trial_id} ---")
+        print("Scene frames are now displayed.")
+        print("Select a trajectory to play:")
+
+        available_stages = [
+            row for row in trial_df.to_dict("records") if row["status"] == "Success"
+        ]
+
+        if not available_stages:
+            print("No successful trajectories available to visualize for this trial.")
+            input("Press Enter to return to trial selection...")
+            return "menu"
+
+        for i, stage in enumerate(available_stages):
+            print(
+                f"  [{i + 1}] {stage['stage_name']} (Mode: {stage['execution_mode']})"
+            )
+        print("  [m] Back to Trial Selection")
+        print("  [q] Quit")
+
+        try:
+            choice_str = (
+                input(f"Enter choice (1-{len(available_stages)} or m/q): ")
+                .strip()
+                .lower()
+            )
+            if choice_str == "q":
+                return "quit"
+            if choice_str == "m":
+                return "menu"
+
+            selected_stage_data = available_stages[int(choice_str) - 1]
+
+            # Find the previous stage to set the robot's static starting pose
+            try:
+                current_stage_index = stage_order.index(
+                    selected_stage_data["stage_name"]
+                )
+                if current_stage_index > 0:
+                    for i in range(current_stage_index - 1, -1, -1):
+                        prev_stage_name = stage_order[i]
+                        if (
+                            prev_stage_name in stage_data_map
+                            and stage_data_map[prev_stage_name]["traj_jaco"]
+                        ):
+                            prev_traj_jaco = stage_data_map[prev_stage_name][
+                                "traj_jaco"
+                            ]
+                            last_waypoint = prev_traj_jaco["points"][-1]
+                            selected_stage_data["static_jaco_config"] = {
+                                "positions": last_waypoint["positions"],
+                                "joint_names": prev_traj_jaco["joint_names"],
+                            }
+                            break
+            except ValueError:
+                pass  # Stage not in order, can't determine previous state
+
+            # Enter the playback loop for the chosen trajectory
+            action = trajectory_playback_loop(
+                pin_viz, model, data, selected_stage_data, args
+            )
+            if action == "quit":
+                return "quit"
+            # If 'back', the loop will continue, re-displaying this menu
+
+        except (ValueError, IndexError):
+            print("Invalid choice.")
 
 
 def main(args):
-    """Main execution function."""
+    """Main execution function with the new trial-centric workflow."""
     print("--- Interactive Benchmark Trajectory Visualizer ---")
 
     df = load_benchmark_data(args.benchmark_files)
@@ -526,12 +563,14 @@ def main(args):
         return
 
     while True:
-        selected_stage = select_trajectory(df)
-        if selected_stage is None:
+        trial_df = select_trial(df)
+        if trial_df is None or trial_df.empty:
             break
-        action = visualization_loop(pin_viz, model, data, selected_stage, args)
+
+        action = trial_visualization_loop(pin_viz, model, data, trial_df, args)
         if action == "quit":
             break
+
     print("Visualizer finished.")
 
 
