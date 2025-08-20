@@ -148,7 +148,7 @@ class SceneGenerationParams:
     )
     above_plate_radial_dist: float = 0.3
     above_plate_polar_angle_rad_max: float = math.pi / 3
-    above_plate_yaw_variability_rad: float = math.pi / 2
+    above_plate_yaw_variability_rad: float = math.pi / 8
     skewer_polar_angle_rad_max: float = math.pi / 2
     in_food_tool_roll_angle_deg: float = 180.0
     above_food_offset_dist: float = 0.1  # 10 cm
