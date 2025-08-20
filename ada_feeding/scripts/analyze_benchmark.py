@@ -1,6 +1,7 @@
 import argparse
 import json
 import pandas as pd
+from dataclasses import asdict
 
 
 def analyze_benchmark_results(file_path: str):
@@ -21,7 +22,16 @@ def analyze_benchmark_results(file_path: str):
     # --- 1. Flatten the data for easier analysis with pandas ---
     # Each row in this DataFrame will represent a single stage from a single trial.
     flat_stages = []
+    trial_characteristics = []
+
     for trial in data:
+        trial_characteristics.append(
+            {
+                "trial_id": trial.get("trial_id"),
+                "end_to_end_success": trial.get("end_to_end_success"),
+                **trial.get("scene_characteristics", {}),
+            }
+        )
         for stage in trial.get("stages", []):
             flat_record = {
                 "trial_id": trial.get("trial_id"),
@@ -36,35 +46,35 @@ def analyze_benchmark_results(file_path: str):
                 flat_record.update(stage["custom_metrics"])
             flat_stages.append(flat_record)
 
-    df = pd.DataFrame(flat_stages)
+    df_stages = pd.DataFrame(flat_stages)
+    df_trials = pd.DataFrame(trial_characteristics)
 
-    # --- 2. Calculate and Print Key Metrics ---
+    # --- 2. Print High-Level Summary ---
     num_trials = len(data)
     successful_trials = sum(1 for trial in data if trial.get("end_to_end_success"))
     overall_success_rate = (
         (successful_trials / num_trials) * 100 if num_trials > 0 else 0
     )
 
-    print("\n" + "=" * 50)
-    print("      BENCHMARK ANALYSIS REPORT")
-    print("=" * 50)
+    print("\n" + "=" * 60)
+    print("           BENCHMARK ANALYSIS REPORT")
+    print("=" * 60)
     print(f"File: {file_path}")
     print(f"Total Trials: {num_trials}")
     print(
         f"End-to-End Success Rate: {overall_success_rate:.1f}% ({successful_trials}/{num_trials})"
     )
-    print("-" * 50)
+    print("-" * 60)
 
-    if not df.empty:
-        # --- Failure analysis by STAGE ---
-        failed_stages_df = df[df["status"] != "Success"]
+    if not df_stages.empty:
+        failed_stages_df = df_stages[df_stages["status"] != "Success"]
         stage_failure_counts = failed_stages_df["stage_name"].value_counts()
         print("\nFailure Count by Stage:")
         if not stage_failure_counts.empty:
             print(stage_failure_counts.to_string())
         else:
             print("No stage failures recorded.")
-        print("-" * 50)
+        print("-" * 60)
 
         # --- Failure analysis by TYPE for the most problematic stage ---
         if not stage_failure_counts.empty:
@@ -77,7 +87,40 @@ def analyze_benchmark_results(file_path: str):
             ]
             status_counts = problem_stage_df["status"].value_counts()
             print(status_counts.to_string())
-            print("=" * 50)
+        print("=" * 60)
+
+    # --- 3. NEW: Generate Comprehensive Statistical Summaries ---
+    if not df_trials.empty:
+        # Define the columns we want to summarize
+        characteristic_cols = [
+            col
+            for col in df_trials.columns
+            if col not in ["trial_id", "end_to_end_success"]
+        ]
+
+        # Separate successful and failed trials
+        successful_df = df_trials[df_trials["end_to_end_success"] == True]
+        failed_df = df_trials[df_trials["end_to_end_success"] == False]
+
+        print("\n           COMPREHENSIVE STATISTICAL SUMMARY")
+        print("-" * 60)
+
+        if not successful_df.empty:
+            print(
+                f"\n--- For SUCCESSFUL End-to-End Trials ({len(successful_df)} trials) ---"
+            )
+            # Use .describe() to get summary statistics, transpose for readability
+            print(successful_df[characteristic_cols].describe().transpose().to_string())
+        else:
+            print("\n--- No SUCCESSFUL End-to-End Trials to Summarize ---")
+
+        if not failed_df.empty:
+            print(f"\n--- For FAILED End-to-End Trials ({len(failed_df)} trials) ---")
+            print(failed_df[characteristic_cols].describe().transpose().to_string())
+        else:
+            print("\n--- No FAILED End-to-End Trials to Summarize ---")
+
+        print("=" * 60)
 
 
 if __name__ == "__main__":
