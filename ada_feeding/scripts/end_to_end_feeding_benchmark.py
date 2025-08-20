@@ -24,7 +24,7 @@ import subprocess
 import sys
 import argparse
 from enum import Enum, auto
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 # Third-party imports
 import numpy as np
@@ -125,9 +125,41 @@ class ActionRecipe:
         )
 
 
-class MoveIt2ConstraintType(Enum):
-    """Specifies the type of constraint to be applied."""
+@dataclass
+class CylindricalSamplingParams:
+    """Parameters for sampling a pose within a cylindrical shell."""
 
+    name: str
+    inner_radius: float
+    outer_radius: float
+    min_height: float
+    max_height: float
+
+
+@dataclass
+class SceneGenerationParams:
+    """Holds all parameters that define the random scene generation."""
+
+    food_sampling: CylindricalSamplingParams = CylindricalSamplingParams(
+        name="food", inner_radius=0.4, outer_radius=0.7, min_height=0.0, max_height=0.3
+    )
+    mouth_sampling: CylindricalSamplingParams = CylindricalSamplingParams(
+        name="mouth", inner_radius=0.3, outer_radius=0.6, min_height=0.0, max_height=0.6
+    )
+    above_plate_radial_dist: float = 0.3
+    above_plate_polar_angle_rad_max: float = math.pi / 4  # 45 deg
+    above_plate_yaw_variability_rad: float = math.pi / 4  # 45 deg
+    skewer_polar_angle_rad_max: float = math.pi / 3  # 60 deg
+    in_food_tool_roll_angle_deg: float = 180.0
+    above_food_offset_dist: float = 0.1  # 10 cm
+    staging_offset_dist: float = 0.15  # 15 cm
+    resting_angular_offset_deg: float = 20.0
+    resting_radial_dist: float = 0.8
+    resting_vertical_offset: float = ARTICUTOOL_LENGTH_M + 0.2
+
+
+# --- Constraint Helpers ---
+class MoveIt2ConstraintType(Enum):
     JOINT = "joint"
     POSITION = "position"
     ORIENTATION = "orientation"
@@ -171,6 +203,353 @@ def create_joint_constraint(
     return (MoveIt2ConstraintType.JOINT, {"joint_positions": joint_positions})
 
 
+class SceneGenerator:
+    """A dedicated class for procedurally generating planning scenes."""
+
+    def __init__(self, params: SceneGenerationParams):
+        self.params = params
+
+    def generate(self) -> Tuple[Dict[str, Any], Dict[str, float]]:
+        """
+        Generates a randomized scene and returns the scene dict and sampled parameters.
+        """
+        scene = {}
+        scene_characteristics = {}
+
+        scene["food_pose"], food_params = self._sample_pose_in_cylindrical_shell(
+            self.params.food_sampling
+        )
+        scene["mouth_pose"], mouth_params = self._sample_pose_in_cylindrical_shell(
+            self.params.mouth_sampling
+        )
+        scene_characteristics.update(food_params)
+        scene_characteristics.update(mouth_params)
+
+        scene["home_config"] = [-1.47568, 2.92779, 1.00845, -2.0847, 1.43588, 1.32575]
+
+        scene["above_plate_pose"], above_plate_params = (
+            self._calculate_above_plate_pose(scene["food_pose"])
+        )
+        scene_characteristics.update(above_plate_params)
+
+        (
+            scene["in_food_pose"],
+            approach_vector,
+            in_food_params,
+        ) = self._calculate_in_food_pose(
+            food_pose=scene["food_pose"],
+            recipe=ActionRecipe(
+                AcquisitionStrategy.SKEWER,
+                MotionAxis.VERTICAL,
+                ToolAlignment.PERPENDICULAR,
+            ),
+        )
+        scene_characteristics.update(in_food_params)
+
+        scene["above_food_pose"] = self._calculate_above_food_pose(
+            scene["in_food_pose"], approach_vector
+        )
+        scene["staging_pose"] = self._calculate_staging_pose(scene["mouth_pose"])
+        scene["resting_pose"] = self._calculate_resting_pose(
+            scene["food_pose"], scene["mouth_pose"]
+        )
+
+        # Add derived characteristics for analysis
+        food_pos = scene["food_pose"].position
+        mouth_pos = scene["mouth_pose"].position
+        scene_characteristics["food_mouth_distance_m"] = math.sqrt(
+            (food_pos.x - mouth_pos.x) ** 2
+            + (food_pos.y - mouth_pos.y) ** 2
+            + (food_pos.z - mouth_pos.z) ** 2
+        )
+
+        return scene, scene_characteristics
+
+    def _sample_pose_in_cylindrical_shell(
+        self, sampling_params: CylindricalSamplingParams
+    ) -> Tuple[Pose, Dict[str, float]]:
+        """
+        Samples a random pose within a cylindrical shell
+        The frame's Z-axis is constrained to be world up, and its X-axis is
+        oriented to point towards the robot base with some random variability.
+        """
+        # --- Position Sampling in a Cylindrical Shell ---
+        # 1. Sample the radius and angle
+        radius = np.sqrt(
+            np.random.uniform(
+                sampling_params.inner_radius**2, sampling_params.outer_radius**2
+            )
+        )
+        theta = np.random.uniform(0, 2 * np.pi)
+
+        # 2. Convert to Cartesian coordinates
+        x = radius * np.cos(theta)
+        y = radius * np.sin(theta)
+        z = np.random.uniform(sampling_params.min_height, sampling_params.max_height)
+        position = Point(x=x, y=y, z=z)
+
+        # --- Orientation Calculation  ---
+        z_axis = np.array([0.0, 0.0, 1.0])
+        look_at_vector = -np.array([x, y, 0.0])  # Project to XY plane
+        if np.linalg.norm(look_at_vector) < 1e-6:
+            look_at_vector = np.array([1.0, 0.0, 0.0])
+        x_axis_direction = look_at_vector / np.linalg.norm(look_at_vector)
+
+        y_axis = np.cross(z_axis, x_axis_direction)
+        rotation_matrix = np.array([x_axis_direction, y_axis, z_axis]).T
+        main_rot = R.from_matrix(rotation_matrix)
+
+        rand_yaw_angle = np.random.uniform(-np.deg2rad(30), np.deg2rad(30))
+        variability_rot = R.from_euler("z", rand_yaw_angle)
+
+        final_rot = main_rot * variability_rot
+        quat = final_rot.as_quat()
+
+        # --- Assemble final pose and sampled characteristics ---
+        final_pose = Pose(
+            position=position,
+            orientation=Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3]),
+        )
+
+        prefix = sampling_params.name
+        sampled_values = {
+            f"{prefix}_sampled_radius": radius,
+            f"{prefix}_sampled_theta_rad": theta,
+            f"{prefix}_sampled_z": z,
+        }
+        return final_pose, sampled_values
+
+    def _calculate_above_plate_pose(
+        self, food_pose: Pose
+    ) -> Tuple[Pose, Dict[str, float]]:
+        """
+        Calculates a camera pose for the Jaco end-effector that looks at the food,
+        with a yaw constraint that keeps the arm aligned with the robot base.
+        """
+        food_position = np.array(
+            [food_pose.position.x, food_pose.position.y, food_pose.position.z]
+        )
+
+        # --- Position Calculation with Yaw Constraint ---
+        # 1. Determine the base yaw angle from the robot's origin to the food's XY position.
+        base_yaw_angle = np.arctan2(food_position[1], food_position[0])
+
+        # 2. Add random variability to this base angle.
+        yaw_variability = np.random.uniform(
+            -self.params.above_plate_yaw_variability_rad,
+            self.params.above_plate_yaw_variability_rad,
+        )
+        final_azimuthal_angle = base_yaw_angle + yaw_variability + np.pi
+
+        # 3. Use spherical coordinates relative to the food pose to find the camera position.
+        radial_distance = self.params.above_plate_radial_dist
+        polar_angle = np.random.uniform(0, self.params.above_plate_polar_angle_rad_max)
+
+        # Calculate the offset from the food pose.
+        x_offset = radial_distance * np.sin(polar_angle) * np.cos(final_azimuthal_angle)
+        y_offset = radial_distance * np.sin(polar_angle) * np.sin(final_azimuthal_angle)
+        z_offset = radial_distance * np.cos(polar_angle)
+
+        # The final camera position is the food position plus this offset.
+        camera_position = food_position + np.array([x_offset, y_offset, z_offset])
+
+        # --- Orientation Calculation (Look-at with no roll) ---
+        # (This logic remains the same)
+        z_axis = food_position - camera_position
+        z_axis /= np.linalg.norm(z_axis)
+        world_up = np.array([0.0, 0.0, 1.0])
+        if np.abs(np.dot(z_axis, world_up)) > 0.999:
+            x_axis = np.array([0.0, 1.0, 0.0])
+        else:
+            x_axis = np.cross(world_up, z_axis)
+            x_axis /= np.linalg.norm(x_axis)
+        y_axis = np.cross(z_axis, x_axis)
+        rotation_matrix = np.array([x_axis, y_axis, z_axis]).T
+        rotation = R.from_matrix(rotation_matrix)
+        quat = rotation.as_quat()
+
+        # Create and return the final Pose message
+        final_pose = Pose()
+        final_pose.position = Point(
+            x=camera_position[0], y=camera_position[1], z=camera_position[2]
+        )
+        final_pose.orientation = Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3])
+
+        sampled_params = {
+            "above_plate_sampled_yaw_variability_rad": yaw_variability,
+            "above_plate_sampled_polar_angle_rad": polar_angle,
+        }
+        return final_pose, sampled_params
+
+    def _calculate_in_food_pose(
+        self, food_pose: Pose, recipe: ActionRecipe
+    ) -> Tuple[Pose, np.ndarray, Dict[str, float]]:
+        """
+        Calculates the InFood tool tip pose based on a semantic ActionRecipe.
+        Returns the pose, the approach vector, and sampled parameters.
+        """
+        # Default to identity rotation and a vertical approach vector
+        final_rotation = R.identity()
+        approach_vector = np.array([0.0, 0.0, -1.0])
+        sampled_polar_angle = 0.0
+
+        # --- SKEWER Strategy Logic ---
+        if recipe.strategy == AcquisitionStrategy.SKEWER:
+            # (Logic for finding food axes remains the same)
+            food_orientation = R.from_quat(
+                [
+                    food_pose.orientation.x,
+                    food_pose.orientation.y,
+                    food_pose.orientation.z,
+                    food_pose.orientation.w,
+                ]
+            )
+            minor_axis_food = food_orientation.apply([0.0, 1.0, 0.0])
+            tool_x_final = minor_axis_food
+
+            # Use parameter from the params object
+            sampled_polar_angle = np.random.uniform(
+                0, self.params.skewer_polar_angle_rad_max
+            )
+            rotation = R.from_rotvec(sampled_polar_angle * tool_x_final)
+            tool_z_final = rotation.apply(np.array([0.0, 0.0, -1.0]))
+
+            tool_y_final = np.cross(tool_z_final, tool_x_final)
+
+            base_rotation_matrix = np.array(
+                [tool_x_final, tool_y_final, tool_z_final]
+            ).T
+            base_orientation = R.from_matrix(base_rotation_matrix)
+            roll_rotation = R.from_rotvec(
+                np.deg2rad(self.params.in_food_tool_roll_angle_deg) * tool_z_final
+            )
+            final_rotation = roll_rotation * base_orientation
+            approach_vector = tool_z_final
+
+        # --- SCOOP Strategy Logic (Placeholder) ---
+        elif recipe.strategy == AcquisitionStrategy.SCOOP:
+            # ...
+            pass
+
+        # --- Construct the final pose ---
+        q = final_rotation.as_quat()
+        in_food_pose = Pose()
+        in_food_pose.position = food_pose.position
+        in_food_pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+
+        sampled_params = {"in_food_sampled_polar_angle_rad": sampled_polar_angle}
+        return in_food_pose, approach_vector, sampled_params
+
+    def _calculate_above_food_pose(
+        self, in_food_pose: Pose, approach_vector: np.ndarray
+    ) -> Pose:
+        """
+        Calculates the AboveFood pose by offsetting from InFood along the
+        calculated approach vector.
+        """
+        # 1. Inherit the orientation directly from the target pose
+        final_orientation = in_food_pose.orientation
+
+        # 2. The motion vector for the linear path IS the approach vector (tool's Z-axis)
+        motion_vector = approach_vector
+
+        # 3. Calculate the offset position using parameter from the params object
+        offset_dist = self.params.above_food_offset_dist
+        p = in_food_pose.position
+        offset = motion_vector * -offset_dist
+        final_position = Point(x=p.x + offset[0], y=p.y + offset[1], z=p.z + offset[2])
+
+        return Pose(position=final_position, orientation=final_orientation)
+
+    def _calculate_staging_pose(self, mouth_pose: Pose) -> Pose:
+        """Calculate the staging pose relative to the mouth."""
+        offset_dist = self.params.staging_offset_dist
+
+        p = mouth_pose.position
+        q = mouth_pose.orientation
+        mouth_rot = R.from_quat([q.x, q.y, q.z, q.w])
+
+        # Offset is along the mouth's forward-facing X-axis
+        offset_vec = mouth_rot.apply([offset_dist, 0, 0])
+
+        staged_pos = Point(
+            x=p.x - offset_vec[0], y=p.y - offset_vec[1], z=p.z - offset_vec[2]
+        )
+
+        return Pose(position=staged_pos, orientation=q)
+
+    def _calculate_resting_pose(self, food_pose: Pose, mouth_pose: Pose) -> Pose:
+        """
+        Calculates a dynamic "Resting" pose for the Jaco end-effector.
+
+        This method implements the "Angular Standoff" strategy. It positions
+        the resting pose at a fixed radial distance from the robot base, but with
+        an angular offset from the food's position. This offset is directed
+        away from the mouth's position, placing the arm in a safe, clear, and
+        context-aware staging area.
+
+        Args:
+            food_pose: The 6D pose of the food item.
+            mouth_pose: The 6D pose of the user's mouth.
+
+        Returns:
+            The calculated 6D resting pose.
+        """
+        # --- Extract XY positions and create 2D vectors from the origin ---
+        v_food = np.array([food_pose.position.x, food_pose.position.y])
+        v_mouth = np.array([mouth_pose.position.x, mouth_pose.position.y])
+
+        # --- 1. Determine the direction of angular offset ---
+        # Use the 2D cross product to find the sign of the angle between vectors.
+        # This tells us if the mouth is clockwise or counter-clockwise from the food.
+        cross_product_z = np.cross(v_food, v_mouth)
+
+        # We apply the offset in the direction that moves away from the mouth.
+        angle = (
+            -np.deg2rad(self.params.resting_angular_offset_deg)
+            if cross_product_z > 0
+            else np.deg2rad(self.params.resting_angular_offset_deg)
+        )
+
+        # --- 2. Calculate the new position ---
+        # Normalize the food vector to get its direction
+        v_food_dir = v_food / np.linalg.norm(v_food)
+
+        # Create a 2D rotation matrix and apply it to the food's direction
+        c, s = np.cos(angle), np.sin(angle)
+        rotation_matrix = np.array(((c, -s), (s, c)))
+        v_rest_dir = rotation_matrix @ v_food_dir
+
+        # Scale the new direction by the fixed radial distance for the final XY position
+        rest_position_xy = v_rest_dir * self.params.resting_radial_dist
+        rest_position_z = food_pose.position.z + self.params.resting_vertical_offset
+
+        # --- 3. Calculate the new orientation (upright and facing outward) ---
+        # The z-axis (forward) points horizontally from the base to the new position
+        z_axis = np.array([rest_position_xy[0], rest_position_xy[1], 0.0])
+        z_axis /= np.linalg.norm(z_axis)
+
+        # The y-axis (up) is aligned with the world's Z-axis
+        y_axis = np.array([0.0, 0.0, 1.0])
+
+        # The x-axis (left) is the cross product, forming an orthonormal frame
+        x_axis = np.cross(y_axis, z_axis)
+
+        # Construct the final rotation matrix and convert to a quaternion
+        rotation_matrix_3d = np.array([x_axis, y_axis, z_axis]).T
+        rotation = R.from_matrix(rotation_matrix_3d)
+        quat = rotation.as_quat()
+
+        # --- 4. Assemble and return the final Pose message ---
+        return Pose(
+            position=Point(
+                x=rest_position_xy[0], y=rest_position_xy[1], z=rest_position_z
+            ),
+            orientation=Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3]),
+        )
+
+
+# --- Core Benchmark Classes ---
 class MotionPlanner:
     """A wrapper for MoveIt2 to provide a seamless, synchronous API for planning."""
 
@@ -486,27 +865,20 @@ class EndToEndBenchmark:
         output_dir: Optional[str] = None,
     ):
         self.node = node
-        self.moveit2_jaco = moveit2_jaco
-        self.moveit2_atool = moveit2_atool
-        self.moveit2_full = moveit2_full
-        self.xacro_file_path = xacro_file_path
         self.num_trials = num_trials
-        self.planning_timeout = planning_timeout
         self.output_dir = output_dir
         self.results: List[Dict[str, Any]] = []
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self.node)
+
         self.motion_planner = MotionPlanner(
             node,
             moveit2_jaco,
             moveit2_atool,
             moveit2_full,
-            self.tf_buffer,
+            tf2_ros.Buffer(),
             planning_timeout,
         )
-
         # Pinocchio model for feasibility checks
-        self.kinematics_model = PinocchioModel(self.xacro_file_path)
+        self.kinematics_model = PinocchioModel(xacro_file_path)
 
         if self.output_dir:
             os.makedirs(self.output_dir, exist_ok=True)
@@ -1019,264 +1391,6 @@ class EndToEndBenchmark:
 
         return traj_atool
 
-    def _calculate_above_plate_pose(self, food_pose: Pose) -> Pose:
-        """
-        Calculates a camera pose for the Jaco end-effector that looks at the food,
-        with a yaw constraint that keeps the arm aligned with the robot base.
-        """
-        food_position = np.array(
-            [food_pose.position.x, food_pose.position.y, food_pose.position.z]
-        )
-
-        # --- Position Calculation with Yaw Constraint ---
-        # 1. Determine the base yaw angle from the robot's origin to the food's XY position.
-        base_yaw_angle = np.arctan2(food_position[1], food_position[0])
-
-        # 2. Add random variability to this base angle.
-        yaw_variability = np.random.uniform(-np.deg2rad(45), np.deg2rad(45))
-        final_azimuthal_angle = base_yaw_angle + yaw_variability + np.pi
-
-        # 3. Use spherical coordinates relative to the food pose to find the camera position.
-        radial_distance = 0.3  # Constant distance from the food
-        polar_angle = np.random.uniform(0, np.deg2rad(45))  # Angle from vertical
-
-        # Calculate the offset from the food pose.
-        x_offset = radial_distance * np.sin(polar_angle) * np.cos(final_azimuthal_angle)
-        y_offset = radial_distance * np.sin(polar_angle) * np.sin(final_azimuthal_angle)
-        z_offset = radial_distance * np.cos(polar_angle)
-
-        # The final camera position is the food position plus this offset.
-        camera_position = food_position + np.array([x_offset, y_offset, z_offset])
-
-        # --- Orientation Calculation (Look-at with no roll) ---
-        # 1. The end-effector's Z-axis must point from its position to the food's origin.
-        z_axis = food_position - camera_position
-        z_axis /= np.linalg.norm(z_axis)
-
-        # 2. The end-effector's Y-axis should be aligned with the world's "up" to prevent roll.
-        world_up = np.array([0.0, 0.0, 1.0])
-
-        # 3. Calculate the X-axis (left) and handle the singularity when looking straight down.
-        if np.abs(np.dot(z_axis, world_up)) > 0.999:
-            # Looking straight down, define "left" relative to the world frame.
-            x_axis = np.array([0.0, 1.0, 0.0])
-        else:
-            x_axis = np.cross(world_up, z_axis)
-            x_axis /= np.linalg.norm(x_axis)
-
-        # 4. Re-calculate the Y-axis to ensure the frame is perfectly orthonormal.
-        y_axis = np.cross(z_axis, x_axis)
-
-        # 5. Construct the final rotation matrix from the basis vectors.
-        rotation_matrix = np.array([x_axis, y_axis, z_axis]).T
-        rotation = R.from_matrix(rotation_matrix)
-        quat = rotation.as_quat()
-
-        # Create and return the final Pose message
-        final_pose = Pose()
-        final_pose.position = Point(
-            x=camera_position[0], y=camera_position[1], z=camera_position[2]
-        )
-        final_pose.orientation = Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3])
-
-        return final_pose
-
-    # --- Semantic Pose Calculation ---
-    def _calculate_in_food_pose(
-        self, food_pose: Pose, recipe: ActionRecipe, tool_roll_angle_deg: float = 180.0
-    ) -> Tuple[Pose, np.ndarray]:
-        """
-        Calculates the InFood tool tip pose based on a semantic ActionRecipe.
-        Returns the pose and the calculated approach vector (the tool's Z-axis).
-        """
-        # Default to identity rotation and a vertical approach vector
-        final_rotation = R.identity()
-        approach_vector = np.array([0.0, 0.0, -1.0])
-
-        # --- SKEWER Strategy Logic ---
-        if recipe.strategy == AcquisitionStrategy.SKEWER:
-            # Get the food's principal axes from its orientation
-            food_orientation = R.from_quat(
-                [
-                    food_pose.orientation.x,
-                    food_pose.orientation.y,
-                    food_pose.orientation.z,
-                    food_pose.orientation.w,
-                ]
-            )
-            major_axis_food = food_orientation.apply(
-                [1.0, 0.0, 0.0]
-            )  # Food's X (longer)
-            minor_axis_food = food_orientation.apply(
-                [0.0, 1.0, 0.0]
-            )  # Food's Y (shorter)
-
-            # 1. Align Tines: The tool's X-axis (tines) must align with the
-            #    food's minor axis for a stable skewer.
-            tool_x_final = minor_axis_food
-
-            # 2. Define Approach & Tilt: The approach is along the food's major axis,
-            #    tilted by a random polar angle. We find the tool's Z-axis by rotating
-            #    a downward vector around the tool's new X-axis.
-            sampled_polar_angle = np.random.uniform(
-                0, np.deg2rad(60)
-            )  # Angle from vertical
-            rotation = R.from_rotvec(sampled_polar_angle * tool_x_final)
-            tool_z_final = rotation.apply(
-                np.array([0.0, 0.0, -1.0])
-            )  # Rotate a downward vector
-
-            # 3. Complete the Frame: The tool's Y-axis is derived from the cross product.
-            tool_y_final = np.cross(tool_z_final, tool_x_final)
-
-            # 4. The final rotation is constructed from these basis vectors.
-            base_rotation_matrix = np.array(
-                [tool_x_final, tool_y_final, tool_z_final]
-            ).T
-            base_orientation = R.from_matrix(base_rotation_matrix)
-            roll_rotation = R.from_rotvec(
-                np.deg2rad(tool_roll_angle_deg) * tool_z_final
-            )
-            final_rotation = roll_rotation * base_orientation
-            approach_vector = tool_z_final
-
-        # --- SCOOP Strategy Logic (Placeholder) ---
-        elif recipe.strategy == AcquisitionStrategy.SCOOP:
-            # This logic will be implemented next.
-            base_rotation = R.from_euler("y", -60, degrees=True)
-            final_rotation = base_rotation
-            # TODO: Add alignment logic based on food's principal axes.
-
-        # --- Construct the final pose ---
-        q = final_rotation.as_quat()
-        in_food_pose = Pose()
-        in_food_pose.position = food_pose.position
-        in_food_pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
-
-        return in_food_pose, approach_vector
-
-    def _calculate_above_food_pose(
-        self, in_food_pose: Pose, approach_vector: np.ndarray
-    ) -> Pose:
-        """
-        Calculates the AboveFood pose by offsetting from InFood along the
-        calculated approach vector.
-        """
-        # 1. Inherit the orientation directly from the target pose
-        final_orientation = in_food_pose.orientation
-
-        # 2. The motion vector for the linear path IS the approach vector (tool's Z-axis)
-        motion_vector = approach_vector
-
-        # 3. Calculate the offset position
-        offset_dist = 0.1  # 10 cm
-        p = in_food_pose.position
-        # We add the offset because the approach_vector is already pointing "down".
-        # To get the "above" pose, we move in the opposite direction of the approach.
-        offset = motion_vector * -offset_dist
-        final_position = Point(x=p.x + offset[0], y=p.y + offset[1], z=p.z + offset[2])
-
-        return Pose(position=final_position, orientation=final_orientation)
-
-    def _calculate_staging_pose(self, mouth_pose: Pose) -> Pose:
-        """Calculate the staging pose relative to the mouth."""
-        offset_dist = 0.15
-
-        p = mouth_pose.position
-        q = mouth_pose.orientation
-        mouth_rot = R.from_quat([q.x, q.y, q.z, q.w])
-
-        # Offset is along the mouth's forward-facing X-axis
-        offset_vec = mouth_rot.apply([offset_dist, 0, 0])
-
-        staged_pos = Point(
-            x=p.x - offset_vec[0], y=p.y - offset_vec[1], z=p.z - offset_vec[2]
-        )
-
-        # Here we would add the complex dual-orientation constraint logic
-        # For now, we use the same orientation as the mouth
-        return Pose(position=staged_pos, orientation=q)
-
-    def _calculate_resting_pose(
-        self,
-        food_pose: Pose,
-        mouth_pose: Pose,
-        angular_offset_deg: float = 20,
-        radial_distance_m: float = 0.8,
-        vertical_offset_m: float = ARTICUTOOL_LENGTH_M + 0.2,
-    ) -> Pose:
-        """
-        Calculates a dynamic "Resting" pose for the Jaco end-effector.
-
-        This method implements the "Angular Standoff" strategy. It positions
-        the resting pose at a fixed radial distance from the robot base, but with
-        an angular offset from the food's position. This offset is directed
-        away from the mouth's position, placing the arm in a safe, clear, and
-        context-aware staging area.
-
-        Args:
-            food_pose: The 6D pose of the food item.
-            mouth_pose: The 6D pose of the user's mouth.
-
-        Returns:
-            The calculated 6D resting pose.
-        """
-
-        # --- Extract XY positions and create 2D vectors from the origin ---
-        v_food = np.array([food_pose.position.x, food_pose.position.y])
-        v_mouth = np.array([mouth_pose.position.x, mouth_pose.position.y])
-
-        # --- 1. Determine the direction of angular offset ---
-        # Use the 2D cross product to find the sign of the angle between vectors.
-        # This tells us if the mouth is clockwise or counter-clockwise from the food.
-        cross_product_z = np.cross(v_food, v_mouth)
-
-        # We apply the offset in the direction that moves away from the mouth.
-        if cross_product_z > 0:  # Mouth is CCW from food, so we rotate CW
-            angle = -np.deg2rad(angular_offset_deg)
-        else:  # Mouth is CW from food, so we rotate CCW
-            angle = np.deg2rad(angular_offset_deg)
-
-        # --- 2. Calculate the new position ---
-        # Normalize the food vector to get its direction
-        v_food_dir = v_food / np.linalg.norm(v_food)
-
-        # Create a 2D rotation matrix and apply it to the food's direction
-        c, s = np.cos(angle), np.sin(angle)
-        rotation_matrix = np.array(((c, -s), (s, c)))
-        v_rest_dir = rotation_matrix @ v_food_dir
-
-        # Scale the new direction by the fixed radial distance for the final XY position
-        rest_position_xy = v_rest_dir * radial_distance_m
-        rest_position_z = food_pose.position.z + vertical_offset_m
-
-        # --- 3. Calculate the new orientation (upright and facing outward) ---
-        # The z-axis (forward) points horizontally from the base to the new position
-        z_axis = np.array([rest_position_xy[0], rest_position_xy[1], 0.0])
-        z_axis /= np.linalg.norm(z_axis)
-
-        # The y-axis (up) is aligned with the world's Z-axis
-        y_axis = np.array([0.0, 0.0, 1.0])
-
-        # The x-axis (left) is the cross product, forming an orthonormal frame
-        x_axis = np.cross(y_axis, z_axis)
-
-        # Construct the final rotation matrix and convert to a quaternion
-        rotation_matrix_3d = np.array([x_axis, y_axis, z_axis]).T
-        rotation = R.from_matrix(rotation_matrix_3d)
-        quat = rotation.as_quat()
-
-        # --- 4. Assemble and return the final Pose message ---
-        resting_pose = Pose()
-        resting_pose.position = Point(
-            x=rest_position_xy[0], y=rest_position_xy[1], z=rest_position_z
-        )
-        resting_pose.orientation = Quaternion(
-            x=quat[0], y=quat[1], z=quat[2], w=quat[3]
-        )
-
-        return resting_pose
-
     def _solve_articutool_ik(
         self, target_vector: np.ndarray
     ) -> List[Tuple[float, float]]:
@@ -1772,42 +1886,13 @@ class EndToEndBenchmark:
         for i in range(self.num_trials):
             LOGGER.info(f"--- Running Trial {i + 1}/{self.num_trials} ---")
 
-            # 1. Generate scene and create the top-level dictionary for the trial
-            scene = self._generate_scene()
-            # LOGGER.info(
-            #     f"""
-            #     --- Generated Scene Parameters for Trial {i + 1} ---
-            #
-            #     - Initial State:
-            #       - Home Config: [{", ".join(f"{j:.4f}" for j in scene["home_config"])}]
-            #
-            #     - Core Sampled Poses:
-            #       - Food Pose:
-            #           Position:    [x={scene["food_pose"].position.x:.3f}, y={scene["food_pose"].position.y:.3f}, z={scene["food_pose"].position.z:.3f}]
-            #           Orientation: [x={scene["food_pose"].orientation.x:.3f}, y={scene["food_pose"].orientation.y:.3f}, z={scene["food_pose"].orientation.z:.3f}, w={scene["food_pose"].orientation.w:.3f}]
-            #       - Mouth Pose:
-            #           Position:    [x={scene["mouth_pose"].position.x:.3f}, y={scene["mouth_pose"].position.y:.3f}, z={scene["mouth_pose"].position.z:.3f}]
-            #           Orientation: [x={scene["mouth_pose"].orientation.x:.3f}, y={scene["mouth_pose"].orientation.y:.3f}, z={scene["mouth_pose"].orientation.z:.3f}, w={scene["mouth_pose"].orientation.w:.3f}]
-            #
-            #     - Derived Poses for Feeding Cycle:
-            #       - Above Plate Pose:
-            #           Position:    [x={scene["above_plate_pose"].position.x:.3f}, y={scene["above_plate_pose"].position.y:.3f}, z={scene["above_plate_pose"].position.z:.3f}]
-            #           Orientation: [x={scene["above_plate_pose"].orientation.x:.3f}, y={scene["above_plate_pose"].orientation.y:.3f}, z={scene["above_plate_pose"].orientation.z:.3f}, w={scene["above_plate_pose"].orientation.w:.3f}]
-            #       - Above Food Pose:
-            #           Position:    [x={scene["above_food_pose"].position.x:.3f}, y={scene["above_food_pose"].position.y:.3f}, z={scene["above_food_pose"].position.z:.3f}]
-            #           Orientation: [x={scene["above_food_pose"].orientation.x:.3f}, y={scene["above_food_pose"].orientation.y:.3f}, z={scene["above_food_pose"].orientation.z:.3f}, w={scene["above_food_pose"].orientation.w:.3f}]
-            #       - In Food Pose:
-            #           Position:    [x={scene["in_food_pose"].position.x:.3f}, y={scene["in_food_pose"].position.y:.3f}, z={scene["in_food_pose"].position.z:.3f}]
-            #           Orientation: [x={scene["in_food_pose"].orientation.x:.3f}, y={scene["in_food_pose"].orientation.y:.3f}, z={scene["in_food_pose"].orientation.z:.3f}, w={scene["in_food_pose"].orientation.w:.3f}]
-            #       - Staging Pose:
-            #           Position:    [x={scene["staging_pose"].position.x:.3f}, y={scene["staging_pose"].position.y:.3f}, z={scene["staging_pose"].position.z:.3f}]
-            #           Orientation: [x={scene["staging_pose"].orientation.x:.3f}, y={scene["staging_pose"].orientation.y:.3f}, z={scene["staging_pose"].orientation.z:.3f}, w={scene["staging_pose"].orientation.w:.3f}]
-            #       - Resting Pose:
-            #           Position:    [x={scene["resting_pose"].position.x:.3f}, y={scene["resting_pose"].position.y:.3f}, z={scene["resting_pose"].position.z:.3f}]
-            #           Orientation: [x={scene["resting_pose"].orientation.x:.3f}, y={scene["resting_pose"].orientation.y:.3f}, z={scene["resting_pose"].orientation.z:.3f}, w={scene["resting_pose"].orientation.w:.3f}]
-            #     -------------------------------------------------
-            # """
-            # )
+            # 1. Create the parameter set and the generator for this trial
+            generation_params = SceneGenerationParams()
+            scene_generator = SceneGenerator(generation_params)
+
+            # 2. Generate the scene and characteristics with a single, clean call
+            scene, scene_characteristics = scene_generator.generate()
+
             trial_data = {
                 "trial_id": i,
                 "scene_poses": {
@@ -1819,15 +1904,13 @@ class EndToEndBenchmark:
                     "staging_pose": self._serialize_pose(scene["staging_pose"]),
                     "resting_pose": self._serialize_pose(scene["resting_pose"]),
                 },
-                "parameters": {  # Placeholder for future parameter optimization
-                    "angular_offset_deg": 20,
-                    "radial_distance_m": 0.8,
-                },
+                "scene_characteristics": scene_characteristics,
+                "parameters": asdict(generation_params),
                 "stages": [],
                 "end_to_end_success": False,  # Default to False
             }
 
-            # 2. Initialize the robot's state for the trial
+            # 3. Initialize the robot's state for the trial
             current_jaco_state = scene["home_config"]
             current_atool_state = [0.0, 0.0]
             trial_failed = False
