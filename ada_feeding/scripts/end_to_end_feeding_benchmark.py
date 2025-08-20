@@ -141,15 +141,15 @@ class SceneGenerationParams:
     """Holds all parameters that define the random scene generation."""
 
     food_sampling: CylindricalSamplingParams = CylindricalSamplingParams(
-        name="food", inner_radius=0.4, outer_radius=0.7, min_height=0.0, max_height=0.3
+        name="food", inner_radius=0.0, outer_radius=1.0, min_height=0.0, max_height=0.6
     )
     mouth_sampling: CylindricalSamplingParams = CylindricalSamplingParams(
-        name="mouth", inner_radius=0.3, outer_radius=0.6, min_height=0.0, max_height=0.6
+        name="mouth", inner_radius=0.0, outer_radius=1.0, min_height=0.0, max_height=0.6
     )
     above_plate_radial_dist: float = 0.3
-    above_plate_polar_angle_rad_max: float = math.pi / 4  # 45 deg
-    above_plate_yaw_variability_rad: float = math.pi / 4  # 45 deg
-    skewer_polar_angle_rad_max: float = math.pi / 3  # 60 deg
+    above_plate_polar_angle_rad_max: float = math.pi / 3
+    above_plate_yaw_variability_rad: float = math.pi / 2
+    skewer_polar_angle_rad_max: float = math.pi / 2
     in_food_tool_roll_angle_deg: float = 180.0
     above_food_offset_dist: float = 0.1  # 10 cm
     staging_offset_dist: float = 0.15  # 15 cm
