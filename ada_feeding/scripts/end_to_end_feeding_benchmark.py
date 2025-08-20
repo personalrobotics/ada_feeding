@@ -137,6 +137,18 @@ class CylindricalSamplingParams:
 
 
 @dataclass
+class SphericalSamplingParams:
+    """Parameters for sampling a pose within a spherical shell."""
+
+    name: str
+    inner_radius: float
+    outer_radius: float
+    # Angles in radians for theta (XY plane) and phi (from Z-axis)
+    theta_range: Tuple[float, float]
+    phi_range: Tuple[float, float]
+
+
+@dataclass
 class SceneGenerationParams:
     """Holds all parameters that define the random scene generation."""
 
@@ -146,6 +158,13 @@ class SceneGenerationParams:
     mouth_sampling: CylindricalSamplingParams = CylindricalSamplingParams(
         name="mouth", inner_radius=0.0, outer_radius=1.0, min_height=0.0, max_height=0.6
     )
+    resting_sampling: SphericalSamplingParams = SphericalSamplingParams(
+        name="resting",
+        inner_radius=0.0,
+        outer_radius=1.0,
+        theta_range=(0.0, 2 * math.pi),
+        phi_range=(0, math.pi / 2),
+    )
     above_plate_radial_dist: float = 0.3
     above_plate_polar_angle_rad_max: float = math.pi / 3
     above_plate_yaw_variability_rad: float = math.pi / 8
@@ -153,9 +172,6 @@ class SceneGenerationParams:
     in_food_tool_roll_angle_deg: float = 180.0
     above_food_offset_dist: float = 0.1  # 10 cm
     staging_offset_dist: float = 0.15  # 15 cm
-    resting_angular_offset_deg: float = 45.0
-    resting_radial_dist: float = 0.6
-    resting_vertical_offset: float = ARTICUTOOL_LENGTH_M
 
 
 # --- Constraint Helpers ---
@@ -250,9 +266,10 @@ class SceneGenerator:
             scene["in_food_pose"], approach_vector
         )
         scene["staging_pose"] = self._calculate_staging_pose(scene["mouth_pose"])
-        scene["resting_pose"] = self._calculate_resting_pose(
-            scene["food_pose"], scene["mouth_pose"]
+        scene["resting_pose"], resting_params = self._sample_pose_in_spherical_shell(
+            self.params.resting_sampling
         )
+        scene_characteristics.update(resting_params)
 
         # Add derived characteristics for analysis
         food_pos = scene["food_pose"].position
@@ -316,6 +333,49 @@ class SceneGenerator:
             f"{prefix}_sampled_radius": radius,
             f"{prefix}_sampled_theta_rad": theta,
             f"{prefix}_sampled_z": z,
+        }
+        return final_pose, sampled_values
+
+    def _sample_pose_in_spherical_shell(
+        self, sampling_params: SphericalSamplingParams
+    ) -> Tuple[Pose, Dict[str, float]]:
+        """
+        Samples a random pose within a spherical shell. The orientation is
+        kept upright and pointed towards the robot base.
+        """
+        # Sample position
+        r = np.random.uniform(
+            sampling_params.inner_radius**3, sampling_params.outer_radius**3
+        ) ** (1 / 3)
+        theta = np.random.uniform(*sampling_params.theta_range)
+        phi = np.random.uniform(*sampling_params.phi_range)
+        x = r * np.cos(theta) * np.sin(phi)
+        y = r * np.sin(theta) * np.sin(phi)
+        z = r * np.cos(phi)
+        position = Point(x=x, y=y, z=z)
+
+        # --- Orientation Logic (upright and facing base) ---
+        z_axis = np.array([0.0, 0.0, 1.0])  # World up
+        x_axis_direction = -np.array([x, y, 0.0])  # Points toward origin
+        if np.linalg.norm(x_axis_direction) < 1e-6:
+            x_axis_direction = np.array([1.0, 0.0, 0.0])
+        x_axis_direction /= np.linalg.norm(x_axis_direction)
+        y_axis = np.cross(z_axis, x_axis_direction)
+
+        rotation_matrix = np.array([x_axis_direction, y_axis, z_axis]).T
+        rotation = R.from_matrix(rotation_matrix)
+        quat = rotation.as_quat()
+
+        final_pose = Pose(
+            position=position,
+            orientation=Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3]),
+        )
+
+        prefix = sampling_params.name
+        sampled_values = {
+            f"{prefix}_sampled_radius": r,
+            f"{prefix}_sampled_theta_rad": theta,
+            f"{prefix}_sampled_phi_rad": phi,
         }
         return final_pose, sampled_values
 
