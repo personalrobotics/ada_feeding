@@ -1626,10 +1626,17 @@ class EndToEndBenchmark:
 
         # 2. Plan for the Jaco arm
         jaco_goal_constraints = [create_joint_constraint(target_jaco_config)]
+        jaco_path_constraints = [
+            create_orientation_path_constraint(
+                quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
+                tolerance_rad=(np.pi, 2 * np.pi, 2 * np.pi),
+            )
+        ]
         status_jaco, traj_jaco, time_jaco = self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
             start_state=start_state_jaco,
             goal_constraints=jaco_goal_constraints,
+            path_constraints=jaco_path_constraints,
         )
 
         if status_jaco != TrialStatus.SUCCESS:
