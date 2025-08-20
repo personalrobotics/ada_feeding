@@ -155,24 +155,55 @@ def load_benchmark_data(file_paths: List[str], logger_func=print) -> pd.DataFram
 
 
 def select_trial(df: pd.DataFrame) -> Optional[pd.DataFrame]:
-    """Interactively prompts the user to select a Trial ID."""
-    unique_trials = sorted(df["trial_id"].unique())
-    if not unique_trials:
+    """
+    Interactively prompts the user to select a Trial ID, showing
+    the last successfully completed stage for each trial.
+    """
+    all_trial_ids = sorted(df["trial_id"].unique())
+    if not all_trial_ids:
         print("No trials found in the loaded data.")
         return None
 
+    # Pre-calculate the completion status for each trial
+    trial_completion_info = {}
+    stage_order = [
+        "HomeToAbovePlate",
+        "AbovePlateToAboveFood",
+        "AboveFoodToInFood",
+        "LevelArticutool",
+        "Resting",
+    ]
+    for trial_id in all_trial_ids:
+        trial_df = df[df["trial_id"] == trial_id]
+        successful_stages = trial_df[trial_df["status"] == "Success"][
+            "stage_name"
+        ].tolist()
+
+        last_success = "None"
+        last_success_idx = -1
+        for stage_name in successful_stages:
+            if stage_name in stage_order:
+                last_success_idx = max(last_success_idx, stage_order.index(stage_name))
+
+        if last_success_idx != -1:
+            last_success = stage_order[last_success_idx]
+        trial_completion_info[trial_id] = last_success
+
     while True:
         print("\n--- Please Select a Trial to Visualize ---")
-        for i, trial_id in enumerate(unique_trials):
-            print(f"  [{i + 1}] Trial ID: {trial_id}")
+        for i, trial_id in enumerate(all_trial_ids):
+            completion_status = trial_completion_info.get(trial_id, "None")
+            print(
+                f"  [{i + 1}] Trial ID: {trial_id} (Last Success: {completion_status})"
+            )
         print("  [q] Quit")
         try:
             choice_str = (
-                input(f"Enter choice (1-{len(unique_trials)} or q): ").strip().lower()
+                input(f"Enter choice (1-{len(all_trial_ids)} or q): ").strip().lower()
             )
             if choice_str == "q":
                 return None
-            selected_trial_id = unique_trials[int(choice_str) - 1]
+            selected_trial_id = all_trial_ids[int(choice_str) - 1]
             return df[df["trial_id"] == selected_trial_id].copy()
         except (ValueError, IndexError):
             print("Invalid choice.")
