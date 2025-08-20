@@ -934,12 +934,13 @@ class EndToEndBenchmark:
     ) -> Optional[JointTrajectory]:
         """
         Generates a synchronized Articutool trajectory that maintains a level-to-gravity
-        orientation during a Jaco arm motion.
+        orientation during a Jaco arm motion, ensuring solution continuity.
         """
         if not traj_jaco or not traj_jaco.points:
             return None
 
         atool_solutions = []
+        last_valid_solution = None
 
         # 1. Iterate through each waypoint of the Jaco trajectory
         for point in traj_jaco.points:
@@ -955,29 +956,62 @@ class EndToEndBenchmark:
                 )
                 return None
 
-            q = R.from_matrix(jaco_wrist_transform.rotation).as_quat()
             p = jaco_wrist_transform.translation
+            q = R.from_matrix(jaco_wrist_transform.rotation).as_quat()
             jaco_wrist_pose = Pose(
                 position=Point(x=p[0], y=p[1], z=p[2]),
                 orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3]),
             )
 
-            # 3. Calculate the Articutool joints needed to be level at that wrist pose
-            atool_leveling_joints = self._compute_leveling_joints(jaco_wrist_pose)
-            if atool_leveling_joints is None:
-                LOGGER.warning(
-                    "  Failed to find leveling IK solution for an Articutool waypoint."
+            # 3. Calculate all possible Articutool IK solutions for leveling
+            R_world_jacoee = R.from_quat([q[0], q[1], q[2], q[3]])
+            target_up_in_wrist_frame = R_world_jacoee.inv().apply(
+                np.array([0.0, 0.0, 1.0])
+            )
+            ik_solutions = self._solve_articutool_ik(target_up_in_wrist_frame)
+
+            # 4. Filter for solutions that are within joint limits
+            valid_solutions = [
+                np.array(sol)
+                for sol in ik_solutions
+                if (
+                    ARTICUTOOL_PITCH_LIMITS_RAD[0]
+                    <= sol[0]
+                    <= ARTICUTOOL_PITCH_LIMITS_RAD[1]
+                    and ARTICUTOOL_ROLL_LIMITS_RAD[0]
+                    <= sol[1]
+                    <= ARTICUTOOL_ROLL_LIMITS_RAD[1]
                 )
-                return None
+            ]
 
-            atool_solutions.append(atool_leveling_joints)
+            if not valid_solutions:
+                LOGGER.warning(
+                    "  Failed to find any valid leveling IK solution for a waypoint."
+                )
+                # As a fallback, try to re-use the last known good solution
+                if last_valid_solution is not None:
+                    chosen_solution = last_valid_solution
+                else:
+                    return None  # Cannot proceed if the first waypoint has no solution
+            elif last_valid_solution is None:
+                # For the first waypoint, just pick the first valid solution
+                chosen_solution = valid_solutions[0]
+            else:
+                # For subsequent waypoints, choose the solution closest to the previous one
+                distances = [
+                    np.linalg.norm(sol - last_valid_solution) for sol in valid_solutions
+                ]
+                chosen_solution = valid_solutions[np.argmin(distances)]
 
-        # 4. Compile the solutions into a JointTrajectory message
+            atool_solutions.append(chosen_solution)
+            last_valid_solution = chosen_solution
+
+        # 5. Compile the continuous solutions into a JointTrajectory message
         traj_atool = JointTrajectory()
         traj_atool.joint_names = JOINT_NAMES_ATOOL
         for i, pos in enumerate(atool_solutions):
             point_msg = JointTrajectoryPoint()
-            point_msg.positions = pos
+            point_msg.positions = pos.tolist()
             point_msg.time_from_start = traj_jaco.points[i].time_from_start
             traj_atool.points.append(point_msg)
 
