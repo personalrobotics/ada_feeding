@@ -153,9 +153,9 @@ class SceneGenerationParams:
     in_food_tool_roll_angle_deg: float = 180.0
     above_food_offset_dist: float = 0.1  # 10 cm
     staging_offset_dist: float = 0.15  # 15 cm
-    resting_angular_offset_deg: float = 20.0
-    resting_radial_dist: float = 0.8
-    resting_vertical_offset: float = ARTICUTOOL_LENGTH_M + 0.2
+    resting_angular_offset_deg: float = 45.0
+    resting_radial_dist: float = 0.6
+    resting_vertical_offset: float = ARTICUTOOL_LENGTH_M
 
 
 # --- Constraint Helpers ---
