@@ -665,7 +665,9 @@ class EndToEndBenchmark:
             in_food_pose=scene["in_food_pose"], approach_vector=approach_vector
         )
         scene["staging_pose"] = self._calculate_staging_pose(scene["mouth_pose"])
-        scene["resting_pose"] = Pose(position=Point(x=0.4, y=-0.4, z=0.3))
+        scene["resting_pose"] = self._calculate_resting_pose(
+            scene["food_pose"], scene["mouth_pose"]
+        )
 
         return scene
 
@@ -1158,6 +1160,86 @@ class EndToEndBenchmark:
         # Here we would add the complex dual-orientation constraint logic
         # For now, we use the same orientation as the mouth
         return Pose(position=staged_pos, orientation=q)
+
+    def _calculate_resting_pose(
+        self,
+        food_pose: Pose,
+        mouth_pose: Pose,
+        angular_offset_deg: float = 20,
+        radial_distance_m: float = 0.8,
+        vertical_offset_m: float = ARTICUTOOL_LENGTH_M + 0.2,
+    ) -> Pose:
+        """
+        Calculates a dynamic "Resting" pose for the Jaco end-effector.
+
+        This method implements the "Angular Standoff" strategy. It positions
+        the resting pose at a fixed radial distance from the robot base, but with
+        an angular offset from the food's position. This offset is directed
+        away from the mouth's position, placing the arm in a safe, clear, and
+        context-aware staging area.
+
+        Args:
+            food_pose: The 6D pose of the food item.
+            mouth_pose: The 6D pose of the user's mouth.
+
+        Returns:
+            The calculated 6D resting pose.
+        """
+
+        # --- Extract XY positions and create 2D vectors from the origin ---
+        v_food = np.array([food_pose.position.x, food_pose.position.y])
+        v_mouth = np.array([mouth_pose.position.x, mouth_pose.position.y])
+
+        # --- 1. Determine the direction of angular offset ---
+        # Use the 2D cross product to find the sign of the angle between vectors.
+        # This tells us if the mouth is clockwise or counter-clockwise from the food.
+        cross_product_z = np.cross(v_food, v_mouth)
+
+        # We apply the offset in the direction that moves away from the mouth.
+        if cross_product_z > 0:  # Mouth is CCW from food, so we rotate CW
+            angle = -np.deg2rad(angular_offset_deg)
+        else:  # Mouth is CW from food, so we rotate CCW
+            angle = np.deg2rad(angular_offset_deg)
+
+        # --- 2. Calculate the new position ---
+        # Normalize the food vector to get its direction
+        v_food_dir = v_food / np.linalg.norm(v_food)
+
+        # Create a 2D rotation matrix and apply it to the food's direction
+        c, s = np.cos(angle), np.sin(angle)
+        rotation_matrix = np.array(((c, -s), (s, c)))
+        v_rest_dir = rotation_matrix @ v_food_dir
+
+        # Scale the new direction by the fixed radial distance for the final XY position
+        rest_position_xy = v_rest_dir * radial_distance_m
+        rest_position_z = food_pose.position.z + vertical_offset_m
+
+        # --- 3. Calculate the new orientation (upright and facing outward) ---
+        # The z-axis (forward) points horizontally from the base to the new position
+        z_axis = np.array([rest_position_xy[0], rest_position_xy[1], 0.0])
+        z_axis /= np.linalg.norm(z_axis)
+
+        # The y-axis (up) is aligned with the world's Z-axis
+        y_axis = np.array([0.0, 0.0, 1.0])
+
+        # The x-axis (left) is the cross product, forming an orthonormal frame
+        x_axis = np.cross(y_axis, z_axis)
+
+        # Construct the final rotation matrix and convert to a quaternion
+        rotation_matrix_3d = np.array([x_axis, y_axis, z_axis]).T
+        rotation = R.from_matrix(rotation_matrix_3d)
+        quat = rotation.as_quat()
+
+        # --- 4. Assemble and return the final Pose message ---
+        resting_pose = Pose()
+        resting_pose.position = Point(
+            x=rest_position_xy[0], y=rest_position_xy[1], z=rest_position_z
+        )
+        resting_pose.orientation = Quaternion(
+            x=quat[0], y=quat[1], z=quat[2], w=quat[3]
+        )
+
+        return resting_pose
 
     def _solve_articutool_ik(
         self, target_vector: np.ndarray
@@ -1733,8 +1815,8 @@ class EndToEndBenchmark:
                     "stage_name": "Resting",
                     "status": status.value,
                     "execution_mode": ExecutionMode.SYNCHRONOUS.value,
-                    "traj_jaco": traj_jaco,
-                    "traj_atool": traj_atool,
+                    "traj_jaco": self._serialize_trajectory(traj_jaco),
+                    "traj_atool": self._serialize_trajectory(traj_atool),
                 }
             )
             if status != TrialStatus.SUCCESS:
