@@ -1354,7 +1354,8 @@ class EndToEndBenchmark:
 
         feasible_waypoints = 0
         for point in trajectory.points:
-            if self._is_config_kinematically_feasible(point.positions):
+            jaco_joint_config = list(point.positions)
+            if self._is_config_kinematically_feasible(jaco_joint_config):
                 feasible_waypoints += 1
 
         return (feasible_waypoints / len(trajectory.points)) * 100.0
