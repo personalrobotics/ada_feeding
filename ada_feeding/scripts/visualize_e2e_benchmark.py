@@ -121,9 +121,8 @@ def load_pinocchio_model_from_urdf_string(
 
 def load_benchmark_data(file_paths: List[str], logger_func=print) -> pd.DataFrame:
     """
-    Loads and flattens data from one or more benchmark JSON files into a pandas DataFrame.
-    The new hierarchical structure (trial -> stages) is flattened so that each
-    stage with a valid trajectory becomes a single row in the DataFrame.
+    Loads data from benchmark JSON files, ensuring all trials and stages
+    are loaded, even if they have no successful trajectories.
     """
     all_stages_flat = []
     for file_path in file_paths:
@@ -131,6 +130,18 @@ def load_benchmark_data(file_paths: List[str], logger_func=print) -> pd.DataFram
             with open(file_path, "r") as f:
                 trials = json.load(f)
                 for trial in trials:
+                    # If a trial has no stages, we can't do much, but we can still show the scene
+                    if not trial.get("stages"):
+                        all_stages_flat.append(
+                            {
+                                "trial_id": trial.get("trial_id"),
+                                "scene_poses": trial.get("scene_poses"),
+                                "stage_name": "N/A",
+                                "status": "NoStages",
+                            }
+                        )
+                        continue
+
                     for stage in trial.get("stages", []):
                         flat_record = {
                             "trial_id": trial.get("trial_id"),
@@ -141,23 +152,24 @@ def load_benchmark_data(file_paths: List[str], logger_func=print) -> pd.DataFram
                             "traj_jaco": stage.get("traj_jaco"),
                             "traj_atool": stage.get("traj_atool"),
                         }
-                        # We only care about stages that have a trajectory to visualize
-                        if flat_record["traj_jaco"] or flat_record["traj_atool"]:
-                            all_stages_flat.append(flat_record)
+                        # Load all stages regardless of trajectory existence
+                        all_stages_flat.append(flat_record)
         except Exception as e:
             logger_func(f"Warning: Could not load or parse {file_path}. Error: {e}")
 
     if not all_stages_flat:
         return pd.DataFrame()
 
-    logger_func(f"Successfully loaded {len(all_stages_flat)} stages with trajectories.")
+    logger_func(
+        f"Successfully loaded {len(all_stages_flat)} stage records across all trials."
+    )
     return pd.DataFrame(all_stages_flat)
 
 
 def select_trial(df: pd.DataFrame) -> Optional[pd.DataFrame]:
     """
-    Interactively prompts the user to select a Trial ID, showing
-    the last successfully completed stage for each trial.
+    Prompts the user to select a Trial ID, showing the last successfully
+    completed stage for each trial.
     """
     all_trial_ids = sorted(df["trial_id"].unique())
     if not all_trial_ids:
@@ -218,8 +230,7 @@ def draw_scene_frames(pin_viz, scene_poses: Dict[str, Any], frame_scale: float =
     try:
         pin_viz.viewer["scene/frames"].delete()
     except KeyError:
-        pass  # It's okay if it doesn't exist
-
+        pass
     print("Drawing scene frames and markers...")
     for name, pose_data in scene_poses.items():
         position = np.array(pose_data["position"])
@@ -317,7 +328,7 @@ def trajectory_playback_loop(pin_viz, model, data, selected_stage, args):
         if execution_mode == "Sequential":
             # For sequential, we need to know the final pose of the first trajectory
             jaco_end_waypoint = traj_jaco["points"][-1]
-            if current_idx >= len(traj_jaco["points"]):  # Articutool part
+            if current_idx >= len(traj_jaco["points"]):
                 update_q_from_waypoint(
                     q,
                     model,
@@ -332,7 +343,7 @@ def trajectory_playback_loop(pin_viz, model, data, selected_stage, args):
                     traj_atool["joint_names"],
                     atool_joint_map,
                 )
-            else:  # Jaco part
+            else:
                 update_q_from_waypoint(
                     q,
                     model,
@@ -348,7 +359,7 @@ def trajectory_playback_loop(pin_viz, model, data, selected_stage, args):
                         traj_atool["joint_names"],
                         atool_joint_map,
                     )
-        else:  # For Synchronous, Jaco Only, Articutool Only
+        else:
             if traj_jaco:
                 update_q_from_waypoint(
                     q,
@@ -474,8 +485,8 @@ def trajectory_playback_loop(pin_viz, model, data, selected_stage, args):
 
 def trial_visualization_loop(pin_viz, model, data, trial_df, args):
     """
-    NEW: The main menu loop for an individual trial.
-    Displays the scene and lists available trajectories to visualize.
+    The main menu loop for an individual trial. Handles trials with
+    no successful stages gracefully.
     """
     trial_id = trial_df.iloc[0]["trial_id"]
     scene_poses = trial_df.iloc[0]["scene_poses"]
@@ -496,7 +507,6 @@ def trial_visualization_loop(pin_viz, model, data, trial_df, args):
     while True:
         print(f"\n--- Visualizing Trial ID: {trial_id} ---")
         print("Scene frames are now displayed.")
-        print("Select a trajectory to play:")
 
         available_stages = [
             row for row in trial_df.to_dict("records") if row["status"] == "Success"
@@ -504,9 +514,17 @@ def trial_visualization_loop(pin_viz, model, data, trial_df, args):
 
         if not available_stages:
             print("No successful trajectories available to visualize for this trial.")
-            input("Press Enter to return to trial selection...")
-            return "menu"
+            print("  [m] Back to Trial Selection")
+            print("  [q] Quit")
+            choice_str = input(f"Enter choice (m/q): ").strip().lower()
+            if choice_str == "q":
+                return "quit"
+            if choice_str == "m":
+                return "menu"
+            print("Invalid choice.")
+            continue
 
+        print("Select a trajectory to play:")
         for i, stage in enumerate(available_stages):
             print(
                 f"  [{i + 1}] {stage['stage_name']} (Mode: {stage['execution_mode']})"
@@ -542,14 +560,15 @@ def trial_visualization_loop(pin_viz, model, data, trial_df, args):
                             prev_traj_jaco = stage_data_map[prev_stage_name][
                                 "traj_jaco"
                             ]
-                            last_waypoint = prev_traj_jaco["points"][-1]
-                            selected_stage_data["static_jaco_config"] = {
-                                "positions": last_waypoint["positions"],
-                                "joint_names": prev_traj_jaco["joint_names"],
-                            }
-                            break
+                            if prev_traj_jaco and prev_traj_jaco.get("points"):
+                                last_waypoint = prev_traj_jaco["points"][-1]
+                                selected_stage_data["static_jaco_config"] = {
+                                    "positions": last_waypoint["positions"],
+                                    "joint_names": prev_traj_jaco["joint_names"],
+                                }
+                                break
             except ValueError:
-                pass  # Stage not in order, can't determine previous state
+                pass
 
             # Enter the playback loop for the chosen trajectory
             action = trajectory_playback_loop(
@@ -569,7 +588,7 @@ def main(args):
 
     df = load_benchmark_data(args.benchmark_files)
     if df.empty:
-        print("No data with trajectories could be loaded. Exiting.")
+        print("No data could be loaded. Exiting.")
         return
 
     package_dirs = find_ros_package_paths(args.xacro_file)
