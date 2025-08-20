@@ -6,7 +6,8 @@ from dataclasses import asdict
 
 def analyze_benchmark_results(file_path: str):
     """
-    Loads benchmark data, calculates key metrics, and prints a summary report.
+    Loads benchmark data, calculates key metrics, and prints a summary report,
+    including statistics grouped by the stage of failure.
     """
     try:
         with open(file_path, "r") as f:
@@ -51,7 +52,7 @@ def analyze_benchmark_results(file_path: str):
 
     # --- 2. Print High-Level Summary ---
     num_trials = len(data)
-    successful_trials = sum(1 for trial in data if trial.get("end_to_end_success"))
+    successful_trials = df_trials["end_to_end_success"].sum()
     overall_success_rate = (
         (successful_trials / num_trials) * 100 if num_trials > 0 else 0
     )
@@ -89,7 +90,7 @@ def analyze_benchmark_results(file_path: str):
             print(status_counts.to_string())
         print("=" * 60)
 
-    # --- 3. NEW: Generate Comprehensive Statistical Summaries ---
+    # --- 3. Generate Comprehensive Statistical Summaries (Binary Pass/Fail) ---
     if not df_trials.empty:
         # Define the columns we want to summarize
         characteristic_cols = [
@@ -100,7 +101,6 @@ def analyze_benchmark_results(file_path: str):
 
         # Separate successful and failed trials
         successful_df = df_trials[df_trials["end_to_end_success"] == True]
-        failed_df = df_trials[df_trials["end_to_end_success"] == False]
 
         print("\n           COMPREHENSIVE STATISTICAL SUMMARY")
         print("-" * 60)
@@ -114,12 +114,43 @@ def analyze_benchmark_results(file_path: str):
         else:
             print("\n--- No SUCCESSFUL End-to-End Trials to Summarize ---")
 
-        if not failed_df.empty:
-            print(f"\n--- For FAILED End-to-End Trials ({len(failed_df)} trials) ---")
-            print(failed_df[characteristic_cols].describe().transpose().to_string())
-        else:
-            print("\n--- No FAILED End-to-End Trials to Summarize ---")
+    # --- 4. Generate Statistical Summaries by Failure Stage ---
+    if not df_stages.empty and not df_trials.empty:
+        # Find the first failing stage for each failed trial
+        failed_stages_df = df_stages[df_stages["status"] != "Success"]
+        first_failures = failed_stages_df.loc[
+            failed_stages_df.groupby("trial_id").head(1).index
+        ]
+        first_failures = first_failures.rename(columns={"stage_name": "failure_stage"})
 
+        # Merge this information back with the trial characteristics
+        trials_with_failure_stage = pd.merge(
+            df_trials,
+            first_failures[["trial_id", "failure_stage"]],
+            on="trial_id",
+            how="left",
+        )
+
+        failure_stages = trials_with_failure_stage["failure_stage"].dropna().unique()
+
+        print("\n\n" + "=" * 60)
+        print("     STATISTICAL SUMMARY BY STAGE OF FAILURE")
+        print("=" * 60)
+
+        for stage in failure_stages:
+            stage_specific_failures_df = trials_with_failure_stage[
+                trials_with_failure_stage["failure_stage"] == stage
+            ]
+            if not stage_specific_failures_df.empty:
+                print(
+                    f"\n--- For Trials Failing at Stage: '{stage}' ({len(stage_specific_failures_df)} trials) ---"
+                )
+                print(
+                    stage_specific_failures_df[characteristic_cols]
+                    .describe()
+                    .transpose()
+                    .to_string()
+                )
         print("=" * 60)
 
 
