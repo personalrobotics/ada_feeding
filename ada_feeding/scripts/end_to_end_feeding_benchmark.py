@@ -866,8 +866,14 @@ class EndToEndBenchmark:
     ):
         self.node = node
         self.num_trials = num_trials
-        self.output_dir = output_dir
-        self.results: List[Dict[str, Any]] = []
+        self.output_filename = None
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            # Use the .jsonl extension for JSON Lines format
+            self.output_filename = os.path.join(
+                output_dir, f"end_to_end_benchmark_{timestamp}.jsonl"
+            )
 
         self.motion_planner = MotionPlanner(
             node,
@@ -879,9 +885,6 @@ class EndToEndBenchmark:
         )
         # Pinocchio model for feasibility checks
         self.kinematics_model = PinocchioModel(xacro_file_path)
-
-        if self.output_dir:
-            os.makedirs(self.output_dir, exist_ok=True)
 
     def add_articutool_bounding_cylinder(self):
         """
@@ -2085,23 +2088,29 @@ class EndToEndBenchmark:
             if not trial_failed:
                 trial_data["end_to_end_success"] = True
 
-            self.results.append(trial_data)
-        self.save_results()
+            self._save_trial_data(trial_data)
+            LOGGER.info(f"Trial {i} data saved to {self.output_filename}")
 
-    def save_results(self):
-        """Saves the comprehensive benchmark results to a single JSON file."""
-        if not self.output_dir:
+        LOGGER.info("Benchmark finished.")
+
+    def _save_trial_data(self, trial_data: Dict[str, Any]):
+        """
+        Saves a single trial's data by appending it as a new line
+        to the output file.
+        """
+        if not self.output_filename:
             return
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        filename = os.path.join(
-            self.output_dir, f"end_to_end_benchmark_{timestamp}.json"
-        )
         try:
-            with open(filename, "w") as f:
-                json.dump(self.results, f, indent=2)
-            LOGGER.info(f"Benchmark results saved to {filename}")
+            # Open the file in append mode ('a')
+            with open(self.output_filename, "a") as f:
+                # Use json.dumps to serialize the single trial dictionary
+                json_string = json.dumps(trial_data)
+                # Write the string followed by a newline character
+                f.write(json_string + "\n")
         except Exception as e:
-            LOGGER.error(f"Failed to save results: {e}")
+            LOGGER.error(
+                f"Failed to save trial data for trial {trial_data.get('trial_id', 'N/A')}: {e}"
+            )
 
 
 def main():

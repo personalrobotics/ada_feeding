@@ -6,52 +6,41 @@ from dataclasses import asdict
 
 def analyze_benchmark_results(file_path: str):
     """
-    Loads benchmark data, calculates key metrics, and prints a summary report,
+    Loads benchmark data from a .jsonl file, calculates key metrics, and prints a summary report,
     including statistics grouped by the stage of failure.
     """
     try:
-        with open(file_path, "r") as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
+        # --- Load the .jsonl file directly into a main DataFrame ---
+        main_df = pd.read_json(file_path, lines=True)
+    except (FileNotFoundError, ValueError) as e:
         print(f"Error reading or parsing file: {e}")
         return
 
-    if not data:
+    if main_df.empty:
         print("No data found in the benchmark file.")
         return
 
-    # --- 1. Flatten the data for easier analysis with pandas ---
-    # Each row in this DataFrame will represent a single stage from a single trial.
-    flat_stages = []
-    trial_characteristics = []
+    # --- Properly flatten the nested data into two clean DataFrames ---
 
-    for trial in data:
-        trial_characteristics.append(
-            {
-                "trial_id": trial.get("trial_id"),
-                "end_to_end_success": trial.get("end_to_end_success"),
-                **trial.get("scene_characteristics", {}),
-            }
-        )
-        for stage in trial.get("stages", []):
-            flat_record = {
-                "trial_id": trial.get("trial_id"),
-                "end_to_end_success": trial.get("end_to_end_success"),
-                "stage_name": stage.get("stage_name"),
-                "status": stage.get("status"),
-                "planning_time_sec": stage.get("planning_time_sec"),
-                "path_length_m": stage.get("trajectory_path_length_m"),
-            }
-            # Add custom metrics if they exist
-            if stage.get("custom_metrics"):
-                flat_record.update(stage["custom_metrics"])
-            flat_stages.append(flat_record)
+    # 1. Create the trials DataFrame by flattening the 'scene_characteristics'
+    characteristics_df = pd.json_normalize(main_df["scene_characteristics"])
+    df_trials = pd.concat(
+        [
+            main_df.drop(
+                columns=["scene_characteristics", "stages", "scene_poses", "parameters"]
+            ),
+            characteristics_df,
+        ],
+        axis=1,
+    )
 
-    df_stages = pd.DataFrame(flat_stages)
-    df_trials = pd.DataFrame(trial_characteristics)
+    # 2. Create the stages DataFrame by "exploding" the list of stages
+    df_stages = main_df[["trial_id", "stages"]].explode("stages").reset_index(drop=True)
+    stage_details = pd.json_normalize(df_stages["stages"])
+    df_stages = pd.concat([df_stages.drop(columns=["stages"]), stage_details], axis=1)
 
-    # --- 2. Print High-Level Summary ---
-    num_trials = len(data)
+    # --- 3. Print High-Level Summary (No changes needed from here on) ---
+    num_trials = len(df_trials)
     successful_trials = df_trials["end_to_end_success"].sum()
     overall_success_rate = (
         (successful_trials / num_trials) * 100 if num_trials > 0 else 0
