@@ -256,6 +256,9 @@ class SceneGenerator:
             position=resting_position, orientation=resting_orientation
         )
         scene_characteristics.update(resting_params)
+        scene_characteristics.update(
+            self._characterize_pose(scene["resting_pose"], "resting_pose")
+        )
 
         scene["home_config"] = [-1.47568, 2.92779, 1.00845, -2.0847, 1.43588, 1.32575]
 
@@ -263,6 +266,9 @@ class SceneGenerator:
             self._calculate_above_plate_pose(scene["food_pose"])
         )
         scene_characteristics.update(above_plate_params)
+        scene_characteristics.update(
+            self._characterize_pose(scene["above_plate_pose"], "above_plate_pose")
+        )
 
         (
             scene["in_food_pose"],
@@ -277,11 +283,20 @@ class SceneGenerator:
             ),
         )
         scene_characteristics.update(in_food_params)
+        scene_characteristics.update(
+            self._characterize_pose(scene["in_food_pose"], "in_food_pose")
+        )
 
         scene["above_food_pose"] = self._calculate_above_food_pose(
             scene["in_food_pose"], approach_vector
         )
+        scene_characteristics.update(
+            self._characterize_pose(scene["above_food_pose"], "above_food_pose")
+        )
         scene["staging_pose"] = self._calculate_staging_pose(scene["mouth_pose"])
+        scene_characteristics.update(
+            self._characterize_pose(scene["staging_pose"], "staging_pose")
+        )
 
         # Add derived characteristics for analysis
         food_pos = scene["food_pose"].position
@@ -299,6 +314,29 @@ class SceneGenerator:
         )
 
         return scene, scene_characteristics
+
+    def _characterize_pose(self, pose: Pose, pose_name: str) -> Dict[str, float]:
+        """Extracts key kinematic characteristics from a pose."""
+        pos = np.array([pose.position.x, pose.position.y, pose.position.z])
+        rot = R.from_quat(
+            [
+                pose.orientation.x,
+                pose.orientation.y,
+                pose.orientation.z,
+                pose.orientation.w,
+            ]
+        )
+
+        # For a Jaco EE frame, the Z-axis is "forward"
+        forward_vec = rot.apply([0.0, 0.0, 1.0])
+
+        characteristics = {
+            f"{pose_name}_dist_3d": np.linalg.norm(pos),
+            f"{pose_name}_dist_2d": np.linalg.norm(pos[:2]),
+            f"{pose_name}_global_yaw_rad": np.arctan2(forward_vec[1], forward_vec[0]),
+            f"{pose_name}_global_pitch_rad": np.arcsin(forward_vec[2]),
+        }
+        return characteristics
 
     def _sample_pose_in_cylindrical_shell(
         self, sampling_params: CylindricalSamplingParams
@@ -2016,6 +2054,7 @@ class EndToEndBenchmark:
                 trial_data["stages"].append(
                     {
                         "stage_name": "HomeToAbovePlate",
+                        "target_frame": END_EFFECTOR_LINK_JACO,
                         "status": status.value,
                         "execution_mode": ExecutionMode.JACO_ONLY.value,
                         "planning_time_sec": planning_time,
@@ -2051,6 +2090,7 @@ class EndToEndBenchmark:
                 trial_data["stages"].append(
                     {
                         "stage_name": "AbovePlateToAboveFood",
+                        "target_frame": END_EFFECTOR_LINK_FULL,
                         "status": status.value,
                         "execution_mode": ExecutionMode.SEQUENTIAL.value,
                         "planning_time_sec": planning_time,
@@ -2086,6 +2126,7 @@ class EndToEndBenchmark:
                 trial_data["stages"].append(
                     {
                         "stage_name": "AboveFoodToInFood",
+                        "target_frame": END_EFFECTOR_LINK_FULL,
                         "status": status.value,
                         "execution_mode": ExecutionMode.SYNCHRONOUS.value,
                         "planning_time_sec": planning_time,
@@ -2114,6 +2155,7 @@ class EndToEndBenchmark:
                 trial_data["stages"].append(
                     {
                         "stage_name": "LevelArticutool",
+                        "target_frame": END_EFFECTOR_LINK_ATOOL,
                         "status": status.value,
                         "execution_mode": ExecutionMode.ATOOL_ONLY.value,
                         "planning_time_sec": planning_time,
@@ -2145,6 +2187,7 @@ class EndToEndBenchmark:
                 trial_data["stages"].append(
                     {
                         "stage_name": "Resting",
+                        "target_frame": END_EFFECTOR_LINK_JACO,
                         "status": status.value,
                         "execution_mode": ExecutionMode.SYNCHRONOUS.value,
                         "planning_time_sec": planning_time,
