@@ -121,39 +121,40 @@ def load_pinocchio_model_from_urdf_string(
 
 def load_benchmark_data(file_paths: List[str], logger_func=print) -> pd.DataFrame:
     """
-    Loads data from benchmark JSON files, ensuring all trials and stages
-    are loaded, even if they have no successful trajectories.
+    Loads data from benchmark .jsonl files, ensuring all trials and
+    stages are loaded.
     """
     all_stages_flat = []
     for file_path in file_paths:
         try:
+            # --- Read the file line by line for .jsonl format ---
             with open(file_path, "r") as f:
-                trials = json.load(f)
-                for trial in trials:
-                    # If a trial has no stages, we can't do much, but we can still show the scene
-                    if not trial.get("stages"):
-                        all_stages_flat.append(
-                            {
-                                "trial_id": trial.get("trial_id"),
-                                "scene_poses": trial.get("scene_poses"),
-                                "stage_name": "N/A",
-                                "status": "NoStages",
-                            }
-                        )
-                        continue
+                # Create a list of trial dictionaries by parsing each line
+                trials = [json.loads(line) for line in f if line.strip()]
 
-                    for stage in trial.get("stages", []):
-                        flat_record = {
+            for trial in trials:
+                if not trial.get("stages"):
+                    all_stages_flat.append(
+                        {
                             "trial_id": trial.get("trial_id"),
                             "scene_poses": trial.get("scene_poses"),
-                            "stage_name": stage.get("stage_name"),
-                            "status": stage.get("status"),
-                            "execution_mode": stage.get("execution_mode"),
-                            "traj_jaco": stage.get("traj_jaco"),
-                            "traj_atool": stage.get("traj_atool"),
+                            "stage_name": "N/A",
+                            "status": "NoStages",
                         }
-                        # Load all stages regardless of trajectory existence
-                        all_stages_flat.append(flat_record)
+                    )
+                    continue
+
+                for stage in trial.get("stages", []):
+                    flat_record = {
+                        "trial_id": trial.get("trial_id"),
+                        "scene_poses": trial.get("scene_poses"),
+                        "stage_name": stage.get("stage_name"),
+                        "status": stage.get("status"),
+                        "execution_mode": stage.get("execution_mode"),
+                        "traj_jaco": stage.get("traj_jaco"),
+                        "traj_atool": stage.get("traj_atool"),
+                    }
+                    all_stages_flat.append(flat_record)
         except Exception as e:
             logger_func(f"Warning: Could not load or parse {file_path}. Error: {e}")
 
