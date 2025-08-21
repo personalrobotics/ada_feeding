@@ -232,14 +232,30 @@ class SceneGenerator:
         scene = {}
         scene_characteristics = {}
 
-        scene["food_pose"], food_params = self._sample_pose_in_cylindrical_shell(
+        food_position, food_params = self._sample_pose_in_cylindrical_shell(
             self.params.food_sampling
         )
-        scene["mouth_pose"], mouth_params = self._sample_pose_in_cylindrical_shell(
+        food_orientation = self._calculate_base_facing_orientation(food_position)
+        scene["food_pose"] = Pose(position=food_position, orientation=food_orientation)
+        scene_characteristics.update(food_params)
+
+        mouth_position, mouth_params = self._sample_pose_in_cylindrical_shell(
             self.params.mouth_sampling
         )
-        scene_characteristics.update(food_params)
+        mouth_orientation = self._calculate_base_facing_orientation(mouth_position)
+        scene["mouth_pose"] = Pose(
+            position=mouth_position, orientation=mouth_orientation
+        )
         scene_characteristics.update(mouth_params)
+
+        resting_position, resting_params = self._sample_pose_in_spherical_shell(
+            self.params.resting_sampling
+        )
+        resting_orientation = self._calculate_jaco_ee_orientation(resting_position)
+        scene["resting_pose"] = Pose(
+            position=resting_position, orientation=resting_orientation
+        )
+        scene_characteristics.update(resting_params)
 
         scene["home_config"] = [-1.47568, 2.92779, 1.00845, -2.0847, 1.43588, 1.32575]
 
@@ -266,67 +282,43 @@ class SceneGenerator:
             scene["in_food_pose"], approach_vector
         )
         scene["staging_pose"] = self._calculate_staging_pose(scene["mouth_pose"])
-        scene["resting_pose"], resting_params = self._sample_pose_in_spherical_shell(
-            self.params.resting_sampling
-        )
-        scene_characteristics.update(resting_params)
 
         # Add derived characteristics for analysis
         food_pos = scene["food_pose"].position
         mouth_pos = scene["mouth_pose"].position
+        resting_pos = scene["resting_pose"].position
         scene_characteristics["food_mouth_distance_m"] = math.sqrt(
             (food_pos.x - mouth_pos.x) ** 2
             + (food_pos.y - mouth_pos.y) ** 2
             + (food_pos.z - mouth_pos.z) ** 2
+        )
+        scene_characteristics["food_resting_distance_m"] = math.sqrt(
+            (food_pos.x - resting_pos.x) ** 2
+            + (food_pos.y - resting_pos.y) ** 2
+            + (food_pos.z - resting_pos.z) ** 2
         )
 
         return scene, scene_characteristics
 
     def _sample_pose_in_cylindrical_shell(
         self, sampling_params: CylindricalSamplingParams
-    ) -> Tuple[Pose, Dict[str, float]]:
+    ) -> Tuple[Point, Dict[str, float]]:
         """
-        Samples a random pose within a cylindrical shell
-        The frame's Z-axis is constrained to be world up, and its X-axis is
-        oriented to point towards the robot base with some random variability.
+        A general function to sample a POSITION within the given cylindrical parameters.
+        Returns a Point and the sampled characteristic values.
         """
-        # --- Position Sampling in a Cylindrical Shell ---
-        # 1. Sample the radius and angle
         radius = np.sqrt(
             np.random.uniform(
                 sampling_params.inner_radius**2, sampling_params.outer_radius**2
             )
         )
         theta = np.random.uniform(0, 2 * np.pi)
+        z = np.random.uniform(sampling_params.min_height, sampling_params.max_height)
 
-        # 2. Convert to Cartesian coordinates
         x = radius * np.cos(theta)
         y = radius * np.sin(theta)
-        z = np.random.uniform(sampling_params.min_height, sampling_params.max_height)
+
         position = Point(x=x, y=y, z=z)
-
-        # --- Orientation Calculation  ---
-        z_axis = np.array([0.0, 0.0, 1.0])
-        look_at_vector = -np.array([x, y, 0.0])  # Project to XY plane
-        if np.linalg.norm(look_at_vector) < 1e-6:
-            look_at_vector = np.array([1.0, 0.0, 0.0])
-        x_axis_direction = look_at_vector / np.linalg.norm(look_at_vector)
-
-        y_axis = np.cross(z_axis, x_axis_direction)
-        rotation_matrix = np.array([x_axis_direction, y_axis, z_axis]).T
-        main_rot = R.from_matrix(rotation_matrix)
-
-        rand_yaw_angle = np.random.uniform(-np.deg2rad(30), np.deg2rad(30))
-        variability_rot = R.from_euler("z", rand_yaw_angle)
-
-        final_rot = main_rot * variability_rot
-        quat = final_rot.as_quat()
-
-        # --- Assemble final pose and sampled characteristics ---
-        final_pose = Pose(
-            position=position,
-            orientation=Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3]),
-        )
 
         prefix = sampling_params.name
         sampled_values = {
@@ -334,42 +326,26 @@ class SceneGenerator:
             f"{prefix}_sampled_theta_rad": theta,
             f"{prefix}_sampled_z": z,
         }
-        return final_pose, sampled_values
+        return position, sampled_values
 
     def _sample_pose_in_spherical_shell(
         self, sampling_params: SphericalSamplingParams
-    ) -> Tuple[Pose, Dict[str, float]]:
+    ) -> Tuple[Point, Dict[str, float]]:
         """
-        Samples a random pose within a spherical shell. The orientation is
-        kept upright and pointed towards the robot base.
+        A general function to sample a POSITION within a spherical shell.
+        Returns a Point and the sampled characteristic values.
         """
-        # Sample position
         r = np.random.uniform(
             sampling_params.inner_radius**3, sampling_params.outer_radius**3
         ) ** (1 / 3)
         theta = np.random.uniform(*sampling_params.theta_range)
         phi = np.random.uniform(*sampling_params.phi_range)
+
         x = r * np.cos(theta) * np.sin(phi)
         y = r * np.sin(theta) * np.sin(phi)
         z = r * np.cos(phi)
+
         position = Point(x=x, y=y, z=z)
-
-        # --- Orientation Logic (upright and facing base) ---
-        z_axis = np.array([0.0, 0.0, 1.0])  # World up
-        x_axis_direction = -np.array([x, y, 0.0])  # Points toward origin
-        if np.linalg.norm(x_axis_direction) < 1e-6:
-            x_axis_direction = np.array([1.0, 0.0, 0.0])
-        x_axis_direction /= np.linalg.norm(x_axis_direction)
-        y_axis = np.cross(z_axis, x_axis_direction)
-
-        rotation_matrix = np.array([x_axis_direction, y_axis, z_axis]).T
-        rotation = R.from_matrix(rotation_matrix)
-        quat = rotation.as_quat()
-
-        final_pose = Pose(
-            position=position,
-            orientation=Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3]),
-        )
 
         prefix = sampling_params.name
         sampled_values = {
@@ -377,7 +353,50 @@ class SceneGenerator:
             f"{prefix}_sampled_theta_rad": theta,
             f"{prefix}_sampled_phi_rad": phi,
         }
-        return final_pose, sampled_values
+        return position, sampled_values
+
+    def _calculate_base_facing_orientation(self, position: Point) -> Quaternion:
+        """
+        Calculates an orientation that is upright (Z-up) and has its X-axis
+        pointing towards the robot base (origin).
+        """
+        z_axis = np.array([0.0, 0.0, 1.0])
+        look_at_vector = -np.array([position.x, position.y, 0.0])
+        if np.linalg.norm(look_at_vector) < 1e-6:
+            look_at_vector = np.array([1.0, 0.0, 0.0])
+        x_axis = look_at_vector / np.linalg.norm(look_at_vector)
+        y_axis = np.cross(z_axis, x_axis)
+
+        rotation_matrix = np.array([x_axis, y_axis, z_axis]).T
+        # Add random yaw variability
+        rand_yaw = np.random.uniform(-np.deg2rad(30), np.deg2rad(30))
+        final_rot = R.from_matrix(rotation_matrix) * R.from_euler("z", rand_yaw)
+        quat = final_rot.as_quat()
+
+        return Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3])
+
+    def _calculate_jaco_ee_orientation(self, position: Point) -> Quaternion:
+        """
+        Calculates an orientation matching the Jaco EE convention (Y-up, Z-forward)
+        at the given position.
+        """
+        # (Y-up) is the world's Z-axis
+        target_y_axis = np.array([0.0, 0.0, 1.0])
+
+        # (Z-forward) points horizontally away from the robot's base
+        target_z_axis_dir = np.array([position.x, position.y, 0.0])
+        if np.linalg.norm(target_z_axis_dir) < 1e-6:
+            target_z_axis_dir = np.array([1.0, 0.0, 0.0])
+        target_z_axis = target_z_axis_dir / np.linalg.norm(target_z_axis_dir)
+
+        # (X-left) is derived from the cross product
+        target_x_axis = np.cross(target_y_axis, target_z_axis)
+
+        rotation_matrix = np.array([target_x_axis, target_y_axis, target_z_axis]).T
+        rotation = R.from_matrix(rotation_matrix)
+        quat = rotation.as_quat()
+
+        return Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3])
 
     def _calculate_above_plate_pose(
         self, food_pose: Pose
