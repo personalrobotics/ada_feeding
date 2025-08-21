@@ -2020,6 +2020,15 @@ class EndToEndBenchmark:
             # 2. Generate the scene and characteristics with a single, clean call
             scene, scene_characteristics = scene_generator.generate()
 
+            params_dict = asdict(generation_params)
+            params_dict["path_constraint_tolerance_xyz_rad"] = list(
+                PATH_CONSTRAINT_TOLERANCE_XYZ_RAD
+            )
+            params_dict["articutool_pitch_limits_rad"] = list(
+                ARTICUTOOL_PITCH_LIMITS_RAD
+            )
+            params_dict["articutool_roll_limits_rad"] = list(ARTICUTOOL_ROLL_LIMITS_RAD)
+
             trial_data = {
                 "trial_id": i,
                 "scene_poses": {
@@ -2032,7 +2041,7 @@ class EndToEndBenchmark:
                     "resting_pose": self._serialize_pose(scene["resting_pose"]),
                 },
                 "scene_characteristics": scene_characteristics,
-                "parameters": asdict(generation_params),
+                "parameters": params_dict,
                 "stages": [],
                 "end_to_end_success": False,  # Default to False
             }
