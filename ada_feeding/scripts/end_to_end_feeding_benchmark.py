@@ -146,6 +146,8 @@ class SphericalSamplingParams:
     # Angles in radians for theta (XY plane) and phi (from Z-axis)
     theta_range: Tuple[float, float]
     phi_range: Tuple[float, float]
+    min_height: Optional[float] = None
+    max_height: Optional[float] = None
 
 
 @dataclass
@@ -394,26 +396,33 @@ class SceneGenerator:
         """
         A general function to sample a POSITION within a spherical shell.
         Returns a Point and the sampled characteristic values.
+        Uses rejection sampling if min/max height is specified.
         """
-        r = np.random.uniform(
-            sampling_params.inner_radius**3, sampling_params.outer_radius**3
-        ) ** (1 / 3)
-        theta = np.random.uniform(*sampling_params.theta_range)
-        phi = np.random.uniform(*sampling_params.phi_range)
+        max_attempts = 100
+        for _ in range(max_attempts):
+            r = np.random.uniform(
+                sampling_params.inner_radius**3, sampling_params.outer_radius**3
+            ) ** (1 / 3)
+            theta = np.random.uniform(*sampling_params.theta_range)
+            phi = np.random.uniform(*sampling_params.phi_range)
 
-        x = r * np.cos(theta) * np.sin(phi)
-        y = r * np.sin(theta) * np.sin(phi)
-        z = r * np.cos(phi)
+            x = r * np.cos(theta) * np.sin(phi)
+            y = r * np.sin(theta) * np.sin(phi)
+            z = r * np.cos(phi)
 
-        position = Point(x=x, y=y, z=z)
-
-        prefix = sampling_params.name
-        sampled_values = {
-            f"{prefix}_sampled_radius": r,
-            f"{prefix}_sampled_theta_rad": theta,
-            f"{prefix}_sampled_phi_rad": phi,
-        }
-        return position, sampled_values
+            if (
+                sampling_params.min_height is None or z >= sampling_params.min_height
+            ) and (
+                sampling_params.max_height is None or z <= sampling_params.max_height
+            ):
+                position = Point(x=x, y=y, z=z)
+                prefix = sampling_params.name
+                sampled_values = {
+                    f"{prefix}_sampled_radius": r,
+                    f"{prefix}_sampled_theta_rad": theta,
+                    f"{prefix}_sampled_phi_rad": phi,
+                }
+                return position, sampled_values
 
     def _calculate_base_facing_orientation(self, position: Point) -> Quaternion:
         """
