@@ -160,6 +160,8 @@ class SceneGenerationParams:
         outer_radius=1.04,  # Corresponds to the 8-DOF workspace
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0.0, math.pi / 2),  # Upper hemisphere
+        min_height=0.1,
+        max_height=0.4,
     )
     mouth_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="mouth",
@@ -167,6 +169,8 @@ class SceneGenerationParams:
         outer_radius=1.04,  # Corresponds to the 8-DOF workspace
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0.0, math.pi / 2),
+        min_height=0.3,
+        max_height=0.5,
     )
     resting_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="resting",
@@ -174,6 +178,8 @@ class SceneGenerationParams:
         outer_radius=0.9,  # Corresponds to the 6-DOF workspace
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0, math.pi / 2),
+        min_height=0.2,
+        max_height=0.4,
     )
     above_plate_radial_dist: float = 0.3
     above_plate_polar_angle_rad_max: float = math.pi / 3
