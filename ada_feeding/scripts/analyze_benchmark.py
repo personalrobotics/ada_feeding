@@ -8,7 +8,8 @@ from plotly.subplots import make_subplots
 
 def generate_visualizations(df_trials: pd.DataFrame, file_path: str):
     """
-    Generates interactive Plotly visualizations with a dropdown for stage-specific analysis.
+    Generates interactive Plotly visualizations with a context-aware dropdown
+    for stage-specific analysis.
     """
     if df_trials.empty:
         print("Skipping visualization, no trial data to plot.")
@@ -75,22 +76,26 @@ def generate_visualizations(df_trials: pd.DataFrame, file_path: str):
     vis_df = pd.DataFrame(plot_data)
 
     # --- 3. Create Figure and Traces ---
-    fig = make_subplots(
-        rows=1,
-        cols=1,
-        specs=[[{"type": "scatter3d"}]],
-        subplot_titles=("3D Workspace Visualization",),
-    )
+    fig = go.Figure()  # Use go.Figure for more control
 
-    # Define all possible status columns we can filter by
+    # Define all possible status columns and their relevant poses for filtering
     status_cols = {"End-to-End": "end_to_end_success"}
     for col in df_stage_status.columns:
         stage_name = col.replace("status_", "")
         status_cols[f"Stage: {stage_name}"] = col
 
+    relevance_map = {
+        "End-to-End": ["food_pose", "mouth_pose", "resting_pose"],
+        "Stage: HomeToAbovePlate": ["food_pose"],
+        "Stage: AbovePlateToAboveFood": ["food_pose"],
+        "Stage: AboveFoodToInFood": ["food_pose"],
+        "Stage: LevelArticutool": ["food_pose"],
+        "Stage: Resting": ["food_pose", "resting_pose"],
+    }
+
     symbols = {"food_pose": "circle", "mouth_pose": "square", "resting_pose": "diamond"}
 
-    # Create all traces upfront, most will be hidden initially
+    # Create all traces upfront
     for status_name, status_col in status_cols.items():
         for pose_name, symbol in symbols.items():
             for success_val, color in zip([1, 0], ["green", "red"]):
@@ -113,28 +118,33 @@ def generate_visualizations(df_trials: pd.DataFrame, file_path: str):
                             visible=(status_name == "End-to-End"),
                             name=f"{'Success' if is_success else 'Failure'} ({pose_name.replace('_pose', '')})",
                             customdata=df_subset.to_dict("records"),
-                            hovertemplate="<b>Trial ID: %{customdata.trial_id}</b><br>Pose: %{customdata.pose_name}<br>Success: "
-                            + ("Yes" if is_success else "No")
+                            hovertemplate="<b>Trial ID: %{customdata.trial_id}</b><br>Pose: %{customdata.pose_name}<br>Status: "
+                            + ("Success" if is_success else "Failure")
                             + "<br>Distance: %{customdata.food_mouth_distance_m:.2f}m<extra></extra>",
                         )
                     )
 
-    # --- 4. Create the Dropdown Menu ---
+    # --- 4. Create the Dropdown Menu with Filtering Logic ---
     buttons = []
-    for i, (status_name, status_col) in enumerate(status_cols.items()):
-        # Create a visibility mask for the traces
-        # Each status type has 6 traces (3 poses x 2 outcomes)
-        visibility = [False] * len(fig.data)
-        start_index = i * 6
-        for j in range(6):
-            if (start_index + j) < len(visibility):
-                visibility[start_index + j] = True
+    for status_name_key in status_cols.keys():
+        visibility = []
+        # This nested loop must match the trace creation order exactly
+        for status_name_trace in status_cols.keys():
+            for pose_name_trace in symbols.keys():
+                for _ in [1, 0]:  # Success and Failure traces
+                    is_visible = False
+                    if status_name_key == status_name_trace:
+                        relevant_poses = relevance_map.get(status_name_key, [])
+                        if pose_name_trace in relevant_poses:
+                            is_visible = True
+                    visibility.append(is_visible)
 
         buttons.append(
-            dict(label=status_name, method="update", args=[{"visible": visibility}])
+            dict(label=status_name_key, method="update", args=[{"visible": visibility}])
         )
 
     fig.update_layout(
+        title="3D Workspace Visualization",
         updatemenus=[
             dict(
                 active=0,
@@ -142,7 +152,7 @@ def generate_visualizations(df_trials: pd.DataFrame, file_path: str):
                 direction="down",
                 pad={"r": 10, "t": 10},
                 showactive=True,
-                x=0.1,
+                x=0.05,
                 xanchor="left",
                 y=1.1,
                 yanchor="top",
