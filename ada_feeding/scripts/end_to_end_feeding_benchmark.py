@@ -235,7 +235,8 @@ def create_position_constraint(
         MoveIt2ConstraintType.POSITION,
         {
             "position": position,
-            "tolerance_position": tolerance_position,
+            "tolerance": tolerance_position,
+            "weight": 1.0,
         },
     )
 
@@ -1928,7 +1929,7 @@ class EndToEndBenchmark:
         LOGGER.info("  Planning to Resting pose (S2-Heuristic)...")
 
         # 1. Define goal and path constraints for the Jaco arm's wrist
-        goal_constraints = [create_pose_constraint(resting_wrist_pose)]
+        goal_constraints = [create_position_constraint(resting_wrist_pose.position)]
         path_constraints = [
             create_orientation_path_constraint(
                 quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
