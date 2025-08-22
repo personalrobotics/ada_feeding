@@ -2016,7 +2016,8 @@ class EndToEndBenchmark:
     # --- Main Benchmark Loop ---
     def run(self):
         """Main benchmark execution loop with granular metric collection."""
-        self.add_articutool_bounding_cylinder()
+        # TODO: Decide whether we should keep the bounding cylinder active
+        # self.add_articutool_bounding_cylinder()
 
         for i in range(self.num_trials):
             LOGGER.info(f"--- Running Trial {i + 1}/{self.num_trials} ---")
