@@ -1731,7 +1731,9 @@ class EndToEndBenchmark:
         self, above_plate_pose: Pose, start_state_jaco: Any
     ) -> Tuple[TrialStatus, Optional[JointTrajectory], float]:
         LOGGER.info("  Planning to AbovePlate pose...")
-        goal_constraints = [create_pose_constraint(above_plate_pose)]
+        goal_constraints = [
+            create_pose_constraint(above_plate_pose, tolerance_orientation=0.2)
+        ]
 
         return self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
