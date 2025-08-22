@@ -1997,53 +1997,6 @@ class EndToEndBenchmark:
             planning_time,
         )
 
-    def _plan_s2_guided(
-        self, goal_pose: Pose, start_state: Any
-    ) -> Tuple[TrialStatus, Optional[JointTrajectory], float]:
-        LOGGER.info("  Planning with S2 (6-DOF Guided)...")
-
-        future = None
-        # --- Lock the entire MoveIt2 configuration and planning block ---
-        with self.moveit2_lock:
-            self.moveit2_jaco.clear_goal_constraints()
-            self.moveit2_jaco.clear_path_constraints()
-
-            self.moveit2_jaco.set_pose_goal(goal_pose, END_EFFECTOR_LINK_JACO)
-            self.moveit2_jaco.set_path_orientation_constraint(
-                quat_xyzw=Quaternion(
-                    x=PATH_CONSTRAINT_QUAT_XYZW[0],
-                    y=PATH_CONSTRAINT_QUAT_XYZW[1],
-                    z=PATH_CONSTRAINT_QUAT_XYZW[2],
-                    w=PATH_CONSTRAINT_QUAT_XYZW[3],
-                ),
-                target_link=END_EFFECTOR_LINK_JACO,
-                tolerance=PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
-                weight=1.0,
-            )
-
-            future = self.moveit2_jaco.plan_async(
-                start_joint_state=start_state,
-            )
-
-        # Wait for future outside the lock
-        start_time = time.time()
-        while rclpy.ok() and not future.done():
-            if time.time() - start_time > self.planning_timeout:
-                future.cancel()
-                return TrialStatus.PLANNER_FAILURE, None, 0.0
-            time.sleep(0.1)
-
-        traj = self.moveit2_jaco.get_trajectory(future)
-
-        if not traj or not traj.points:
-            return TrialStatus.PLANNER_FAILURE, None, 0.0
-
-        feasibility_percent = self._verify_trajectory(traj)
-        if feasibility_percent < 99.0:
-            return TrialStatus.VERIFICATION_FAILURE, traj, feasibility_percent
-
-        return TrialStatus.SUCCESS, traj, feasibility_percent
-
     # --- Main Benchmark Loop ---
     def run(self):
         """Main benchmark execution loop with granular metric collection."""
