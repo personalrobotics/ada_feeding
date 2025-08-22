@@ -1891,6 +1891,86 @@ class EndToEndBenchmark:
             planning_time,
         )
 
+    def _plan_to_reorient_wrist(
+        self, start_state_jaco: List[float]
+    ) -> Tuple[
+        TrialStatus, Optional[JointTrajectory], Optional[JointTrajectory], float, float
+    ]:
+        """
+        Plans a motion to reorient the Jaco EE to a neutral "level" pose (Y-axis up) while maintaining its current position.
+        This acts as a preparatory step before the long-distance transport.
+        """
+        LOGGER.info("  Planning to Reorient Wrist to a level posture...")
+
+        # 1. Get the current EE pose via FK
+        start_joint_state = JointState()
+        start_joint_state.name = JOINT_NAMES_JACO
+        start_joint_state.position = start_state_jaco
+        fk_poses = self.motion_planner.compute_fk(
+            group_name=PLANNING_GROUP_JACO,
+            joint_state=start_joint_state,
+            fk_link_names=[END_EFFECTOR_LINK_JACO],
+        )
+        if not fk_poses:
+            LOGGER.warning("  FK failed, cannot determine current wrist pose.")
+            return TrialStatus.IK_FAILURE, None, 0.0
+
+        current_ee_pose = fk_poses[0].pose
+        current_position = current_ee_pose.position
+
+        # 2. Construct a goal constraint that keeps the Jaco EE roughly in the same position, but level against gravity
+        goal_constraints = [
+            create_position_constraint(current_position, 0.1),
+            create_orientation_path_constraint(
+                PATH_CONSTRAINT_QUAT_XYZW, (0.1, 2 * math.pi, 0.1)
+            ),
+        ]
+
+        # 3. Plan the 6-DOF trajectory for the Jaco arm
+        status, traj_jaco, planning_time = self.motion_planner.plan(
+            group_name=PLANNING_GROUP_JACO,
+            start_state=start_state_jaco,
+            goal_constraints=goal_constraints,
+            cartesian=True,
+        )
+        if status != TrialStatus.SUCCESS:
+            return TrialStatus.PLANNER_FAILURE, None, None, 0.0, planning_time
+
+        # 4. VERIFY the Jaco trajectory for leveling feasibility
+        feasibility_percent = self._verify_trajectory(traj_jaco)
+        if feasibility_percent < 99.0:
+            LOGGER.warning(
+                f"  Path to Resting failed verification ({feasibility_percent:.1f}% feasible)."
+            )
+            return (
+                TrialStatus.VERIFICATION_FAILURE,
+                traj_jaco,
+                None,
+                feasibility_percent,
+                planning_time,
+            )
+
+        # 5. Generate the corresponding synchronous Articutool trajectory
+        LOGGER.info("  Generating synchronous Articutool trajectory...")
+        traj_atool = self._generate_leveling_atool_trajectory(traj_jaco)
+
+        if traj_atool is None:
+            LOGGER.error("  Failed to generate synchronous Articutool trajectory.")
+            return (
+                TrialStatus.IK_FAILURE,
+                traj_jaco,
+                None,
+                feasibility_percent,
+                planning_time,
+            )
+        return (
+            TrialStatus.SUCCESS,
+            traj_jaco,
+            traj_atool,
+            feasibility_percent,
+            planning_time,
+        )
+
     def _plan_to_level_articutool(
         self,
         jaco_wrist_pose: Pose,
@@ -2173,9 +2253,40 @@ class EndToEndBenchmark:
                 else:
                     current_atool_state = list(traj_atool.points[-1].positions)
 
-            # --- Stage 5: LevelArticutool -> Resting ---
+            # --- Stage 5: LevelArticutool -> Reorient Wrist ---
             if not trial_failed:
-                LOGGER.info("Stage 5: Resting")
+                LOGGER.info("Stage 5: Reorient Wrist")
+                (status, traj_jaco, traj_atool, leveling_feasibility, planning_time) = (
+                    self._plan_to_reorient_wrist(current_jaco_state)
+                )
+                path_length = self._calculate_cartesian_path_length(
+                    traj_jaco, PLANNING_GROUP_JACO
+                )
+                trial_data["stages"].append(
+                    {
+                        "stage_name": "ReorientWrist",
+                        "target_frame": END_EFFECTOR_LINK_JACO,
+                        "status": status.value,
+                        "execution_mode": ExecutionMode.SYNCHRONOUS.value,
+                        "planning_time_sec": planning_time,
+                        "trajectory_path_length_m": path_length,
+                        "custom_metrics": {
+                            "leveling_feasibility_percent": leveling_feasibility
+                        },
+                        "traj_jaco": self._serialize_trajectory(traj_jaco),
+                        "traj_atool": self._serialize_trajectory(traj_atool),
+                    }
+                )
+                if status != TrialStatus.SUCCESS:
+                    LOGGER.error(f"  Stage 5 failed. Skipping trial.")
+                    trial_failed = True
+                else:
+                    current_jaco_state = list(traj_jaco.points[-1].positions)
+                    current_atool_state = list(traj_atool.points[-1].positions)
+
+            # --- Stage 6: LevelArticutool -> Resting ---
+            if not trial_failed:
+                LOGGER.info("Stage 6: Resting")
                 (
                     status,
                     traj_jaco,
@@ -2202,7 +2313,7 @@ class EndToEndBenchmark:
                     }
                 )
                 if status != TrialStatus.SUCCESS:
-                    LOGGER.error(f"  Stage 5 failed. Skipping trial.")
+                    LOGGER.error(f"  Stage 6 failed. Skipping trial.")
                     trial_failed = True
                 else:
                     current_jaco_state = list(traj_jaco.points[-1].positions)
