@@ -152,16 +152,24 @@ class SphericalSamplingParams:
 class SceneGenerationParams:
     """Holds all parameters that define the random scene generation."""
 
-    food_sampling: CylindricalSamplingParams = CylindricalSamplingParams(
-        name="food", inner_radius=0.4, outer_radius=0.8, min_height=0.0, max_height=0.3
+    food_sampling: SphericalSamplingParams = SphericalSamplingParams(
+        name="food",
+        inner_radius=0.4,
+        outer_radius=1.04,  # Corresponds to the 8-DOF workspace
+        theta_range=(0.0, 2 * math.pi),
+        phi_range=(0.0, math.pi / 2),  # Upper hemisphere
     )
-    mouth_sampling: CylindricalSamplingParams = CylindricalSamplingParams(
-        name="mouth", inner_radius=0.0, outer_radius=1.0, min_height=0.0, max_height=0.6
+    mouth_sampling: SphericalSamplingParams = SphericalSamplingParams(
+        name="mouth",
+        inner_radius=0.4,
+        outer_radius=1.04,  # Corresponds to the 8-DOF workspace
+        theta_range=(0.0, 2 * math.pi),
+        phi_range=(0.0, math.pi / 2),
     )
     resting_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="resting",
-        inner_radius=0.0,
-        outer_radius=1.0,
+        inner_radius=0.5,
+        outer_radius=0.9,  # Corresponds to the 6-DOF workspace
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0, math.pi / 2),
     )
@@ -232,14 +240,14 @@ class SceneGenerator:
         scene = {}
         scene_characteristics = {}
 
-        food_position, food_params = self._sample_pose_in_cylindrical_shell(
+        food_position, food_params = self._sample_pose_in_spherical_shell(
             self.params.food_sampling
         )
         food_orientation = self._calculate_base_facing_orientation(food_position)
         scene["food_pose"] = Pose(position=food_position, orientation=food_orientation)
         scene_characteristics.update(food_params)
 
-        mouth_position, mouth_params = self._sample_pose_in_cylindrical_shell(
+        mouth_position, mouth_params = self._sample_pose_in_spherical_shell(
             self.params.mouth_sampling
         )
         mouth_orientation = self._calculate_base_facing_orientation(mouth_position)
