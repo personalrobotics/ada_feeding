@@ -227,6 +227,19 @@ def create_joint_constraint(
     return (MoveIt2ConstraintType.JOINT, {"joint_positions": joint_positions})
 
 
+def create_position_constraint(
+    position: Point, tolerance_position: float = 0.001
+) -> Tuple[MoveIt2ConstraintType, Dict]:
+    """Creates a standard position goal constraint."""
+    return (
+        MoveIt2ConstraintType.POSITION,
+        {
+            "position": position,
+            "tolerance_position": tolerance_position,
+        },
+    )
+
+
 class SceneGenerator:
     """A dedicated class for procedurally generating planning scenes."""
 
