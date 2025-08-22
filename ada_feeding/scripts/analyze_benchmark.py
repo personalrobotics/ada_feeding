@@ -42,9 +42,9 @@ def generate_visualizations(df_trials: pd.DataFrame, file_path: str):
     df_stage_status = df_stages.pivot(
         index="trial_id", columns="stage_name", values="status"
     )
-    df_stage_status.columns = [
-        f"status_{col}" for col in df_stage_status.columns
-    ]  # Rename columns
+    # Fill NaN for trials that didn't reach certain stages
+    df_stage_status = df_stage_status.fillna(0)
+    df_stage_status.columns = [f"status_{col}" for col in df_stage_status.columns]
 
     # --- 2. Prepare Data for 3D Workspace Plot ---
     plot_data = []
@@ -75,15 +75,14 @@ def generate_visualizations(df_trials: pd.DataFrame, file_path: str):
         return
     vis_df = pd.DataFrame(plot_data)
 
-    # --- 3. Create Figure and Traces ---
-    fig = go.Figure()  # Use go.Figure for more control
+    # --- 3. Create Figure and Six Persistent Traces ---
+    fig = go.Figure()
+    symbols = {"food_pose": "circle", "mouth_pose": "square", "resting_pose": "diamond"}
+    colors = {"Success": "green", "Failure": "red"}
 
-    # Define all possible status columns and their relevant poses for filtering
-    status_cols = {"End-to-End": "end_to_end_success"}
-    for col in df_stage_status.columns:
-        stage_name = col.replace("status_", "")
-        status_cols[f"Stage: {stage_name}"] = col
-
+    # Define the default view
+    default_status_name = "End-to-End"
+    default_status_col = "end_to_end_success"
     relevance_map = {
         "End-to-End": ["food_pose", "mouth_pose", "resting_pose"],
         "Stage: HomeToAbovePlate": ["food_pose"],
@@ -93,55 +92,82 @@ def generate_visualizations(df_trials: pd.DataFrame, file_path: str):
         "Stage: Resting": ["food_pose", "resting_pose"],
     }
 
-    symbols = {"food_pose": "circle", "mouth_pose": "square", "resting_pose": "diamond"}
+    # Create the 6 persistent traces, populating them with data for the default view
+    for pose_name, symbol in symbols.items():
+        for outcome, color in colors.items():
+            success_val = 1 if outcome == "Success" else 0
+
+            # Filter data for this trace's default view
+            df_subset = vis_df[
+                (vis_df["pose_name"] == pose_name)
+                & (vis_df[default_status_col] == success_val)
+            ]
+
+            x_data, y_data, z_data, custom_data, hover_template = (
+                [],
+                [],
+                [],
+                None,
+                "none",
+            )
+            if pose_name in relevance_map.get(default_status_name, []):
+                x_data = df_subset["x"]
+                y_data = df_subset["y"]
+                z_data = df_subset["z"]
+                custom_data = df_subset.to_dict("records")
+                hover_template = (
+                    "<b>Trial ID: %{customdata.trial_id}</b><br>Pose: %{customdata.pose_name}<br>Status: "
+                    + outcome
+                    + "<br>Distance: %{customdata.food_mouth_distance_m:.2f}m<extra></extra>"
+                )
+
+            fig.add_trace(
+                go.Scatter3d(
+                    x=x_data,
+                    y=y_data,
+                    z=z_data,
+                    customdata=custom_data,
+                    hovertemplate=hover_template,
+                    mode="markers",
+                    marker=dict(color=color, symbol=symbol, size=5, opacity=0.7),
+                    name=f"{outcome} ({pose_name.replace('_pose', '')})",
+                )
+            )
+
+    # --- 4. Create the Dropdown Menu with 'restyle' Logic ---
+    status_cols = {"End-to-End": "end_to_end_success"}
+    stage_names = sorted([c.replace("status_", "") for c in df_stage_status.columns])
+    for stage_name in stage_names:
+        status_cols[f"Stage: {stage_name}"] = f"status_{stage_name}"
+    buttons = []
 
     # Create all traces upfront
     for status_name, status_col in status_cols.items():
-        for pose_name, symbol in symbols.items():
-            for success_val, color in zip([1, 0], ["green", "red"]):
-                is_success = success_val == 1
+        update_args = {"x": [], "y": [], "z": [], "customdata": [], "hovertemplate": []}
+
+        for pose_name in symbols.keys():
+            for outcome in ["Success", "Failure"]:
+                success_val = 1 if outcome == "Success" else 0
                 df_subset = vis_df[
                     (vis_df["pose_name"] == pose_name)
                     & (vis_df[status_col] == success_val)
                 ]
-                if not df_subset.empty:
-                    fig.add_trace(
-                        go.Scatter3d(
-                            x=df_subset["x"],
-                            y=df_subset["y"],
-                            z=df_subset["z"],
-                            mode="markers",
-                            marker=dict(
-                                color=color, symbol=symbol, size=5, opacity=0.7
-                            ),
-                            # Make only the default view (End-to-End) visible initially
-                            visible=(status_name == "End-to-End"),
-                            name=f"{'Success' if is_success else 'Failure'} ({pose_name.replace('_pose', '')})",
-                            customdata=df_subset.to_dict("records"),
-                            hovertemplate="<b>Trial ID: %{customdata.trial_id}</b><br>Pose: %{customdata.pose_name}<br>Status: "
-                            + ("Success" if is_success else "Failure")
-                            + "<br>Distance: %{customdata.food_mouth_distance_m:.2f}m<extra></extra>",
-                        )
+
+                if pose_name in relevance_map.get(status_name, []):
+                    update_args["x"].append(df_subset["x"])
+                    update_args["y"].append(df_subset["y"])
+                    update_args["z"].append(df_subset["z"])
+                    update_args["customdata"].append(df_subset.to_dict("records"))
+                    update_args["hovertemplate"].append(
+                        "<b>Trial ID: %{customdata.trial_id}</b><br>Pose: %{customdata.pose_name}<br>Status: "
+                        + outcome
+                        + "<br>Distance: %{customdata.food_mouth_distance_m:.2f}m<extra></extra>"
                     )
+                else:
+                    for key in ["x", "y", "z", "customdata", "hovertemplate"]:
+                        update_args[key].append(None)  # Use None to clear data
 
-    # --- 4. Create the Dropdown Menu with Filtering Logic ---
-    buttons = []
-    for status_name_key in status_cols.keys():
-        visibility = []
-        # This nested loop must match the trace creation order exactly
-        for status_name_trace in status_cols.keys():
-            for pose_name_trace in symbols.keys():
-                for _ in [1, 0]:  # Success and Failure traces
-                    is_visible = False
-                    if status_name_key == status_name_trace:
-                        relevant_poses = relevance_map.get(status_name_key, [])
-                        if pose_name_trace in relevant_poses:
-                            is_visible = True
-                    visibility.append(is_visible)
-
-        buttons.append(
-            dict(label=status_name_key, method="update", args=[{"visible": visibility}])
-        )
+        buttons.append(dict(label=status_name, method="restyle", args=[update_args]))
 
     fig.update_layout(
         title="3D Workspace Visualization",
