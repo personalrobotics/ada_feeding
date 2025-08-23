@@ -1768,6 +1768,76 @@ class EndToEndBenchmark:
 
         return manipulability
 
+    def _find_optimal_acquisition_ik_pair(
+        self,
+        above_food_pose: Pose,
+        in_food_pose: Pose,
+        start_state_full: List[float],
+        num_ik_attempts: int = 20,
+    ) -> Tuple[Optional[List[float]], Optional[List[float]]]:
+        """
+        Generates multiple IK solutions for start/end poses, scores them using
+        directional manipulability, and selects the optimal pair.
+        """
+        LOGGER.info("  Optimizing acquisition poses by maximizing manipulability...")
+        # 1. Define motion vector
+        p_start = above_food_pose.position
+        p_end = in_food_pose.position
+        motion_vector = np.array(
+            [p_end.x - p_start.x, p_end.y - p_start.y, p_end.z - p_start.z]
+        )
+
+        # 2. Generate multiple unique IK solutions
+        above_food_sols, in_food_sols = [], []
+        for _ in range(num_ik_attempts):
+            sol_above = self.motion_planner.compute_ik(
+                PLANNING_GROUP_FULL, above_food_pose, start_state_full
+            )
+            if sol_above:
+                above_food_sols.append(list(sol_above.position))
+
+            sol_in = self.motion_planner.compute_ik(
+                PLANNING_GROUP_FULL, in_food_pose, start_state_full
+            )
+            if sol_in:
+                in_food_sols.append(list(sol_in.position))
+
+        # Remove duplicates by converting to tuples
+        above_food_sols = [list(s) for s in set(tuple(x) for x in above_food_sols)]
+        in_food_sols = [list(s) for s in set(tuple(x) for x in in_food_sols)]
+
+        if not above_food_sols or not in_food_sols:
+            LOGGER.warning("  Failed to generate a pool of IK solutions.")
+            return None, None
+
+        # 3. Score solutions
+        scored_above = [
+            (self._calculate_directional_manipulability(s[:6], motion_vector), s)
+            for s in above_food_sols
+        ]
+        scored_in = [
+            (self._calculate_directional_manipulability(s[:6], -motion_vector), s)
+            for s in in_food_sols
+        ]
+
+        # 4. Select optimal pair using maximin strategy
+        best_pair, max_min_score = (None, None), -1.0
+        for score_a, sol_a in scored_above:
+            for score_i, sol_i in scored_in:
+                min_score = min(score_a, score_i)
+                if min_score > max_min_score:
+                    max_min_score = min_score
+                    best_pair = (sol_a, sol_i)
+
+        if best_pair[0]:
+            LOGGER.info(
+                f"  Found optimal pair with manipulability score: {max_min_score:.4f}"
+            )
+        else:
+            LOGGER.warning("  Could not determine an optimal IK pair.")
+
+        return best_pair
+
     def _serialize_pose(self, pose: Pose) -> Dict[str, List[float]]:
         """Converts a Pose message to a JSON-serializable dictionary."""
         return {
