@@ -1950,17 +1950,43 @@ class EndToEndBenchmark:
         # 2. Generate multiple unique IK solutions
         above_food_sols, in_food_sols = [], []
         for _ in range(num_ik_attempts):
+            # --- Define the Orientation Constraint for the Jaco EE ---
+            (constraint_type, constraint_dict) = create_orientation_path_constraint(
+                quat_xyzw=(
+                    0.707,
+                    0.0,
+                    0.0,
+                    0.707,
+                ),
+                tolerance_rad=(
+                    math.pi,
+                    2 * math.pi,
+                    math.pi / 4,
+                ),
+            )
+            # We must specify which link this constraint applies to.
+            constraint_dict["target_link"] = END_EFFECTOR_LINK_JACO
+
+            # --- Assemble the Constraints List ---
+            ik_constraints = [(constraint_type, constraint_dict)]
+
             # Get the raw JointState message from the IK solver
-            raw_sol_above = self.motion_planner.compute_ik(
-                PLANNING_GROUP_FULL, above_food_pose, start_state_full
+            raw_sol_above = self.motion_planner.compute_constrained_ik(
+                group_name=PLANNING_GROUP_FULL,
+                target_pose=above_food_pose,
+                start_joint_state=start_state_full,
+                ik_constraints=ik_constraints,
             )
             # Process the raw solution to get a clean 8-DOF list
             ordered_sol_above = self._extract_ordered_joint_solution(raw_sol_above)
             if ordered_sol_above:
                 above_food_sols.append(ordered_sol_above)
 
-            raw_sol_in = self.motion_planner.compute_ik(
-                PLANNING_GROUP_FULL, in_food_pose, start_state_full
+            raw_sol_in = self.motion_planner.compute_constrained_ik(
+                group_name=PLANNING_GROUP_FULL,
+                target_pose=in_food_pose,
+                start_joint_state=start_state_full,
+                ik_constraints=ik_constraints,
             )
             ordered_sol_in = self._extract_ordered_joint_solution(raw_sol_in)
             if ordered_sol_in:
