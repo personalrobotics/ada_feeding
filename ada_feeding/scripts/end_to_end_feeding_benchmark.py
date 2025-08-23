@@ -2389,7 +2389,7 @@ class EndToEndBenchmark:
 
             # --- Stage 4: AboveFood -> InFood ---
             if not trial_failed:
-                LOGGER.info("Stage 3: AboveFood -> InFood (Cartesian)")
+                LOGGER.info("Stage 4: AboveFood -> InFood (Cartesian)")
                 (
                     status,
                     traj_jaco,
