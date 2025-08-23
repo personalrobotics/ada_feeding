@@ -1736,6 +1736,38 @@ class EndToEndBenchmark:
 
         return (feasible_waypoints / len(trajectory.points)) * 100.0
 
+    def _calculate_directional_manipulability(
+        self, jaco_joint_config: List[float], cartesian_direction: np.ndarray
+    ) -> float:
+        """
+        Calculates the manipulability of the Jaco arm along a specific Cartesian direction.
+        A higher value indicates greater ease of movement in that direction.
+        """
+        if not self.kinematics_model.is_ready():
+            return 0.0
+
+        # 1. Get the full Jacobian for the Jaco end-effector
+        jacobian = self.kinematics_model.get_frame_jacobian(
+            frame_name=END_EFFECTOR_LINK_JACO, jaco_joints=jaco_joint_config
+        )
+
+        if jacobian is None:
+            return 0.0
+
+        # 2. Extract the linear portion (top 3 rows)
+        j_linear = jacobian[:3, :]
+
+        # 3. Calculate the manipulability ellipsoid matrix
+        a_matrix = j_linear @ j_linear.T
+
+        # 4. Normalize the direction vector
+        u_direction = cartesian_direction / np.linalg.norm(cartesian_direction)
+
+        # 5. Calculate the directional manipulability
+        manipulability = u_direction.T @ a_matrix @ u_direction
+
+        return manipulability
+
     def _serialize_pose(self, pose: Pose) -> Dict[str, List[float]]:
         """Converts a Pose message to a JSON-serializable dictionary."""
         return {
