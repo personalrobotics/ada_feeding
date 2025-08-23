@@ -1812,6 +1812,31 @@ class EndToEndBenchmark:
 
         return manipulability
 
+    def _extract_ordered_joint_solution(
+        self, ik_solution: JointState
+    ) -> Optional[List[float]]:
+        """
+        Extracts the 8 actuated joint values from a raw IK solution message
+        and returns them in the correct [jaco, atool] order.
+        """
+        if not ik_solution or not ik_solution.name:
+            return None
+
+        # Create a dictionary mapping joint names to their positions
+        solution_map = dict(zip(ik_solution.name, ik_solution.position))
+
+        # Build the new, correctly ordered 8-element list
+        ordered_solution = []
+        all_joint_names = JOINT_NAMES_JACO + JOINT_NAMES_ATOOL
+
+        for name in all_joint_names:
+            if name not in solution_map:
+                LOGGER.error(f"Required joint '{name}' not found in IK solution.")
+                return None
+            ordered_solution.append(solution_map[name])
+
+        return ordered_solution
+
     def _find_optimal_acquisition_ik_pair(
         self,
         above_food_pose: Pose,
@@ -1834,24 +1859,28 @@ class EndToEndBenchmark:
         # 2. Generate multiple unique IK solutions
         above_food_sols, in_food_sols = [], []
         for _ in range(num_ik_attempts):
-            sol_above = self.motion_planner.compute_ik(
+            # Get the raw JointState message from the IK solver
+            raw_sol_above = self.motion_planner.compute_ik(
                 PLANNING_GROUP_FULL, above_food_pose, start_state_full
             )
-            if sol_above and sol_above.position:
-                above_food_sols.append(list(sol_above.position))
+            # Process the raw solution to get a clean 8-DOF list
+            ordered_sol_above = self._extract_ordered_joint_solution(raw_sol_above)
+            if ordered_sol_above:
+                above_food_sols.append(ordered_sol_above)
 
-            sol_in = self.motion_planner.compute_ik(
+            raw_sol_in = self.motion_planner.compute_ik(
                 PLANNING_GROUP_FULL, in_food_pose, start_state_full
             )
-            if sol_in and sol_in.position:
-                in_food_sols.append(list(sol_in.position))
+            ordered_sol_in = self._extract_ordered_joint_solution(raw_sol_in)
+            if ordered_sol_in:
+                in_food_sols.append(ordered_sol_in)
 
         # Remove duplicates by converting to tuples
         above_food_sols = [list(s) for s in set(tuple(x) for x in above_food_sols)]
         in_food_sols = [list(s) for s in set(tuple(x) for x in in_food_sols)]
 
         if not above_food_sols or not in_food_sols:
-            LOGGER.warning("  Failed to generate a pool of IK solutions.")
+            LOGGER.warning("  Failed to generate a pool of clean 8-DOF IK solutions.")
             return None, None
 
         # 3. Score solutions
@@ -2331,6 +2360,9 @@ class EndToEndBenchmark:
                         scene["in_food_pose"],
                         current_jaco_state + current_atool_state,
                     )
+                )
+                LOGGER.info(
+                    f"Found optimal IK solutions for AboveFood ({optimal_above_food_ik}) and InFood ({optimal_in_food_ik})"
                 )
                 planning_time = time.time() - start_time
                 status = (
