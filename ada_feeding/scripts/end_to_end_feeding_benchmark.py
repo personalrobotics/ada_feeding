@@ -1793,13 +1793,13 @@ class EndToEndBenchmark:
             sol_above = self.motion_planner.compute_ik(
                 PLANNING_GROUP_FULL, above_food_pose, start_state_full
             )
-            if sol_above:
+            if sol_above and sol_above.position:
                 above_food_sols.append(list(sol_above.position))
 
             sol_in = self.motion_planner.compute_ik(
                 PLANNING_GROUP_FULL, in_food_pose, start_state_full
             )
-            if sol_in:
+            if sol_in and sol_in.position:
                 in_food_sols.append(list(sol_in.position))
 
         # Remove duplicates by converting to tuples
@@ -1891,29 +1891,16 @@ class EndToEndBenchmark:
 
     def _plan_to_above_food(
         self,
-        above_food_pose: Pose,
+        target_ik_solution_full: List[float],
         start_state_jaco: List[float],
         start_state_atool: List[float],
     ) -> Tuple[
         TrialStatus, Optional[JointTrajectory], Optional[JointTrajectory], float
     ]:
-        LOGGER.info("  Solving 8-DOF IK for AboveFood pose...")
-
-        # 1. Compute IK using the planner
-        ik_solution = self.motion_planner.compute_ik(
-            group_name=PLANNING_GROUP_FULL,
-            target_pose=above_food_pose,
-            start_joint_state=(start_state_jaco + start_state_atool),
-        )
-
-        if not ik_solution:
-            LOGGER.warning("  IK solution for 8-DOF system not found.")
-            return TrialStatus.IK_FAILURE, None, None, 0.0
-
-        LOGGER.info(f"  8-DOF IK solution found. Planning for subgroups.")
-        solution_map = dict(zip(ik_solution.name, ik_solution.position))
-        target_jaco_config = [solution_map[name] for name in JOINT_NAMES_JACO]
-        target_atool_config = [solution_map[name] for name in JOINT_NAMES_ATOOL]
+        LOGGER.info("  Planning sequentially to pre-computed AboveFood pose...")
+        # 1. Extract target configurations from the provided optimal IK solution
+        target_jaco_config = target_ik_solution_full[:6]
+        target_atool_config = target_ik_solution_full[6:]
 
         # 2. Plan for the Jaco arm
         jaco_goal_constraints = [create_joint_constraint(target_jaco_config)]
@@ -1951,9 +1938,9 @@ class EndToEndBenchmark:
 
     def _plan_to_in_food(
         self,
-        in_food_pose: Pose,
+        target_ik_solution_full: List[float],
+        target_tool_tip_pose: Pose,
         start_state_jaco: List[float],
-        start_state_atool: List[float],
     ) -> Tuple[
         TrialStatus,
         Optional[JointTrajectory],
@@ -1961,20 +1948,12 @@ class EndToEndBenchmark:
         Optional[Pose],
         float,
     ]:
-        LOGGER.info("  Solving 8-DOF IK for InFood pose...")
+        LOGGER.info("  Planning Cartesian motion to pre-computed InFood pose...")
 
-        # 1. Compute the 8-DOF IK solution for the target tool tip pose
-        ik_solution = self.motion_planner.compute_ik(
-            group_name=PLANNING_GROUP_FULL,
-            target_pose=in_food_pose,
-            start_joint_state=(start_state_jaco + start_state_atool),
-        )
-
-        if not ik_solution:
-            LOGGER.warning("  IK solution for 8-DOF system not found.")
-            return TrialStatus.IK_FAILURE, None, None, None, 0.0
-
-        LOGGER.info(f"  8-DOF IK solution found. Calculating wrist pose via FK.")
+        # 1. Convert the provided optimal IK solution to a JointState message for FK
+        ik_solution = JointState()
+        ik_solution.name = JOINT_NAMES_FULL
+        ik_solution.position = target_ik_solution_full
 
         # 2. Use FK to find the Jaco wrist pose from the 8-DOF solution
         fk_poses = self.motion_planner.compute_fk(
@@ -2008,7 +1987,7 @@ class EndToEndBenchmark:
         # 4. Generate the corresponding synchronous Articutool trajectory
         LOGGER.info("  Generating synchronous Articutool trajectory...")
         traj_atool = self._generate_orientation_holding_atool_trajectory(
-            traj_jaco, in_food_pose.orientation
+            traj_jaco, target_tool_tip_pose.orientation
         )
 
         if traj_atool is None:
@@ -2296,16 +2275,46 @@ class EndToEndBenchmark:
                 else:
                     current_jaco_state = list(traj_jaco.points[-1].positions)
 
-            # --- Stage 2: AbovePlate -> AboveFood ---
+            # --- Stage 2: Optimize Acquisition Poses ---
+            optimal_above_food_ik, optimal_in_food_ik = None, None
             if not trial_failed:
-                LOGGER.info("Stage 2: AbovePlate -> AboveFood")
+                LOGGER.info("Stage 2: Optimize Acquisition Poses")
+                # Note: This optimization step doesn't generate a trajectory itself
+                start_time = time.time()
+                optimal_above_food_ik, optimal_in_food_ik = (
+                    self._find_optimal_acquisition_ik_pair(
+                        scene["above_food_pose"],
+                        scene["in_food_pose"],
+                        current_jaco_state + current_atool_state,
+                    )
+                )
+                planning_time = time.time() - start_time
+                status = (
+                    TrialStatus.SUCCESS
+                    if optimal_above_food_ik
+                    else TrialStatus.IK_FAILURE
+                )
+                trial_data["stages"].append(
+                    {
+                        "stage_name": "OptimizeAcquisition",
+                        "status": status.value,
+                        "planning_time_sec": planning_time,
+                    }
+                )
+                if status != TrialStatus.SUCCESS:
+                    LOGGER.error(f"  Stage 2 failed. Could not find optimal IK pair.")
+                    trial_failed = True
+
+            # --- Stage 3: AbovePlate -> AboveFood ---
+            if not trial_failed:
+                LOGGER.info("Stage 3: AbovePlate -> AboveFood")
                 (
                     status,
                     traj_jaco,
                     traj_atool,
                     planning_time,
                 ) = self._plan_to_above_food(
-                    scene["above_food_pose"], current_jaco_state, current_atool_state
+                    optimal_above_food_ik, current_jaco_state, current_atool_state
                 )
                 path_length_jaco = self._calculate_cartesian_path_length(
                     traj_jaco, PLANNING_GROUP_JACO
@@ -2328,13 +2337,13 @@ class EndToEndBenchmark:
                     }
                 )
                 if status != TrialStatus.SUCCESS:
-                    LOGGER.error(f"  Stage 2 failed. Skipping trial.")
+                    LOGGER.error(f"  Stage 3 failed. Skipping trial.")
                     trial_failed = True
                 else:
                     current_jaco_state = list(traj_jaco.points[-1].positions)
                     current_atool_state = list(traj_atool.points[-1].positions)
 
-            # --- Stage 3: AboveFood -> InFood ---
+            # --- Stage 4: AboveFood -> InFood ---
             if not trial_failed:
                 LOGGER.info("Stage 3: AboveFood -> InFood (Cartesian)")
                 (
@@ -2344,7 +2353,7 @@ class EndToEndBenchmark:
                     jaco_wrist_pose,
                     planning_time,
                 ) = self._plan_to_in_food(
-                    scene["in_food_pose"], current_jaco_state, current_atool_state
+                    optimal_in_food_ik, scene["in_food_pose"], current_jaco_state
                 )
                 path_length = self._calculate_cartesian_path_length(
                     traj_jaco, PLANNING_GROUP_JACO
@@ -2363,15 +2372,15 @@ class EndToEndBenchmark:
                     }
                 )
                 if status != TrialStatus.SUCCESS:
-                    LOGGER.error(f"  Stage 3 failed. Skipping trial.")
+                    LOGGER.error(f"  Stage 4 failed. Skipping trial.")
                     trial_failed = True
                 else:
                     current_jaco_state = list(traj_jaco.points[-1].positions)
                     current_atool_state = list(traj_atool.points[-1].positions)
 
-            # --- Stage 4: InFood -> LevelArticutool ---
+            # --- Stage 5: InFood -> LevelArticutool ---
             if not trial_failed:
-                LOGGER.info("Stage 4: Level Articutool")
+                LOGGER.info("Stage 5: Level Articutool")
                 status, traj_atool, planning_time = self._plan_to_level_articutool(
                     jaco_wrist_pose, current_atool_state
                 )
@@ -2392,14 +2401,14 @@ class EndToEndBenchmark:
                     }
                 )
                 if status != TrialStatus.SUCCESS:
-                    LOGGER.error(f"  Stage 4 failed. Skipping trial.")
+                    LOGGER.error(f"  Stage 5 failed. Skipping trial.")
                     trial_failed = True
                 else:
                     current_atool_state = list(traj_atool.points[-1].positions)
 
-            # --- Stage 5: LevelArticutool -> Reorient Wrist ---
+            # --- Stage 6: LevelArticutool -> Reorient Wrist ---
             if not trial_failed:
-                LOGGER.info("Stage 5: Reorient Wrist")
+                LOGGER.info("Stage 6: Reorient Wrist")
                 (status, traj_jaco, traj_atool, leveling_feasibility, planning_time) = (
                     self._plan_to_reorient_wrist(current_jaco_state)
                 )
@@ -2422,13 +2431,13 @@ class EndToEndBenchmark:
                     }
                 )
                 if status != TrialStatus.SUCCESS:
-                    LOGGER.error(f"  Stage 5 failed. Skipping trial.")
+                    LOGGER.error(f"  Stage 6 failed. Skipping trial.")
                     trial_failed = True
                 else:
                     current_jaco_state = list(traj_jaco.points[-1].positions)
                     current_atool_state = list(traj_atool.points[-1].positions)
 
-            # --- Stage 6: LevelArticutool -> Resting ---
+            # --- Stage 7: LevelArticutool -> Resting ---
             if not trial_failed:
                 LOGGER.info("Stage 6: Resting")
                 (
@@ -2457,7 +2466,7 @@ class EndToEndBenchmark:
                     }
                 )
                 if status != TrialStatus.SUCCESS:
-                    LOGGER.error(f"  Stage 6 failed. Skipping trial.")
+                    LOGGER.error(f"  Stage 7 failed. Skipping trial.")
                     trial_failed = True
                 else:
                     current_jaco_state = list(traj_jaco.points[-1].positions)
