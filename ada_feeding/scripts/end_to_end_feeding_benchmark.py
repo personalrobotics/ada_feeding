@@ -39,6 +39,7 @@ from sensor_msgs.msg import JointState
 from scipy.spatial.transform import Rotation as R
 import pinocchio as pin
 from moveit_msgs.msg import PlanningScene, AllowedCollisionEntry, AllowedCollisionMatrix
+from moveit_msgs.msg import Constraints, OrientationConstraint, PositionConstraint
 from moveit_msgs.srv import GetPlanningScene
 from moveit_msgs.msg import CollisionObject
 from shape_msgs.msg import SolidPrimitive
@@ -735,6 +736,48 @@ class MotionPlanner:
             raise ValueError(f"Unknown planning group: {group_name}")
         return self._moveit2_objects[group_name]
 
+    def _create_orientation_constraint_msg(
+        self, planner: MoveIt2, kwargs: Dict
+    ) -> OrientationConstraint:
+        """Creates an OrientationConstraint message from a dictionary."""
+        constraint = OrientationConstraint()
+        constraint.header.frame_id = planner.base_link_name
+        constraint.link_name = kwargs.get("target_link", planner.end_effector_name)
+        constraint.orientation = kwargs["quat_xyzw"]
+
+        tolerance = kwargs.get("tolerance", 0.001)
+        tolerance_xyz = (
+            (tolerance, tolerance, tolerance)
+            if isinstance(tolerance, float)
+            else tolerance
+        )
+        constraint.absolute_x_axis_tolerance = tolerance_xyz[0]
+        constraint.absolute_y_axis_tolerance = tolerance_xyz[1]
+        constraint.absolute_z_axis_tolerance = tolerance_xyz[2]
+        constraint.weight = kwargs.get("weight", 1.0)
+        return constraint
+
+    def _create_position_constraint_msg(
+        self, planner: MoveIt2, kwargs: Dict
+    ) -> PositionConstraint:
+        """Creates a PositionConstraint message from a dictionary."""
+        constraint = PositionConstraint()
+        constraint.header.frame_id = planner.base_link_name
+        constraint.link_name = kwargs.get("target_link", planner.end_effector_name)
+
+        # Define target position
+        pose = Pose()
+        pose.position = kwargs["position"]
+        constraint.constraint_region.primitive_poses.append(pose)
+
+        # Define goal region as a sphere
+        tolerance = kwargs.get("tolerance", 0.001)
+        sphere = SolidPrimitive(type=SolidPrimitive.SPHERE, dimensions=[tolerance])
+        constraint.constraint_region.primitives.append(sphere)
+
+        constraint.weight = kwargs.get("weight", 1.0)
+        return constraint
+
     @staticmethod
     def _scale_cartesian_trajectory_velocity(
         traj: JointTrajectory, scale_factor: float
@@ -793,6 +836,54 @@ class MotionPlanner:
                 position=target_pose.position,
                 quat_xyzw=target_pose.orientation,
                 start_joint_state=start_joint_state,
+            )
+
+        return ik_solution
+
+    def compute_constrained_ik(
+        self,
+        group_name: str,
+        target_pose: Pose,
+        start_joint_state: List[float],
+        ik_constraints: List[Tuple[MoveIt2ConstraintType, Dict]],
+    ) -> Optional[JointState]:
+        """
+        Computes a constrained Inverse Kinematics solution using the MoveIt2ConstraintType pattern.
+
+        Args:
+            group_name: The planning group for the main IK goal.
+            target_pose: The desired pose for the group's primary end-effector.
+            start_joint_state: The seed state for the IK solver.
+            ik_constraints: A list of constraint tuples, e.g., [(MoveIt2ConstraintType.ORIENTATION, {...})].
+
+        Returns:
+            A JointState message on success, None on failure.
+        """
+        planner = self._get_planner(group_name)
+        constraints_msg = Constraints()
+
+        # Build the Constraints message from the provided list
+        for constraint_type, kwargs in ik_constraints:
+            if constraint_type == MoveIt2ConstraintType.ORIENTATION:
+                msg = self._create_orientation_constraint_msg(planner, kwargs)
+                constraints_msg.orientation_constraints.append(msg)
+            elif constraint_type == MoveIt2ConstraintType.POSITION:
+                msg = self._create_position_constraint_msg(planner, kwargs)
+                constraints_msg.position_constraints.append(msg)
+            else:
+                self._node.get_logger().warn(
+                    f"Constraint type '{constraint_type.value}' not yet supported in compute_constrained_ik."
+                )
+                continue
+
+        # Call the IK solver with the additional constraints
+        ik_solution = None
+        with self._lock:
+            ik_solution = planner.compute_ik(
+                position=target_pose.position,
+                quat_xyzw=target_pose.orientation,
+                start_joint_state=start_joint_state,
+                constraints=constraints_msg,
             )
 
         return ik_solution
