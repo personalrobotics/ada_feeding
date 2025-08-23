@@ -1003,6 +1003,36 @@ class PinocchioModel:
             LOGGER.error(f"Pinocchio FK failed for frame '{frame_name}': {e}")
             return None
 
+    def get_frame_jacobian(
+        self,
+        frame_name: str,
+        jaco_joints: List[float],
+        atool_joints: Optional[List[float]] = None,
+    ) -> Optional[np.ndarray]:
+        """
+        Computes the full Jacobian for a specific frame in the world frame.
+
+        Returns:
+            A 6xN numpy array representing the Jacobian, or None on failure.
+        """
+        if not self.is_ready():
+            return None
+
+        try:
+            q = self._update_configuration(jaco_joints, atool_joints)
+            frame_id = self.model.getFrameId(frame_name)
+
+            # Compute the Jacobian for the frame.
+            # The result is stored in self.data.J
+            pin.computeFrameJacobian(self.model, self.data, q, frame_id)
+
+            return self.data.J
+        except Exception as e:
+            LOGGER.error(
+                f"Pinocchio Jacobian calculation failed for frame '{frame_name}': {e}"
+            )
+            return None
+
 
 class EndToEndBenchmark:
     """Manages the end-to-end benchmark planning process."""
