@@ -915,14 +915,21 @@ class MotionPlanner:
 
 
 class PinocchioModel:
-    """A wrapper for Pinocchio to provide a seamless interface for kinematic queries."""
+    """
+    A wrapper for Pinocchio to provide a seamless interface for kinematic queries,
+    correctly handling subsets of actuated joints within a larger robot model.
+    """
 
     def __init__(self, xacro_file_path: str):
         """Loads the robot model from a XACRO file."""
         self.model: Optional[pin.Model] = None
         self.data: Optional[pin.Data] = None
         self._is_ready = False
-
+        self.jaco_joint_ids = []
+        self.atool_joint_ids = []
+        self.jaco_vel_indices = []
+        self.atool_vel_indices = []
+        self.full_vel_indices = []
         try:
             # Convert XACRO to URDF string
             process = subprocess.run(
@@ -936,10 +943,27 @@ class PinocchioModel:
             # Load model from string
             self.model = pin.buildModelFromXML(urdf_xml_string)
             self.data = self.model.createData()
+            self._map_joint_indices()
             self._is_ready = True
             LOGGER.info("Pinocchio model loaded successfully.")
         except Exception as e:
             LOGGER.error(f"Failed to initialize Pinocchio model: {e}", exc_info=True)
+
+    def _map_joint_indices(self):
+        for name in JOINT_NAMES_JACO:
+            if self.model.existJointName(name):
+                joint_id = self.model.getJointId(name)
+                self.jaco_joint_ids.append(joint_id)
+                self.jaco_vel_indices.append(self.model.joints[joint_id].idx_v)
+        for name in JOINT_NAMES_ATOOL:
+            if self.model.existJointName(name):
+                joint_id = self.model.getJointId(name)
+                self.atool_joint_ids.append(joint_id)
+                self.atool_vel_indices.append(self.model.joints[joint_id].idx_v)
+        self.full_vel_indices = self.jaco_vel_indices + self.atool_vel_indices
+        self.jaco_vel_indices.sort()
+        self.atool_vel_indices.sort()
+        self.full_vel_indices.sort()
 
     def is_ready(self) -> bool:
         """Returns True if the model was loaded successfully."""
@@ -956,21 +980,17 @@ class PinocchioModel:
         q = pin.neutral(self.model)
 
         all_joints = jaco_joints + (atool_joints if atool_joints is not None else [])
-        all_names = JOINT_NAMES_JACO + (
-            JOINT_NAMES_ATOOL if atool_joints is not None else []
+        joint_ids = self.jaco_joint_ids + (
+            self.atool_joint_ids if atool_joints is not None else []
         )
-
-        for i, name in enumerate(all_names):
-            if self.model.existJointName(name):
-                joint_id = self.model.getJointId(name)
-                joint_obj = self.model.joints[joint_id]
-                angle = all_joints[i]
-
-                idx = joint_obj.idx_q
-                if joint_obj.nq == 2:
-                    q[idx : idx + 2] = [math.cos(angle), math.sin(angle)]
-                else:
-                    q[idx] = angle
+        for i, joint_id in enumerate(joint_ids):
+            joint_obj = self.model.joints[joint_id]
+            angle = all_joints[i]
+            idx_q = joint_obj.idx_q
+            if joint_obj.nq == 2:
+                q[idx_q : idx_q + 2] = [math.cos(angle), math.sin(angle)]
+            else:
+                q[idx_q] = angle
         return q
 
     def get_frame_transform(
@@ -1008,9 +1028,11 @@ class PinocchioModel:
         frame_name: str,
         jaco_joints: List[float],
         atool_joints: Optional[List[float]] = None,
+        group: str = PLANNING_GROUP_FULL,
+        reference_frame: pin.ReferenceFrame = pin.ReferenceFrame.WORLD,
     ) -> Optional[np.ndarray]:
         """
-        Computes the full Jacobian for a specific frame in the world frame.
+        Computes the full Jacobian for a specific frame in the specified reference frame.
 
         Returns:
             A 6xN numpy array representing the Jacobian, or None on failure.
@@ -1022,16 +1044,24 @@ class PinocchioModel:
             q = self._update_configuration(jaco_joints, atool_joints)
             frame_id = self.model.getFrameId(frame_name)
 
-            # 1. Update joint-level transforms based on configuration q
-            pin.forwardKinematics(self.model, self.data, q)
-
-            # 2. Update the world-frame pose of all frames
+            # Compute the Jacobian
+            pin.computeJointJacobians(self.model, self.data, q)
             pin.updateFramePlacements(self.model, self.data)
+            J_full = pin.getFrameJacobian(
+                self.model,
+                self.data,
+                frame_id,
+                reference_frame,
+            )
 
-            # Now, compute the Jacobian for the fully updated frame.
-            pin.computeFrameJacobian(self.model, self.data, q, frame_id)
+            if group == PLANNING_GROUP_JACO:
+                vel_indices = self.jaco_vel_indices
+            elif group == PLANNING_GROUP_ATOOL:
+                vel_indices = self.atool_vel_indices
+            else:  # 'full'
+                vel_indices = self.full_vel_indices
 
-            return self.data.J
+            return J_full[:, vel_indices]
         except Exception as e:
             LOGGER.error(
                 f"Pinocchio Jacobian calculation failed for frame '{frame_name}': {e}"
@@ -1751,25 +1781,34 @@ class EndToEndBenchmark:
         if not self.kinematics_model.is_ready():
             return 0.0
 
-        # 1. Get the full Jacobian for the Jaco end-effector
+        # 1. Get the 6x6 Jacobian for the Jaco end-effector
         jacobian = self.kinematics_model.get_frame_jacobian(
-            frame_name=END_EFFECTOR_LINK_JACO, jaco_joints=jaco_joint_config
+            frame_name=END_EFFECTOR_LINK_JACO,
+            jaco_joints=jaco_joint_config,
+            group=PLANNING_GROUP_JACO,
+            reference_frame=pin.ReferenceFrame.WORLD,
         )
 
-        if jacobian is None:
+        # 2. Log the Jacobian for verification and check its validity
+        if jacobian is None or jacobian.shape != (6, 6):
+            LOGGER.warning(
+                "Failed to get a valid 6x6 Jacobian for manipulability calculation."
+            )
             return 0.0
 
-        # 2. Extract the linear portion (top 3 rows)
+        # 3. Extract the linear portion
         j_linear = jacobian[:3, :]
 
-        # 3. Calculate the manipulability ellipsoid matrix
+        # 4. Calculate the manipulability ellipsoid matrix
         a_matrix = j_linear @ j_linear.T
 
-        # 4. Normalize the direction vector
+        # 5. Normalize the direction vector
+        if np.linalg.norm(cartesian_direction) < 1e-6:
+            return 0.0
         u_direction = cartesian_direction / np.linalg.norm(cartesian_direction)
 
-        # 5. Calculate the directional manipulability
-        manipulability = u_direction.T @ a_matrix @ u_direction
+        # 6. Calculate the directional manipulability
+        manipulability = float(u_direction.T @ a_matrix @ u_direction)
 
         return manipulability
 
