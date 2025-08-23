@@ -2359,6 +2359,7 @@ class EndToEndBenchmark:
                         scene["above_food_pose"],
                         scene["in_food_pose"],
                         current_jaco_state + current_atool_state,
+                        num_ik_attempts=1,
                     )
                 )
                 LOGGER.info(
