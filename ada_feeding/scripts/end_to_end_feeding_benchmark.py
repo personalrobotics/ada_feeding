@@ -1022,11 +1022,13 @@ class PinocchioModel:
             q = self._update_configuration(jaco_joints, atool_joints)
             frame_id = self.model.getFrameId(frame_name)
 
-            # Run Forward Kinematics to update joint placements
+            # 1. Update joint-level transforms based on configuration q
             pin.forwardKinematics(self.model, self.data, q)
 
-            # Now, compute the Jacobian for the updated frame.
-            # The result is stored in self.data.J
+            # 2. Update the world-frame pose of all frames
+            pin.updateFramePlacements(self.model, self.data)
+
+            # Now, compute the Jacobian for the fully updated frame.
             pin.computeFrameJacobian(self.model, self.data, q, frame_id)
 
             return self.data.J
