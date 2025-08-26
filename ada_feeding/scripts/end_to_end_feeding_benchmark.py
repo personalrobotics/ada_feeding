@@ -2447,6 +2447,7 @@ class EndToEndBenchmark:
                 "parameters": params_dict,
                 "stages": [],
                 "end_to_end_success": False,  # Default to False
+                "mode": self.mode,
             }
 
             # 3. Initialize the robot's state for the trial
