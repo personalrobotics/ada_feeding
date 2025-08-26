@@ -2694,31 +2694,34 @@ class EndToEndBenchmark:
 
             # --- Stage 5: InFood -> LevelArticutool ---
             if not trial_failed:
-                LOGGER.info("Stage 5: Level Articutool")
-                status, traj_atool, planning_time = self._plan_to_level_articutool(
-                    jaco_wrist_pose, current_atool_state
-                )
-                path_length = self._calculate_cartesian_path_length(
-                    traj_atool, PLANNING_GROUP_ATOOL
-                )
-                trial_data["stages"].append(
-                    {
-                        "stage_name": "LevelArticutool",
-                        "target_frame": END_EFFECTOR_LINK_ATOOL,
-                        "status": status.value,
-                        "execution_mode": ExecutionMode.ATOOL_ONLY.value,
-                        "planning_time_sec": planning_time,
-                        "trajectory_path_length_m": path_length,
-                        "custom_metrics": {},
-                        "traj_jaco": None,
-                        "traj_atool": self._serialize_trajectory(traj_atool),
-                    }
-                )
-                if status != TrialStatus.SUCCESS:
-                    LOGGER.error(f"  Stage 5 failed. Skipping trial.")
-                    trial_failed = True
+                if self.mode == "articutool":
+                    LOGGER.info("Stage 5: Level Articutool")
+                    status, traj_atool, planning_time = self._plan_to_level_articutool(
+                        jaco_wrist_pose, current_atool_state
+                    )
+                    path_length = self._calculate_cartesian_path_length(
+                        traj_atool, PLANNING_GROUP_ATOOL
+                    )
+                    trial_data["stages"].append(
+                        {
+                            "stage_name": "LevelArticutool",
+                            "target_frame": END_EFFECTOR_LINK_ATOOL,
+                            "status": status.value,
+                            "execution_mode": ExecutionMode.ATOOL_ONLY.value,
+                            "planning_time_sec": planning_time,
+                            "trajectory_path_length_m": path_length,
+                            "custom_metrics": {},
+                            "traj_jaco": None,
+                            "traj_atool": self._serialize_trajectory(traj_atool),
+                        }
+                    )
+                    if status != TrialStatus.SUCCESS:
+                        LOGGER.error(f"  Stage 5 failed. Skipping trial.")
+                        trial_failed = True
+                    else:
+                        current_atool_state = list(traj_atool.points[-1].positions)
                 else:
-                    current_atool_state = list(traj_atool.points[-1].positions)
+                    LOGGER.info("Stage 5: Level Articutool (SKIPPING FOR BASELINE)")
 
             # --- Stage 6: LevelArticutool -> Reorient Wrist ---
             if not trial_failed:
