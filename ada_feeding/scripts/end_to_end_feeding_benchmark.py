@@ -712,8 +712,8 @@ class MotionPlanner:
         self,
         node: Node,
         moveit2_jaco: MoveIt2,
-        moveit2_atool: MoveIt2,
-        moveit2_full: MoveIt2,
+        moveit2_atool: Optional[MoveIt2],
+        moveit2_full: Optional[MoveIt2],
         tf_buffer: tf2_ros.Buffer,
         planning_timeout: float,
     ):
@@ -829,6 +829,11 @@ class MotionPlanner:
             A JointState message on success, None on failure.
         """
         planner = self._get_planner(group_name)
+        if planner is None:
+            LOGGER.error(
+                f"Cannot compute IK. Planner for group '{group_name}' is not available in this mode."
+            )
+            return None
         ik_solution = None
 
         with self._lock:
@@ -860,6 +865,11 @@ class MotionPlanner:
             A JointState message on success, None on failure.
         """
         planner = self._get_planner(group_name)
+        if planner is None:
+            LOGGER.error(
+                f"Cannot compute IK. Planner for group '{group_name}' is not available in this mode."
+            )
+            return None
         constraints_msg = Constraints()
 
         # Build the Constraints message from the provided list
@@ -898,6 +908,11 @@ class MotionPlanner:
             A list of PoseStamped messages, one for each requested link.
         """
         planner = self._get_planner(group_name)
+        if planner is None:
+            LOGGER.error(
+                f"Cannot compute FK. Planner for group '{group_name}' is not available in this mode."
+            )
+            return None
         fk_poses = None
 
         with self._lock:
@@ -925,6 +940,11 @@ class MotionPlanner:
             A status, the resulting trajectory, and the planning time in seconds.
         """
         planner = self._get_planner(group_name)
+        if planner is None:
+            LOGGER.error(
+                f"Cannot compute plan. Planner for group '{group_name}' is not available in this mode."
+            )
+            return TrialStatus.PLANNER_FAILURE, None, 0.0
         future = None
 
         if not goal_constraints:
@@ -1167,8 +1187,8 @@ class EndToEndBenchmark:
         self,
         node: Node,
         moveit2_jaco: MoveIt2,
-        moveit2_atool: MoveIt2,
-        moveit2_full: MoveIt2,
+        moveit2_atool: Optional[MoveIt2],
+        moveit2_full: Optional[MoveIt2],
         xacro_file_path: str,
         num_trials: int = 100,
         planning_timeout: float = 5.0,
