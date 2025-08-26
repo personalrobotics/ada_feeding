@@ -2099,7 +2099,9 @@ class EndToEndBenchmark:
     ) -> Tuple[TrialStatus, Optional[JointTrajectory], float]:
         LOGGER.info("  Planning to AbovePlate pose...")
         goal_constraints = [
-            create_pose_constraint(above_plate_pose, tolerance_orientation=0.2)
+            create_pose_constraint(
+                above_plate_pose, tolerance_position=0.2, tolerance_orientation=0.2
+            )
         ]
 
         return self.motion_planner.plan(
