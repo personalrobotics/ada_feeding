@@ -2828,7 +2828,7 @@ class EndToEndBenchmark:
 
             # --- Stage 7: LevelArticutool -> Resting ---
             if not trial_failed:
-                LOGGER.info("Stage 6: Resting")
+                LOGGER.info("Stage 7: Resting")
                 (
                     status,
                     traj_jaco,
