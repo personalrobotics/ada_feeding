@@ -2498,36 +2498,70 @@ class EndToEndBenchmark:
             # --- Stage 2: Optimize Acquisition Poses ---
             optimal_above_food_ik, optimal_in_food_ik = None, None
             if not trial_failed:
-                LOGGER.info("Stage 2: Optimize Acquisition Poses")
-                # Note: This optimization step doesn't generate a trajectory itself
-                start_time = time.time()
-                optimal_above_food_ik, optimal_in_food_ik = (
-                    self._find_optimal_acquisition_ik_pair(
-                        scene["above_food_pose"],
-                        scene["in_food_pose"],
-                        current_jaco_state + current_atool_state,
-                        num_ik_attempts=1,
+                if self.mode == "articutool":
+                    LOGGER.info("Stage 2: Optimize Acquisition Poses")
+                    # Note: This optimization step doesn't generate a trajectory itself
+                    start_time = time.time()
+                    optimal_above_food_ik, optimal_in_food_ik = (
+                        self._find_optimal_acquisition_ik_pair(
+                            scene["above_food_pose"],
+                            scene["in_food_pose"],
+                            current_jaco_state + current_atool_state,
+                            num_ik_attempts=1,
+                        )
                     )
-                )
-                LOGGER.info(
-                    f"Found optimal IK solutions for AboveFood ({optimal_above_food_ik}) and InFood ({optimal_in_food_ik})"
-                )
-                planning_time = time.time() - start_time
-                status = (
-                    TrialStatus.SUCCESS
-                    if optimal_above_food_ik
-                    else TrialStatus.IK_FAILURE
-                )
-                trial_data["stages"].append(
-                    {
-                        "stage_name": "OptimizeAcquisition",
-                        "status": status.value,
-                        "planning_time_sec": planning_time,
-                    }
-                )
-                if status != TrialStatus.SUCCESS:
-                    LOGGER.error(f"  Stage 2 failed. Could not find optimal IK pair.")
-                    trial_failed = True
+                    LOGGER.info(
+                        f"Found optimal IK solutions for AboveFood ({optimal_above_food_ik}) and InFood ({optimal_in_food_ik})"
+                    )
+                    planning_time = time.time() - start_time
+                    status = (
+                        TrialStatus.SUCCESS
+                        if optimal_above_food_ik
+                        else TrialStatus.IK_FAILURE
+                    )
+                    trial_data["stages"].append(
+                        {
+                            "stage_name": "OptimizeAcquisition",
+                            "status": status.value,
+                            "planning_time_sec": planning_time,
+                        }
+                    )
+                    if status != TrialStatus.SUCCESS:
+                        LOGGER.error(
+                            f"  Stage 2 failed. Could not find optimal IK pair."
+                        )
+                        trial_failed = True
+                else:
+                    LOGGER.info("Stage 2: Check Acquisition Reachability")
+                    start_time = time.time()
+                    ik_above = self.motion_planner.compute_ik(
+                        PLANNING_GROUP_JACO,
+                        scene["above_food_pose"],
+                        current_jaco_state,
+                    )
+                    ik_in = self.motion_planner.compute_ik(
+                        PLANNING_GROUP_JACO,
+                        scene["in_food_pose"],
+                        current_jaco_state,
+                    )
+                    planning_time = time.time() - start_time
+                    status = (
+                        TrialStatus.SUCCESS
+                        if ik_above and ik_in
+                        else TrialStatus.IK_FAILURE
+                    )
+                    trial_data["stages"].append(
+                        {
+                            "stage_name": "CheckAcquisitionReachability",
+                            "status": status.value,
+                            "planning_time_sec": planning_time,
+                        }
+                    )
+                    if status != TrialStatus.SUCCESS:
+                        LOGGER.error(
+                            f"  Stage 2 failed. Acquisition poses unreachable."
+                        )
+                        trial_failed = True
 
             # --- Stage 3: AbovePlate -> AboveFood ---
             if not trial_failed:
