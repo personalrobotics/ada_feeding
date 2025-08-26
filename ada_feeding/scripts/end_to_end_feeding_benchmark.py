@@ -1198,6 +1198,13 @@ class EndToEndBenchmark:
         self.node = node
         self.num_trials = num_trials
         self.mode = mode
+
+        # --- Mode-Aware Configuration ---
+        if self.mode == "baseline":
+            self.jaco_ee_link = "forkTip"
+        else:
+            self.jaco_ee_link = END_EFFECTOR_LINK_JACO
+
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1815,7 +1822,7 @@ class EndToEndBenchmark:
 
         # Determine the correct end-effector link for the planning group
         if group_name == PLANNING_GROUP_JACO:
-            ee_link = END_EFFECTOR_LINK_JACO
+            ee_link = self.jaco_ee_link
         else:
             ee_link = END_EFFECTOR_LINK_FULL
 
