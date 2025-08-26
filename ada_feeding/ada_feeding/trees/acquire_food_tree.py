@@ -9,6 +9,7 @@ wrap that behavior tree in a ROS2 action server.
 
 # Standard imports
 import pickle
+import operator
 from typing import List, Optional
 
 # Third-party imports
@@ -17,6 +18,7 @@ import numpy as np
 from overrides import override
 import py_trees
 from py_trees.blackboard import Blackboard
+from py_trees.common import Status, ComparisonExpression
 from py_trees.behaviours import Success
 import py_trees_ros
 from rcl_interfaces.srv import SetParameters
@@ -33,6 +35,8 @@ from ada_feeding.behaviors.acquisition import (
     ComputeFoodFrame,
     ComputeActionConstraints,
     ComputeActionTwist,
+    RotateLocalApproachPoses,
+    ConditionallyRotateFoodFrame,
 )
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2JointConstraint,
@@ -41,8 +45,31 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2PositionOffsetConstraint,
     MoveIt2Plan,
     MoveIt2Execute,
+    MoveIt2ComputeIK,
+    MoveIt2ComputeFK,
     ServoMove,
     ToggleCollisionObject,
+)
+from ada_feeding.behaviors.state import (
+    GetJointStates,
+    ExtractJointsFromState,
+    CombineJointStates,
+    ExtractPoseFromPosesByLink,
+    ExtractPoseComponents,
+    CheckJacoDirectionalManipulability,
+    CheckArticutoolPathOrientationFeasibility,
+    CheckArticutoolPathLevelingFeasibility,
+    LoadPinocchioModel,
+)
+from ada_feeding.behaviors.ros.msgs import StampPoseFromPose
+from ada_feeding.behaviors.ros.tf import ApplyTransform
+from ada_feeding.behaviors.articutool import (
+    ExecuteArticutoolTrajectory,
+    CallSetOrientationControl,
+    SwitchArticutoolControllers,
+    ComputeArticutoolLevelingJoints,
+    TriggerArticutoolCalibration,
+    ExecuteNamedPrimitive,
 )
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
@@ -92,7 +119,7 @@ class AcquireFoodTree(MoveToTree):
         max_velocity_scaling_to_resting_configuration: Optional[float] = 0.8,
         max_acceleration_scaling_to_resting_configuration: Optional[float] = 0.8,
         pickle_goal_path: Optional[str] = None,
-        allowed_planning_time_for_move_above: float = 0.5,
+        allowed_planning_time_for_move_above: float = 1.0,
         allowed_planning_time_for_move_into: float = 0.5,
         allowed_planning_time_to_resting_configuration: float = 0.5,
         allowed_planning_time_for_recovery: float = 0.5,
@@ -162,7 +189,7 @@ class AcquireFoodTree(MoveToTree):
         # to reduce swivels.
         max_path_len_joint = {
             "j2n6s200_joint_1": np.pi * 5.0 / 6.0,
-            "j2n6s200_joint_2": np.pi / 2.0,
+            "j2n6s200_joint_2": np.pi / 4.0,
         }
 
         # Get the base lin to publish servo commands in
@@ -216,16 +243,50 @@ class AcquireFoodTree(MoveToTree):
                                     "max_velocity_scale": self.max_velocity_scaling_to_resting_configuration,
                                     "max_acceleration_scale": self.max_acceleration_scaling_to_resting_configuration,
                                     "allowed_planning_time": self.allowed_planning_time_to_resting_configuration,
+                                    "group_name": "jaco_arm",
                                 },
                                 outputs={
                                     "trajectory": BlackboardKey("resting_trajectory")
                                 },
                             ),
                         ),
+                        CheckArticutoolPathLevelingFeasibility(
+                            name="CheckArticutoolLevelingFeasibilityForResting",
+                            ns=name,
+                            inputs={
+                                "pinocchio_model": BlackboardKey("pinocchio_model"),
+                                "pinocchio_data": BlackboardKey("pinocchio_data"),
+                                "jaco_joint_names_pin": [
+                                    "j2n6s200_joint_1",
+                                    "j2n6s200_joint_2",
+                                    "j2n6s200_joint_3",
+                                    "j2n6s200_joint_4",
+                                    "j2n6s200_joint_5",
+                                    "j2n6s200_joint_6",
+                                ],
+                                "jaco_ee_frame_id_pin": BlackboardKey(
+                                    "jaco_ee_frame_id_pin"
+                                ),
+                                "jaco_trajectory": BlackboardKey(
+                                    "move_into_jaco_arm_trajectory"
+                                ),
+                                "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
+                                "articutool_roll_limits_rad": (-np.pi, np.pi),
+                                "num_trajectory_points_to_check": 20,
+                            },
+                            outputs={
+                                "articutool_is_leveling_feasible": BlackboardKey(
+                                    "articutool_can_maintain_leveling"
+                                )
+                            },
+                        ),
                         MoveIt2Execute(
                             name="Resting",
                             ns=name,
-                            inputs={"trajectory": BlackboardKey("resting_trajectory")},
+                            inputs={
+                                "trajectory": BlackboardKey("resting_trajectory"),
+                                "group_name": "jaco_arm",
+                            },
                             outputs={},
                         ),
                     ],
@@ -344,6 +405,7 @@ class AcquireFoodTree(MoveToTree):
                                             "cartesian_max_step": 0.001,
                                             "cartesian_fraction_threshold": 0.92,
                                             "allowed_planning_time": self.allowed_planning_time_for_recovery,
+                                            "group_name": "jaco_arm",
                                         },
                                         outputs={
                                             "trajectory": BlackboardKey(
@@ -358,7 +420,8 @@ class AcquireFoodTree(MoveToTree):
                                     inputs={
                                         "trajectory": BlackboardKey(
                                             "recovery_trajectory"
-                                        )
+                                        ),
+                                        "group_name": "jaco_arm",
                                     },
                                     outputs={},
                                 ),
@@ -369,12 +432,195 @@ class AcquireFoodTree(MoveToTree):
             ],  # End RecoverySequence.children
         )  # End RecoverySequence
 
-        def move_above_plan(
+        def post_acquisition_sequence() -> py_trees.behaviour.Behaviour:
+            return py_trees.composites.Sequence(
+                name="PreAcquisitionSequence",
+                memory=True,
+                children=[
+                    CallSetOrientationControl(
+                        name="DisableArticutoolOrientation",
+                        ns=name,
+                        inputs={
+                            "control_mode": 0,
+                        },
+                        outputs={},
+                    ),
+                    GetJointStates(
+                        name="GetJacoArmStateForLeveling",
+                        ns=name,
+                        node=self._node,
+                        inputs={
+                            "joint_names": [
+                                "j2n6s200_joint_1",
+                                "j2n6s200_joint_2",
+                                "j2n6s200_joint_3",
+                                "j2n6s200_joint_4",
+                                "j2n6s200_joint_5",
+                                "j2n6s200_joint_6",
+                            ],
+                        },
+                        outputs={
+                            "joint_state": BlackboardKey(
+                                "current_jaco_arm_state_for_leveling_fk"
+                            ),
+                            "joint_positions": None,
+                            "joint_names": None,
+                        },
+                    ),
+                    MoveIt2ComputeFK(
+                        name="GetJacoEEPoseForLeveling",
+                        ns=name,
+                        inputs={
+                            "group_name": "jaco_arm",
+                            "joint_state": BlackboardKey(
+                                "current_jaco_arm_state_for_leveling_fk"
+                            ),
+                            "fk_link_names": ["j2n6s200_end_effector"],
+                        },
+                        outputs={
+                            "fk_poses": BlackboardKey("current_jaco_arm_fk_poses"),
+                            "success": None,
+                        },
+                    ),
+                    ExtractPoseFromPosesByLink(
+                        name="ExtractJacoEEPoseForLeveling",
+                        ns=name,
+                        inputs={
+                            "fk_poses": BlackboardKey("current_jaco_arm_fk_poses"),
+                            "target_link_name": "j2n6s200_end_effector",
+                            "requested_link_names": ["j2n6s200_end_effector"],
+                        },
+                        outputs={
+                            "extracted_pose": BlackboardKey(
+                                "current_jaco_ee_world_pose_stamped"
+                            ),
+                            "success": None,
+                        },
+                    ),
+                    ComputeArticutoolLevelingJoints(
+                        name="ComputeLevelingAngles",
+                        ns=name,
+                        inputs={
+                            "jaco_ee_world_pose": BlackboardKey(
+                                "current_jaco_ee_world_pose_stamped"
+                            ),
+                        },
+                        outputs={
+                            "articutool_joint_positions": BlackboardKey(
+                                "articutool_joint_positions"
+                            ),
+                            "articutool_leveling_ik_found": BlackboardKey(
+                                "leveling_ik_success"
+                            ),
+                        },
+                    ),
+                    MoveIt2JointConstraint(
+                        name="SetLevelingJointGoal",
+                        ns=name,
+                        inputs={
+                            "joint_positions": BlackboardKey(
+                                "articutool_joint_positions"
+                            ),
+                        },
+                        outputs={
+                            "constraints": BlackboardKey(
+                                "articutool_leveling_constraints"
+                            )
+                        },
+                    ),
+                    py_trees.decorators.Timeout(
+                        name="PlanToLevelArticutoolTimeout",
+                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                        duration=10.0
+                        * self.allowed_planning_time_to_resting_configuration,
+                        child=MoveIt2Plan(
+                            name="PlanToLevelArticutool",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey(
+                                    "articutool_leveling_constraints"
+                                ),
+                                "group_name": "articutool",
+                            },
+                            outputs={
+                                "trajectory": BlackboardKey(
+                                    "level_articutool_trajectory"
+                                )
+                            },
+                        ),
+                    ),
+                    SwitchArticutoolControllers(
+                        name="SwitchArticutoolToJointTrajectory",
+                        ns=name,
+                        inputs={
+                            "controllers_to_activate": ["joint_trajectory_controller"],
+                            "controllers_to_deactivate": ["velocity_controller"],
+                        },
+                        outputs={
+                            "switch_call_succeeded": None,
+                            "switch_response_ok": None,
+                        },
+                    ),
+                    ExecuteArticutoolTrajectory(
+                        name="LevelArticutool",
+                        ns=name,
+                        inputs={
+                            "trajectory": BlackboardKey("level_articutool_trajectory"),
+                        },
+                        outputs={
+                            "action_goal_accepted": BlackboardKey("tool_goal_accepted"),
+                            "action_result_code": BlackboardKey(
+                                "tool_exec_result_code"
+                            ),
+                            "action_status": BlackboardKey("tool_action_status"),
+                        },
+                    ),
+                    SwitchArticutoolControllers(
+                        name="SwitchArticutoolToVelocity",
+                        ns=name,
+                        inputs={
+                            "controllers_to_activate": ["velocity_controller"],
+                            "controllers_to_deactivate": [
+                                "joint_trajectory_controller"
+                            ],
+                        },
+                        outputs={
+                            "switch_call_succeeded": None,
+                            "switch_response_ok": None,
+                        },
+                    ),
+                    ExecuteNamedPrimitive(
+                        name="RunPostAcquisitionPrimitive",
+                        ns=name,
+                        inputs={
+                            "primitive_name": BlackboardKey(
+                                "post_acquisition_action_name"
+                            ),
+                            "primitive_params": BlackboardKey(
+                                "post_acquisition_action_params"
+                            ),
+                        },
+                        outputs={
+                            "primitive_status": None,
+                        },
+                    ),
+                    CallSetOrientationControl(
+                        name="SetArticutoolOrientation",
+                        ns=name,
+                        inputs={
+                            "control_mode": 1,
+                        },
+                        outputs={},
+                    ),
+                ],
+            )
+
+        def pre_acquisition_sequence(
             flip_food_frame: bool = False,
             action: Optional[BlackboardKey] = None,
         ) -> py_trees.behaviour.Behaviour:
             return py_trees.composites.Sequence(
-                name="MoveAbovePlanningSeq",
+                name="PreAcquisitionSequence",
                 memory=True,
                 children=[
                     # Compute Food Frame
@@ -394,12 +640,13 @@ class AcquireFoodTree(MoveToTree):
                                 # Default food_frame_id = "food"
                                 # Default world_frame = "world"
                                 "flip_food_frame": flip_food_frame,
+                                "align_to_robot_base": False,
                             },
                             outputs={
                                 "action_select_request": BlackboardKey(
                                     "action_request"
                                 ),
-                                "food_frame": None,
+                                "food_frame": BlackboardKey("initial_food_frame"),
                             },
                         ),
                     ),
@@ -435,90 +682,595 @@ class AcquireFoodTree(MoveToTree):
                                 # Default approach_frame_id = "approach"
                             },
                             outputs={
-                                "move_above_pose": BlackboardKey("move_above_pose"),
-                                "move_into_pose": BlackboardKey("move_into_pose"),
+                                "move_above_pose": BlackboardKey(
+                                    "move_above_pose_food_frame"
+                                ),
+                                "move_into_pose": BlackboardKey(
+                                    "move_into_pose_food_frame"
+                                ),
                                 "approach_thresh": BlackboardKey("approach_thresh"),
                                 "grasp_thresh": BlackboardKey("grasp_thresh"),
                                 "ext_thresh": BlackboardKey("ext_thresh"),
                                 "action": BlackboardKey("action"),
                                 "action_index": BlackboardKey("action_index"),
+                                "post_move_into_primitive_name": BlackboardKey(
+                                    "post_move_into_action_name"
+                                ),
+                                "post_move_into_primitive_params": BlackboardKey(
+                                    "post_move_into_action_params"
+                                ),
+                                "post_acquisition_primitive_name": BlackboardKey(
+                                    "post_acquisition_action_name"
+                                ),
+                                "post_acquisition_primitive_params": BlackboardKey(
+                                    "post_acquisition_action_params"
+                                ),
+                                "should_align_to_base": BlackboardKey(
+                                    "should_align_to_base"
+                                ),
                             },
                         ),
+                    ),
+                    ConditionallyRotateFoodFrame(
+                        name="ConditionallyRotateFoodFrame",
+                        ns=name,
+                        inputs={
+                            "initial_food_frame": BlackboardKey("initial_food_frame"),
+                            "should_align_to_base": BlackboardKey(
+                                "should_align_to_base"
+                            ),
+                        },
+                        outputs={
+                            "food_frame_updated": None,
+                        },
                     ),
                     # Re-Tare FT Sensor and default to 4N threshold
                     pre_moveto_config(name="PreAcquireFTTare"),
-                    ### Move Above Food
-                    MoveIt2PoseConstraint(
-                        name="MoveAbovePose",
+                    # --- Prepare MoveAbove Pose for IK ---
+                    StampPoseFromPose(
+                        name="StampMoveAbovePoseFood",
                         ns=name,
                         inputs={
-                            "pose": BlackboardKey("move_above_pose"),
+                            "input_pose": BlackboardKey("move_above_pose_food_frame"),
                             "frame_id": "food",
-                            "tolerance_orientation": [
-                                0.01,
-                                0.01,
-                                0.01,
-                            ],  # x, y, z rotvec
-                            "parameterization": 1,
                         },
                         outputs={
-                            "constraints": BlackboardKey("goal_constraints"),
+                            "output_pose_stamped": BlackboardKey(
+                                "move_above_pose_stamped_food"
+                            )
+                        },
+                    ),
+                    ApplyTransform(
+                        name="TransformMoveAbovePoseToWorld",
+                        ns=name,
+                        inputs={
+                            "stamped_msg": BlackboardKey(
+                                "move_above_pose_stamped_food"
+                            ),
+                            "target_frame": "j2n6s200_link_base",
+                        },
+                        outputs={
+                            "transformed_msg": BlackboardKey(
+                                "tool_tip_move_above_pose_world"
+                            )
+                        },
+                    ),
+                    StampPoseFromPose(
+                        name="StampMoveIntoPoseFood",
+                        ns=name,
+                        inputs={
+                            "input_pose": BlackboardKey("move_into_pose_food_frame"),
+                            "frame_id": "food",
+                        },
+                        outputs={
+                            "output_pose_stamped": BlackboardKey(
+                                "move_into_pose_stamped_food"
+                            )
+                        },
+                    ),
+                    ApplyTransform(
+                        name="TransformMoveIntoPoseToWorld",
+                        ns=name,
+                        inputs={
+                            "stamped_msg": BlackboardKey("move_into_pose_stamped_food"),
+                            "target_frame": "j2n6s200_link_base",
+                        },
+                        outputs={
+                            "transformed_msg": BlackboardKey(
+                                "tool_tip_move_into_pose_world"
+                            )
+                        },
+                    ),
+                    LoadPinocchioModel(
+                        name="LoadPinocchioModel",
+                        ns=name,
+                        inputs={
+                            "urdf_file_path": "package://ada_moveit/config/ada.urdf.xacro",
+                            "jaco_joint_names": [
+                                "j2n6s200_joint_1",
+                                "j2n6s200_joint_2",
+                                "j2n6s200_joint_3",
+                                "j2n6s200_joint_4",
+                                "j2n6s200_joint_5",
+                                "j2n6s200_joint_6",
+                            ],
+                            "articutool_joint_names": ["atool_joint1", "atool_joint2"],
+                            "jaco_end_effector_link_name": "j2n6s200_end_effector",
+                            "tool_tip_link_name": "tool_tip",
+                        },
+                        outputs={
+                            "pinocchio_model": BlackboardKey("pinocchio_model"),
+                            "pinocchio_data": BlackboardKey("pinocchio_data"),
+                            "jaco_vel_indices_pin": BlackboardKey(
+                                "jaco_vel_indices_pin"
+                            ),
+                            "articutool_vel_indices_pin": BlackboardKey(
+                                "articutool_vel_indices_pin"
+                            ),
+                            "jaco_ee_frame_id_pin": BlackboardKey(
+                                "jaco_ee_frame_id_pin"
+                            ),
+                            "tool_tip_frame_id_pin": BlackboardKey(
+                                "tool_tip_frame_id_pin"
+                            ),
+                        },
+                    ),
+                ],
+            )
+
+        def move_above_sequence() -> py_trees.behaviour.Behaviour:
+            return py_trees.composites.Sequence(
+                name="MoveAboveSequence",
+                memory=True,
+                children=[
+                    GetJointStates(
+                        name="GetFullCurrentJointStateForIKSeed",
+                        ns=name,
+                        node=self._node,
+                        inputs={
+                            "joint_names": [
+                                "j2n6s200_joint_1",
+                                "j2n6s200_joint_2",
+                                "j2n6s200_joint_3",
+                                "j2n6s200_joint_4",
+                                "j2n6s200_joint_5",
+                                "j2n6s200_joint_6",
+                                "atool_joint1",
+                                "atool_joint2",
+                            ]
+                        },
+                        outputs={
+                            "joint_state": BlackboardKey(
+                                "current_full_joint_state_for_ik"
+                            )
+                        },
+                    ),
+                    MoveIt2JointConstraint(
+                        name="CreateMoveAboveArticutoolJointConstraint",
+                        ns=name,
+                        inputs={
+                            "joint_names": ["atool_joint1", "atool_joint2"],
+                            "joint_positions": [0.0, 0.0],
+                            "tolerance": 0.785,
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("move_above_ik_constraints")
+                        },
+                    ),
+                    MoveIt2ComputeIK(
+                        name="ComputeIKForMoveAbove",
+                        ns=name,
+                        inputs={
+                            "target_pose": BlackboardKey(
+                                "tool_tip_move_above_pose_world"
+                            ),
+                            "group_name": "jaco_arm_with_articutool",
+                            "start_joint_state": BlackboardKey(
+                                "current_full_joint_state_for_ik"
+                            ),
+                            "constraints": BlackboardKey("move_above_ik_constraints"),
+                        },
+                        outputs={
+                            "ik_solution_joint_state": BlackboardKey(
+                                "move_above_ik_solution_8dof"
+                            ),
+                            "success": BlackboardKey("move_above_ik_success"),
+                        },
+                    ),
+                    # Check Jaco Directional Manipulability
+                    CheckJacoDirectionalManipulability(
+                        name="CheckJacoManipulabilityForMoveInto",
+                        ns=name,
+                        inputs={
+                            "pinocchio_model": BlackboardKey("pinocchio_model"),
+                            "pinocchio_data": BlackboardKey("pinocchio_data"),
+                            "jaco_vel_indices_pin": BlackboardKey(
+                                "jaco_vel_indices_pin"
+                            ),
+                            "jaco_ee_frame_id_pin": BlackboardKey(
+                                "jaco_ee_frame_id_pin"
+                            ),
+                            "current_full_robot_joint_state_MA": BlackboardKey(
+                                "move_above_ik_solution_8dof"
+                            ),
+                            "tool_tip_move_above_pose_world": BlackboardKey(
+                                "tool_tip_move_above_pose_world"
+                            ),
+                            "tool_tip_move_into_pose_world": BlackboardKey(
+                                "tool_tip_move_into_pose_world"
+                            ),
+                            "directional_manipulability_threshold": 0.01,
+                        },
+                        outputs={
+                            "jaco_directional_manipulability_score": BlackboardKey(
+                                "jaco_manip_score"
+                            ),
+                            "jaco_is_manipulable_for_direction": BlackboardKey(
+                                "jaco_can_move_into"
+                            ),
+                        },
+                    ),
+                    ExtractJointsFromState(
+                        name="ExtractJacoArmJointsForMoveAbove",
+                        ns=name,
+                        inputs={
+                            "source_joint_state": BlackboardKey(
+                                "move_above_ik_solution_8dof"
+                            ),
+                            "target_joint_names": [
+                                "j2n6s200_joint_1",
+                                "j2n6s200_joint_2",
+                                "j2n6s200_joint_3",
+                                "j2n6s200_joint_4",
+                                "j2n6s200_joint_5",
+                                "j2n6s200_joint_6",
+                            ],
+                        },
+                        outputs={
+                            "output_joint_names": BlackboardKey(
+                                "move_above_jaco_arm_joint_names"
+                            ),
+                            "output_joint_positions": BlackboardKey(
+                                "move_above_jaco_arm_joint_positions"
+                            ),
+                            "success": None,
+                        },
+                    ),
+                    ExtractJointsFromState(
+                        name="ExtractArticutoolJointsForMoveAbove",
+                        ns=name,
+                        inputs={
+                            "source_joint_state": BlackboardKey(
+                                "move_above_ik_solution_8dof"
+                            ),
+                            "target_joint_names": ["atool_joint1", "atool_joint2"],
+                        },
+                        outputs={
+                            "output_joint_names": BlackboardKey(
+                                "move_above_articutool_joint_names"
+                            ),
+                            "output_joint_positions": BlackboardKey(
+                                "move_above_articutool_joint_positions"
+                            ),
+                            "success": None,
+                        },
+                    ),
+                    MoveIt2JointConstraint(
+                        name="SetJacoArmJointConstraintForMoveAbove",
+                        ns=name,
+                        inputs={
+                            "joint_positions": BlackboardKey(
+                                "move_above_jaco_arm_joint_positions"
+                            ),
+                            "joint_names": BlackboardKey(
+                                "move_above_jaco_arm_joint_names"
+                            ),
+                        },
+                        outputs={
+                            "constraints": BlackboardKey(
+                                "move_above_jaco_arm_constraints"
+                            )
+                        },
+                    ),
+                    MoveIt2JointConstraint(
+                        name="SetArticutoolJointConstraintForMoveAbove",
+                        ns=name,
+                        inputs={
+                            "joint_positions": BlackboardKey(
+                                "move_above_articutool_joint_positions"
+                            ),
+                            "joint_names": BlackboardKey(
+                                "move_above_articutool_joint_names"
+                            ),
+                        },
+                        outputs={
+                            "constraints": BlackboardKey(
+                                "move_above_articutool_constraints"
+                            )
+                        },
+                    ),
+                    MoveIt2OrientationConstraint(
+                        name="SetJacoArmPathConstraintForMoveAbove",
+                        ns=name,
+                        inputs={
+                            "constraints": None,
+                            "quat_xyzw": (0.707, 0.0, 0.0, 0.707),
+                            "tolerance": (
+                                np.pi,
+                                2.0 * np.pi,
+                                2.0 * np.pi,
+                            ),
+                        },
+                        outputs={
+                            "constraints": BlackboardKey(
+                                "move_above_jaco_arm_path_constraints"
+                            ),
                         },
                     ),
                     py_trees.decorators.Timeout(
-                        name="MoveAbovePlanTimeout",
-                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                        name="MoveAboveJacoArmPlanTimeout",
                         duration=10.0 * self.allowed_planning_time_for_move_above,
                         child=MoveIt2Plan(
-                            name="MoveAbovePlan",
+                            name="MoveAboveJacoArmPlan",
                             ns=name,
                             inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
+                                "goal_constraints": BlackboardKey(
+                                    "move_above_jaco_arm_constraints"
+                                ),
+                                "path_constraints": BlackboardKey(
+                                    "move_above_jaco_arm_path_constraints"
+                                ),
                                 "max_velocity_scale": self.max_velocity_scaling_move_above,
                                 "max_acceleration_scale": self.max_acceleration_scaling_move_above,
                                 "allowed_planning_time": self.allowed_planning_time_for_move_above,
-                                "max_path_len_joint": max_path_len_joint,
+                                "group_name": "jaco_arm",
                             },
                             outputs={
-                                "trajectory": BlackboardKey("move_above_trajectory"),
-                                "end_joint_state": BlackboardKey("test_into_joints"),
+                                "trajectory": BlackboardKey(
+                                    "move_above_jaco_arm_trajectory"
+                                ),
+                                "end_joint_state": BlackboardKey(
+                                    "move_above_jaco_arm_end_joint_state"
+                                ),
                             },
                         ),
                     ),
-                    ### Test MoveIntoFood
-                    MoveIt2PoseConstraint(
-                        name="MoveIntoPose",
+                    py_trees.decorators.Timeout(
+                        name="MoveAboveArticutoolPlanTimeout",
+                        duration=10.0 * self.allowed_planning_time_for_move_above,
+                        child=MoveIt2Plan(
+                            name="MoveAboveArticutoolPlan",
+                            ns=name,
+                            inputs={
+                                "goal_constraints": BlackboardKey(
+                                    "move_above_articutool_constraints"
+                                ),
+                                "max_velocity_scale": self.max_velocity_scaling_move_above,
+                                "max_acceleration_scale": self.max_acceleration_scaling_move_above,
+                                "allowed_planning_time": self.allowed_planning_time_for_move_above,
+                                "group_name": "articutool",
+                            },
+                            outputs={
+                                "trajectory": BlackboardKey(
+                                    "move_above_articutool_trajectory"
+                                ),
+                                "end_joint_state": BlackboardKey(
+                                    "move_above_articutool_end_joint_state"
+                                ),
+                            },
+                        ),
+                    ),
+                    CombineJointStates(
+                        name="CombineJacoArmAndArticutoolJoints",
                         ns=name,
                         inputs={
-                            "pose": BlackboardKey("move_into_pose"),
-                            "frame_id": "food",
+                            "joint_state_1": BlackboardKey(
+                                "move_above_jaco_arm_end_joint_state"
+                            ),
+                            "joint_state_2": BlackboardKey(
+                                "move_above_articutool_end_joint_state"
+                            ),
+                            "full_joint_names": [
+                                "j2n6s200_joint_1",
+                                "j2n6s200_joint_2",
+                                "j2n6s200_joint_3",
+                                "j2n6s200_joint_4",
+                                "j2n6s200_joint_5",
+                                "j2n6s200_joint_6",
+                                "atool_joint1",
+                                "atool_joint2",
+                            ],
                         },
                         outputs={
-                            "constraints": BlackboardKey("goal_constraints"),
+                            "combined_joint_state": BlackboardKey(
+                                "move_above_end_joint_state"
+                            ),
+                        },
+                    ),
+                ],
+            )
+
+        def move_into_sequence() -> py_trees.behaviour.Behaviour:
+            return py_trees.composites.Sequence(
+                name="MoveIntoSequence",
+                memory=True,
+                children=[
+                    # Compute IK for the target pose using the full jaco_arm_with_articutool planning group
+                    MoveIt2ComputeIK(
+                        name="ComputeIKForMoveInto",
+                        ns=name,
+                        inputs={
+                            "target_pose": BlackboardKey(
+                                "tool_tip_move_into_pose_world"
+                            ),
+                            "group_name": "jaco_arm_with_articutool",
+                            "start_joint_state": BlackboardKey(
+                                "move_above_end_joint_state"
+                            ),
+                        },
+                        outputs={
+                            "ik_solution_joint_state": BlackboardKey(
+                                "move_into_ik_solution_8dof"
+                            ),
+                            "success": BlackboardKey("move_into_ik_success"),
+                        },
+                    ),
+                    MoveIt2ComputeFK(
+                        name="ComputeMoveIntoPoses",
+                        ns=name,
+                        inputs={
+                            "group_name": "jaco_arm_with_articutool",
+                            "joint_state": BlackboardKey("move_into_ik_solution_8dof"),
+                            "fk_link_names": ["j2n6s200_end_effector", "tool_tip"],
+                        },
+                        outputs={
+                            "fk_poses": BlackboardKey("move_into_poses"),
+                            "success": None,
+                        },
+                    ),
+                    ExtractPoseFromPosesByLink(
+                        name="GetMoveIntoJacoArmEEPose",
+                        ns=name,
+                        inputs={
+                            "fk_poses": BlackboardKey("move_into_poses"),
+                            "target_link_name": "j2n6s200_end_effector",
+                            "requested_link_names": [
+                                "j2n6s200_end_effector",
+                                "tool_tip",
+                            ],
+                        },
+                        outputs={
+                            "extracted_pose": BlackboardKey(
+                                "move_into_jaco_arm_ee_pose"
+                            ),
+                            "success": None,
+                        },
+                    ),
+                    ExtractPoseFromPosesByLink(
+                        name="GetMoveIntoToolTipPose",
+                        ns=name,
+                        inputs={
+                            "fk_poses": BlackboardKey("move_into_poses"),
+                            "target_link_name": "tool_tip",
+                            "requested_link_names": [
+                                "j2n6s200_end_effector",
+                                "tool_tip",
+                            ],
+                        },
+                        outputs={
+                            "extracted_pose": BlackboardKey("move_into_tool_tip_pose"),
+                            "success": None,
+                        },
+                    ),
+                    ComputeArticutoolLevelingJoints(
+                        name="ComputeLevelingAngles",
+                        ns=name,
+                        inputs={
+                            "jaco_ee_world_pose": BlackboardKey(
+                                "move_into_jaco_arm_ee_pose"
+                            ),
+                        },
+                        outputs={
+                            "articutool_joint_positions": None,
+                            "articutool_leveling_ik_found": BlackboardKey(
+                                "move_into_leveling_ik_success"
+                            ),
+                        },
+                    ),
+                    MoveIt2PoseConstraint(
+                        name="MoveIntoJacoArmEEPoseConstraint",
+                        ns=name,
+                        inputs={
+                            "pose": BlackboardKey("move_into_jaco_arm_ee_pose"),
+                            "frame_id": "j2n6s200_link_base",
+                        },
+                        outputs={
+                            "constraints": BlackboardKey("move_into_goal_constraints"),
                         },
                     ),
                     py_trees.decorators.Timeout(
-                        name="MoveIntoPlanTimeout",
+                        name="MoveIntoJacoArmEEPlanTimeout",
                         # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
                         duration=10.0 * self.allowed_planning_time_for_move_into,
                         child=MoveIt2Plan(
-                            name="MoveIntoPlan",
+                            name="MoveIntoJacoArmEEPlan",
                             ns=name,
                             inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
+                                "goal_constraints": BlackboardKey(
+                                    "move_into_goal_constraints"
+                                ),
                                 "max_velocity_scale": self.max_velocity_scaling_move_into,
                                 "max_acceleration_scale": self.max_acceleration_scaling_move_into,
                                 "cartesian": True,
                                 "cartesian_max_step": 0.001,
                                 "cartesian_fraction_threshold": 0.92,
-                                "start_joint_state": BlackboardKey("test_into_joints"),
+                                "start_joint_state": BlackboardKey(
+                                    "move_above_jaco_arm_end_joint_state"
+                                ),
                                 "max_path_len_joint": max_path_len_joint,
                                 "allowed_planning_time": self.allowed_planning_time_for_move_into,
+                                "group_name": "jaco_arm",
                             },
                             outputs={
-                                "trajectory": BlackboardKey("move_into_trajectory")
+                                "trajectory": BlackboardKey(
+                                    "move_into_jaco_arm_trajectory"
+                                )
                             },
                         ),
+                    ),
+                    ExtractPoseComponents(
+                        name="ExtractMoveIntoPoseComponents",
+                        ns=name,
+                        inputs={
+                            "input_pose_object": BlackboardKey(
+                                "move_into_tool_tip_pose"
+                            ),
+                        },
+                        outputs={
+                            "output_position": None,
+                            "output_orientation": BlackboardKey(
+                                "move_into_tool_tip_orientation"
+                            ),
+                            "output_header": None,
+                            "success": None,
+                        },
+                    ),
+                    CheckArticutoolPathOrientationFeasibility(
+                        name="CheckArticutoolFeasibilityForMoveInto",
+                        ns=name,
+                        inputs={
+                            "pinocchio_model": BlackboardKey("pinocchio_model"),
+                            "pinocchio_data": BlackboardKey("pinocchio_data"),
+                            "jaco_joint_names_pin": [
+                                "j2n6s200_joint_1",
+                                "j2n6s200_joint_2",
+                                "j2n6s200_joint_3",
+                                "j2n6s200_joint_4",
+                                "j2n6s200_joint_5",
+                                "j2n6s200_joint_6",
+                            ],
+                            "jaco_ee_frame_id_pin": BlackboardKey(
+                                "jaco_ee_frame_id_pin"
+                            ),
+                            "articutool_joint_names_pin": [
+                                "atool_joint1",
+                                "atool_joint2",
+                            ],
+                            "jaco_trajectory": BlackboardKey(
+                                "move_into_jaco_arm_trajectory"
+                            ),
+                            "desired_tool_tip_world_orientation": BlackboardKey(
+                                "move_into_tool_tip_orientation"
+                            ),
+                            "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
+                            "articutool_roll_limits_rad": (-np.pi, np.pi),
+                            "num_trajectory_points_to_check": 20,
+                        },
+                        outputs={
+                            "articutool_is_orientation_feasible": BlackboardKey(
+                                "articutool_can_maintain_scoop_angle"
+                            )
+                        },
                     ),
                 ],
             )
@@ -619,17 +1371,76 @@ class AcquireFoodTree(MoveToTree):
                                     name="BackupFlipFoodFrameSel",
                                     memory=True,
                                     children=[
-                                        move_above_plan(True),
-                                        move_above_plan(False, BlackboardKey("action")),
+                                        pre_acquisition_sequence(True),
+                                        pre_acquisition_sequence(
+                                            False, BlackboardKey("action")
+                                        ),
                                     ],
                                 ),
-                                MoveIt2Execute(
-                                    name="MoveAbove",
+                                py_trees.decorators.Retry(
+                                    name="PlanAcquisitionSequenceRetry",
+                                    num_failures=10,
+                                    child=py_trees.composites.Sequence(
+                                        name="PlanAcquisitionSequence",
+                                        memory=True,
+                                        children=[
+                                            move_above_sequence(),
+                                            move_into_sequence(),
+                                        ],
+                                    ),
+                                ),
+                                CallSetOrientationControl(
+                                    name="DisableArticutoolOrientation",
+                                    ns=name,
+                                    inputs={
+                                        "control_mode": 0,
+                                    },
+                                    outputs={},
+                                ),
+                                SwitchArticutoolControllers(
+                                    name="SwitchArticutoolToJointTrajectory",
+                                    ns=name,
+                                    inputs={
+                                        "controllers_to_activate": [
+                                            "joint_trajectory_controller"
+                                        ],
+                                        "controllers_to_deactivate": [
+                                            "velocity_controller"
+                                        ],
+                                    },
+                                    outputs={
+                                        "switch_call_succeeded": None,
+                                        "switch_response_ok": None,
+                                    },
+                                ),
+                                ExecuteArticutoolTrajectory(
+                                    name="MoveAboveArticutool",
                                     ns=name,
                                     inputs={
                                         "trajectory": BlackboardKey(
-                                            "move_above_trajectory"
-                                        )
+                                            "move_above_articutool_trajectory"
+                                        ),
+                                    },
+                                    outputs={
+                                        "action_goal_accepted": BlackboardKey(
+                                            "tool_goal_accepted"
+                                        ),
+                                        "action_result_code": BlackboardKey(
+                                            "tool_exec_result_code"
+                                        ),
+                                        "action_status": BlackboardKey(
+                                            "tool_action_status"
+                                        ),
+                                    },
+                                ),
+                                MoveIt2Execute(
+                                    name="MoveAboveJacoArm",
+                                    ns=name,
+                                    inputs={
+                                        "trajectory": BlackboardKey(
+                                            "move_above_jaco_arm_trajectory"
+                                        ),
+                                        "group_name": "jaco_arm",
                                     },
                                     outputs={},
                                 ),
@@ -689,65 +1500,79 @@ class AcquireFoodTree(MoveToTree):
                                     # Starts a new Sequence w/ Memory internally
                                     workers=[
                                         ### Move Into Food
-                                        MoveIt2PoseConstraint(
-                                            name="MoveIntoPose",
+                                        SwitchArticutoolControllers(
+                                            name="SwitchArticutoolToVelocity",
                                             ns=name,
                                             inputs={
-                                                "pose": BlackboardKey("move_into_pose"),
-                                                "frame_id": "food",
+                                                "controllers_to_activate": [
+                                                    "velocity_controller"
+                                                ],
+                                                "controllers_to_deactivate": [
+                                                    "joint_trajectory_controller"
+                                                ],
                                             },
                                             outputs={
-                                                "constraints": BlackboardKey(
-                                                    "goal_constraints"
-                                                ),
+                                                "switch_call_succeeded": None,
+                                                "switch_response_ok": None,
                                             },
                                         ),
-                                        # If this fails
-                                        # Auto-fallback to precomputed MoveInto
-                                        # From move_above_plan()
-                                        py_trees.decorators.FailureIsSuccess(
-                                            name="MoveIntoPlanFallbackPrecomputed",
-                                            child=py_trees.decorators.Timeout(
-                                                name="MoveIntoPlanTimeout",
-                                                # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                                                duration=10.0
-                                                * self.allowed_planning_time_for_move_into,
-                                                child=MoveIt2Plan(
-                                                    name="MoveIntoPlan",
-                                                    ns=name,
-                                                    inputs={
-                                                        "goal_constraints": BlackboardKey(
-                                                            "goal_constraints"
-                                                        ),
-                                                        "max_velocity_scale": self.max_velocity_scaling_move_into,
-                                                        "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                                        "cartesian": True,
-                                                        "cartesian_max_step": 0.001,
-                                                        "cartesian_fraction_threshold": 0.92,
-                                                        "max_path_len_joint": max_path_len_joint,
-                                                        "allowed_planning_time": self.allowed_planning_time_for_move_into,
-                                                    },
-                                                    outputs={
-                                                        "trajectory": BlackboardKey(
-                                                            "move_into_trajectory"
-                                                        )
-                                                    },
+                                        py_trees.timers.Timer(
+                                            name="WaitForIMUToSettle",
+                                            duration=2.0,
+                                        ),
+                                        TriggerArticutoolCalibration(
+                                            name="TriggerArticutoolCalibration",
+                                            ns=name,
+                                            inputs={},
+                                            outputs={},
+                                        ),
+                                        CallSetOrientationControl(
+                                            name="SetArticutoolOrientation",
+                                            ns=name,
+                                            inputs={
+                                                "control_mode": 2,
+                                                "target_orientation_robot_base_quat": BlackboardKey(
+                                                    "move_into_tool_tip_orientation"
                                                 ),
-                                            ),
+                                            },
+                                            outputs={},
                                         ),
                                         # MoveInto expect F/T failure
                                         py_trees.decorators.FailureIsSuccess(
-                                            name="MoveIntoExecuteSucceed",
+                                            name="MoveIntoJacoArmExecuteSucceed",
                                             child=MoveIt2Execute(
-                                                name="MoveInto",
+                                                name="MoveIntoJacoArm",
                                                 ns=name,
                                                 inputs={
                                                     "trajectory": BlackboardKey(
-                                                        "move_into_trajectory"
+                                                        "move_into_jaco_arm_trajectory"
                                                     )
                                                 },
                                                 outputs={},
                                             ),
+                                        ),
+                                        CallSetOrientationControl(
+                                            name="SetArticutoolOrientation",
+                                            ns=name,
+                                            inputs={
+                                                "control_mode": 0,
+                                            },
+                                            outputs={},
+                                        ),
+                                        ExecuteNamedPrimitive(
+                                            name="RunPostMoveIntoPrimitive",
+                                            ns=name,
+                                            inputs={
+                                                "primitive_name": BlackboardKey(
+                                                    "post_move_into_action_name"
+                                                ),
+                                                "primitive_params": BlackboardKey(
+                                                    "post_move_into_action_params"
+                                                ),
+                                            },
+                                            outputs={
+                                                "primitive_status": None,
+                                            },
                                         ),
                                         ### Scoped Behavior for Moveit2_Servo
                                         scoped_behavior(
@@ -953,6 +1778,7 @@ class AcquireFoodTree(MoveToTree):
                                         ),  # End MoveIt2Servo
                                     ],  # End SafeFTPreempt.workers
                                 ),  # End SafeFTPreempt
+                                post_acquisition_sequence(),
                             ],  # End OctomapAndTableCollision.workers
                         ),  # OctomapAndTableCollision
                     ]

@@ -262,3 +262,117 @@ actions:
   - -0.0486593
   - -0.1055426
   pre_torque: 4.0
+# Scrape / Scoop with fork
+- ext_angular: [0.0, 0.0, 0.0]
+  ext_duration: 1.0
+  ext_force: 50.0
+  ext_linear: [0.0, 0.0, 0.08] # Lift after scoop
+  ext_torque: 4.0
+  grasp_angular: [0.0, 0.0, 0.0]
+  grasp_duration: 0.0
+  grasp_force: 15.0
+  grasp_linear: [0.0, 0.0, 0.0]
+  grasp_torque: 4.0
+  pre_force: 20.0
+  pre_offset:                # Tool tip target position IN FOOD_FRAME at end of "MoveInto"
+    - 0.02                   # X: e.g., 2cm "into" the food along food_frame X-axis
+    - 0.0                    # Y
+    - -0.01                  # Z: e.g., 1cm down from food_frame origin
+  pre_pos:                   # Defines DIRECTION for "MoveAbove" standoff IN FOOD_FRAME
+    - -1.0                   # Approach from food_frame -X (will be normalized & scaled by move_above_dist_m)
+    - 0.0                    # Y
+    - 0.0                    # Z (can add a small positive Z for height if needed, e.g., 0.1 or 0.2)
+  pre_quat:                  # Tool tip orientation IN FOOD_FRAME
+    - 0.353453             # qx
+    - 0.6122721            # qy
+    - 0.6127465             # qz
+    - 0.3531793             # qw
+  pre_torque: 4.0
+# Liquid dip with spoon
+- ext_angular: [0.0, 0.0, 0.0]
+  ext_duration: 0.1
+  ext_force: 50.0
+  ext_linear: [0.0, 0.0, 0.04]
+  ext_torque: 4.0
+  grasp_angular: [0.0, 0.0, 0.0]
+  grasp_duration: 0.0
+  grasp_force: 15.0
+  grasp_linear: [0.0, 0.0, 0.0]
+  grasp_torque: 4.0
+  pre_force: 20.0
+  pre_offset:
+    - 0.0
+    - 0.0
+    - 0.0
+  pre_pos:
+    - 0.0
+    - 0.0
+    - 1.0
+  pre_quat:
+    - 0.353453
+    - 0.6122721
+    - 0.6127465
+    - 0.3531793
+  pre_torque: 4.0
+# Granular scoop with spoon
+- ext_angular: [0.0, 0.0, 0.0]
+  ext_duration: 0.1
+  ext_force: 50.0
+  ext_linear: [0.0, 0.0, 0.0]
+  ext_torque: 8.0
+  grasp_angular: [0.0, 0.0, 0.0]
+  grasp_duration: 1.0
+  grasp_force: 70.0
+  grasp_linear: [-0.05, 0.0, 0.0]
+  grasp_torque: 15.0
+  pre_force: 20.0
+  pre_offset:
+    - -0.035
+    - 0.0
+    - -0.02
+  pre_pos:
+    - -0.035
+    - 0.0
+    - 1.0
+  pre_quat:
+    - 0.2759853
+    - 0.6508167
+    - 0.6517596
+    - 0.2747348
+  pre_torque: 8.0
+  post_move_into_primitive_name: "NONE"
+  post_move_into_primitive_params: []
+  post_acquisition_primitive_name: "VIBRATE_ROLL"
+  post_acquisition_primitive_params: [5.0, 0.1, 1.0] # [frequency_hz, amplitude_rad, duration_sec]
+  align_to_robot_base: True
+# Granular + Liquid scoop with spoon
+- ext_angular: [0.0, 0.0, 0.0]
+  ext_duration: 0.1
+  ext_force: 50.0
+  ext_linear: [0.0, 0.0, 0.0]
+  ext_torque: 8.0
+  grasp_angular: [0.0, 0.0, 0.0]
+  grasp_duration: 1.0
+  grasp_force: 70.0
+  grasp_linear: [-0.05, 0.0, 0.0]
+  grasp_torque: 15.0
+  pre_force: 20.0
+  pre_offset:
+    - -0.035
+    - 0.0
+    - -0.02
+  pre_pos:
+    - -0.035
+    - 0.0
+    - 1.0
+  pre_quat:
+    - -0.1424887
+    - -0.6926236
+    - -0.6933992
+    - -0.1398724
+  pre_torque: 8.0
+  post_move_into_primitive_name: "NONE"
+  post_move_into_primitive_params: []
+  post_acquisition_primitive_name: "NONE"
+  post_acquisition_primitive_params: []
+  align_to_robot_base: True

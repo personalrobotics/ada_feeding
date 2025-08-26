@@ -109,6 +109,7 @@ class MoveIt2Plan(BlackboardBehavior):
             Union[BlackboardKey, float]
         ] = 10.0,  # np.sqrt(6.0) * np.pi,
         max_path_len_joint: Optional[Union[BlackboardKey, Dict[str, float]]] = None,
+        group_name: Union[BlackboardKey, str] = "jaco_arm_with_articutool",
     ) -> None:
         """
         Blackboard Inputs
@@ -147,6 +148,7 @@ class MoveIt2Plan(BlackboardBehavior):
             (likely radians). Default sqrt(6.0 * pi) (i.e. 180 degrees each for a 6DOF robot)
         max_path_len_joint: Maximum distance each joint (or subset of joints)
             is allowed to travel. As dictionary: <joint_name> -> <max_distance>
+        group_name: The name of the MoveIt2 planning group
         """
         # TODO: consider cartesian parameter struct
         # pylint: disable=unused-argument, duplicate-code
@@ -190,10 +192,14 @@ class MoveIt2Plan(BlackboardBehavior):
         # Get Node from Kwargs
         self.node = kwargs["node"]
 
+        # Get group name from blackboard
+        self.group_name = self.blackboard_get("group_name")
+
         # Get the MoveIt2 object.
         self.moveit2, self.moveit2_lock = get_moveit2_object(
             self.blackboard,
             self.node,
+            self.group_name,
         )
 
         # Get TF Listener from blackboard

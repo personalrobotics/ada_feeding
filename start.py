@@ -25,6 +25,18 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--end_effector_tool",
+    default="fork",
+    help=("Which end-effector tool to use"),
+    choices=["fork", "spoon"],
+)
+parser.add_argument(
+    "--action",
+    default=0,
+    help=("Which action (index) to use"),
+    type=int,
+)
+parser.add_argument(
     "-t",
     "--termination_wait_secs",
     default=5,
@@ -153,7 +165,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "`./src/feeding_web_interface/feedingwebapp`)."
             )
     else:
-        print(f"# Terminating the ada_feeding demo in **{ args.sim}**")
+        print(f"# Terminating the ada_feeding demo in **{args.sim}**")
     print(
         "################################################################################"
     )
@@ -169,9 +181,6 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "cd ./src/feeding_web_interface/feedingwebapp",
                 "node --env-file=.env server.js",
             ],
-            "ft": [
-                "ros2 run ada_feeding dummy_ft_sensor.py",
-            ],
             "camera": [
                 (
                     "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
@@ -179,6 +188,9 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "run_food_detection:=false run_face_detection:=false "
                     "run_food_on_fork_detection:=false run_table_detection:=false "
                 ),
+            ],
+            "articutool": [
+                f"ros2 launch articutool_system articutool.launch.py sim:=mock end_effector_tool:={args.end_effector_tool}",
             ],
             "nano_bridge_sender": [
                 "ros2 launch nano_bridge sender.launch.xml",
@@ -204,11 +216,14 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "feeding": [
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false "
-                    f"policy:={args.policy}"
+                    f"policy:={args.policy} "
+                    f"end_effector_tool:={args.end_effector_tool} "
+                    f"action:={args.action} "
                 ),
             ],
             "moveit": [
-                "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock"
+                "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock "
+                f"end_effector_tool:={args.end_effector_tool}"
             ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
@@ -225,9 +240,6 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "webrtc": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
                 "node --env-file=.env server.js",
-            ],
-            "ft": [
-                "ros2 run ada_feeding dummy_ft_sensor.py",
             ],
             "perception": [
                 (
@@ -250,7 +262,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "run_web_bridge:=false run_food_detection:=false run_face_detection:=false "
                     "run_food_on_fork_detection:=false run_table_detection:=false "
                     "run_real_sense:=false "
-                    f"policy:={args.policy}"
+                    f"policy:={args.policy} "
+                    f"action:={args.action} "
                 ),
             ],
             "browser": [
@@ -273,8 +286,41 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "camera": [
                 "ssh nano@nano -t './start_nano.sh'",
             ],
-            "ft": [
-                "ros2 run forque_sensor_hardware forque_sensor_hardware --ros-args -p host:=ft-sensor-2",
+            "articutool": [
+                # This command chains several Docker commands on the remote RPi (babbage)
+                # The -t flag for SSH allocates a pseudo-terminal, which is often necessary
+                # for interactive docker commands and proper signal handling.
+                'ssh charles@babbage -t "'
+                # 1. Stop the container if it's already running. `|| true` prevents errors if it's not running.
+                "docker stop articutool_container || true; "
+                # 2. Remove the stopped container to ensure a fresh start.
+                "docker rm articutool_container || true; "
+                # 3. Run a new container.
+                "docker run "
+                # --rm: Automatically remove the container when it exits/stops.
+                "--rm "
+                # -it: Interactive TTY, allows you to attach and see logs.
+                "-it "
+                # --name: Assign a consistent name for easy management.
+                "--name articutool_container "
+                # --network=host: Shares the host's networking stack. Easiest for ROS 2 discovery.
+                "--network=host "
+                # --privileged + volumes: Provide necessary permissions and access to host devices.
+                "--privileged "
+                "--device=/dev/imu:/dev/imu "
+                "--device=/dev/u2d2:/dev/u2d2 "
+                "--device=/dev/resense_ft:/dev/resense_ft "
+                "--volume /run/udev:/run/udev:ro "
+                "--volume /etc/udev:/etc/udev:ro "
+                "--volume /dev:/dev "
+                # Pass environment variables needed for ROS 2 communication.
+                "-e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp "
+                f"-e ROS_DOMAIN_ID={args.real_domain_id} "  # Pass the domain ID to the container!
+                # The image to run.
+                "ros2_articutool:latest"
+                # The CMD from your Dockerfile will be executed, which is:
+                # ros2 launch articutool_system articutool.launch.py sim:=real
+                '"'
             ],
             "rosbridge": [
                 "ros2 launch rosbridge_server rosbridge_websocket_launch.xml",
@@ -283,15 +329,19 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "ros2 launch ada_feeding_perception ada_feeding_perception.launch.py combine_perception_nodes:=true",
             ],
             "moveit": [
-                "Xvfb :5 -screen 0 800x600x24 &" if not args.dev else "",
-                "export DISPLAY=:5" if not args.dev else "",
-                f"ros2 launch ada_planning_scene ada_moveit_launch.xml use_rviz:={'true' if args.dev else 'false'}",
+                # "Xvfb :5 -screen 0 800x600x24 &" if not args.dev else "",
+                # "export DISPLAY=:5" if not args.dev else "",
+                "ros2 launch ada_planning_scene ada_moveit_launch.xml "
+                f"use_rviz:={'true' if args.dev else 'false'} "
+                f"end_effector_tool:={args.end_effector_tool}",
             ],
             "feeding": [
-                "sudo ./src/ada_feeding/configure_lovelace.sh",
+                # "sudo ./src/ada_feeding/configure_lovelace.sh",
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml "
-                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy}"
+                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy} "
+                    f"end_effector_tool:={args.end_effector_tool} "
+                    f"action:={args.action} "
                 ),
             ],
             "browser": [

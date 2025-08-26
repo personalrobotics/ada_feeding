@@ -22,6 +22,7 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2Execute,
     MoveIt2JointConstraint,
 )
+from ada_feeding.behaviors.state import GetJointStates
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import get_toggle_watchdog_listener_behavior
@@ -188,6 +189,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                             "allowed_planning_time": self.allowed_planning_time,
                             "max_velocity_scale": self.max_velocity_scaling_factor,
                             "max_acceleration_scale": self.max_acceleration_scaling_factor,
+                            "group_name": "jaco_arm",
                         },
                         outputs={"trajectory": BlackboardKey("trajectory")},
                     ),
@@ -195,7 +197,10 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 MoveIt2Execute(
                     name="MoveToConfigurationExecute",
                     ns=name,
-                    inputs={"trajectory": BlackboardKey("trajectory")},
+                    inputs={
+                        "trajectory": BlackboardKey("trajectory"),
+                        "group_name": "jaco_arm",
+                    },
                     outputs={},
                 ),
             ],

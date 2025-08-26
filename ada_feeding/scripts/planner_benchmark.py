@@ -332,7 +332,7 @@ def main(out_dir: Optional[str]):
         node=node,
         joint_names=kinova.joint_names(),
         base_link_name=kinova.base_link_name(),
-        end_effector_name="forkTip",
+        end_effector_name="j2n6s200_end_effector",
         group_name="jaco_arm",
         callback_group=callback_group,
     )

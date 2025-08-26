@@ -25,6 +25,7 @@ from geometry_msgs.msg import (
 import numpy as np
 from overrides import override
 import py_trees
+from py_trees.blackboard import Blackboard
 import rclpy
 import ros2_numpy
 
@@ -101,11 +102,23 @@ class MoveIt2JointConstraint(BlackboardBehavior):
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
 
-        if not self.blackboard_exists(
-            ["joint_positions", "joint_names", "tolerance", "weight", "constraints"]
-        ):
-            self.logger.error("MoveIt2Constraint: Missing input arguments.")
-            return py_trees.common.Status.FAILURE
+        for argument in [
+            "joint_positions",
+            "joint_names",
+            "tolerance",
+            "weight",
+            "constraints",
+        ]:
+            if not self.blackboard_exists(argument):
+                self.logger.error(
+                    f"MoveIt2JointConstraint: Missing input argument: {argument}"
+                )
+                return py_trees.common.Status.FAILURE
+
+        # # Check if joint positions are valid (not None or empty)
+        # if self.blackboard_get("joint_positions") is None or not self.blackboard_get("joint_positions"):
+        #     self.logger.debug("MoveIt2Constraint: Joint positions not yet available.")
+        #     return py_trees.common.Status.RUNNING
 
         constraint = (
             MoveIt2ConstraintType.JOINT,
@@ -155,6 +168,7 @@ class MoveIt2PositionOffsetConstraint(BlackboardBehavior):
         constraints: Union[
             BlackboardKey, Optional[List[Tuple[MoveIt2ConstraintType, Dict[str, Any]]]]
         ] = None,
+        group_name: Union[BlackboardKey, str] = "jaco_arm_with_articutool",
     ) -> None:
         """
         Blackboard Inputs
@@ -168,6 +182,8 @@ class MoveIt2PositionOffsetConstraint(BlackboardBehavior):
 
         Note: if position is Vector3Stamped,
               use position.header.frame_id for frame_id (if not "")
+
+        group_name: The name of the MoveIt2 planning group
 
         Parameters
         ----------
@@ -210,10 +226,14 @@ class MoveIt2PositionOffsetConstraint(BlackboardBehavior):
         # Get Node from Kwargs
         self.node = kwargs["node"]
 
+        # Get group name from blackboard
+        self.group_name = self.blackboard_get("group_name")
+
         # Get the MoveIt2 object, don't need lock (const read only)
         self.moveit2, _ = get_moveit2_object(
             self.blackboard,
             self.node,
+            self.group_name,
         )
 
         # Get TF Listener from blackboard
@@ -223,21 +243,20 @@ class MoveIt2PositionOffsetConstraint(BlackboardBehavior):
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
 
-        if not self.blackboard_exists(
-            [
-                "offset",
-                "frame_id",
-                "target_link",
-                "tolerance",
-                "weight",
-                "constraints",
-            ]
-        ):
-            self.logger.error(
-                "MoveIt2PositionOffsetConstraint: Missing input arguments."
-            )
-            self.logger.error(str(self.blackboard))
-            return py_trees.common.Status.FAILURE
+        for argument in [
+            "offset",
+            "frame_id",
+            "target_link",
+            "tolerance",
+            "weight",
+            "constraints",
+        ]:
+            if not self.blackboard_exists(argument):
+                self.logger.error(
+                    f"MoveIt2PositionOffsetConstraint: Missing input argument: {argument}"
+                )
+                self.logger.error(str(self.blackboard))
+                return py_trees.common.Status.FAILURE
 
         if self.tf_lock.locked():
             return py_trees.common.Status.RUNNING
@@ -380,19 +399,20 @@ class MoveIt2PositionConstraint(BlackboardBehavior):
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
 
-        if not self.blackboard_exists(
-            [
-                "position",
-                "frame_id",
-                "target_link",
-                "tolerance",
-                "weight",
-                "constraints",
-            ]
-        ):
-            self.logger.error("MoveIt2PositionConstraint: Missing input arguments.")
-            self.logger.error(str(self.blackboard))
-            return py_trees.common.Status.FAILURE
+        for argument in [
+            "position",
+            "frame_id",
+            "target_link",
+            "tolerance",
+            "weight",
+            "constraints",
+        ]:
+            if not self.blackboard_exists(argument):
+                self.logger.error(
+                    f"MoveIt2PositionConstraint: Missing input argument: {argument}"
+                )
+                self.logger.error(str(self.blackboard))
+                return py_trees.common.Status.FAILURE
 
         position = self.blackboard_get("position")
         constraint = (
@@ -505,19 +525,21 @@ class MoveIt2OrientationConstraint(BlackboardBehavior):
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
 
-        if not self.blackboard_exists(
-            [
-                "quat_xyzw",
-                "frame_id",
-                "target_link",
-                "tolerance",
-                "weight",
-                "constraints",
-                "parameterization",
-            ]
-        ):
-            self.logger.error("MoveIt2OrientationConstraint: Missing input arguments.")
-            return py_trees.common.Status.FAILURE
+        for argument in [
+            "quat_xyzw",
+            "frame_id",
+            "target_link",
+            "tolerance",
+            "weight",
+            "constraints",
+            "parameterization",
+        ]:
+            if not self.blackboard_exists(argument):
+                self.logger.error(
+                    f"MoveIt2OrientationConstraint: Missing input argument: {argument}"
+                )
+                self.logger.error(str(self.blackboard))
+                return py_trees.common.Status.FAILURE
 
         quat_xyzw = self.blackboard_get("quat_xyzw")
         constraint = (
@@ -631,21 +653,23 @@ class MoveIt2PoseConstraint(BlackboardBehavior):
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
 
-        if not self.blackboard_exists(
-            [
-                "pose",
-                "frame_id",
-                "target_link",
-                "tolerance_position",
-                "weight_position",
-                "tolerance_orientation",
-                "weight_orientation",
-                "constraints",
-                "parameterization",
-            ]
-        ):
-            self.logger.error("MoveIt2Constraint: Missing input arguments.")
-            return py_trees.common.Status.FAILURE
+        for argument in [
+            "pose",
+            "frame_id",
+            "target_link",
+            "tolerance_position",
+            "weight_position",
+            "tolerance_orientation",
+            "weight_orientation",
+            "constraints",
+            "parameterization",
+        ]:
+            if not self.blackboard_exists(argument):
+                self.logger.error(
+                    f"MoveIt2PoseConstraint: Missing input argument: {argument}"
+                )
+                self.logger.error(str(self.blackboard))
+                return py_trees.common.Status.FAILURE
 
         pose = self.blackboard_get("pose")
         constraint_orient = (

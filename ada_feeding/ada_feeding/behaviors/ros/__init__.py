@@ -8,6 +8,7 @@ from .msgs import (
     UpdateTimestamp,
     CreatePoseStamped,
     PoseStampedToTwistStamped,
+    StampPoseFromPose,
 )
 from .tf import (
     GetTransform,

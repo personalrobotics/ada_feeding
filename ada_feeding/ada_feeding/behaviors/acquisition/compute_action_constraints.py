@@ -5,12 +5,12 @@
 """
 This module defines behaviors that take an AcquisitionSchema.msg object
 (or return from AcquisitionSelect.srv) and computes the outputs
-needed to send MoveIt2Plan calls.
+needed to send MoveIt2Plan calls and execute primitive actions.
 """
 
 # Standard imports
 from copy import deepcopy
-from typing import Union, Optional
+from typing import Union, Optional, List
 
 # Third-party imports
 from geometry_msgs.msg import (
@@ -45,7 +45,7 @@ class ComputeActionConstraints(BlackboardBehavior):
     """
     Checks AcquisitionSelect response, implements stochastic
     policy choice, and then decomposes into individual
-    BlackboardKey objects for MoveIt2 Behaviors.
+    BlackboardKey objects for MoveIt2 Behaviors and Primitive Actions.
 
     Also sets static TF from food -> approach frame
     """
@@ -93,6 +93,11 @@ class ComputeActionConstraints(BlackboardBehavior):
         ext_thresh: Optional[BlackboardKey],  # SetParameters.Request
         action: Optional[BlackboardKey],  # AcquisitionSchema.msg
         action_index: Optional[BlackboardKey],  # int
+        post_move_into_primitive_name: Optional[BlackboardKey],
+        post_move_into_primitive_params: Optional[BlackboardKey],
+        post_acquisition_primitive_name: Optional[BlackboardKey],
+        post_acquisition_primitive_params: Optional[BlackboardKey],
+        should_align_to_base: Optional[BlackboardKey],
     ) -> None:
         """
         Blackboard Outputs
@@ -106,6 +111,10 @@ class ComputeActionConstraints(BlackboardBehavior):
         grasp_thresh: SetParameters request to set thresholds in grasp
         ext_thresh: SetParameters request to set thresholds for extraction
         action: AcquisitionSchema object to use in later computations
+        post_move_into_primitive_name: The name of the primitive to run after MoveInto.
+        post_move_into_primitive_params: The parameters for that primitive.
+        post_acquisition_primitive_name: The name of the primitive to run after acquisition.
+        post_acquisition_primitive_params: The parameters for that primitive.
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -206,7 +215,41 @@ class ComputeActionConstraints(BlackboardBehavior):
                 create_ft_thresh_request(action.ext_force, action.ext_torque),
             )
 
-            ### Final write to Blackboard
+            # Post-Move-Into Primitive
+            # post_move_into_name = (
+            #     action.post_move_into_primitive_name or "NONE"
+            # )  # Default to NONE
+            post_move_into_name = action.post_move_into_primitive_name
+            post_move_into_params = list(action.post_move_into_primitive_params)
+            self.blackboard_set("post_move_into_primitive_name", post_move_into_name)
+            self.blackboard_set(
+                "post_move_into_primitive_params", post_move_into_params
+            )
+            self.logger.info(
+                f"[{self.name}] Set Post-MoveInto Primitive to: '{post_move_into_name}' with params: {post_move_into_params}"
+            )
+
+            # Post-Acquisition Primitive
+            # post_acquisition_name = (
+            #     action.post_acquisition_primitive_name or "NONE"
+            # )  # Default to NONE
+            post_acquisition_name = action.post_acquisition_primitive_name
+            post_acquisition_params = list(action.post_acquisition_primitive_params)
+            self.blackboard_set(
+                "post_acquisition_primitive_name", post_acquisition_name
+            )
+            self.blackboard_set(
+                "post_acquisition_primitive_params", post_acquisition_params
+            )
+            self.logger.info(
+                f"[{self.name}] Set Post-Acquisition Primitive to: '{post_acquisition_name}' with params: {post_acquisition_params}"
+            )
+
+            self.blackboard_set("should_align_to_base", action.align_to_robot_base)
+            self.logger.info(
+                f"[{self.name}] Set 'should_align_to_base' flag to: {action.align_to_robot_base}"
+            )
+
             self.blackboard_set("action", action)
             self.blackboard_set("action_index", index)
         return py_trees.common.Status.SUCCESS
@@ -232,6 +275,7 @@ class ComputeActionTwist(BlackboardBehavior):
         action: Union[BlackboardKey, AcquisitionSchema],
         is_grasp: Union[BlackboardKey, bool] = True,
         approach_frame_id: Union[BlackboardKey, str] = "approach",
+        group_name: Union[BlackboardKey, str] = "jaco_arm_with_articutool",
     ) -> None:
         """
         Blackboard Inputs
@@ -241,6 +285,7 @@ class ComputeActionTwist(BlackboardBehavior):
         action: AcquisitionSchema msg object
         is_grasp: if true, use the grasp action elements, else use extraction
         approach_frame_id: approach frame defined in AcquisitionSchema.msg
+        group_name: The name of the MoveIt2 planning group
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -279,6 +324,9 @@ class ComputeActionTwist(BlackboardBehavior):
         # Get Node from Kwargs
         self.node = kwargs["node"]
 
+        # Get group name from blackboard
+        self.group_name = self.blackboard_get("group_name")
+
         # Get TF Listener from blackboard
         # For transform approach -> end_effector_frame
         self.tf_buffer, _, self.tf_lock = get_tf_object(self.blackboard, self.node)
@@ -288,6 +336,7 @@ class ComputeActionTwist(BlackboardBehavior):
         self.moveit2, self.moveit2_lock = get_moveit2_object(
             self.blackboard,
             self.node,
+            self.group_name,
         )
 
     @override

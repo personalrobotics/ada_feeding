@@ -49,7 +49,7 @@ class ComputeMouthFrame(BlackboardBehavior):
         world_frame: Union[BlackboardKey, str] = "root",  # +z will match this frame
         frame_to_orient_towards: Union[
             BlackboardKey, str
-        ] = "forkTip",  # +x will point towards this frame
+        ] = "tool_tip",  # +x will point towards this frame
     ) -> None:
         """
         Blackboard Inputs

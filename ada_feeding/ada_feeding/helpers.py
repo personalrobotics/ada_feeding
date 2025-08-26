@@ -302,6 +302,7 @@ def get_tf_object(
 def get_moveit2_object(
     blackboard: py_trees.blackboard.Client,
     node: Optional[Node] = None,
+    group_name: str = "jaco_arm_with_articutool",
 ) -> Tuple[MoveIt2, Lock]:
     """
     Gets the MoveIt2 object and its corresponding lock from the blackboard.
@@ -315,6 +316,7 @@ def get_moveit2_object(
     node: The ROS2 node that the MoveIt2 object should be associated with, if
         we need to create it from scratch. If None, this function will not create
         the MoveIt2 object if it doesn't exist, and will instead raise a KeyError.
+    group_name: The name of the MoveIt2 planning group
 
     Returns
     -------
@@ -329,8 +331,8 @@ def get_moveit2_object(
     # and its corresponding lock. Note that it is important that these keys start with
     # a "/" because to indicate it is an absolute path, so all behaviors can access
     # the same object.
-    moveit2_blackboard_key = "/moveit2"
-    moveit2_lock_blackboard_key = "/moveit2_lock"
+    moveit2_blackboard_key = f"/moveit2/{group_name}"
+    moveit2_lock_blackboard_key = f"/moveit2_lock/{group_name}"
 
     # First, register the MoveIt2 object and its corresponding lock for READ access
     if not blackboard.is_registered(moveit2_blackboard_key, Access.READ):
@@ -353,21 +355,41 @@ def get_moveit2_object(
         node.get_logger().info(
             "MoveIt2 object and lock do not exist on the blackboard. Creating them now."
         )
+
+        if group_name == "jaco_arm":
+            _joint_names = kinova.joint_names()
+            _base_link = kinova.base_link_name()
+            _end_effector = "j2n6s200_end_effector"
+        elif group_name == "articutool":
+            _joint_names = ["atool_joint1", "atool_joint2"]
+            _base_link = "atool_base"
+            _end_effector = "tool_tip"
+        elif group_name == "jaco_arm_with_articutool":
+            _joint_names = kinova.joint_names() + ["atool_joint1", "atool_joint2"]
+            _base_link = kinova.base_link_name()
+            _end_effector = "tool_tip"
+        else:
+            raise ValueError(f"Unknown planning group name provided: {group_name}")
+
         blackboard.register_key(moveit2_blackboard_key, Access.WRITE)
         blackboard.register_key(moveit2_lock_blackboard_key, Access.WRITE)
         # TODO: Assess whether ReentrantCallbackGroup is necessary for MoveIt2.
         callback_group = ReentrantCallbackGroup()
         moveit2 = MoveIt2(
             node=node,
-            joint_names=kinova.joint_names(),
-            base_link_name=kinova.base_link_name(),
-            end_effector_name="forkTip",
-            group_name="jaco_arm",
+            joint_names=_joint_names,
+            base_link_name=_base_link,
+            end_effector_name=_end_effector,
+            group_name=group_name,
             callback_group=callback_group,
         )
         lock = Lock()
         blackboard.set(moveit2_blackboard_key, moveit2)
         blackboard.set(moveit2_lock_blackboard_key, lock)
+
+        node.get_logger().info(
+            f"Successfully created and stored MoveIt2 object and lock for group '{group_name}'."
+        )
 
     return moveit2, lock
 
