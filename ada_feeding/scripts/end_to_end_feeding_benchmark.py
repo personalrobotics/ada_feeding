@@ -1173,16 +1173,17 @@ class EndToEndBenchmark:
         num_trials: int = 100,
         planning_timeout: float = 5.0,
         output_dir: Optional[str] = None,
+        mode: str = "articutool",
     ):
         self.node = node
         self.num_trials = num_trials
-        self.output_filename = None
+        self.mode = mode
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             # Use the .jsonl extension for JSON Lines format
             self.output_filename = os.path.join(
-                output_dir, f"end_to_end_benchmark_{timestamp}.jsonl"
+                output_dir, f"benchmark_{self.mode}_{timestamp}.jsonl"
             )
 
         self.motion_planner = MotionPlanner(
@@ -2720,6 +2721,13 @@ def main():
         default="e2e_benchmark_output",
         help="Directory to save results.",
     )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="articutool",
+        choices=["articutool", "baseline"],
+        help="The execution mode for the benchmark: 'articutool' for the S2 strategy, 'baseline' for the constrained 6-DOF system.",
+    )
     args = parser.parse_args()
 
     rclpy.init()
@@ -2764,6 +2772,7 @@ def main():
         args.num_trials,
         args.timeout,
         args.output_dir,
+        mode=args.mode,
     )
 
     try:
