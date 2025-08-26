@@ -2738,30 +2738,42 @@ def main():
     executor_thread.start()
 
     # Initialize MoveIt2 for the Jaco arm, Articutool, and Full
-    moveit2_jaco = MoveIt2(
-        node=node,
-        joint_names=JOINT_NAMES_JACO,
-        base_link_name=BASE_LINK_JACO,
-        end_effector_name=END_EFFECTOR_LINK_JACO,
-        group_name=PLANNING_GROUP_JACO,
-        callback_group=ReentrantCallbackGroup(),
-    )
-    moveit2_atool = MoveIt2(
-        node=node,
-        joint_names=JOINT_NAMES_ATOOL,
-        base_link_name=BASE_LINK_ATOOL,
-        end_effector_name=END_EFFECTOR_LINK_ATOOL,
-        group_name=PLANNING_GROUP_ATOOL,
-        callback_group=ReentrantCallbackGroup(),
-    )
-    moveit2_full = MoveIt2(
-        node=node,
-        joint_names=JOINT_NAMES_FULL,
-        base_link_name=BASE_LINK_FULL,
-        end_effector_name=END_EFFECTOR_LINK_FULL,
-        group_name=PLANNING_GROUP_FULL,
-        callback_group=ReentrantCallbackGroup(),
-    )
+    if args.mode == "baseline":
+        moveit2_jaco = MoveIt2(
+            node=node,
+            joint_names=JOINT_NAMES_JACO,
+            base_link_name=BASE_LINK_JACO,
+            end_effector_name="forkTip",
+            group_name=PLANNING_GROUP_JACO,
+            callback_group=ReentrantCallbackGroup(),
+        )
+        moveit2_atool = None
+        moveit2_full = None
+    else:
+        moveit2_jaco = MoveIt2(
+            node=node,
+            joint_names=JOINT_NAMES_JACO,
+            base_link_name=BASE_LINK_JACO,
+            end_effector_name=END_EFFECTOR_LINK_JACO,
+            group_name=PLANNING_GROUP_JACO,
+            callback_group=ReentrantCallbackGroup(),
+        )
+        moveit2_atool = MoveIt2(
+            node=node,
+            joint_names=JOINT_NAMES_ATOOL,
+            base_link_name=BASE_LINK_ATOOL,
+            end_effector_name=END_EFFECTOR_LINK_ATOOL,
+            group_name=PLANNING_GROUP_ATOOL,
+            callback_group=ReentrantCallbackGroup(),
+        )
+        moveit2_full = MoveIt2(
+            node=node,
+            joint_names=JOINT_NAMES_FULL,
+            base_link_name=BASE_LINK_FULL,
+            end_effector_name=END_EFFECTOR_LINK_FULL,
+            group_name=PLANNING_GROUP_FULL,
+            callback_group=ReentrantCallbackGroup(),
+        )
 
     benchmark = EndToEndBenchmark(
         node,
