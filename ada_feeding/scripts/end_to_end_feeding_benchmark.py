@@ -2565,41 +2565,66 @@ class EndToEndBenchmark:
 
             # --- Stage 3: AbovePlate -> AboveFood ---
             if not trial_failed:
-                LOGGER.info("Stage 3: AbovePlate -> AboveFood")
-                (
-                    status,
-                    traj_jaco,
-                    traj_atool,
-                    planning_time,
-                ) = self._plan_to_above_food(
-                    optimal_above_food_ik, current_jaco_state, current_atool_state
-                )
-                path_length_jaco = self._calculate_cartesian_path_length(
-                    traj_jaco, PLANNING_GROUP_JACO
-                )
-                path_length_atool = self._calculate_cartesian_path_length(
-                    traj_atool, PLANNING_GROUP_ATOOL
-                )
-                trial_data["stages"].append(
-                    {
-                        "stage_name": "AbovePlateToAboveFood",
-                        "target_frame": END_EFFECTOR_LINK_FULL,
-                        "status": status.value,
-                        "execution_mode": ExecutionMode.SEQUENTIAL.value,
-                        "planning_time_sec": planning_time,
-                        "trajectory_path_length_m": path_length_jaco
-                        + path_length_atool,
-                        "custom_metrics": {},
-                        "traj_jaco": self._serialize_trajectory(traj_jaco),
-                        "traj_atool": self._serialize_trajectory(traj_atool),
-                    }
-                )
-                if status != TrialStatus.SUCCESS:
-                    LOGGER.error(f"  Stage 3 failed. Skipping trial.")
-                    trial_failed = True
+                if self.mode == "articutool":
+                    LOGGER.info("Stage 3: AbovePlate -> AboveFood")
+                    (
+                        status,
+                        traj_jaco,
+                        traj_atool,
+                        planning_time,
+                    ) = self._plan_to_above_food(
+                        optimal_above_food_ik, current_jaco_state, current_atool_state
+                    )
+                    path_length_jaco = self._calculate_cartesian_path_length(
+                        traj_jaco, PLANNING_GROUP_JACO
+                    )
+                    path_length_atool = self._calculate_cartesian_path_length(
+                        traj_atool, PLANNING_GROUP_ATOOL
+                    )
+                    trial_data["stages"].append(
+                        {
+                            "stage_name": "AbovePlateToAboveFood",
+                            "target_frame": END_EFFECTOR_LINK_FULL,
+                            "status": status.value,
+                            "execution_mode": ExecutionMode.SEQUENTIAL.value,
+                            "planning_time_sec": planning_time,
+                            "trajectory_path_length_m": path_length_jaco
+                            + path_length_atool,
+                            "custom_metrics": {},
+                            "traj_jaco": self._serialize_trajectory(traj_jaco),
+                            "traj_atool": self._serialize_trajectory(traj_atool),
+                        }
+                    )
+                    if status != TrialStatus.SUCCESS:
+                        LOGGER.error(f"  Stage 3 failed. Skipping trial.")
+                        trial_failed = True
+                    else:
+                        current_jaco_state = list(traj_jaco.points[-1].positions)
+                        current_atool_state = list(traj_atool.points[-1].positions)
                 else:
-                    current_jaco_state = list(traj_jaco.points[-1].positions)
-                    current_atool_state = list(traj_atool.points[-1].positions)
+                    LOGGER.info("Stage 3: AbovePlate -> AboveFood")
+                    goal_constraints = [
+                        create_pose_constraint(scene["above_food_pose"])
+                    ]
+                    status, traj_jaco, planning_time = self.motion_planner.plan(
+                        group_name=PLANNING_GROUP_JACO,
+                        start_state=current_jaco_state,
+                        goal_constraints=goal_constraints,
+                    )
+                    path_length = self._calculate_cartesian_path_length(
+                        traj_jaco,
+                        PLANNING_GROUP_JACO,
+                    )
+                    trial_data["stages"].append(
+                        {
+                            "stage_name": "AbovePlateToAboveFood",
+                            "status": status.value,
+                            "execution_mode": ExecutionMode.JACO_ONLY.value,
+                            "planning_time_sec": planning_time,
+                            "trajectory_path_length_m": path_length,
+                            "traj_jaco": self._serialize_trajectory(traj_jaco),
+                        }
+                    )
 
             # --- Stage 4: AboveFood -> InFood ---
             if not trial_failed:
