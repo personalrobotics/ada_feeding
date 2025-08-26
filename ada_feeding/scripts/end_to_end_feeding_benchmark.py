@@ -2332,7 +2332,7 @@ class EndToEndBenchmark:
         #    position, but makes its orientation level against gravity.
         #    Note: For a rigid tool, Y-up on the wrist link is equivalent to level.
         goal_constraints = [
-            create_position_constraint(current_position, 0.01),
+            create_position_constraint(current_position, 0.2),
             create_orientation_path_constraint(
                 PATH_CONSTRAINT_QUAT_XYZW, (0.1, 2 * math.pi, 0.1)
             ),
@@ -2343,6 +2343,7 @@ class EndToEndBenchmark:
             group_name=PLANNING_GROUP_JACO,
             start_state=start_state_jaco,
             goal_constraints=goal_constraints,
+            cartesian=True,
         )
 
         return status, traj_jaco, planning_time
