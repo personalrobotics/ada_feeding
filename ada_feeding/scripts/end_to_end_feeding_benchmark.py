@@ -2561,6 +2561,90 @@ class EndToEndBenchmark:
             planning_time,
         )
 
+    def _plan_to_staging(
+        self,
+        staging_wrist_pose: Pose,
+        start_state_jaco: List[float],
+    ) -> Tuple[
+        TrialStatus,
+        Optional[JointTrajectory],
+        Optional[JointTrajectory],
+        Dict[str, Any],
+        float,
+    ]:
+        """
+        Plans a 6-DOF guided motion for the Jaco arm to a staging wrist pose
+        and measures its leveling feasibility.
+        """
+        LOGGER.info("  Planning to Staging pose (S2-Heuristic)...")
+
+        goal_constraints = [create_position_constraint(staging_wrist_pose.position)]
+        path_constraints = [
+            create_orientation_path_constraint(
+                quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
+                tolerance_rad=PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
+            )
+        ]
+
+        status, traj_jaco, planning_time = self.motion_planner.plan(
+            group_name=PLANNING_GROUP_JACO,
+            start_state=start_state_jaco,
+            goal_constraints=goal_constraints,
+            path_constraints=path_constraints,
+        )
+        if status != TrialStatus.SUCCESS:
+            return TrialStatus.PLANNER_FAILURE, None, None, {}, planning_time
+
+        verification_results = self._verify_trajectory(traj_jaco)
+        if verification_results["feasible_percent"] < 99.0:
+            return (
+                TrialStatus.VERIFICATION_FAILURE,
+                traj_jaco,
+                None,
+                verification_results,
+                planning_time,
+            )
+
+        traj_atool = self._generate_leveling_atool_trajectory(traj_jaco)
+        if traj_atool is None:
+            return (
+                TrialStatus.IK_FAILURE,
+                traj_jaco,
+                None,
+                verification_results,
+                planning_time,
+            )
+
+        return (
+            TrialStatus.SUCCESS,
+            traj_jaco,
+            traj_atool,
+            verification_results,
+            planning_time,
+        )
+
+    def _plan_to_presentation(
+        self,
+        target_ik_solution_full: List[float],
+        target_tool_tip_pose: Pose,
+        start_state_jaco: List[float],
+    ) -> Tuple[
+        TrialStatus, Optional[JointTrajectory], Optional[JointTrajectory], float
+    ]:
+        """
+        Plans a synchronous Cartesian motion to the final presentation pose.
+        """
+        LOGGER.info("  Planning Cartesian motion to Presentation pose...")
+
+        status, traj_jaco, traj_atool, _, planning_time = self._plan_to_in_food(
+            target_ik_solution_full, target_tool_tip_pose, start_state_jaco
+        )
+
+        if status != TrialStatus.SUCCESS:
+            return status, traj_jaco, traj_atool, planning_time
+
+        return TrialStatus.SUCCESS, traj_jaco, traj_atool, planning_time
+
     # --- Main Benchmark Loop ---
     def run(self):
         """Main benchmark execution loop with granular metric collection."""
