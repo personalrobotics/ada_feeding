@@ -154,12 +154,15 @@ class SphericalSamplingParams:
 
 @dataclass
 class SceneGenerationParams:
-    """Holds all parameters that define the random scene generation."""
+    """
+    Holds all parameters that define the random scene generation, tuned for a
+    fair comparison within the 6-DOF baseline's workspace.
+    """
 
     food_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="food",
         inner_radius=0.4,
-        outer_radius=1.04,  # Corresponds to the 8-DOF workspace
+        outer_radius=0.85,
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0.0, math.pi / 2),  # Upper hemisphere
         min_height=0.1,
@@ -168,7 +171,7 @@ class SceneGenerationParams:
     mouth_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="mouth",
         inner_radius=0.4,
-        outer_radius=1.04,  # Corresponds to the 8-DOF workspace
+        outer_radius=0.85,
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0.0, math.pi / 2),
         min_height=0.3,
@@ -177,7 +180,7 @@ class SceneGenerationParams:
     resting_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="resting",
         inner_radius=0.5,
-        outer_radius=0.9,  # Corresponds to the 6-DOF workspace
+        outer_radius=0.9,
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0, math.pi / 2),
         min_height=0.2,
