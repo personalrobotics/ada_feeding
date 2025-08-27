@@ -2831,38 +2831,74 @@ class EndToEndBenchmark:
 
             # --- Stage 7: LevelArticutool -> Resting ---
             if not trial_failed:
-                LOGGER.info("Stage 7: Resting")
-                (
-                    status,
-                    traj_jaco,
-                    traj_atool,
-                    leveling_feasibility,
-                    planning_time,
-                ) = self._plan_to_resting(scene["resting_pose"], current_jaco_state)
-                path_length = self._calculate_cartesian_path_length(
-                    traj_jaco, PLANNING_GROUP_JACO
-                )
-                trial_data["stages"].append(
-                    {
-                        "stage_name": "Resting",
-                        "target_frame": END_EFFECTOR_LINK_JACO,
-                        "status": status.value,
-                        "execution_mode": ExecutionMode.SYNCHRONOUS.value,
-                        "planning_time_sec": planning_time,
-                        "trajectory_path_length_m": path_length,
-                        "custom_metrics": {
-                            "leveling_feasibility_percent": leveling_feasibility
-                        },
-                        "traj_jaco": self._serialize_trajectory(traj_jaco),
-                        "traj_atool": self._serialize_trajectory(traj_atool),
-                    }
-                )
-                if status != TrialStatus.SUCCESS:
-                    LOGGER.error(f"  Stage 7 failed. Skipping trial.")
-                    trial_failed = True
+                if self.mode == "articutool":
+                    LOGGER.info("Stage 7: Resting")
+                    (
+                        status,
+                        traj_jaco,
+                        traj_atool,
+                        leveling_feasibility,
+                        planning_time,
+                    ) = self._plan_to_resting(scene["resting_pose"], current_jaco_state)
+                    path_length = self._calculate_cartesian_path_length(
+                        traj_jaco, PLANNING_GROUP_JACO
+                    )
+                    trial_data["stages"].append(
+                        {
+                            "stage_name": "Resting",
+                            "target_frame": END_EFFECTOR_LINK_JACO,
+                            "status": status.value,
+                            "execution_mode": ExecutionMode.SYNCHRONOUS.value,
+                            "planning_time_sec": planning_time,
+                            "trajectory_path_length_m": path_length,
+                            "custom_metrics": {
+                                "leveling_feasibility_percent": leveling_feasibility
+                            },
+                            "traj_jaco": self._serialize_trajectory(traj_jaco),
+                            "traj_atool": self._serialize_trajectory(traj_atool),
+                        }
+                    )
+                    if status != TrialStatus.SUCCESS:
+                        LOGGER.error(f"  Stage 7 failed. Skipping trial.")
+                        trial_failed = True
+                    else:
+                        current_jaco_state = list(traj_jaco.points[-1].positions)
+                        current_atool_state = list(traj_atool.points[-1].positions)
                 else:
-                    current_jaco_state = list(traj_jaco.points[-1].positions)
-                    current_atool_state = list(traj_atool.points[-1].positions)
+                    LOGGER.info("Stage 7: Resting")
+                    goal_constraints = [
+                        create_position_constraint(scene["resting_pose"].position)
+                    ]
+                    path_constraints = [
+                        create_orientation_path_constraint(
+                            quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
+                            tolerance_rad=BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
+                        )
+                    ]
+                    status, traj_jaco, planning_time = self.motion_planner.plan(
+                        group_name=PLANNING_GROUP_JACO,
+                        start_state=current_jaco_state,
+                        goal_constraints=goal_constraints,
+                        path_constraints=path_constraints,
+                    )
+                    path_length = self._calculate_cartesian_path_length(
+                        traj_jaco, PLANNING_GROUP_JACO
+                    )
+                    trial_data["stages"].append(
+                        {
+                            "stage_name": "Resting",
+                            "target_frame": self.jaco_ee_link,
+                            "status": status.value,
+                            "execution_mode": ExecutionMode.JACO_ONLY.value,
+                            "planning_time_sec": planning_time,
+                            "trajectory_path_length_m": path_length,
+                            "traj_jaco": self._serialize_trajectory(traj_jaco),
+                        }
+                    )
+                    if status != TrialStatus.SUCCESS:
+                        trial_failed = True
+                    else:
+                        current_jaco_state = list(traj_jaco.points[-1].positions)
 
             # --- Finalize Trial ---
             if not trial_failed:
