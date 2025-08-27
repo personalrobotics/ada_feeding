@@ -455,7 +455,7 @@ class SceneGenerator:
 
         rotation_matrix = np.array([x_axis, y_axis, z_axis]).T
         # Add random yaw variability
-        rand_yaw = np.random.uniform(-np.deg2rad(30), np.deg2rad(30))
+        rand_yaw = np.random.uniform(-np.deg2rad(45), np.deg2rad(45))
         final_rot = R.from_matrix(rotation_matrix) * R.from_euler("z", rand_yaw)
         quat = final_rot.as_quat()
 
