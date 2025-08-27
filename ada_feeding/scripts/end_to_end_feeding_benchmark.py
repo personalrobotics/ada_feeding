@@ -742,10 +742,10 @@ class SceneGenerator:
         mouth_pos = np.array(
             [mouth_pose.position.x, mouth_pose.position.y, mouth_pose.position.z]
         )
-        presentation_pos = mouth_pos - (
+        presentation_pos = mouth_pos + (
             mouth_x_axis * self.params.presentation_offset_dist
         )
-        staging_pos = mouth_pos - (mouth_x_axis * self.params.staging_offset_dist)
+        staging_pos = mouth_pos + (mouth_x_axis * self.params.staging_offset_dist)
         presentation_pose = Pose(
             position=Point(
                 x=presentation_pos[0], y=presentation_pos[1], z=presentation_pos[2]
