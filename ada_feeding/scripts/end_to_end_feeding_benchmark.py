@@ -1845,6 +1845,26 @@ class EndToEndBenchmark:
 
         return total_length
 
+    def _calculate_total_joint_travel(
+        self, trajectory: Optional[JointTrajectory]
+    ) -> float:
+        """Calculates the sum of absolute angular distance traveled by all joints."""
+        if not trajectory or not trajectory.points or len(trajectory.points) < 2:
+            return 0.0
+
+        total_travel = 0.0
+        last_positions = np.array(trajectory.points[0].positions)
+
+        for i in range(1, len(trajectory.points)):
+            current_positions = np.array(trajectory.points[i].positions)
+
+            # Sum of absolute differences between joint positions
+            delta = np.sum(np.abs(current_positions - last_positions))
+            total_travel += delta
+            last_positions = current_positions
+
+        return total_travel
+
     # --- Feasibility Checking ---
     def _is_config_kinematically_feasible(self, jaco_joint_config: List[float]) -> bool:
         """
