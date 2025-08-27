@@ -2373,7 +2373,7 @@ class EndToEndBenchmark:
         fk_poses = self.motion_planner.compute_fk(
             group_name=PLANNING_GROUP_JACO,
             joint_state=start_joint_state,
-            fk_link_names=[self.jaco_ee_link],
+            fk_link_names=[END_EFFECTOR_LINK_JACO],
         )
         if not fk_poses:
             LOGGER.warning("  FK failed, cannot determine current tool tip pose.")
