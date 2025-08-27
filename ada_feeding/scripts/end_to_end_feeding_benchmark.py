@@ -2153,14 +2153,11 @@ class EndToEndBenchmark:
             create_pose_constraint(above_plate_pose, tolerance_orientation=0.2)
         ]
 
-        # For baseline mode, the AbovePlate pose needs to be explicitly defined relative to the wrist frame
-        target_link = self.jaco_ee_link if self.mode == "baseline" else None
-
         return self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
             start_state=start_state_jaco,
             goal_constraints=goal_constraints,
-            target_link=target_link,
+            target_link=END_EFFECTOR_LINK_JACO,
         )
 
     def _plan_to_above_food(
@@ -2394,16 +2391,13 @@ class EndToEndBenchmark:
             ),
         ]
 
-        # For baseline mode, the pose needs to be explicitly defined relative to the wrist frame
-        target_link = self.jaco_ee_link if self.mode == "baseline" else None
-
         # 3. Plan the 6-DOF trajectory for the Jaco arm
         status, traj_jaco, planning_time = self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
             start_state=start_state_jaco,
             goal_constraints=goal_constraints,
             cartesian=True,
-            target_link=target_link,
+            target_link=END_EFFECTOR_LINK_JACO,
         )
 
         return status, traj_jaco, planning_time
@@ -2962,14 +2956,12 @@ class EndToEndBenchmark:
                             tolerance_rad=BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
                         )
                     ]
-                    # For baseline mode, the pose needs to be explicitly defined relative to the wrist frame
-                    target_link = self.jaco_ee_link if self.mode == "baseline" else None
                     status, traj_jaco, planning_time = self.motion_planner.plan(
                         group_name=PLANNING_GROUP_JACO,
                         start_state=current_jaco_state,
                         goal_constraints=goal_constraints,
                         path_constraints=path_constraints,
-                        target_link=target_link,
+                        target_link=END_EFFECTOR_LINK_JACO,
                     )
                     cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
