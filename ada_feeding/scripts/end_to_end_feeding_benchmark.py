@@ -3087,6 +3087,151 @@ class EndToEndBenchmark:
                     else:
                         current_jaco_state = list(traj_jaco.points[-1].positions)
 
+            # --- Stage 8: Resting -> Staging ---
+            if not trial_failed:
+                if self.mode == "articutool":
+                    LOGGER.info("Stage 8: Resting -> Staging (Articutool)")
+                    (
+                        status,
+                        traj_jaco,
+                        traj_atool,
+                        verification_results,
+                        planning_time,
+                    ) = self._plan_to_staging(scene["staging_pose"], current_jaco_state)
+                    cartesian_path_length = self._calculate_cartesian_path_length(
+                        traj_jaco, PLANNING_GROUP_JACO
+                    )
+                    joint_travel = self._calculate_total_joint_travel(traj_jaco)
+                    trial_data["stages"].append(
+                        {
+                            "stage_name": "Staging",
+                            "status": status.value,
+                            "execution_mode": ExecutionMode.SYNCHRONOUS.value,
+                            "planning_time_sec": planning_time,
+                            "trajectory_path_length_m": cartesian_path_length,
+                            "total_joint_travel_rad": joint_travel,
+                            "custom_metrics": verification_results,
+                            "traj_jaco": self._serialize_trajectory(traj_jaco),
+                            "traj_atool": self._serialize_trajectory(traj_atool),
+                        }
+                    )
+                else:  # Baseline
+                    LOGGER.info("Stage 8: Resting -> Staging (Baseline)")
+                    goal_constraints = [create_pose_constraint(scene["staging_pose"])]
+                    path_constraints = [
+                        create_orientation_path_constraint(
+                            quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
+                            tolerance_rad=BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
+                        )
+                    ]
+                    status, traj_jaco, planning_time = self.motion_planner.plan(
+                        group_name=PLANNING_GROUP_JACO,
+                        start_state=current_jaco_state,
+                        goal_constraints=goal_constraints,
+                        path_constraints=path_constraints,
+                        target_link=self.jaco_ee_link,
+                    )
+                    cartesian_path_length = self._calculate_cartesian_path_length(
+                        traj_jaco, PLANNING_GROUP_JACO
+                    )
+                    joint_travel = self._calculate_total_joint_travel(traj_jaco)
+                    trial_data["stages"].append(
+                        {
+                            "stage_name": "Staging",
+                            "status": status.value,
+                            "execution_mode": ExecutionMode.JACO_ONLY.value,
+                            "planning_time_sec": planning_time,
+                            "trajectory_path_length_m": cartesian_path_length,
+                            "total_joint_travel_rad": joint_travel,
+                            "traj_jaco": self._serialize_trajectory(traj_jaco),
+                            "traj_atool": None,
+                        }
+                    )
+
+                if status != TrialStatus.SUCCESS:
+                    trial_failed = True
+                else:
+                    current_jaco_state = list(traj_jaco.points[-1].positions)
+                    if self.mode == "articutool" and traj_atool:
+                        current_atool_state = list(traj_atool.points[-1].positions)
+
+            # --- Stage 9: Staging -> Presentation ---
+            if not trial_failed:
+                if self.mode == "articutool":
+                    LOGGER.info("Stage 9: Staging -> Presentation (Articutool)")
+                    ik_sol_raw = self.motion_planner.compute_ik(
+                        PLANNING_GROUP_FULL,
+                        scene["presentation_pose"],
+                        current_jaco_state + current_atool_state,
+                    )
+                    ik_sol_full = self._extract_ordered_joint_solution(ik_sol_raw)
+
+                    if not ik_sol_full:
+                        status = TrialStatus.IK_FAILURE
+                        traj_jaco, traj_atool, planning_time = None, None, 0.0
+                    else:
+                        (
+                            status,
+                            traj_jaco,
+                            traj_atool,
+                            planning_time,
+                        ) = self._plan_to_presentation(
+                            ik_sol_full,
+                            scene["presentation_pose"],
+                            current_jaco_state,
+                        )
+                    cartesian_path_length_jaco = self._calculate_cartesian_path_length(
+                        traj_jaco, PLANNING_GROUP_JACO
+                    )
+                    cartesian_path_length_atool = self._calculate_cartesian_path_length(
+                        traj_atool, PLANNING_GROUP_ATOOL
+                    )
+                    joint_travel_jaco = self._calculate_total_joint_travel(traj_jaco)
+                    joint_travel_atool = self._calculate_total_joint_travel(traj_atool)
+                    trial_data["stages"].append(
+                        {
+                            "stage_name": "Presentation",
+                            "status": status.value,
+                            "execution_mode": ExecutionMode.SYNCHRONOUS.value,
+                            "planning_time_sec": planning_time,
+                            "trajectory_path_length_m": cartesian_path_length_jaco
+                            + cartesian_path_length_atool,
+                            "total_joint_travel_rad": joint_travel_jaco
+                            + joint_travel_atool,
+                            "traj_jaco": self._serialize_trajectory(traj_jaco),
+                            "traj_atool": self._serialize_trajectory(traj_atool),
+                        }
+                    )
+                else:  # Baseline
+                    LOGGER.info("Stage 9: Staging -> Presentation (Baseline)")
+                    goal_constraints = [
+                        create_pose_constraint(scene["presentation_pose"])
+                    ]
+                    status, traj_jaco, planning_time = self.motion_planner.plan(
+                        group_name=PLANNING_GROUP_JACO,
+                        start_state=current_jaco_state,
+                        goal_constraints=goal_constraints,
+                        cartesian=True,
+                    )
+                    cartesian_path_length = self._calculate_cartesian_path_length(
+                        traj_jaco, PLANNING_GROUP_JACO
+                    )
+                    joint_travel = self._calculate_total_joint_travel(traj_jaco)
+                    trial_data["stages"].append(
+                        {
+                            "stage_name": "Presentation",
+                            "status": status.value,
+                            "execution_mode": ExecutionMode.JACO_ONLY.value,
+                            "planning_time_sec": planning_time,
+                            "trajectory_path_length_m": cartesian_path_length,
+                            "total_joint_travel_rad": joint_travel,
+                            "traj_jaco": self._serialize_trajectory(traj_jaco),
+                        }
+                    )
+
+                if status != TrialStatus.SUCCESS:
+                    trial_failed = True
+
             # --- Finalize Trial ---
             if not trial_failed:
                 trial_data["end_to_end_success"] = True
