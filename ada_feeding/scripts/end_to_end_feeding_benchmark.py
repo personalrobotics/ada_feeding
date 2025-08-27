@@ -170,7 +170,7 @@ class SceneGenerationParams:
     )
     mouth_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="mouth",
-        inner_radius=0.4,
+        inner_radius=0.7,
         outer_radius=0.85,
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0.0, math.pi / 2),
@@ -192,7 +192,7 @@ class SceneGenerationParams:
     skewer_polar_angle_rad_max: float = math.pi / 2
     in_food_tool_roll_angle_deg: float = 180.0
     above_food_offset_dist: float = 0.1  # 10 cm
-    staging_offset_dist: float = 0.15  # 15 cm
+    staging_offset_dist: float = ARTICUTOOL_LENGTH_M + 0.25
     presentation_offset_dist: float = 0.02  # 2cm
 
 
