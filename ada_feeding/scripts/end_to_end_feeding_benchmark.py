@@ -1810,22 +1810,27 @@ class EndToEndBenchmark:
         self, trajectory: Optional[JointTrajectory], group_name: str
     ) -> float:
         """Calculates the Cartesian path length of the end-effector for a trajectory."""
-        if (
-            not trajectory
-            or not self.kinematics_model.is_ready()
-            or len(trajectory.points) < 2
-        ):
+        if not trajectory or not trajectory.points or len(trajectory.points) < 2:
             return 0.0
-
-        total_length = 0.0
-        last_position = None
-        joint_names = trajectory.joint_names
 
         # Determine the correct end-effector link for the planning group
         if group_name == PLANNING_GROUP_JACO:
             ee_link = self.jaco_ee_link
         else:
             ee_link = END_EFFECTOR_LINK_FULL
+
+        if (
+            not self.kinematics_model.is_ready()
+            or not self.kinematics_model.model.existFrame(ee_link)
+        ):
+            LOGGER.error(
+                f"Cannot calculate path length. Pinocchio model is not ready or frame '{ee_link}' does not exist."
+            )
+            return 0.0
+
+        total_length = 0.0
+        last_position = None
+        joint_names = trajectory.joint_names
 
         for point in trajectory.points:
             joint_map = dict(zip(joint_names, point.positions))
@@ -1835,7 +1840,11 @@ class EndToEndBenchmark:
             transform = self.kinematics_model.get_frame_transform(
                 ee_link, jaco_config, atool_config
             )
+
             if transform is None:
+                LOGGER.warning(
+                    f"FK failed for a waypoint when calculating path length for frame '{ee_link}'. Skipping point."
+                )
                 continue
 
             current_position = transform.translation
