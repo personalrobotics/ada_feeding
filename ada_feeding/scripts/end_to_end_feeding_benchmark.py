@@ -2394,12 +2394,16 @@ class EndToEndBenchmark:
             ),
         ]
 
+        # For baseline mode, the pose needs to be explicitly defined relative to the wrist frame
+        target_link = self.jaco_ee_link if self.mode == "baseline" else None
+
         # 3. Plan the 6-DOF trajectory for the Jaco arm
         status, traj_jaco, planning_time = self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
             start_state=start_state_jaco,
             goal_constraints=goal_constraints,
             cartesian=True,
+            target_link=target_link,
         )
 
         return status, traj_jaco, planning_time
@@ -2958,11 +2962,14 @@ class EndToEndBenchmark:
                             tolerance_rad=BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
                         )
                     ]
+                    # For baseline mode, the pose needs to be explicitly defined relative to the wrist frame
+                    target_link = self.jaco_ee_link if self.mode == "baseline" else None
                     status, traj_jaco, planning_time = self.motion_planner.plan(
                         group_name=PLANNING_GROUP_JACO,
                         start_state=current_jaco_state,
                         goal_constraints=goal_constraints,
                         path_constraints=path_constraints,
+                        target_link=target_link,
                     )
                     cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
