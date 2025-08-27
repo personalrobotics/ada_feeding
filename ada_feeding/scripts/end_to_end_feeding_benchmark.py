@@ -2153,10 +2153,14 @@ class EndToEndBenchmark:
             create_pose_constraint(above_plate_pose, tolerance_orientation=0.2)
         ]
 
+        # For baseline mode, the AbovePlate pose needs to be explicitly defined relative to the wrist frame
+        target_link = self.jaco_ee_link if self.mode == "baseline" else None
+
         return self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
             start_state=start_state_jaco,
             goal_constraints=goal_constraints,
+            target_link=target_link,
         )
 
     def _plan_to_above_food(
