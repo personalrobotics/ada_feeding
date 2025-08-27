@@ -193,6 +193,7 @@ class SceneGenerationParams:
     in_food_tool_roll_angle_deg: float = 180.0
     above_food_offset_dist: float = 0.1  # 10 cm
     staging_offset_dist: float = 0.15  # 15 cm
+    presentation_offset_dist: float = 0.02  # 2cm
 
 
 # --- Constraint Helpers ---
@@ -328,7 +329,12 @@ class SceneGenerator:
         scene_characteristics.update(
             self._characterize_pose(scene["above_food_pose"], "above_food_pose")
         )
-        scene["staging_pose"] = self._calculate_staging_pose(scene["mouth_pose"])
+        scene["presentation_pose"], scene["staging_pose"] = (
+            self._calculate_presentation_and_staging_poses(scene["mouth_pose"])
+        )
+        scene_characteristics.update(
+            self._characterize_pose(scene["presentation_pose"], "presentation_pose")
+        )
         scene_characteristics.update(
             self._characterize_pose(scene["staging_pose"], "staging_pose")
         )
@@ -706,6 +712,52 @@ class SceneGenerator:
             ),
             orientation=Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3]),
         )
+
+    def _calculate_presentation_and_staging_poses(
+        self,
+        mouth_pose: Pose,
+    ) -> Tuple[Pose, Pose]:
+        """
+        Calculates the final Presentation (tool tip) and Staging (wrist) poses.
+        Their positions are offset outwards from the mouth along its local X-axis.
+        """
+        # --- 1. Define the desired end-effector orientation ---
+        y_axis_new = np.array([0.0, 0.0, 1.0])
+        mouth_rot = R.from_quat(
+            [
+                mouth_pose.orientation.x,
+                mouth_pose.orientation.y,
+                mouth_pose.orientation.z,
+                mouth_pose.orientation.w,
+            ]
+        )
+        mouth_x_axis = mouth_rot.apply([1.0, 0.0, 0.0])
+        z_axis_new = -mouth_x_axis
+        x_axis_new = np.cross(y_axis_new, z_axis_new)
+        rotation_matrix = np.array([x_axis_new, y_axis_new, z_axis_new]).T
+        q = R.from_matrix(rotation_matrix).as_quat()
+        final_orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+
+        # --- 2. Calculate the offset positions ---
+        mouth_pos = np.array(
+            [mouth_pose.position.x, mouth_pose.position.y, mouth_pose.position.z]
+        )
+        presentation_pos = mouth_pos - (
+            mouth_x_axis * self.params.presentation_offset_dist
+        )
+        staging_pos = mouth_pos - (mouth_x_axis * self.params.staging_offset_dist)
+        presentation_pose = Pose(
+            position=Point(
+                x=presentation_pos[0], y=presentation_pos[1], z=presentation_pos[2]
+            ),
+            orientation=final_orientation,
+        )
+        staging_pose = Pose(
+            position=Point(x=staging_pos[0], y=staging_pos[1], z=staging_pos[2]),
+            orientation=final_orientation,
+        )
+
+        return presentation_pose, staging_pose
 
 
 # --- Core Benchmark Classes ---
