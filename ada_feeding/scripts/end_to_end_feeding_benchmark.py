@@ -2578,7 +2578,7 @@ class EndToEndBenchmark:
         """
         LOGGER.info("  Planning to Staging pose (S2-Heuristic)...")
 
-        goal_constraints = [create_position_constraint(staging_wrist_pose.position)]
+        goal_constraints = [create_pose_constraint(staging_wrist_pose)]
         path_constraints = [
             create_orientation_path_constraint(
                 quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
