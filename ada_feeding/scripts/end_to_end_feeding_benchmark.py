@@ -932,6 +932,7 @@ class MotionPlanner:
         start_state: Optional[List[float]],
         goal_constraints: List[Tuple[MoveIt2ConstraintType, Dict]],
         path_constraints: Optional[List[Tuple[MoveIt2ConstraintType, Dict]]] = None,
+        target_link: Optional[str] = None,
         cartesian: bool = False,
         cartesian_max_step: float = 0.001,
         cartesian_jump_threshold: float = 5.0,
@@ -979,11 +980,11 @@ class MotionPlanner:
                 if constraint_type == MoveIt2ConstraintType.JOINT:
                     planner.set_joint_goal(**kwargs)
                 elif constraint_type == MoveIt2ConstraintType.POSITION:
-                    planner.set_position_goal(**kwargs)
+                    planner.set_position_goal(**kwargs, target_link=target_link)
                 elif constraint_type == MoveIt2ConstraintType.ORIENTATION:
-                    planner.set_orientation_goal(**kwargs)
+                    planner.set_orientation_goal(**kwargs, target_link=target_link)
                 elif constraint_type == MoveIt2ConstraintType.POSE:
-                    planner.set_pose_goal(**kwargs)
+                    planner.set_pose_goal(**kwargs, target_link=target_link)
 
             # --- Process Path Constraints ---
             if path_constraints:
