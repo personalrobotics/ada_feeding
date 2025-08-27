@@ -1898,10 +1898,17 @@ class EndToEndBenchmark:
             for pitch, roll in solutions
         )
 
-    def _verify_trajectory(self, trajectory: JointTrajectory) -> float:
-        """Verifies a trajectory and returns the percentage of feasible waypoints."""
+    def _verify_trajectory(self, trajectory: JointTrajectory) -> Dict[str, Any]:
+        """
+        Verifies a trajectory and returns a dictionary of feasibility metrics.
+        Note: This is a purely kinematic check.
+        """
         if not trajectory or not trajectory.points:
-            return 0.0
+            return {
+                "feasible_percent": 0.0,
+                "kinematic_failures": 0,
+                "total_waypoints": 0,
+            }
 
         feasible_waypoints = 0
         for point in trajectory.points:
@@ -1909,7 +1916,18 @@ class EndToEndBenchmark:
             if self._is_config_kinematically_feasible(jaco_joint_config):
                 feasible_waypoints += 1
 
-        return (feasible_waypoints / len(trajectory.points)) * 100.0
+        total_waypoints = len(trajectory.points)
+        feasible_percent = (
+            (feasible_waypoints / total_waypoints) * 100.0
+            if total_waypoints > 0
+            else 0.0
+        )
+
+        return {
+            "feasible_percent": feasible_percent,
+            "kinematic_failures": total_waypoints - feasible_waypoints,
+            "total_waypoints": total_waypoints,
+        }
 
     def _calculate_directional_manipulability(
         self, jaco_joint_config: List[float], cartesian_direction: np.ndarray
@@ -2243,10 +2261,12 @@ class EndToEndBenchmark:
             planning_time,
         )
 
-    def _plan_to_reorient_wrist(
-        self, start_state_jaco: List[float]
-    ) -> Tuple[
-        TrialStatus, Optional[JointTrajectory], Optional[JointTrajectory], float, float
+    def _plan_to_reorient_wrist(self, start_state_jaco: List[float]) -> Tuple[
+        TrialStatus,
+        Optional[JointTrajectory],
+        Optional[JointTrajectory],
+        Dict[str, Any],
+        float,
     ]:
         """
         Plans a motion to reorient the Jaco EE to a neutral "level" pose (Y-axis up) while maintaining its current position.
@@ -2265,7 +2285,7 @@ class EndToEndBenchmark:
         )
         if not fk_poses:
             LOGGER.warning("  FK failed, cannot determine current wrist pose.")
-            return TrialStatus.IK_FAILURE, None, 0.0
+            return TrialStatus.IK_FAILURE, None, None, {}, 0.0
 
         current_ee_pose = fk_poses[0].pose
         current_position = current_ee_pose.position
@@ -2289,7 +2309,8 @@ class EndToEndBenchmark:
             return TrialStatus.PLANNER_FAILURE, None, None, 0.0, planning_time
 
         # 4. VERIFY the Jaco trajectory for leveling feasibility
-        feasibility_percent = self._verify_trajectory(traj_jaco)
+        verification_results = self._verify_trajectory(traj_jaco)
+        feasibility_percent = verification_results["feasible_percent"]
         if feasibility_percent < 99.0:
             LOGGER.warning(
                 f"  Path to Resting failed verification ({feasibility_percent:.1f}% feasible)."
@@ -2312,14 +2333,14 @@ class EndToEndBenchmark:
                 TrialStatus.IK_FAILURE,
                 traj_jaco,
                 None,
-                feasibility_percent,
+                verification_results,
                 planning_time,
             )
         return (
             TrialStatus.SUCCESS,
             traj_jaco,
             traj_atool,
-            feasibility_percent,
+            verification_results,
             planning_time,
         )
 
@@ -2440,7 +2461,8 @@ class EndToEndBenchmark:
             return TrialStatus.PLANNER_FAILURE, None, None, 0.0, planning_time
 
         # 3. VERIFY the Jaco trajectory for leveling feasibility
-        feasibility_percent = self._verify_trajectory(traj_jaco)
+        verification_results = self._verify_trajectory(traj_jaco)
+        feasibility_percent = verification_results["feasible_percent"]
         if feasibility_percent < 99.0:
             LOGGER.warning(
                 f"  Path to Resting failed verification ({feasibility_percent:.1f}% feasible)."
@@ -2540,9 +2562,10 @@ class EndToEndBenchmark:
                     LOGGER.warning(
                         f"  Attempt {attempt + 1} failed with status: {status.value}"
                     )
-                path_length = self._calculate_cartesian_path_length(
+                cartesian_path_length = self._calculate_cartesian_path_length(
                     traj_jaco, PLANNING_GROUP_JACO
                 )
+                joint_travel = self._calculate_total_joint_travel(traj_jaco)
                 trial_data["stages"].append(
                     {
                         "stage_name": "HomeToAbovePlate",
@@ -2550,7 +2573,8 @@ class EndToEndBenchmark:
                         "status": status.value,
                         "execution_mode": ExecutionMode.JACO_ONLY.value,
                         "planning_time_sec": total_planning_time,
-                        "trajectory_path_length_m": path_length,
+                        "trajectory_path_length_m": cartesian_path_length,
+                        "total_joint_travel_rad": joint_travel,
                         "custom_metrics": {},
                         "traj_jaco": self._serialize_trajectory(traj_jaco),
                         "traj_atool": None,
@@ -2642,12 +2666,14 @@ class EndToEndBenchmark:
                     ) = self._plan_to_above_food(
                         optimal_above_food_ik, current_jaco_state, current_atool_state
                     )
-                    path_length_jaco = self._calculate_cartesian_path_length(
+                    cartesian_path_length_jaco = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
                     )
-                    path_length_atool = self._calculate_cartesian_path_length(
+                    cartesian_path_length_atool = self._calculate_cartesian_path_length(
                         traj_atool, PLANNING_GROUP_ATOOL
                     )
+                    joint_travel_jaco = self._calculate_total_joint_travel(traj_jaco)
+                    joint_travel_atool = self._calculate_total_joint_travel(traj_atool)
                     trial_data["stages"].append(
                         {
                             "stage_name": "AbovePlateToAboveFood",
@@ -2655,8 +2681,10 @@ class EndToEndBenchmark:
                             "status": status.value,
                             "execution_mode": ExecutionMode.SEQUENTIAL.value,
                             "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": path_length_jaco
-                            + path_length_atool,
+                            "trajectory_path_length_m": cartesian_path_length_jaco
+                            + cartesian_path_length_atool,
+                            "total_joint_travel_rad": joint_travel_jaco
+                            + joint_travel_atool,
                             "custom_metrics": {},
                             "traj_jaco": self._serialize_trajectory(traj_jaco),
                             "traj_atool": self._serialize_trajectory(traj_atool),
@@ -2678,17 +2706,19 @@ class EndToEndBenchmark:
                         start_state=current_jaco_state,
                         goal_constraints=goal_constraints,
                     )
-                    path_length = self._calculate_cartesian_path_length(
+                    cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco,
                         PLANNING_GROUP_JACO,
                     )
+                    joint_travel = self._calculate_total_joint_travel(traj_jaco)
                     trial_data["stages"].append(
                         {
                             "stage_name": "AbovePlateToAboveFood",
                             "status": status.value,
                             "execution_mode": ExecutionMode.JACO_ONLY.value,
                             "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": path_length,
+                            "trajectory_path_length_m": cartesian_path_length,
+                            "total_joint_travel_rad": joint_travel,
                             "traj_jaco": self._serialize_trajectory(traj_jaco),
                         }
                     )
@@ -2710,9 +2740,14 @@ class EndToEndBenchmark:
                     ) = self._plan_to_in_food(
                         optimal_in_food_ik, scene["in_food_pose"], current_jaco_state
                     )
-                    path_length = self._calculate_cartesian_path_length(
+                    cartesian_path_length_jaco = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
                     )
+                    cartesian_path_length_atool = self._calculate_cartesian_path_length(
+                        traj_atool, PLANNING_GROUP_ATOOL
+                    )
+                    joint_travel_jaco = self._calculate_total_joint_travel(traj_jaco)
+                    joint_travel_atool = self._calculate_total_joint_travel(traj_atool)
                     trial_data["stages"].append(
                         {
                             "stage_name": "AboveFoodToInFood",
@@ -2720,7 +2755,10 @@ class EndToEndBenchmark:
                             "status": status.value,
                             "execution_mode": ExecutionMode.SYNCHRONOUS.value,
                             "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": path_length,
+                            "trajectory_path_length_m": cartesian_path_length_jaco
+                            + cartesian_path_length_atool,
+                            "total_joint_travel_rad": joint_travel_jaco
+                            + joint_travel_atool,
                             "custom_metrics": {},
                             "traj_jaco": self._serialize_trajectory(traj_jaco),
                             "traj_atool": self._serialize_trajectory(traj_atool),
@@ -2741,16 +2779,18 @@ class EndToEndBenchmark:
                         goal_constraints=goal_constraints,
                         cartesian=True,
                     )
-                    path_length = self._calculate_cartesian_path_length(
+                    cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
                     )
+                    joint_travel = self._calculate_total_joint_travel(traj_jaco)
                     trial_data["stages"].append(
                         {
                             "stage_name": "AboveFoodToInFood",
                             "status": status.value,
                             "execution_mode": ExecutionMode.JACO_ONLY.value,
                             "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": path_length,
+                            "trajectory_path_length_m": cartesian_path_length,
+                            "total_joint_travel_rad": joint_travel,
                             "traj_jaco": self._serialize_trajectory(traj_jaco),
                         }
                     )
@@ -2766,9 +2806,10 @@ class EndToEndBenchmark:
                     status, traj_atool, planning_time = self._plan_to_level_articutool(
                         jaco_wrist_pose, current_atool_state
                     )
-                    path_length = self._calculate_cartesian_path_length(
+                    cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_atool, PLANNING_GROUP_ATOOL
                     )
+                    joint_travel = self._calculate_total_joint_travel(traj_atool)
                     trial_data["stages"].append(
                         {
                             "stage_name": "LevelArticutool",
@@ -2776,7 +2817,8 @@ class EndToEndBenchmark:
                             "status": status.value,
                             "execution_mode": ExecutionMode.ATOOL_ONLY.value,
                             "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": path_length,
+                            "trajectory_path_length_m": cartesian_path_length,
+                            "total_joint_travel_rad": joint_travel,
                             "custom_metrics": {},
                             "traj_jaco": None,
                             "traj_atool": self._serialize_trajectory(traj_atool),
@@ -2798,12 +2840,14 @@ class EndToEndBenchmark:
                         status,
                         traj_jaco,
                         traj_atool,
-                        leveling_feasibility,
+                        verification_results,
                         planning_time,
                     ) = self._plan_to_reorient_wrist(current_jaco_state)
-                    path_length = self._calculate_cartesian_path_length(
+                    cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
                     )
+                    joint_travel_jaco = self._calculate_total_joint_travel(traj_jaco)
+                    joint_travel_atool = self._calculate_total_joint_travel(traj_atool)
                     trial_data["stages"].append(
                         {
                             "stage_name": "ReorientWrist",
@@ -2811,10 +2855,10 @@ class EndToEndBenchmark:
                             "status": status.value,
                             "execution_mode": ExecutionMode.SYNCHRONOUS.value,
                             "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": path_length,
-                            "custom_metrics": {
-                                "leveling_feasibility_percent": leveling_feasibility
-                            },
+                            "trajectory_path_length_m": cartesian_path_length,
+                            "total_joint_travel_rad": joint_travel_jaco
+                            + joint_travel_atool,
+                            "custom_metrics": verification_results,
                             "traj_jaco": self._serialize_trajectory(traj_jaco),
                             "traj_atool": self._serialize_trajectory(traj_atool),
                         }
@@ -2830,9 +2874,10 @@ class EndToEndBenchmark:
                     status, traj_jaco, planning_time = (
                         self._plan_to_reorient_arm_baseline(current_jaco_state)
                     )
-                    path_length = self._calculate_cartesian_path_length(
+                    cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
                     )
+                    joint_travel = self._calculate_total_joint_travel(traj_jaco)
                     trial_data["stages"].append(
                         {
                             "stage_name": "ReorientWrist",
@@ -2840,7 +2885,8 @@ class EndToEndBenchmark:
                             "status": status.value,
                             "execution_mode": ExecutionMode.JACO_ONLY.value,
                             "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": path_length,
+                            "trajectory_path_length_m": cartesian_path_length,
+                            "total_joint_travel_rad": joint_travel,
                             "traj_jaco": self._serialize_trajectory(traj_jaco),
                         }
                     )
@@ -2857,12 +2903,14 @@ class EndToEndBenchmark:
                         status,
                         traj_jaco,
                         traj_atool,
-                        leveling_feasibility,
+                        verification_results,
                         planning_time,
                     ) = self._plan_to_resting(scene["resting_pose"], current_jaco_state)
-                    path_length = self._calculate_cartesian_path_length(
+                    cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
                     )
+                    joint_travel_jaco = self._calculate_total_joint_travel(traj_jaco)
+                    joint_travel_atool = self._calculate_total_joint_travel(traj_atool)
                     trial_data["stages"].append(
                         {
                             "stage_name": "Resting",
@@ -2870,10 +2918,10 @@ class EndToEndBenchmark:
                             "status": status.value,
                             "execution_mode": ExecutionMode.SYNCHRONOUS.value,
                             "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": path_length,
-                            "custom_metrics": {
-                                "leveling_feasibility_percent": leveling_feasibility
-                            },
+                            "trajectory_path_length_m": cartesian_path_length,
+                            "total_joint_travel_rad": joint_travel_jaco
+                            + joint_travel_atool,
+                            "custom_metrics": verification_results,
                             "traj_jaco": self._serialize_trajectory(traj_jaco),
                             "traj_atool": self._serialize_trajectory(traj_atool),
                         }
@@ -2901,9 +2949,10 @@ class EndToEndBenchmark:
                         goal_constraints=goal_constraints,
                         path_constraints=path_constraints,
                     )
-                    path_length = self._calculate_cartesian_path_length(
+                    cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
                     )
+                    joint_travel = self._calculate_total_joint_travel(traj_jaco)
                     trial_data["stages"].append(
                         {
                             "stage_name": "Resting",
@@ -2911,7 +2960,8 @@ class EndToEndBenchmark:
                             "status": status.value,
                             "execution_mode": ExecutionMode.JACO_ONLY.value,
                             "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": path_length,
+                            "trajectory_path_length_m": cartesian_path_length,
+                            "total_joint_travel_rad": joint_travel,
                             "traj_jaco": self._serialize_trajectory(traj_jaco),
                         }
                     )
