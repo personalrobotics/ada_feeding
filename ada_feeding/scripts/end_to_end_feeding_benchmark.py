@@ -2848,40 +2848,7 @@ class EndToEndBenchmark:
             # --- Stage 6: LevelArticutool -> Reorient Wrist ---
             if not trial_failed:
                 if self.mode == "articutool":
-                    LOGGER.info("Stage 6: Reorient Wrist")
-                    (
-                        status,
-                        traj_jaco,
-                        traj_atool,
-                        verification_results,
-                        planning_time,
-                    ) = self._plan_to_reorient_wrist(current_jaco_state)
-                    cartesian_path_length = self._calculate_cartesian_path_length(
-                        traj_jaco, PLANNING_GROUP_JACO
-                    )
-                    joint_travel_jaco = self._calculate_total_joint_travel(traj_jaco)
-                    joint_travel_atool = self._calculate_total_joint_travel(traj_atool)
-                    trial_data["stages"].append(
-                        {
-                            "stage_name": "ReorientWrist",
-                            "target_frame": END_EFFECTOR_LINK_JACO,
-                            "status": status.value,
-                            "execution_mode": ExecutionMode.SYNCHRONOUS.value,
-                            "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length,
-                            "total_joint_travel_rad": joint_travel_jaco
-                            + joint_travel_atool,
-                            "custom_metrics": verification_results,
-                            "traj_jaco": self._serialize_trajectory(traj_jaco),
-                            "traj_atool": self._serialize_trajectory(traj_atool),
-                        }
-                    )
-                    if status != TrialStatus.SUCCESS:
-                        LOGGER.error(f"  Stage 6 failed. Skipping trial.")
-                        trial_failed = True
-                    else:
-                        current_jaco_state = list(traj_jaco.points[-1].positions)
-                        current_atool_state = list(traj_atool.points[-1].positions)
+                    LOGGER.info("Stage 6: Reorient Wrist (SKIPPING FOR ARTICUTOOL)")
                 else:
                     LOGGER.info("Stage 6: Reorient Wrist")
                     status, traj_jaco, planning_time = (
