@@ -2959,10 +2959,10 @@ class EndToEndBenchmark:
                     else:
                         current_jaco_state = list(traj_jaco.points[-1].positions)
 
-            # --- Stage 5: InFood -> LevelArticutool ---
+            # --- Stage 5: InFood -> LevelTool ---
             if not trial_failed:
                 if self.mode == "articutool":
-                    LOGGER.info("Stage 5: Level Articutool")
+                    LOGGER.info("Stage 5: Level Tool")
                     status, traj_atool, planning_time = self._plan_to_level_articutool(
                         jaco_wrist_pose, current_atool_state
                     )
@@ -2972,7 +2972,7 @@ class EndToEndBenchmark:
                     joint_travel = self._calculate_total_joint_travel(traj_atool)
                     trial_data["stages"].append(
                         {
-                            "stage_name": "LevelArticutool",
+                            "stage_name": "LevelTool",
                             "target_frame": END_EFFECTOR_LINK_ATOOL,
                             "status": status.value,
                             "execution_mode": ExecutionMode.ATOOL_ONLY.value,
@@ -2990,14 +2990,7 @@ class EndToEndBenchmark:
                     else:
                         current_atool_state = list(traj_atool.points[-1].positions)
                 else:
-                    LOGGER.info("Stage 5: Level Articutool (SKIPPING FOR BASELINE)")
-
-            # --- Stage 6: LevelArticutool -> Reorient Wrist ---
-            if not trial_failed:
-                if self.mode == "articutool":
-                    LOGGER.info("Stage 6: Reorient Wrist (SKIPPING FOR ARTICUTOOL)")
-                else:
-                    LOGGER.info("Stage 6: Reorient Wrist")
+                    LOGGER.info("Stage 5: Level Tool")
                     status, traj_jaco, planning_time = (
                         self._plan_to_reorient_arm_baseline(current_jaco_state)
                     )
@@ -3007,7 +3000,7 @@ class EndToEndBenchmark:
                     joint_travel = self._calculate_total_joint_travel(traj_jaco)
                     trial_data["stages"].append(
                         {
-                            "stage_name": "ReorientWrist",
+                            "stage_name": "LevelTool",
                             "target_frame": self.jaco_ee_link,
                             "status": status.value,
                             "execution_mode": ExecutionMode.JACO_ONLY.value,
@@ -3022,10 +3015,10 @@ class EndToEndBenchmark:
                     else:
                         current_jaco_state = list(traj_jaco.points[-1].positions)
 
-            # --- Stage 7: LevelArticutool -> Resting ---
+            # --- Stage 6: LevelArticutool -> Resting ---
             if not trial_failed:
                 if self.mode == "articutool":
-                    LOGGER.info("Stage 7: Resting")
+                    LOGGER.info("Stage 6: Resting")
                     (
                         status,
                         traj_jaco,
@@ -3060,7 +3053,7 @@ class EndToEndBenchmark:
                         current_jaco_state = list(traj_jaco.points[-1].positions)
                         current_atool_state = list(traj_atool.points[-1].positions)
                 else:
-                    LOGGER.info("Stage 7: Resting")
+                    LOGGER.info("Stage 6: Resting")
                     goal_constraints = [
                         create_position_constraint(scene["resting_pose"].position)
                     ]
@@ -3099,10 +3092,10 @@ class EndToEndBenchmark:
                     else:
                         current_jaco_state = list(traj_jaco.points[-1].positions)
 
-            # --- Stage 8: Resting -> Staging ---
+            # --- Stage 7: Resting -> Staging ---
             if not trial_failed:
                 if self.mode == "articutool":
-                    LOGGER.info("Stage 8: Resting -> Staging (Articutool)")
+                    LOGGER.info("Stage 7: Resting -> Staging")
                     (
                         status,
                         traj_jaco,
@@ -3127,8 +3120,8 @@ class EndToEndBenchmark:
                             "traj_atool": self._serialize_trajectory(traj_atool),
                         }
                     )
-                else:  # Baseline
-                    LOGGER.info("Stage 8: Resting -> Staging (Baseline)")
+                else:
+                    LOGGER.info("Stage 7: Resting -> Staging")
                     goal_constraints = [create_pose_constraint(scene["staging_pose"])]
                     path_constraints = [
                         create_orientation_path_constraint(
@@ -3168,10 +3161,10 @@ class EndToEndBenchmark:
                     if self.mode == "articutool" and traj_atool:
                         current_atool_state = list(traj_atool.points[-1].positions)
 
-            # --- Stage 9: Staging -> Presentation ---
+            # --- Stage 8: Staging -> Presentation ---
             if not trial_failed:
                 if self.mode == "articutool":
-                    LOGGER.info("Stage 9: Staging -> Presentation (Articutool)")
+                    LOGGER.info("Stage 8: Staging -> Presentation")
                     ik_sol_raw = self.motion_planner.compute_ik(
                         PLANNING_GROUP_FULL,
                         scene["presentation_pose"],
@@ -3215,8 +3208,8 @@ class EndToEndBenchmark:
                             "traj_atool": self._serialize_trajectory(traj_atool),
                         }
                     )
-                else:  # Baseline
-                    LOGGER.info("Stage 9: Staging -> Presentation (Baseline)")
+                else:
+                    LOGGER.info("Stage 8: Staging -> Presentation")
                     goal_constraints = [
                         create_pose_constraint(scene["presentation_pose"])
                     ]
