@@ -2511,7 +2511,12 @@ class EndToEndBenchmark:
         LOGGER.info("  Planning to Resting pose (S2-Heuristic)...")
 
         # 1. Define goal and path constraints for the Jaco arm's wrist
-        goal_constraints = [create_position_constraint(resting_wrist_pose.position)]
+        goal_constraints = [
+            create_position_constraint(resting_wrist_pose.position),
+            create_orientation_path_constraint(
+                quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW, tolerance_rad=(0.1, 2 * np.pi, 0.1)
+            ),
+        ]
         path_constraints = [
             create_orientation_path_constraint(
                 quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
