@@ -984,7 +984,7 @@ class MotionPlanner:
         start_state: Optional[List[float]],
         goal_constraints: List[Tuple[MoveIt2ConstraintType, Dict]],
         path_constraints: Optional[List[Tuple[MoveIt2ConstraintType, Dict]]] = None,
-        planning_time: Optional[float] = None,
+        planning_time: float = 5.0,
         target_link: Optional[str] = None,
         cartesian: bool = False,
         cartesian_max_step: float = 0.001,
@@ -1040,8 +1040,7 @@ class MotionPlanner:
                     planner.set_pose_goal(**kwargs, target_link=target_link)
 
             # Set the planning time for this specific plan request
-            if planning_time is not None:
-                planner.allowed_planning_time = planning_time
+            planner.allowed_planning_time = planning_time
 
             # --- Process Path Constraints ---
             if path_constraints:
