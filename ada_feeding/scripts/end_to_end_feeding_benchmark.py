@@ -2526,6 +2526,7 @@ class EndToEndBenchmark:
             start_state=start_state_jaco,
             goal_constraints=goal_constraints,
             path_constraints=path_constraints,
+            planning_time=20.0,
         )
         if status != TrialStatus.SUCCESS:
             return TrialStatus.PLANNER_FAILURE, None, None, 0.0, planning_time
