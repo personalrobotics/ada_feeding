@@ -3076,6 +3076,7 @@ class EndToEndBenchmark:
                         goal_constraints=goal_constraints,
                         path_constraints=path_constraints,
                         target_link=END_EFFECTOR_LINK_JACO,
+                        planning_time=20.0,
                     )
                     cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
@@ -3141,6 +3142,7 @@ class EndToEndBenchmark:
                         goal_constraints=goal_constraints,
                         path_constraints=path_constraints,
                         target_link=self.jaco_ee_link,
+                        planning_time=20.0,
                     )
                     cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
