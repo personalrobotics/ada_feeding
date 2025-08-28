@@ -2746,11 +2746,11 @@ class EndToEndBenchmark:
                 else:
                     current_jaco_state = list(traj_jaco.points[-1].positions)
 
-            # --- Stage 2: Optimize Acquisition Poses ---
+            # --- Stage 2: Pre-acquisition ---
             optimal_above_food_ik, optimal_in_food_ik = None, None
             if not trial_failed:
                 if self.mode == "articutool":
-                    LOGGER.info("Stage 2: Optimize Acquisition Poses")
+                    LOGGER.info("Stage 2: Pre-acquisition")
                     # Note: This optimization step doesn't generate a trajectory itself
                     start_time = time.time()
                     optimal_above_food_ik, optimal_in_food_ik = (
@@ -2772,7 +2772,7 @@ class EndToEndBenchmark:
                     )
                     trial_data["stages"].append(
                         {
-                            "stage_name": "OptimizeAcquisition",
+                            "stage_name": "PreAcquisition",
                             "status": status.value,
                             "planning_time_sec": planning_time,
                         }
@@ -2783,7 +2783,7 @@ class EndToEndBenchmark:
                         )
                         trial_failed = True
                 else:
-                    LOGGER.info("Stage 2: Check Acquisition Reachability")
+                    LOGGER.info("Stage 2: Pre-acquisition")
                     start_time = time.time()
                     ik_above = self.motion_planner.compute_ik(
                         PLANNING_GROUP_JACO,
@@ -2803,7 +2803,7 @@ class EndToEndBenchmark:
                     )
                     trial_data["stages"].append(
                         {
-                            "stage_name": "CheckAcquisitionReachability",
+                            "stage_name": "PreAcquisition",
                             "status": status.value,
                             "planning_time_sec": planning_time,
                         }
