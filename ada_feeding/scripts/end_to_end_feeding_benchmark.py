@@ -2096,7 +2096,7 @@ class EndToEndBenchmark:
                 ),
                 tolerance_rad=(
                     math.pi,
-                    2 * math.pi,
+                    math.pi / 2,
                     math.pi / 4,
                 ),
             )
