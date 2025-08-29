@@ -145,7 +145,8 @@ class AcquireFoodTree(MoveToTree):
         # Initialize ActionServerBT
         super().__init__(node)
 
-        self.resting_joint_positions = resting_joint_positions
+        #changed from self.resting_joint_positions = resting_joint_positions to = None to prevent a resting position
+        self.resting_joint_positions = None
         self.max_velocity_scaling_move_above = max_velocity_scaling_move_above
         self.max_acceleration_scaling_move_above = max_acceleration_scaling_move_above
         self.max_velocity_scaling_move_into = max_velocity_scaling_move_into
