@@ -145,7 +145,9 @@ class AcquireFoodTree(MoveToTree):
         # Initialize ActionServerBT
         super().__init__(node)
 
-        self.resting_joint_positions = resting_joint_positions
+        # LIANDER overwriting the resting joint positions to none so that the robot doesnt go to one
+        # previously self.resting_joint_positions = resting_joint_positions
+        self.resting_joint_positions = None
         self.max_velocity_scaling_move_above = max_velocity_scaling_move_above
         self.max_acceleration_scaling_move_above = max_acceleration_scaling_move_above
         self.max_velocity_scaling_move_into = max_velocity_scaling_move_into
@@ -280,6 +282,7 @@ class AcquireFoodTree(MoveToTree):
                                 )
                             },
                         ),
+                        #FOR LIANDER: this is where we move to resting
                         MoveIt2Execute(
                             name="Resting",
                             ns=name,
