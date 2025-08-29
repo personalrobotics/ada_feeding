@@ -39,7 +39,12 @@ from sensor_msgs.msg import JointState
 from scipy.spatial.transform import Rotation as R
 import pinocchio as pin
 from moveit_msgs.msg import PlanningScene, AllowedCollisionEntry, AllowedCollisionMatrix
-from moveit_msgs.msg import Constraints, OrientationConstraint, PositionConstraint
+from moveit_msgs.msg import (
+    Constraints,
+    OrientationConstraint,
+    PositionConstraint,
+    JointConstraint,
+)
 from moveit_msgs.srv import GetPlanningScene
 from moveit_msgs.msg import CollisionObject
 from shape_msgs.msg import SolidPrimitive
@@ -834,6 +839,27 @@ class MotionPlanner:
         constraint.weight = kwargs.get("weight", 1.0)
         return constraint
 
+    def _create_joint_constraint_msg(
+        self, planner: MoveIt2, kwargs: Dict
+    ) -> List[JointConstraint]:
+        """Creates a list of JointConstraint messages from a dictionary."""
+        joint_constraints = []
+        if "joint_names" not in kwargs or "joint_positions" not in kwargs:
+            self._node.get_logger().error(
+                "Joint constraints require 'joint_names' and 'joint_positions'."
+            )
+            return joint_constraints
+
+        for name, pos in zip(kwargs["joint_names"], kwargs["joint_positions"]):
+            constraint = JointConstraint()
+            constraint.joint_name = name
+            constraint.position = pos
+            constraint.tolerance_above = kwargs.get("tolerance", 0.01)
+            constraint.tolerance_below = kwargs.get("tolerance", 0.01)
+            constraint.weight = kwargs.get("weight", 1.0)
+            joint_constraints.append(constraint)
+        return joint_constraints
+
     @staticmethod
     def _scale_cartesian_trajectory_velocity(
         traj: JointTrajectory, scale_factor: float
@@ -936,6 +962,9 @@ class MotionPlanner:
             elif constraint_type == MoveIt2ConstraintType.POSITION:
                 msg = self._create_position_constraint_msg(planner, kwargs)
                 constraints_msg.position_constraints.append(msg)
+            elif constraint_type == MoveIt2ConstraintType.JOINT:
+                msgs = self._create_joint_constraint_msg(planner, kwargs)
+                constraints_msg.joint_constraints.extend(msgs)
             else:
                 self._node.get_logger().warn(
                     f"Constraint type '{constraint_type.value}' not yet supported in compute_constrained_ik."
