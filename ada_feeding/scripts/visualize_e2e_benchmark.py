@@ -181,14 +181,13 @@ def select_trial(df: pd.DataFrame) -> Optional[pd.DataFrame]:
     trial_completion_info = {}
     stage_order = [
         "HomeToAbovePlate",
-        "CheckAcquisitionReachability",
-        "OptimizeAcquisition",
+        "PreAcquisition",
         "AbovePlateToAboveFood",
         "AboveFoodToInFood",
-        "LevelArticutool",
-        "ReorientArm",
+        "LevelTool",
         "Resting",
         "Staging",
+        "Presentation",
     ]
     for trial_id in all_trial_ids:
         trial_df = df[df["trial_id"] == trial_id]
@@ -503,14 +502,13 @@ def trial_visualization_loop(pin_viz, model, data, trial_df, args):
     stage_data_map = {row["stage_name"]: row for row in trial_df.to_dict("records")}
     stage_order = [
         "HomeToAbovePlate",
-        "CheckAcquisitionReachability",
-        "OptimizeAcquisition",
+        "PreAcquisition",
         "AbovePlateToAboveFood",
         "AboveFoodToInFood",
-        "LevelArticutool",
-        "ReorientArm",
+        "LevelTool",
         "Resting",
         "Staging",
+        "Presentation",
     ]
 
     while True:
