@@ -166,12 +166,12 @@ class SceneGenerationParams:
 
     food_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="food",
-        inner_radius=0.4,
+        inner_radius=0.5,
         outer_radius=0.85,
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0.0, math.pi / 2),  # Upper hemisphere
-        min_height=0.1,
-        max_height=0.4,
+        min_height=0.0,
+        max_height=0.25,
     )
     mouth_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="mouth",
@@ -196,7 +196,7 @@ class SceneGenerationParams:
     above_plate_yaw_variability_rad: float = math.pi / 8
     skewer_polar_angle_rad_max: float = math.pi / 2
     in_food_tool_roll_angle_deg: float = 180.0
-    above_food_offset_dist: float = 0.1  # 10 cm
+    above_food_offset_dist: float = 0.05
     staging_offset_dist: float = ARTICUTOOL_LENGTH_M + 0.25
     presentation_offset_dist: float = 0.02  # 2cm
 
@@ -902,7 +902,10 @@ class MotionPlanner:
         kwargs["frame_id"] = planner.base_link_name
 
     def compute_ik(
-        self, group_name: str, target_pose: Pose, start_joint_state: List[float]
+        self,
+        group_name: str,
+        target_pose: Pose,
+        start_joint_state: Optional[List[float]] = None,
     ) -> Optional[JointState]:
         """
         Computes Inverse Kinematics for a given group and target pose.
@@ -1222,6 +1225,40 @@ class PinocchioModel:
             return self.data.oMf[frame_id]
         except Exception as e:
             LOGGER.error(f"Pinocchio FK failed for frame '{frame_name}': {e}")
+            return None
+
+    def get_relative_transform(
+        self,
+        parent_frame: str,
+        child_frame: str,
+        jaco_joints: List[float],
+        atool_joints: Optional[List[float]] = None,
+    ) -> Optional[pin.SE3]:
+        """
+        Computes the relative SE(3) transform from a parent frame to a child frame.
+        """
+        if not self.is_ready():
+            return None
+
+        try:
+            # Update the model's configuration for the full robot state
+            q = self._update_configuration(jaco_joints, atool_joints)
+            pin.forwardKinematics(self.model, self.data, q)
+            pin.updateFramePlacements(self.model, self.data)
+
+            # Get world transforms for both frames
+            parent_id = self.model.getFrameId(parent_frame)
+            T_world_parent = self.data.oMf[parent_id]
+
+            child_id = self.model.getFrameId(child_frame)
+            T_world_child = self.data.oMf[child_id]
+
+            # Compute the relative transform T_parent_child
+            return T_world_parent.inverse() * T_world_child
+        except Exception as e:
+            LOGGER.error(
+                f"Pinocchio relative transform failed for '{parent_frame}' -> '{child_frame}': {e}"
+            )
             return None
 
     def get_frame_jacobian(
@@ -1821,6 +1858,25 @@ class EndToEndBenchmark:
             traj_atool.points.append(point_msg)
 
         return traj_atool
+
+    def _generate_hold_trajectory(
+        self,
+        reference_traj: JointTrajectory,
+        joint_names: List[str],
+        joint_positions: List[float],
+    ) -> JointTrajectory:
+        """Creates a trajectory that holds a fixed position for the duration of a reference trajectory."""
+        hold_traj = JointTrajectory()
+        hold_traj.joint_names = joint_names
+        for point in reference_traj.points:
+            new_point = JointTrajectoryPoint()
+            new_point.positions = joint_positions
+            # Set velocities and accelerations to zero
+            new_point.velocities = [0.0] * len(joint_names)
+            new_point.accelerations = [0.0] * len(joint_names)
+            new_point.time_from_start = point.time_from_start
+            hold_traj.points.append(new_point)
+        return hold_traj
 
     def _solve_articutool_ik(
         self, target_vector: np.ndarray
@@ -2685,6 +2741,150 @@ class EndToEndBenchmark:
 
         return TrialStatus.SUCCESS, traj_jaco, traj_atool, planning_time
 
+    def _calculate_jaco_ee_poses_for_skewer(
+        self,
+        above_food_tool_pose: Pose,
+        in_food_tool_pose: Pose,
+        atool_config: List[float],
+    ) -> Tuple[Optional[Pose], Optional[Pose]]:
+        """
+        Calculates the required Jaco EE start and end poses for a fixed Articutool configuration.
+        This version is built from first principles to be more robust.
+        """
+        try:
+            # 1. Get the precise SE(3) transform from the Jaco wrist to the tool tip (T_wrist_tip)
+            #    This is based on the required Articutool configuration for this skewer.
+            T_wrist_tip = self.kinematics_model.get_relative_transform(
+                parent_frame=END_EFFECTOR_LINK_JACO,
+                child_frame=END_EFFECTOR_LINK_ATOOL,
+                jaco_joints=[0.0] * 6,
+                atool_joints=atool_config,
+            )
+            if T_wrist_tip is None:
+                raise ValueError("Failed to compute relative transform T_wrist_tip")
+
+            # We will perform the same calculation for both the start (AboveFood) and end (InFood) poses.
+            # Let's create a helper inner function to avoid repeating code.
+            def get_wrist_pose_from_tip_pose(tip_pose: Pose) -> Pose:
+                # 2. Get the target tool tip pose in world frame (T_world_tip)
+                p_tip = tip_pose.position
+                q_tip = tip_pose.orientation
+                T_world_tip = pin.SE3(
+                    R.from_quat([q_tip.x, q_tip.y, q_tip.z, q_tip.w]).as_matrix(),
+                    np.array([p_tip.x, p_tip.y, p_tip.z]),
+                )
+
+                # 3. Calculate the required Jaco wrist pose using the core kinematic relationship.
+                # T_world_wrist = T_world_tip * T_tip_wrist
+                # where T_tip_wrist = T_wrist_tip.inverse()
+                T_world_wrist = T_world_tip * T_wrist_tip.inverse()
+
+                # 4. Convert the final SE(3) transform back to a Pose message.
+                wrist_pose = Pose()
+                wrist_pos = T_world_wrist.translation
+                wrist_quat = R.from_matrix(T_world_wrist.rotation).as_quat()
+                wrist_pose.position = Point(
+                    x=wrist_pos[0], y=wrist_pos[1], z=wrist_pos[2]
+                )
+                wrist_pose.orientation = Quaternion(
+                    x=wrist_quat[0], y=wrist_quat[1], z=wrist_quat[2], w=wrist_quat[3]
+                )
+                return wrist_pose
+
+            # Calculate the poses for both stages
+            start_ws_pose = get_wrist_pose_from_tip_pose(above_food_tool_pose)
+            end_ws_pose = get_wrist_pose_from_tip_pose(in_food_tool_pose)
+
+            return start_ws_pose, end_ws_pose
+
+        except Exception as e:
+            LOGGER.error(f"  Failed during wrist pose calculation: {e}")
+            return None, None
+
+    def _find_optimal_skewer_config(
+        self,
+        above_food_tool_pose: Pose,
+        in_food_tool_pose: Pose,
+        skewer_polar_angle: float,
+    ) -> Tuple[Optional[Pose], Optional[Pose], Optional[Dict[str, float]]]:
+        """
+        Finds an optimal pair of Jaco EE poses for the skewer motion.
+
+        It searches through a prioritized list of Jaco EE tilt angles, finding the
+        first one that yields a valid, collision-free IK solution. This ensures
+        the arm is in a 'comfortable' posture that keeps the Articutool away
+        from its joint limits after leveling.
+        """
+        LOGGER.info("  Searching for optimal skewer configuration...")
+
+        # Prioritized list of candidate Jaco wrist pitch angles (in radians).
+        # A more negative angle is more "level" and thus more "comfortable"
+        # for post-acquisition motions.
+        candidate_tilts_rad = [
+            np.deg2rad(-45.0),
+            np.deg2rad(-30.0),
+            np.deg2rad(-15.0),
+            np.deg2rad(0.0),
+        ]
+
+        for jaco_pitch_tilt in candidate_tilts_rad:
+            try:
+                # 1. Calculate the required Articutool pitch to achieve the skewer angle.
+                # Tool Tip Pitch = Jaco Wrist Pitch + Articutool Pitch
+                required_atool_pitch = skewer_polar_angle + jaco_pitch_tilt
+
+                # 2. Check if this required Articutool pitch is within its joint limits.
+                if not (
+                    ARTICUTOOL_PITCH_LIMITS_RAD[0] - EPSILON
+                    <= required_atool_pitch
+                    <= ARTICUTOOL_PITCH_LIMITS_RAD[1] + EPSILON
+                ):
+                    LOGGER.info(
+                        f"  Skipping Jaco tilt {np.rad2deg(jaco_pitch_tilt):.1f} deg; "
+                        f"required Articutool pitch {np.rad2deg(required_atool_pitch):.1f} deg is out of bounds."
+                    )
+                    continue
+
+                atool_config = [required_atool_pitch, 0.0]
+
+                # 3. Calculate the corresponding Jaco wrist poses for this valid combo.
+                start_wrist_pose, end_wrist_pose = (
+                    self._calculate_jaco_ee_poses_for_skewer(
+                        above_food_tool_pose, in_food_tool_pose, atool_config
+                    )
+                )
+                if not start_wrist_pose:
+                    continue  # Try next tilt if calculation fails.
+
+                # 4. Check if this target Jaco wrist pose is kinematically reachable.
+                ik_solution = self.motion_planner.compute_ik(
+                    group_name=PLANNING_GROUP_JACO,
+                    target_pose=start_wrist_pose,
+                )
+
+                if ik_solution:
+                    LOGGER.info(
+                        f"  Success! Found valid IK for Jaco tilt of {np.rad2deg(jaco_pitch_tilt):.1f} degrees."
+                    )
+                    # Return the poses and the angles that produced them.
+                    winning_angles = {
+                        "skewer_polar_angle_rad": skewer_polar_angle,
+                        "chosen_jaco_pitch_tilt_rad": jaco_pitch_tilt,
+                        "calculated_atool_pitch_rad": required_atool_pitch,
+                    }
+                    return start_wrist_pose, end_wrist_pose, winning_angles
+
+            except Exception as e:
+                LOGGER.warning(
+                    f"  Exception while checking tilt {np.rad2deg(jaco_pitch_tilt)} deg: {e}"
+                )
+                continue
+
+        LOGGER.error(
+            "  Failed to find any valid skewer configuration after trying all tilts."
+        )
+        return None, None, None
+
     # --- Main Benchmark Loop ---
     def run(self):
         """Main benchmark execution loop with granular metric collection."""
@@ -2776,27 +2976,31 @@ class EndToEndBenchmark:
                     current_jaco_state = list(traj_jaco.points[-1].positions)
 
             # --- Stage 2: Pre-acquisition ---
-            optimal_above_food_ik, optimal_in_food_ik = None, None
+            jaco_ee_above_food, jaco_ee_in_food, skewer_angles = None, None, None
             if not trial_failed:
                 if self.mode == "articutool":
                     LOGGER.info("Stage 2: Pre-acquisition")
-                    # Note: This optimization step doesn't generate a trajectory itself
                     start_time = time.time()
-                    optimal_above_food_ik, optimal_in_food_ik = (
-                        self._find_optimal_acquisition_ik_pair(
-                            scene["above_food_pose"],
-                            scene["in_food_pose"],
-                            current_jaco_state + current_atool_state,
-                            num_ik_attempts=1,
+                    jaco_ee_above_food, jaco_ee_in_food, skewer_angles = (
+                        self._find_optimal_skewer_config(
+                            above_food_tool_pose=scene["above_food_pose"],
+                            in_food_tool_pose=scene["in_food_pose"],
+                            skewer_polar_angle=scene_characteristics[
+                                "in_food_sampled_polar_angle_rad"
+                            ],
                         )
                     )
-                    LOGGER.info(
-                        f"Found optimal IK solutions for AboveFood ({optimal_above_food_ik}) and InFood ({optimal_in_food_ik})"
-                    )
+                    if skewer_angles:
+                        LOGGER.info(
+                            "  Optimal skewer angles (deg): "
+                            f"Jaco Tilt: {np.rad2deg(skewer_angles['chosen_jaco_pitch_tilt_rad']):.1f}, "
+                            f"Atool Pitch: {np.rad2deg(skewer_angles['calculated_atool_pitch_rad']):.1f}, "
+                            f"Target Skewer Angle: {np.rad2deg(skewer_angles['skewer_polar_angle_rad']):.1f}"
+                        )
                     planning_time = time.time() - start_time
                     status = (
                         TrialStatus.SUCCESS
-                        if optimal_above_food_ik
+                        if jaco_ee_above_food and jaco_ee_in_food
                         else TrialStatus.IK_FAILURE
                     )
                     trial_data["stages"].append(
@@ -2804,11 +3008,12 @@ class EndToEndBenchmark:
                             "stage_name": "PreAcquisition",
                             "status": status.value,
                             "planning_time_sec": planning_time,
+                            "custom_metrics": skewer_angles if skewer_angles else {},
                         }
                     )
                     if status != TrialStatus.SUCCESS:
                         LOGGER.error(
-                            f"  Stage 2 failed. Could not find optimal IK pair."
+                            f"  Stage 2 failed. Could not calculate required wrist poses."
                         )
                         trial_failed = True
                 else:
@@ -2847,39 +3052,76 @@ class EndToEndBenchmark:
             if not trial_failed:
                 if self.mode == "articutool":
                     LOGGER.info("Stage 3: AbovePlate -> AboveFood")
-                    (
-                        status,
-                        traj_jaco,
-                        traj_atool,
-                        planning_time,
-                    ) = self._plan_to_above_food(
-                        optimal_above_food_ik, current_jaco_state, current_atool_state
+
+                    # 1. Plan for the Jaco arm to the pre-calculated wrist pose
+                    goal_constraints_jaco = [create_pose_constraint(jaco_ee_above_food)]
+                    status_jaco, traj_jaco, planning_time_jaco = (
+                        self.motion_planner.plan(
+                            group_name=PLANNING_GROUP_JACO,
+                            start_state=current_jaco_state,
+                            goal_constraints=goal_constraints_jaco,
+                            target_link=END_EFFECTOR_LINK_JACO,
+                            planning_time=20.0,
+                        )
                     )
+
+                    # 2. If Jaco plan succeeds, plan for the Articutool
+                    status_atool, traj_atool, planning_time_atool = (
+                        TrialStatus.SKIPPED,
+                        None,
+                        0.0,
+                    )
+                    if status_jaco == TrialStatus.SUCCESS:
+                        target_atool_config = [
+                            skewer_angles["calculated_atool_pitch_rad"],
+                            0.0,
+                        ]
+                        goal_constraints_atool = [
+                            create_joint_constraint(target_atool_config)
+                        ]
+                        status_atool, traj_atool, planning_time_atool = (
+                            self.motion_planner.plan(
+                                group_name=PLANNING_GROUP_ATOOL,
+                                start_state=current_atool_state,
+                                goal_constraints=goal_constraints_atool,
+                            )
+                        )
+
+                    # 3. Aggregate results and metrics
+                    final_status = (
+                        status_jaco
+                        if status_jaco != TrialStatus.SUCCESS
+                        else status_atool
+                    )
+                    planning_time = planning_time_jaco + planning_time_atool
                     cartesian_path_length_jaco = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
                     )
                     cartesian_path_length_atool = self._calculate_cartesian_path_length(
                         traj_atool, PLANNING_GROUP_ATOOL
                     )
+                    cartesian_path_length = (
+                        cartesian_path_length_jaco + cartesian_path_length_atool
+                    )
                     joint_travel_jaco = self._calculate_total_joint_travel(traj_jaco)
                     joint_travel_atool = self._calculate_total_joint_travel(traj_atool)
+                    joint_travel = joint_travel_jaco + joint_travel_atool
+
                     trial_data["stages"].append(
                         {
                             "stage_name": "AbovePlateToAboveFood",
                             "target_frame": END_EFFECTOR_LINK_FULL,
-                            "status": status.value,
+                            "status": final_status.value,
                             "execution_mode": ExecutionMode.SEQUENTIAL.value,
                             "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length_jaco
-                            + cartesian_path_length_atool,
-                            "total_joint_travel_rad": joint_travel_jaco
-                            + joint_travel_atool,
+                            "trajectory_path_length_m": cartesian_path_length,
+                            "total_joint_travel_rad": joint_travel,
                             "custom_metrics": {},
                             "traj_jaco": self._serialize_trajectory(traj_jaco),
                             "traj_atool": self._serialize_trajectory(traj_atool),
                         }
                     )
-                    if status != TrialStatus.SUCCESS:
+                    if final_status != TrialStatus.SUCCESS:
                         LOGGER.error(f"  Stage 3 failed. Skipping trial.")
                         trial_failed = True
                     else:
@@ -2894,6 +3136,7 @@ class EndToEndBenchmark:
                         group_name=PLANNING_GROUP_JACO,
                         start_state=current_jaco_state,
                         goal_constraints=goal_constraints,
+                        planning_time=20.0,
                     )
                     cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco,
@@ -2920,23 +3163,30 @@ class EndToEndBenchmark:
             if not trial_failed:
                 if self.mode == "articutool":
                     LOGGER.info("Stage 4: AboveFood -> InFood (Cartesian)")
-                    (
-                        status,
-                        traj_jaco,
-                        traj_atool,
-                        jaco_wrist_pose,
-                        planning_time,
-                    ) = self._plan_to_in_food(
-                        optimal_in_food_ik, scene["in_food_pose"], current_jaco_state
+                    goal_constraints = [create_pose_constraint(jaco_ee_in_food)]
+                    status, traj_jaco, planning_time = self.motion_planner.plan(
+                        group_name=PLANNING_GROUP_JACO,
+                        start_state=current_jaco_state,
+                        goal_constraints=goal_constraints,
+                        target_link=END_EFFECTOR_LINK_JACO,
+                        cartesian=True,
                     )
-                    cartesian_path_length_jaco = self._calculate_cartesian_path_length(
+                    cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
                     )
-                    cartesian_path_length_atool = self._calculate_cartesian_path_length(
-                        traj_atool, PLANNING_GROUP_ATOOL
-                    )
-                    joint_travel_jaco = self._calculate_total_joint_travel(traj_jaco)
-                    joint_travel_atool = self._calculate_total_joint_travel(traj_atool)
+                    joint_travel = self._calculate_total_joint_travel(traj_jaco)
+
+                    # Create a hold trajectory for the Articutool with its target pitched angle
+                    traj_atool = None
+                    if status == TrialStatus.SUCCESS:
+                        target_atool_config = [
+                            skewer_angles["calculated_atool_pitch_rad"],
+                            0.0,
+                        ]
+                        traj_atool = self._generate_hold_trajectory(
+                            traj_jaco, JOINT_NAMES_ATOOL, target_atool_config
+                        )
+
                     trial_data["stages"].append(
                         {
                             "stage_name": "AboveFoodToInFood",
@@ -2944,10 +3194,8 @@ class EndToEndBenchmark:
                             "status": status.value,
                             "execution_mode": ExecutionMode.SYNCHRONOUS.value,
                             "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length_jaco
-                            + cartesian_path_length_atool,
-                            "total_joint_travel_rad": joint_travel_jaco
-                            + joint_travel_atool,
+                            "trajectory_path_length_m": cartesian_path_length,
+                            "total_joint_travel_rad": joint_travel,
                             "custom_metrics": {},
                             "traj_jaco": self._serialize_trajectory(traj_jaco),
                             "traj_atool": self._serialize_trajectory(traj_atool),
@@ -2993,7 +3241,7 @@ class EndToEndBenchmark:
                 if self.mode == "articutool":
                     LOGGER.info("Stage 5: Level Tool")
                     status, traj_atool, planning_time = self._plan_to_level_articutool(
-                        jaco_wrist_pose, current_atool_state
+                        jaco_ee_in_food, current_atool_state
                     )
                     cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_atool, PLANNING_GROUP_ATOOL
