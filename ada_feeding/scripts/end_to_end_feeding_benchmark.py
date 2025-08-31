@@ -2801,6 +2801,42 @@ class EndToEndBenchmark:
             LOGGER.error(f"  Failed during wrist pose calculation: {e}")
             return None, None
 
+    def _is_elbow_up_configuration(self, jaco_joint_config: List[float]) -> bool:
+        """
+        Checks if a Jaco arm configuration is "elbow-up" using a robust
+        geometric method.
+        """
+        try:
+            # 1. Get the 3D positions of the key links from Pinocchio
+            p_shoulder = self.kinematics_model.get_frame_transform(
+                "j2n6s200_link_2", jaco_joint_config
+            ).translation
+            p_elbow = self.kinematics_model.get_frame_transform(
+                "j2n6s200_link_3", jaco_joint_config
+            ).translation
+            p_wrist = self.kinematics_model.get_frame_transform(
+                "j2n6s200_link_4", jaco_joint_config
+            ).translation
+
+            # 2. Define the vectors representing the upper arm and forearm
+            v_upper_arm = p_elbow - p_shoulder
+            v_forearm = p_wrist - p_elbow
+
+            # 3. The cross product gives a normal vector to the plane of the elbow bend
+            elbow_normal = np.cross(v_upper_arm, v_forearm)
+
+            # 4. Define the arm's general direction and its "side" vector
+            v_arm_direction = p_wrist - p_shoulder
+            # For a right-handed arm, the cross product with world-up points to the left ("outward")
+            arm_side_vector = np.cross(v_arm_direction, WORLD_UP_VECTOR)
+
+            # 5. The dot product determines if the elbow normal points "outward"
+            #    A positive dot product indicates an elbow-up configuration.
+            return np.dot(elbow_normal, arm_side_vector) > 0
+        except Exception as e:
+            LOGGER.warning(f"  Elbow-up check failed with exception: {e}")
+            return False
+
     def _find_optimal_skewer_config(
         self,
         above_food_tool_pose: Pose,
@@ -2812,9 +2848,9 @@ class EndToEndBenchmark:
         explicitly constructing the Jaco wrist orientation.
 
         It searches through a prioritized list of Jaco EE tilt angles, finding the
-        first one that yields a valid, collision-free IK solution. This ensures
-        the arm is in a 'comfortable' posture that keeps the Articutool away
-        from its joint limits after leveling.
+        first one that yields a valid, collision-free, and "elbow-up" IK
+        solution. This ensures the arm is in a 'comfortable' posture that
+        keeps the Articutool away from its joint limits after leveling.
         """
         LOGGER.info("  Searching for optimal skewer configuration...")
 
@@ -2917,22 +2953,25 @@ class EndToEndBenchmark:
                 )
                 above_food_wrist_pose.orientation = final_orientation
 
-                # 6. Check if the starting pose ('AboveFood') is reachable.
-                ik_solution = self.motion_planner.compute_ik(
-                    group_name=PLANNING_GROUP_JACO,
-                    target_pose=above_food_wrist_pose,
-                )
-
-                if ik_solution:
-                    LOGGER.info(
-                        f"  Success! Found valid IK for Jaco tilt of {np.rad2deg(jaco_pitch_tilt):.1f} degrees."
+                # 6. Find the first reachable "elbow-up" IK solution for the start pose.
+                for _ in range(2):
+                    ik_solution_msg = self.motion_planner.compute_ik(
+                        group_name=PLANNING_GROUP_JACO,
+                        target_pose=above_food_wrist_pose,
                     )
-                    winning_angles = {
-                        "skewer_polar_angle_rad": skewer_polar_angle,
-                        "chosen_jaco_pitch_tilt_rad": jaco_pitch_tilt,
-                        "calculated_atool_pitch_rad": required_atool_pitch,
-                    }
-                    return above_food_wrist_pose, in_food_wrist_pose, winning_angles
+
+                    if ik_solution_msg and self._is_elbow_up_configuration(
+                        list(ik_solution_msg.position)
+                    ):
+                        LOGGER.info(
+                            f"  Success! Found valid ELBOW-UP IK for Jaco tilt of {np.rad2deg(jaco_pitch_tilt):.1f} degrees."
+                        )
+                        winning_angles = {
+                            "skewer_polar_angle_rad": skewer_polar_angle,
+                            "chosen_jaco_pitch_tilt_rad": jaco_pitch_tilt,
+                            "calculated_atool_pitch_rad": required_atool_pitch,
+                        }
+                        return above_food_wrist_pose, in_food_wrist_pose, winning_angles
 
             except Exception as e:
                 LOGGER.warning(
