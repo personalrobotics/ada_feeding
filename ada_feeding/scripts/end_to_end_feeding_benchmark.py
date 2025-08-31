@@ -2808,7 +2808,8 @@ class EndToEndBenchmark:
         skewer_polar_angle: float,
     ) -> Tuple[Optional[Pose], Optional[Pose], Optional[Dict[str, float]]]:
         """
-        Finds an optimal pair of Jaco EE poses for the skewer motion.
+        Finds an optimal pair of Jaco EE poses for the skewer motion by
+        explicitly constructing the Jaco wrist orientation.
 
         It searches through a prioritized list of Jaco EE tilt angles, finding the
         first one that yields a valid, collision-free IK solution. This ensures
@@ -2817,22 +2818,24 @@ class EndToEndBenchmark:
         """
         LOGGER.info("  Searching for optimal skewer configuration...")
 
-        # Prioritized list of candidate Jaco wrist pitch angles (in radians).
-        # A more negative angle is more "level" and thus more "comfortable"
-        # for post-acquisition motions.
+        # Prioritized list of candidate Jaco EE pitch angles (in radians).
         candidate_tilts_rad = [
-            np.deg2rad(-60.0),
-            np.deg2rad(-45.0),
-            np.deg2rad(-30.0),
-            np.deg2rad(-15.0),
             np.deg2rad(0.0),
+            np.deg2rad(15.0),
+            np.deg2rad(30.0),
+            np.deg2rad(45.0),
+            np.deg2rad(60.0),
+            np.deg2rad(75.0),
+            np.deg2rad(90.0),
         ]
 
         for jaco_pitch_tilt in candidate_tilts_rad:
             try:
-                # 1. Calculate the required Articutool pitch to achieve the skewer angle.
-                # Tool Tip Pitch = Jaco Wrist Pitch + Articutool Pitch
-                required_atool_pitch = skewer_polar_angle + jaco_pitch_tilt
+                # 1. Calculate the required Articutool pitch based on the new convention.
+                # Articutool Pitch = (90 - Skewer Angle) - Jaco Pitch
+                required_atool_pitch = (
+                    (math.pi / 2.0) - skewer_polar_angle - jaco_pitch_tilt
+                )
 
                 # 2. Check if this required Articutool pitch is within its joint limits.
                 if not (
@@ -2840,40 +2843,96 @@ class EndToEndBenchmark:
                     <= required_atool_pitch
                     <= ARTICUTOOL_PITCH_LIMITS_RAD[1] + EPSILON
                 ):
-                    LOGGER.info(
-                        f"  Skipping Jaco tilt {np.rad2deg(jaco_pitch_tilt):.1f} deg; "
-                        f"required Articutool pitch {np.rad2deg(required_atool_pitch):.1f} deg is out of bounds."
-                    )
                     continue
-
                 atool_config = [required_atool_pitch, 0.0]
 
-                # 3. Calculate the corresponding Jaco wrist poses for this valid combo.
-                start_wrist_pose, end_wrist_pose = (
-                    self._calculate_jaco_ee_poses_for_skewer(
-                        above_food_tool_pose, in_food_tool_pose, atool_config
-                    )
+                # 3. Calculate the required Jaco EE orientation that respects the food's yaw.
+                # First, get the transform from Jaco wrist to tool tip for this config.
+                T_wrist_tip = self.kinematics_model.get_relative_transform(
+                    parent_frame=END_EFFECTOR_LINK_JACO,
+                    child_frame=END_EFFECTOR_LINK_ATOOL,
+                    jaco_joints=[0.0] * 6,
+                    atool_joints=atool_config,
                 )
-                if not start_wrist_pose:
-                    continue  # Try next tilt if calculation fails.
+                if T_wrist_tip is None:
+                    continue
+                R_wrist_tip = R.from_matrix(T_wrist_tip.rotation)
 
-                # 4. Check if this target Jaco wrist pose is kinematically reachable.
+                # Next, get the target orientation of the tool tip in the world.
+                q_tip_in_food = in_food_tool_pose.orientation
+                R_world_tip = R.from_quat(
+                    [q_tip_in_food.x, q_tip_in_food.y, q_tip_in_food.z, q_tip_in_food.w]
+                )
+
+                # Solve for the untiled wrist orientation and then apply the proactive tilt.
+                R_world_wrist_untilted = R_world_tip * R_wrist_tip.inv()
+                R_tilt = R.from_euler("x", jaco_pitch_tilt)
+                R_world_wrist_target = R_world_wrist_untilted * R_tilt
+
+                # 4. Calculate the required Jaco EE position for the InFood pose.
+                p_world_tip_infood = np.array(
+                    [
+                        in_food_tool_pose.position.x,
+                        in_food_tool_pose.position.y,
+                        in_food_tool_pose.position.z,
+                    ]
+                )
+                p_wrist_tip_local = T_wrist_tip.translation
+                p_world_wrist_infood = p_world_tip_infood - R_world_wrist_target.apply(
+                    p_wrist_tip_local
+                )
+
+                # 5. Assemble the final target Jaco EE poses.
+                # The orientation is the same for both, only the position differs.
+                q_target = R_world_wrist_target.as_quat()
+                final_orientation = Quaternion(
+                    x=q_target[0], y=q_target[1], z=q_target[2], w=q_target[3]
+                )
+
+                # The 'InFood' wrist pose
+                in_food_wrist_pose = Pose()
+                in_food_wrist_pose.position = Point(
+                    x=p_world_wrist_infood[0],
+                    y=p_world_wrist_infood[1],
+                    z=p_world_wrist_infood[2],
+                )
+                in_food_wrist_pose.orientation = final_orientation
+
+                # The 'AboveFood' wrist pose (start of the Cartesian motion)
+                p_world_tip_above = np.array(
+                    [
+                        above_food_tool_pose.position.x,
+                        above_food_tool_pose.position.y,
+                        above_food_tool_pose.position.z,
+                    ]
+                )
+                p_world_wrist_above = p_world_tip_above - R_world_wrist_target.apply(
+                    p_wrist_tip_local
+                )
+                above_food_wrist_pose = Pose()
+                above_food_wrist_pose.position = Point(
+                    x=p_world_wrist_above[0],
+                    y=p_world_wrist_above[1],
+                    z=p_world_wrist_above[2],
+                )
+                above_food_wrist_pose.orientation = final_orientation
+
+                # 6. Check if the starting pose ('AboveFood') is reachable.
                 ik_solution = self.motion_planner.compute_ik(
                     group_name=PLANNING_GROUP_JACO,
-                    target_pose=start_wrist_pose,
+                    target_pose=above_food_wrist_pose,
                 )
 
                 if ik_solution:
                     LOGGER.info(
                         f"  Success! Found valid IK for Jaco tilt of {np.rad2deg(jaco_pitch_tilt):.1f} degrees."
                     )
-                    # Return the poses and the angles that produced them.
                     winning_angles = {
                         "skewer_polar_angle_rad": skewer_polar_angle,
                         "chosen_jaco_pitch_tilt_rad": jaco_pitch_tilt,
                         "calculated_atool_pitch_rad": required_atool_pitch,
                     }
-                    return start_wrist_pose, end_wrist_pose, winning_angles
+                    return above_food_wrist_pose, in_food_wrist_pose, winning_angles
 
             except Exception as e:
                 LOGGER.warning(
