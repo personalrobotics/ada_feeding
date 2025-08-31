@@ -2821,6 +2821,7 @@ class EndToEndBenchmark:
         # A more negative angle is more "level" and thus more "comfortable"
         # for post-acquisition motions.
         candidate_tilts_rad = [
+            np.deg2rad(-60.0),
             np.deg2rad(-45.0),
             np.deg2rad(-30.0),
             np.deg2rad(-15.0),
