@@ -205,6 +205,69 @@ def plot_planning_times(df_stages: pd.DataFrame):
     print("Saved planning time plot to planning_times.html")
 
 
+def analyze_resting_stage_failures(df_stages: pd.DataFrame):
+    """
+    Analyzes and prints a summary of failure modes specifically for the 'Resting' stage.
+    """
+    print("\n" + "=" * 85)
+    print("                      'Resting' Stage Failure Mode Analysis")
+    print("=" * 85)
+
+    # Filter for only the Articutool mode and the Resting stage
+    df_resting = df_stages[
+        (df_stages["mode"] == "Articutool") & (df_stages["stage_name"] == "Resting")
+    ].copy()
+
+    if df_resting.empty:
+        print("No 'Resting' stage attempts found for the Articutool.")
+        print("=" * 85)
+        return
+
+    # Filter for only the failures
+    df_failures = df_resting[df_resting["is_success"] == 0]
+    total_failures = len(df_failures)
+
+    if total_failures == 0:
+        print("No failures recorded for the 'Resting' stage. Great job!")
+        print("=" * 85)
+        return
+
+    # Count the occurrences of each failure status
+    failure_counts = df_failures["status"].value_counts()
+
+    print(f"Total Failures in 'Resting' Stage for Articutool: {total_failures}\n")
+    print("Breakdown of Failure Types:")
+    for status, count in failure_counts.items():
+        percentage = (count / total_failures) * 100
+        print(f"- {status:<25}: {count:<5} ({percentage:.1f}%)")
+
+    # Provide an interpretation based on the dominant failure mode
+    if (
+        "Planner Failure" in failure_counts
+        and "Path Verification Failure" in failure_counts
+    ):
+        if (
+            failure_counts["Planner Failure"]
+            > failure_counts["Path Verification Failure"]
+        ):
+            print("\nInterpretation: Most failures are PLANNER_FAILURE.")
+            print(
+                "The planner is struggling to find any path, suggesting the goal or constraints are too strict."
+            )
+        else:
+            print("\nInterpretation: Most failures are VERIFICATION_FAILURE.")
+            print(
+                "The planner finds paths, but they are kinematically infeasible for leveling."
+            )
+            print("This suggests the heuristic path constraint may be too loose.")
+    elif "Planner Failure" in failure_counts:
+        print("\nInterpretation: All failures are PLANNER_FAILURE.")
+    elif "Path Verification Failure" in failure_counts:
+        print("\nInterpretation: All failures are VERIFICATION_FAILURE.")
+
+    print("=" * 85)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Analyze and compare benchmark results."
@@ -226,3 +289,4 @@ if __name__ == "__main__":
         generate_stage_by_stage_summary(df_stages)
         plot_stage_success_rates(df_stages)
         plot_planning_times(df_stages)
+        analyze_resting_stage_failures(df_stages)
