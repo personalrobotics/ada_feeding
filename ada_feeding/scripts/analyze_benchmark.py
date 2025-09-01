@@ -5,14 +5,25 @@ import os
 import math
 
 
-def load_and_prepare_data(articutool_file: str, baseline_file: str):
-    """Loads and merges data from two .jsonl files for comparison."""
+def load_and_prepare_data(articutool_file: str, baseline_files: list):
+    """Loads and merges data from multiple .jsonl files for comparison."""
     try:
         df_articutool = pd.read_json(articutool_file, lines=True)
         df_articutool["mode"] = "Articutool"
 
-        df_baseline = pd.read_json(baseline_file, lines=True)
-        df_baseline["mode"] = "Baseline"
+        all_dfs = [df_articutool]
+        if baseline_files:
+            for baseline_file in baseline_files:
+                df_baseline = pd.read_json(baseline_file, lines=True)
+                if "6dof_baseline" in baseline_file:
+                    df_baseline["mode"] = "6dof_baseline"
+                elif "8dof_baseline" in baseline_file:
+                    df_baseline["mode"] = "8dof_baseline"
+                else:
+                    # Fallback for old naming convention
+                    df_baseline["mode"] = "Baseline"
+                all_dfs.append(df_baseline)
+
     except FileNotFoundError as e:
         print(f"Error: {e}. Please ensure file paths are correct.")
         return None, None
@@ -35,10 +46,9 @@ def load_and_prepare_data(articutool_file: str, baseline_file: str):
         df_processed["is_success"] = (df_processed["status"] == "Success").astype(int)
         return df_processed
 
-    df_stages_articutool = process_df(df_articutool)
-    df_stages_baseline = process_df(df_baseline)
-    df_stages = pd.concat([df_stages_articutool, df_stages_baseline], ignore_index=True)
-    df_trials = pd.concat([df_articutool, df_baseline], ignore_index=True)
+    list_of_stage_dfs = [process_df(df) for df in all_dfs]
+    df_stages = pd.concat(list_of_stage_dfs, ignore_index=True)
+    df_trials = pd.concat(all_dfs, ignore_index=True)
 
     return df_trials, df_stages
 
@@ -56,12 +66,12 @@ def generate_summary_table(df_trials: pd.DataFrame):
     print("                 HIGH-LEVEL BENCHMARK SUMMARY")
     print("=" * 65)
     print(
-        f"{'Mode':<12} | {'Total Trials':<15} | {'Successful':<12} | {'Success Rate (%)':<15}"
+        f"{'Mode':<25} | {'Total Trials':<15} | {'Successful':<12} | {'Success Rate (%)'}"
     )
     print("-" * 65)
     for _, row in summary.iterrows():
         print(
-            f"{row['mode']:<12} | {row['count']:<15} | {int(row['sum']):<12} | {row['mean']:.1f}"
+            f"{row['mode']:<25} | {row['count']:<15} | {int(row['sum']):<12} | {row['mean']:.1f}"
         )
     print("=" * 65)
 
@@ -121,94 +131,16 @@ def generate_stage_by_stage_summary(df_stages: pd.DataFrame):
     print("\n" + "=" * 85)
     print("                           STAGE-BY-STAGE AGGREGATE RESULTS")
     print("=" * 85)
-    for mode in ["Articutool", "Baseline"]:
+    for mode in final_summary["mode"].unique():
         print(f"\n--- {mode} Results ---")
         mode_df = (
             final_summary[final_summary["mode"] == mode]
+            .copy()
             .drop(columns="mode")
             .dropna(subset=["stage_name"])
         )
         print(mode_df.to_string(index=False, float_format="%.2f"))
     print("=" * 85)
-
-
-def plot_stage_success_rates(df_stages: pd.DataFrame):
-    """Generates a grouped bar chart comparing success rates for each stage."""
-    stage_order = [
-        "HomeToAbovePlate",
-        "PreAcquisition",
-        "AbovePlateToAboveFood",
-        "AboveFoodToInFood",
-        "LevelTool",
-        "Resting",
-        "Staging",
-        "Presentation",
-    ]
-    success_rates = (
-        df_stages.groupby(["mode", "stage_name"])["is_success"].mean().reset_index()
-    )
-    success_rates["is_success"] *= 100
-    success_rates["stage_name"] = pd.Categorical(
-        success_rates["stage_name"], categories=stage_order, ordered=True
-    )
-    success_rates = success_rates.dropna(subset=["stage_name"]).sort_values(
-        "stage_name"
-    )
-
-    fig = px.bar(
-        success_rates,
-        x="stage_name",
-        y="is_success",
-        color="mode",
-        barmode="group",
-        text_auto=".1f",
-        title="Success Rate by Stage",
-        labels={
-            "stage_name": "Benchmark Stage",
-            "is_success": "Success Rate (%)",
-            "mode": "System",
-        },
-    )
-    fig.update_traces(textangle=0, textposition="outside")
-    fig.update_yaxes(range=[0, 105])
-    fig.write_html("stage_success_rates.html")
-    print("\nSaved stage success rate plot to stage_success_rates.html")
-
-
-def plot_planning_times(df_stages: pd.DataFrame):
-    """Generates a box plot comparing planning times for successful stages."""
-    successful_stages = df_stages[df_stages["is_success"] == 1].copy()
-    stage_order = [
-        "HomeToAbovePlate",
-        "PreAcquisition",
-        "AbovePlateToAboveFood",
-        "AboveFoodToInFood",
-        "LevelTool",
-        "Resting",
-        "Staging",
-        "Presentation",
-    ]
-    successful_stages["stage_name"] = pd.Categorical(
-        successful_stages["stage_name"], categories=stage_order, ordered=True
-    )
-    successful_stages = successful_stages.dropna(subset=["stage_name"]).sort_values(
-        "stage_name"
-    )
-
-    fig = px.box(
-        successful_stages,
-        x="stage_name",
-        y="planning_time_sec",
-        color="mode",
-        title="Planning Time for Successful Stages",
-        labels={
-            "stage_name": "Benchmark Stage",
-            "planning_time_sec": "Planning Time (s)",
-            "mode": "System",
-        },
-    )
-    fig.write_html("planning_times.html")
-    print("Saved planning time plot to planning_times.html")
 
 
 def analyze_resting_stage_failures(df_stages: pd.DataFrame):
@@ -298,19 +230,22 @@ def analyze_pre_transport_posture(df_stages: pd.DataFrame):
     # Access the flattened column directly.
     # json_normalize turns 'custom_metrics':{'key':val} into a column named 'custom_metrics.key'
     metric_col = "custom_metrics.chosen_jaco_pitch_tilt_rad"
-    df_pre_acq.dropna(subset=[metric_col], inplace=True)
+    if metric_col not in df_pre_acq.columns:
+        print(f"Metric column '{metric_col}' not found in the data.")
+        print("=" * 85)
+        return
 
-    # Convert from radians to degrees for the plot
-    df_pre_acq["jaco_pitch_deg"] = df_pre_acq[metric_col].apply(
-        lambda x: x * 180 / math.pi
-    )
+    df_pre_acq.dropna(subset=[metric_col], inplace=True)
 
     if df_pre_acq.empty:
         print("Pitch angle metric not found in 'PreAcquisition' custom_metrics.")
         print("=" * 85)
         return
 
-    # Generate and save the histogram
+    df_pre_acq["jaco_pitch_deg"] = df_pre_acq[metric_col].apply(
+        lambda x: x * 180 / math.pi
+    )
+
     fig = px.histogram(
         df_pre_acq,
         x="jaco_pitch_deg",
@@ -337,26 +272,123 @@ def analyze_pre_transport_posture(df_stages: pd.DataFrame):
     print("=" * 85)
 
 
+def plot_stage_success_rates(df_stages: pd.DataFrame):
+    """Generates a grouped bar chart comparing success rates for each stage."""
+    stage_order = [
+        "HomeToAbovePlate",
+        "PreAcquisition",
+        "AbovePlateToAboveFood",
+        "AboveFoodToInFood",
+        "LevelTool",
+        "Resting",
+        "Staging",
+        "Presentation",
+    ]
+    success_rates = (
+        df_stages.groupby(["mode", "stage_name"])["is_success"].mean().reset_index()
+    )
+    success_rates["is_success"] *= 100
+    success_rates["stage_name"] = pd.Categorical(
+        success_rates["stage_name"], categories=stage_order, ordered=True
+    )
+    success_rates = success_rates.dropna(subset=["stage_name"]).sort_values(
+        "stage_name"
+    )
+
+    mode_order = ["Articutool", "6dof_baseline", "8dof_baseline"]
+    present_modes = [
+        mode for mode in mode_order if mode in success_rates["mode"].unique()
+    ]
+
+    fig = px.bar(
+        success_rates,
+        x="stage_name",
+        y="is_success",
+        color="mode",
+        category_orders={"mode": present_modes},
+        barmode="group",
+        text_auto=".1f",
+        title="Success Rate by Stage",
+        labels={
+            "stage_name": "Benchmark Stage",
+            "is_success": "Success Rate (%)",
+            "mode": "System",
+        },
+    )
+    fig.update_traces(textangle=0, textposition="outside")
+    fig.update_yaxes(range=[0, 105])
+    fig.write_html("stage_success_rates.html")
+    print("\nSaved stage success rate plot to stage_success_rates.html")
+
+
+def plot_planning_times(df_stages: pd.DataFrame):
+    """Generates a box plot comparing planning times for successful stages."""
+    successful_stages = df_stages[df_stages["is_success"] == 1].copy()
+    stage_order = [
+        "HomeToAbovePlate",
+        "PreAcquisition",
+        "AbovePlateToAboveFood",
+        "AboveFoodToInFood",
+        "LevelTool",
+        "Resting",
+        "Staging",
+        "Presentation",
+    ]
+    successful_stages["stage_name"] = pd.Categorical(
+        successful_stages["stage_name"], categories=stage_order, ordered=True
+    )
+    successful_stages = successful_stages.dropna(subset=["stage_name"]).sort_values(
+        "stage_name"
+    )
+
+    mode_order = ["Articutool", "6dof_baseline", "8dof_baseline"]
+    present_modes = [
+        mode for mode in mode_order if mode in successful_stages["mode"].unique()
+    ]
+
+    fig = px.box(
+        successful_stages,
+        x="stage_name",
+        y="planning_time_sec",
+        color="mode",
+        category_orders={"mode": present_modes},
+        title="Planning Time for Successful Stages",
+        labels={
+            "stage_name": "Benchmark Stage",
+            "planning_time_sec": "Planning Time (s)",
+            "mode": "System",
+        },
+    )
+    fig.write_html("planning_times.html")
+    print("Saved planning time plot to planning_times.html")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Analyze and compare benchmark results."
     )
     parser.add_argument(
-        "articutool_file", type=str, help="Path to the Articutool benchmark JSONL file."
+        "--articutool_file",
+        type=str,
+        required=True,
+        help="Path to the Articutool benchmark JSONL file.",
     )
     parser.add_argument(
-        "baseline_file", type=str, help="Path to the Baseline benchmark JSONL file."
+        "--baseline_files",
+        type=str,
+        nargs="+",
+        help="Paths to one or more baseline JSONL files (e.g., 6dof, 8dof).",
     )
     args = parser.parse_args()
 
     df_trials, df_stages = load_and_prepare_data(
-        args.articutool_file, args.baseline_file
+        args.articutool_file, args.baseline_files
     )
 
     if df_trials is not None and df_stages is not None:
         generate_summary_table(df_trials)
         generate_stage_by_stage_summary(df_stages)
-        plot_stage_success_rates(df_stages)
-        plot_planning_times(df_stages)
         analyze_resting_stage_failures(df_stages)
         analyze_pre_transport_posture(df_stages)
+        plot_stage_success_rates(df_stages)
+        plot_planning_times(df_stages)
