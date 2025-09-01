@@ -3552,14 +3552,12 @@ class EndToEndBenchmark:
                     LOGGER.info("Stage 5: Level Tool")
 
                     start_joint_state = JointState()
-                    start_joint_state.name = JOINT_NAMES_FULL
-                    start_joint_state.position = (
-                        current_jaco_state + current_atool_state
-                    )
+                    start_joint_state.name = JOINT_NAMES_JACO
+                    start_joint_state.position = current_jaco_state
                     fk_poses = self.motion_planner.compute_fk(
-                        group_name=PLANNING_GROUP_FULL,
+                        group_name=PLANNING_GROUP_JACO,
                         joint_state=start_joint_state,
-                        fk_link_names=[END_EFFECTOR_LINK_FULL],
+                        fk_link_names=[END_EFFECTOR_LINK_JACO],
                     )
                     if not fk_poses:
                         LOGGER.warning(
@@ -3567,45 +3565,32 @@ class EndToEndBenchmark:
                         )
                         return TrialStatus.IK_FAILURE, None, 0.0
 
-                    current_position = fk_poses[0].pose.position
-
-                    goal_constraints = [
-                        create_position_constraint(current_position, 0.2),
-                        create_orientation_path_constraint(
-                            PATH_CONSTRAINT_QUAT_XYZW, (0.1, 2 * math.pi, 0.1)
-                        ),
-                    ]
-
-                    status, traj_full, planning_time = self.motion_planner.plan(
-                        group_name=PLANNING_GROUP_FULL,
-                        start_state=current_jaco_state + current_atool_state,
-                        goal_constraints=goal_constraints,
-                        cartesian=True,
-                        target_link=END_EFFECTOR_LINK_FULL,
+                    jaco_ee_in_food = fk_poses[0].pose
+                    status, traj_atool, planning_time = self._plan_to_level_articutool(
+                        jaco_ee_in_food, current_atool_state
                     )
-
                     cartesian_path_length = self._calculate_cartesian_path_length(
-                        traj_full, PLANNING_GROUP_FULL
+                        traj_atool, PLANNING_GROUP_ATOOL
                     )
-                    joint_travel = self._calculate_total_joint_travel(traj_full)
-                    traj_jaco, traj_atool = self._split_full_trajectory(traj_full)
+                    joint_travel = self._calculate_total_joint_travel(traj_atool)
                     trial_data["stages"].append(
                         {
                             "stage_name": "LevelTool",
-                            "target_frame": END_EFFECTOR_LINK_FULL,
+                            "target_frame": END_EFFECTOR_LINK_ATOOL,
                             "status": status.value,
-                            "execution_mode": ExecutionMode.SYNCHRONOUS.value,
+                            "execution_mode": ExecutionMode.ATOOL_ONLY.value,
                             "planning_time_sec": planning_time,
                             "trajectory_path_length_m": cartesian_path_length,
                             "total_joint_travel_rad": joint_travel,
-                            "traj_jaco": self._serialize_trajectory(traj_jaco),
+                            "custom_metrics": {},
+                            "traj_jaco": None,
                             "traj_atool": self._serialize_trajectory(traj_atool),
                         }
                     )
                     if status != TrialStatus.SUCCESS:
+                        LOGGER.error(f"  Stage 5 failed. Skipping trial.")
                         trial_failed = True
                     else:
-                        current_jaco_state = list(traj_jaco.points[-1].positions)
                         current_atool_state = list(traj_atool.points[-1].positions)
 
             # --- Stage 6: LevelArticutool -> Resting ---
