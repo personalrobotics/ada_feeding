@@ -2,6 +2,7 @@ import argparse
 import pandas as pd
 import plotly.express as px
 import os
+import math
 
 
 def load_and_prepare_data(articutool_file: str, baseline_file: str):
@@ -19,20 +20,25 @@ def load_and_prepare_data(articutool_file: str, baseline_file: str):
         print(f"Error parsing JSONL file: {e}")
         return None, None
 
+    # Process each dataframe separately to handle potentially different nested structures
+    def process_df(df):
+        # Explode the stages data for granular analysis
+        df_exploded = (
+            df[["trial_id", "mode", "stages"]].explode("stages").reset_index(drop=True)
+        )
+        df_exploded.dropna(subset=["stages"], inplace=True)
+        stage_details = pd.json_normalize(df_exploded["stages"])
+        df_processed = pd.concat(
+            [df_exploded.drop(columns=["stages"]), stage_details], axis=1
+        )
+        # Add a boolean success column for easier aggregation
+        df_processed["is_success"] = (df_processed["status"] == "Success").astype(int)
+        return df_processed
+
+    df_stages_articutool = process_df(df_articutool)
+    df_stages_baseline = process_df(df_baseline)
+    df_stages = pd.concat([df_stages_articutool, df_stages_baseline], ignore_index=True)
     df_trials = pd.concat([df_articutool, df_baseline], ignore_index=True)
-
-    # Explode the stages data for granular analysis
-    df_stages = (
-        df_trials[["trial_id", "mode", "stages"]]
-        .explode("stages")
-        .reset_index(drop=True)
-    )
-    df_stages.dropna(subset=["stages"], inplace=True)
-    stage_details = pd.json_normalize(df_stages["stages"])
-    df_stages = pd.concat([df_stages.drop(columns=["stages"]), stage_details], axis=1)
-
-    # Add a boolean success column for easier aggregation
-    df_stages["is_success"] = (df_stages["status"] == "Success").astype(int)
 
     return df_trials, df_stages
 
@@ -268,6 +274,69 @@ def analyze_resting_stage_failures(df_stages: pd.DataFrame):
     print("=" * 85)
 
 
+def analyze_pre_transport_posture(df_stages: pd.DataFrame):
+    """
+    Generates a histogram of the chosen Jaco EE pitch angle from the
+    PreAcquisition stage to analyze the starting posture for transport.
+    """
+    print("\n" + "=" * 85)
+    print("                Pre-Transport Jaco Wrist Posture Analysis")
+    print("=" * 85)
+
+    # Filter for successful 'PreAcquisition' stages for the Articutool
+    df_pre_acq = df_stages[
+        (df_stages["mode"] == "Articutool")
+        & (df_stages["stage_name"] == "PreAcquisition")
+        & (df_stages["is_success"] == 1)
+    ].copy()
+
+    if df_pre_acq.empty:
+        print("No successful 'PreAcquisition' stages found to analyze.")
+        print("=" * 85)
+        return
+
+    # Access the flattened column directly.
+    # json_normalize turns 'custom_metrics':{'key':val} into a column named 'custom_metrics.key'
+    metric_col = "custom_metrics.chosen_jaco_pitch_tilt_rad"
+    df_pre_acq.dropna(subset=[metric_col], inplace=True)
+
+    # Convert from radians to degrees for the plot
+    df_pre_acq["jaco_pitch_deg"] = df_pre_acq[metric_col].apply(
+        lambda x: x * 180 / math.pi
+    )
+
+    if df_pre_acq.empty:
+        print("Pitch angle metric not found in 'PreAcquisition' custom_metrics.")
+        print("=" * 85)
+        return
+
+    # Generate and save the histogram
+    fig = px.histogram(
+        df_pre_acq,
+        x="jaco_pitch_deg",
+        nbins=20,
+        title="Distribution of Chosen Jaco Wrist Pitch for Acquisition",
+        labels={"jaco_pitch_deg": "Jaco Wrist Pitch Angle (Degrees)"},
+    )
+    fig.update_layout(
+        xaxis_title="Jaco Wrist Pitch (0° is Level, +90° is Top-Down)",
+        yaxis_title="Frequency (Number of Trials)",
+    )
+    fig.write_html("pre_transport_posture_distribution.html")
+    print("Saved pre-transport posture plot to pre_transport_posture_distribution.html")
+
+    # Provide a statistical summary
+    mean_pitch = df_pre_acq["jaco_pitch_deg"].mean()
+    std_pitch = df_pre_acq["jaco_pitch_deg"].std()
+    print(f"\nStatistical Summary of Chosen Jaco Wrist Pitch:")
+    print(f"- Average: {mean_pitch:.1f} degrees")
+    print(f"- Std Dev: {std_pitch:.1f} degrees")
+    print(
+        f"- Range:   {df_pre_acq['jaco_pitch_deg'].min():.1f} to {df_pre_acq['jaco_pitch_deg'].max():.1f} degrees"
+    )
+    print("=" * 85)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Analyze and compare benchmark results."
@@ -290,3 +359,4 @@ if __name__ == "__main__":
         plot_stage_success_rates(df_stages)
         plot_planning_times(df_stages)
         analyze_resting_stage_failures(df_stages)
+        analyze_pre_transport_posture(df_stages)
