@@ -3092,6 +3092,45 @@ class EndToEndBenchmark:
 
         return status, traj_jaco, planning_time
 
+    def _plan_level_and_extract_8dof_baseline(
+        self,
+        start_state_full: List[float],
+        in_food_pose: Pose,
+        extraction_height_m: float = 0.05,
+    ) -> Tuple[TrialStatus, Optional[JointTrajectory], float]:
+        """
+        Plans a single, synchronous "level-and-extract" Cartesian motion for
+        the 8-DOF baseline using the full kinematic chain.
+        """
+        LOGGER.info("  Planning 'level-and-extract' maneuver (8-DOF Baseline)...")
+
+        # 1. The start pose for the Cartesian motion is the provided `in_food_pose`.
+        start_pose = in_food_pose
+
+        # 2. Define the goal pose: vertically offset with a level orientation.
+        goal_pose = Pose()
+        goal_pose.position.x = start_pose.position.x
+        goal_pose.position.y = start_pose.position.y
+        goal_pose.position.z = start_pose.position.z + extraction_height_m
+        goal_pose.orientation = Quaternion(
+            x=PATH_CONSTRAINT_QUAT_XYZW[0],
+            y=PATH_CONSTRAINT_QUAT_XYZW[1],
+            z=PATH_CONSTRAINT_QUAT_XYZW[2],
+            w=PATH_CONSTRAINT_QUAT_XYZW[3],
+        )
+
+        # 3. Plan a Cartesian trajectory using the full 8-DOF planning group.
+        goal_constraints = [create_pose_constraint(goal_pose)]
+        status, traj_full, planning_time = self.motion_planner.plan(
+            group_name=PLANNING_GROUP_FULL,
+            start_state=start_state_full,
+            goal_constraints=goal_constraints,
+            cartesian=True,
+            target_link=END_EFFECTOR_LINK_FULL,
+        )
+
+        return status, traj_full, planning_time
+
     # --- Main Benchmark Loop ---
     def run(self):
         """Main benchmark execution loop with granular metric collection."""
@@ -3598,48 +3637,39 @@ class EndToEndBenchmark:
                     else:
                         current_jaco_state = list(traj_jaco.points[-1].positions)
                 elif self.mode == "8dof_baseline":
-                    LOGGER.info("Stage 5: Level Tool")
-
-                    start_joint_state = JointState()
-                    start_joint_state.name = JOINT_NAMES_JACO
-                    start_joint_state.position = current_jaco_state
-                    fk_poses = self.motion_planner.compute_fk(
-                        group_name=PLANNING_GROUP_JACO,
-                        joint_state=start_joint_state,
-                        fk_link_names=[END_EFFECTOR_LINK_JACO],
-                    )
-                    if not fk_poses:
-                        LOGGER.warning(
-                            "  FK failed, cannot determine current tool tip pose."
+                    LOGGER.info("Stage 5: InFood -> ExtractedLevel (Level-and-Extract)")
+                    status, traj_full, planning_time = (
+                        self._plan_level_and_extract_8dof_baseline(
+                            current_jaco_state + current_atool_state,
+                            scene["in_food_pose"],
                         )
-                        return TrialStatus.IK_FAILURE, None, 0.0
+                    )
 
-                    jaco_ee_in_food = fk_poses[0].pose
-                    status, traj_atool, planning_time = self._plan_to_level_articutool(
-                        jaco_ee_in_food, current_atool_state
-                    )
+                    # Split the 8-DOF trajectory for logging and state updates
+                    traj_jaco, traj_atool = self._split_full_trajectory(traj_full)
+
                     cartesian_path_length = self._calculate_cartesian_path_length(
-                        traj_atool, PLANNING_GROUP_ATOOL
+                        traj_full, PLANNING_GROUP_FULL
                     )
-                    joint_travel = self._calculate_total_joint_travel(traj_atool)
+                    joint_travel = self._calculate_total_joint_travel(traj_full)
+
                     trial_data["stages"].append(
                         {
                             "stage_name": "LevelTool",
-                            "target_frame": END_EFFECTOR_LINK_ATOOL,
+                            "target_frame": END_EFFECTOR_LINK_FULL,
                             "status": status.value,
-                            "execution_mode": ExecutionMode.ATOOL_ONLY.value,
+                            "execution_mode": ExecutionMode.SYNCHRONOUS.value,
                             "planning_time_sec": planning_time,
                             "trajectory_path_length_m": cartesian_path_length,
                             "total_joint_travel_rad": joint_travel,
-                            "custom_metrics": {},
-                            "traj_jaco": None,
+                            "traj_jaco": self._serialize_trajectory(traj_jaco),
                             "traj_atool": self._serialize_trajectory(traj_atool),
                         }
                     )
                     if status != TrialStatus.SUCCESS:
-                        LOGGER.error(f"  Stage 5 failed. Skipping trial.")
                         trial_failed = True
                     else:
+                        current_jaco_state = list(traj_jaco.points[-1].positions)
                         current_atool_state = list(traj_atool.points[-1].positions)
 
             # --- Stage 6: LevelArticutool -> Resting ---
