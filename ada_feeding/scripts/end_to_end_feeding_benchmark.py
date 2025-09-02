@@ -3182,21 +3182,9 @@ class EndToEndBenchmark:
             # --- Stage 1: Home -> AbovePlate ---
             if not trial_failed:
                 LOGGER.info("Stage 1: Home -> AbovePlate")
-                max_attempts = 3
-                total_planning_time = 0.0
-                status, traj_jaco = TrialStatus.PLANNER_FAILURE, None
-                for attempt in range(max_attempts):
-                    LOGGER.info(f"  Attempt {attempt + 1}/{max_attempts}...")
-                    status, traj_jaco, planning_time = self._plan_to_above_plate(
-                        scene["above_plate_pose"], current_jaco_state
-                    )
-                    total_planning_time += planning_time
-                    if status == TrialStatus.SUCCESS:
-                        LOGGER.info(f"  Success on attempt {attempt + 1}.")
-                        break
-                    LOGGER.warning(
-                        f"  Attempt {attempt + 1} failed with status: {status.value}"
-                    )
+                status, traj_jaco, planning_time = self._plan_to_above_plate(
+                    scene["above_plate_pose"], current_jaco_state
+                )
                 cartesian_path_length = self._calculate_cartesian_path_length(
                     traj_jaco, PLANNING_GROUP_JACO
                 )
@@ -3207,7 +3195,7 @@ class EndToEndBenchmark:
                         "target_frame": END_EFFECTOR_LINK_JACO,
                         "status": status.value,
                         "execution_mode": ExecutionMode.JACO_ONLY.value,
-                        "planning_time_sec": total_planning_time,
+                        "planning_time_sec": planning_time,
                         "trajectory_path_length_m": cartesian_path_length,
                         "total_joint_travel_rad": joint_travel,
                         "custom_metrics": {},
