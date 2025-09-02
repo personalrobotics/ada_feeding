@@ -3625,7 +3625,7 @@ class EndToEndBenchmark:
                     else:
                         current_jaco_state = list(traj_jaco.points[-1].positions)
                 elif self.mode == "8dof_baseline":
-                    LOGGER.info("Stage 5: InFood -> ExtractedLevel (Level-and-Extract)")
+                    LOGGER.info("Stage 5: InFood -> LevelTool")
                     status, traj_full, planning_time = (
                         self._plan_level_and_extract_8dof_baseline(
                             current_jaco_state + current_atool_state,
