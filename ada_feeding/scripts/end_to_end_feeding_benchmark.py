@@ -3046,6 +3046,52 @@ class EndToEndBenchmark:
 
         return traj_jaco, traj_atool
 
+    def _plan_level_and_extract_baseline(
+        self,
+        start_state_jaco: List[float],
+        in_food_pose: Pose,
+        extraction_height_m: float = 0.05,
+    ) -> Tuple[TrialStatus, Optional[JointTrajectory], float]:
+        """
+        Plans a single, synchronous "level-and-extract" Cartesian motion for
+        the 6-DOF baseline.
+
+        The motion is a straight-line trajectory in 6D space from the
+        `InFood` pose to a new goal that is offset vertically (world +Z)
+        and has a level orientation. This represents the baseline's best
+        effort at a dexterous, human-like extraction maneuver.
+        """
+        LOGGER.info("  Planning 'level-and-extract' maneuver (6-DOF Baseline)...")
+
+        # 1. The start pose for the Cartesian motion is the provided `in_food_pose`.
+        start_pose = in_food_pose
+
+        # 2. Define the goal pose for the maneuver.
+        goal_pose = Pose()
+        # The position is offset vertically in the world frame from the InFood pose.
+        goal_pose.position.x = start_pose.position.x
+        goal_pose.position.y = start_pose.position.y
+        goal_pose.position.z = start_pose.position.z + extraction_height_m
+        # The orientation is level with gravity (Y-up for the Jaco EE).
+        goal_pose.orientation = Quaternion(
+            x=PATH_CONSTRAINT_QUAT_XYZW[0],
+            y=PATH_CONSTRAINT_QUAT_XYZW[1],
+            z=PATH_CONSTRAINT_QUAT_XYZW[2],
+            w=PATH_CONSTRAINT_QUAT_XYZW[3],
+        )
+
+        # 3. Plan a Cartesian trajectory from the start to the goal pose.
+        goal_constraints = [create_pose_constraint(goal_pose)]
+        status, traj_jaco, planning_time = self.motion_planner.plan(
+            group_name=PLANNING_GROUP_JACO,
+            start_state=start_state_jaco,
+            goal_constraints=goal_constraints,
+            cartesian=True,
+            target_link=self.jaco_ee_link,
+        )
+
+        return status, traj_jaco, planning_time
+
     # --- Main Benchmark Loop ---
     def run(self):
         """Main benchmark execution loop with granular metric collection."""
@@ -3526,7 +3572,10 @@ class EndToEndBenchmark:
                 elif self.mode == "6dof_baseline":
                     LOGGER.info("Stage 5: Level Tool")
                     status, traj_jaco, planning_time = (
-                        self._plan_to_reorient_arm_baseline(current_jaco_state)
+                        self._plan_level_and_extract_baseline(
+                            current_jaco_state,
+                            scene["in_food_pose"],
+                        )
                     )
                     cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
