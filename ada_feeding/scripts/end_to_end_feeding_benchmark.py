@@ -80,6 +80,7 @@ class TrialStatus(Enum):
     IK_FAILURE = "IK Failure"
     PLANNER_FAILURE = "Planner Failure"
     VERIFICATION_FAILURE = "Path Verification Failure"
+    INVALID_START_STATE = "Invalid Start State"
     SKIPPED = "Skipped"
 
 
@@ -3138,6 +3139,32 @@ class EndToEndBenchmark:
 
         return status, traj_full, planning_time
 
+    def _validate_start_state(self, start_state: List[float], group_name: str) -> bool:
+        """
+        Checks if a start state is valid (e.g., not in collision) by planning
+        a trivial motion from the start state to itself.
+
+        Returns:
+            True if the start state is valid, False otherwise.
+        """
+        LOGGER.info("  Validating start state with a 'plan-to-self' check...")
+        goal_constraints = [create_joint_constraint(start_state)]
+
+        # Use a very short timeout, as this should be an almost instant check.
+        status, _, _ = self.motion_planner.plan(
+            group_name=group_name,
+            start_state=start_state,
+            goal_constraints=goal_constraints,
+            planning_time=0.1,
+        )
+
+        if status != TrialStatus.SUCCESS:
+            LOGGER.warning("  Start state is invalid (likely in collision).")
+            return False
+
+        LOGGER.info("  Start state is valid.")
+        return True
+
     # --- Main Benchmark Loop ---
     def run(self):
         """Main benchmark execution loop with granular metric collection."""
@@ -3689,13 +3716,29 @@ class EndToEndBenchmark:
             if not trial_failed:
                 if self.mode == "articutool":
                     LOGGER.info("Stage 6: Resting")
-                    (
-                        status,
-                        traj_jaco,
-                        traj_atool,
-                        verification_results,
-                        planning_time,
-                    ) = self._plan_to_resting(scene["resting_pose"], current_jaco_state)
+                    # First, validate the start state before attempting the real plan
+                    is_start_state_valid = self._validate_start_state(
+                        current_jaco_state, PLANNING_GROUP_JACO
+                    )
+                    if not is_start_state_valid:
+                        # If the start state is invalid, log the specific failure and skip
+                        status = TrialStatus.INVALID_START_STATE
+                        traj_jaco, traj_atool, verification_results, planning_time = (
+                            None,
+                            None,
+                            {},
+                            0.0,
+                        )
+                    else:
+                        (
+                            status,
+                            traj_jaco,
+                            traj_atool,
+                            verification_results,
+                            planning_time,
+                        ) = self._plan_to_resting(
+                            scene["resting_pose"], current_jaco_state
+                        )
                     cartesian_path_length = self._calculate_cartesian_path_length(
                         traj_jaco, PLANNING_GROUP_JACO
                     )
