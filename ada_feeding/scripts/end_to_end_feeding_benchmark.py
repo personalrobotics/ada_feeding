@@ -3178,11 +3178,55 @@ class EndToEndBenchmark:
         LOGGER.info("  Start state is valid.")
         return True
 
+    def _add_ground_plane(self):
+        """
+        Adds a large plane to the planning scene to represent the ground by
+        publishing to the /planning_scene topic.
+        """
+        LOGGER.info("Adding ground plane to the planning scene...")
+
+        # Create a publisher to the planning scene topic if it doesn't exist
+        if not hasattr(self, "planning_scene_publisher"):
+            self.planning_scene_publisher = self.node.create_publisher(
+                PlanningScene, "/planning_scene", 10
+            )
+            # Give the publisher a moment to connect
+            time.sleep(1.0)
+
+        # Define the ground plane as a collision object
+        collision_object = CollisionObject()
+        collision_object.header.frame_id = BASE_LINK_JACO
+        collision_object.id = "ground_plane"
+
+        # Define the plane as a thin box
+        plane_primitive = SolidPrimitive()
+        plane_primitive.type = SolidPrimitive.BOX
+        plane_primitive.dimensions = [4.0, 4.0, 0.01]  # Large in X/Y, thin in Z
+
+        # Position the plane slightly below the robot's base to avoid initial collision
+        plane_pose = Pose()
+        plane_pose.position.z = -0.005
+
+        collision_object.primitives.append(plane_primitive)
+        collision_object.primitive_poses.append(plane_pose)
+        collision_object.operation = CollisionObject.ADD
+
+        # Create a PlanningScene message to publish the update
+        planning_scene_update = PlanningScene()
+        planning_scene_update.world.collision_objects.append(collision_object)
+        planning_scene_update.is_diff = True
+
+        # Publish the scene update
+        self.planning_scene_publisher.publish(planning_scene_update)
+        LOGGER.info("Published ground plane to planning scene.")
+        time.sleep(1.0)  # Give a moment for the scene to update
+
     # --- Main Benchmark Loop ---
     def run(self):
         """Main benchmark execution loop with granular metric collection."""
         # TODO: Decide whether we should keep the bounding cylinder active
         # self.add_articutool_bounding_cylinder()
+        self._add_ground_plane()
 
         for i in range(self.num_trials):
             LOGGER.info(f"--- Running Trial {i + 1}/{self.num_trials} ---")
