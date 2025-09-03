@@ -170,7 +170,7 @@ class SceneGenerationParams:
         outer_radius=0.85,
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0.0, math.pi / 2),  # Upper hemisphere
-        min_height=0.0,
+        min_height=0.05,
         max_height=0.25,
     )
     mouth_sampling: SphericalSamplingParams = SphericalSamplingParams(
@@ -198,7 +198,7 @@ class SceneGenerationParams:
     in_food_tool_roll_angle_deg: float = 180.0
     above_food_offset_dist: float = 0.05
     staging_offset_dist: float = ARTICUTOOL_LENGTH_M + 0.25
-    presentation_offset_dist: float = 0.02  # 2cm
+    presentation_offset_dist: float = 0.05
 
 
 # --- Constraint Helpers ---
