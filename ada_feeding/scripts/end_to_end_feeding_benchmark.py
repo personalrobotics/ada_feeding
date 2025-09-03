@@ -69,7 +69,7 @@ ARTICUTOOL_PITCH_LIMITS_RAD = (-math.pi / 2, math.pi / 2)
 ARTICUTOOL_ROLL_LIMITS_RAD = (-math.pi, math.pi)
 WORLD_UP_VECTOR = np.array([0.0, 0.0, 1.0])
 PATH_CONSTRAINT_QUAT_XYZW = (0.707, 0.0, 0.0, 0.707)
-PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (math.pi / 2, 2 * math.pi, math.pi / 2)
+PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (math.pi / 2, 2 * math.pi, math.pi / 3)
 BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (0.1, 2 * math.pi, 0.1)
 ARTICUTOOL_LENGTH_M = 0.14
 
@@ -2291,7 +2291,7 @@ class EndToEndBenchmark:
     ) -> Tuple[TrialStatus, Optional[JointTrajectory], float]:
         LOGGER.info("  Planning to AbovePlate pose...")
         goal_constraints = [
-            create_pose_constraint(above_plate_pose, tolerance_orientation=0.01)
+            create_pose_constraint(above_plate_pose, tolerance_orientation=0.1)
         ]
 
         return self.motion_planner.plan(
@@ -2597,7 +2597,9 @@ class EndToEndBenchmark:
 
         # 1. Define goal and path constraints for the Jaco arm's wrist
         goal_constraints = [
-            create_position_constraint(resting_wrist_pose.position),
+            create_position_constraint(
+                resting_wrist_pose.position, tolerance_position=0.1
+            ),
             create_orientation_path_constraint(
                 quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW, tolerance_rad=(0.1, 2 * np.pi, 0.1)
             ),
@@ -2673,7 +2675,9 @@ class EndToEndBenchmark:
         """
         LOGGER.info("  Planning to Staging pose (S2-Heuristic)...")
 
-        goal_constraints = [create_pose_constraint(staging_wrist_pose)]
+        goal_constraints = [
+            create_pose_constraint(staging_wrist_pose, tolerance_position=0.1)
+        ]
         path_constraints = [
             create_orientation_path_constraint(
                 quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
@@ -2857,12 +2861,15 @@ class EndToEndBenchmark:
         # Prioritized list of candidate Jaco EE pitch angles (in radians).
         candidate_tilts_rad = [
             np.deg2rad(0.0),
+            np.deg2rad(5.0),
+            np.deg2rad(10.0),
             np.deg2rad(15.0),
+            np.deg2rad(20.0),
+            np.deg2rad(25.0),
             np.deg2rad(30.0),
+            np.deg2rad(35.0),
+            np.deg2rad(40.0),
             np.deg2rad(45.0),
-            np.deg2rad(60.0),
-            np.deg2rad(75.0),
-            np.deg2rad(90.0),
         ]
 
         for jaco_pitch_tilt in candidate_tilts_rad:
@@ -3081,7 +3088,7 @@ class EndToEndBenchmark:
         )
 
         # 3. Plan a Cartesian trajectory from the start to the goal pose.
-        goal_constraints = [create_pose_constraint(goal_pose)]
+        goal_constraints = [create_pose_constraint(goal_pose, tolerance_position=0.1)]
         status, traj_jaco, planning_time = self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
             start_state=start_state_jaco,
@@ -3120,7 +3127,7 @@ class EndToEndBenchmark:
         )
 
         # 3. Plan a Cartesian trajectory using the full 8-DOF planning group.
-        goal_constraints = [create_pose_constraint(goal_pose)]
+        goal_constraints = [create_pose_constraint(goal_pose, tolerance_position=0.1)]
         status, traj_full, planning_time = self.motion_planner.plan(
             group_name=PLANNING_GROUP_FULL,
             start_state=start_state_full,
@@ -3319,7 +3326,11 @@ class EndToEndBenchmark:
                     LOGGER.info("Stage 3: AbovePlate -> AboveFood")
 
                     # 1. Plan for the Jaco arm to the pre-calculated wrist pose
-                    goal_constraints_jaco = [create_pose_constraint(jaco_ee_above_food)]
+                    goal_constraints_jaco = [
+                        create_pose_constraint(
+                            jaco_ee_above_food, tolerance_position=0.01
+                        )
+                    ]
                     status_jaco, traj_jaco, planning_time_jaco = (
                         self.motion_planner.plan(
                             group_name=PLANNING_GROUP_JACO,
@@ -3395,7 +3406,9 @@ class EndToEndBenchmark:
                 elif self.mode == "6dof_baseline":
                     LOGGER.info("Stage 3: AbovePlate -> AboveFood")
                     goal_constraints = [
-                        create_pose_constraint(scene["above_food_pose"])
+                        create_pose_constraint(
+                            scene["above_food_pose"], tolerance_position=0.01
+                        )
                     ]
                     status, traj_jaco, planning_time = self.motion_planner.plan(
                         group_name=PLANNING_GROUP_JACO,
@@ -3427,7 +3440,9 @@ class EndToEndBenchmark:
                 elif self.mode == "8dof_baseline":
                     LOGGER.info("Stage 3: AbovePlate -> AboveFood")
                     goal_constraints = [
-                        create_pose_constraint(scene["above_food_pose"])
+                        create_pose_constraint(
+                            scene["above_food_pose"], tolerance_position=0.01
+                        )
                     ]
                     status, traj_full, planning_time = self.motion_planner.plan(
                         group_name=PLANNING_GROUP_FULL,
@@ -3462,7 +3477,9 @@ class EndToEndBenchmark:
             if not trial_failed:
                 if self.mode == "articutool":
                     LOGGER.info("Stage 4: AboveFood -> InFood (Cartesian)")
-                    goal_constraints = [create_pose_constraint(jaco_ee_in_food)]
+                    goal_constraints = [
+                        create_pose_constraint(jaco_ee_in_food, tolerance_position=0.01)
+                    ]
                     status, traj_jaco, planning_time = self.motion_planner.plan(
                         group_name=PLANNING_GROUP_JACO,
                         start_state=current_jaco_state,
@@ -3508,7 +3525,11 @@ class EndToEndBenchmark:
                         current_atool_state = list(traj_atool.points[-1].positions)
                 elif self.mode == "6dof_baseline":
                     LOGGER.info("Stage 4: AboveFood -> InFood")
-                    goal_constraints = [create_pose_constraint(scene["in_food_pose"])]
+                    goal_constraints = [
+                        create_pose_constraint(
+                            scene["in_food_pose"], tolerance_position=0.01
+                        )
+                    ]
                     status, traj_jaco, planning_time = self.motion_planner.plan(
                         group_name=PLANNING_GROUP_JACO,
                         start_state=current_jaco_state,
@@ -3536,7 +3557,11 @@ class EndToEndBenchmark:
                         current_jaco_state = list(traj_jaco.points[-1].positions)
                 elif self.mode == "8dof_baseline":
                     LOGGER.info("Stage 4: AboveFood -> InFood")
-                    goal_constraints = [create_pose_constraint(scene["in_food_pose"])]
+                    goal_constraints = [
+                        create_pose_constraint(
+                            scene["in_food_pose"], tolerance_position=0.01
+                        )
+                    ]
                     status, traj_full, planning_time = self.motion_planner.plan(
                         group_name=PLANNING_GROUP_FULL,
                         start_state=current_jaco_state + current_atool_state,
@@ -3700,7 +3725,9 @@ class EndToEndBenchmark:
                 elif self.mode == "6dof_baseline":
                     LOGGER.info("Stage 6: Resting")
                     goal_constraints = [
-                        create_position_constraint(scene["resting_pose"].position)
+                        create_position_constraint(
+                            scene["resting_pose"].position, tolerance_position=0.1
+                        )
                     ]
                     path_constraints = [
                         create_orientation_path_constraint(
@@ -3739,7 +3766,9 @@ class EndToEndBenchmark:
                 elif self.mode == "8dof_baseline":
                     LOGGER.info("Stage 6: Resting")
                     goal_constraints = [
-                        create_position_constraint(scene["resting_pose"].position)
+                        create_position_constraint(
+                            scene["resting_pose"].position, tolerance_position=0.1
+                        )
                     ]
                     path_constraints = [
                         create_orientation_path_constraint(
@@ -3809,7 +3838,11 @@ class EndToEndBenchmark:
                     )
                 elif self.mode == "6dof_baseline":
                     LOGGER.info("Stage 7: Resting -> Staging")
-                    goal_constraints = [create_pose_constraint(scene["staging_pose"])]
+                    goal_constraints = [
+                        create_pose_constraint(
+                            scene["staging_pose"], tolerance_position=0.1
+                        )
+                    ]
                     path_constraints = [
                         create_orientation_path_constraint(
                             quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
@@ -3842,7 +3875,11 @@ class EndToEndBenchmark:
                     )
                 elif self.mode == "8dof_baseline":
                     LOGGER.info("Stage 7: Resting -> Staging")
-                    goal_constraints = [create_pose_constraint(scene["staging_pose"])]
+                    goal_constraints = [
+                        create_pose_constraint(
+                            scene["staging_pose"], tolerance_position=0.1
+                        )
+                    ]
                     path_constraints = [
                         create_orientation_path_constraint(
                             quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
