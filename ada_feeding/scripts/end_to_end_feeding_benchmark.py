@@ -188,8 +188,8 @@ class SceneGenerationParams:
     )
     resting_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="resting",
-        inner_radius=0.3,
-        outer_radius=0.5,
+        inner_radius=0.5,
+        outer_radius=0.6,
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0, math.pi / 2),
         min_height=0.2,
@@ -199,7 +199,7 @@ class SceneGenerationParams:
     above_plate_radial_dist: float = 0.3
     above_plate_polar_angle_rad_max: float = math.pi / 3
     above_plate_yaw_variability_rad: float = math.pi / 8
-    skewer_polar_angle_rad_max: float = math.pi / 2
+    skewer_polar_angle_rad_max: float = math.pi / 4
     in_food_tool_roll_angle_deg: float = 180.0
     above_food_offset_dist: float = 0.05
     staging_offset_dist: float = ARTICUTOOL_LENGTH_M + 0.25
