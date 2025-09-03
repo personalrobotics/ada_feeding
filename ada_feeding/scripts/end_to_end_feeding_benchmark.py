@@ -156,6 +156,7 @@ class SphericalSamplingParams:
     phi_range: Tuple[float, float]
     min_height: Optional[float] = None
     max_height: Optional[float] = None
+    min_horizontal_radius: Optional[float] = None
 
 
 @dataclass
@@ -173,6 +174,7 @@ class SceneGenerationParams:
         phi_range=(0.0, math.pi / 2),  # Upper hemisphere
         min_height=0.05,
         max_height=0.25,
+        min_horizontal_radius=0.5,
     )
     mouth_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="mouth",
@@ -182,6 +184,7 @@ class SceneGenerationParams:
         phi_range=(0.0, math.pi / 2),
         min_height=0.3,
         max_height=0.5,
+        min_horizontal_radius=0.7,
     )
     resting_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="resting",
@@ -191,6 +194,7 @@ class SceneGenerationParams:
         phi_range=(0, math.pi / 2),
         min_height=0.2,
         max_height=0.4,
+        min_horizontal_radius=0.3,
     )
     above_plate_radial_dist: float = 0.3
     above_plate_polar_angle_rad_max: float = math.pi / 3
@@ -421,7 +425,7 @@ class SceneGenerator:
         Returns a Point and the sampled characteristic values.
         Uses rejection sampling if min/max height is specified.
         """
-        max_attempts = 100
+        max_attempts = 1000
         for _ in range(max_attempts):
             r = np.random.uniform(
                 sampling_params.inner_radius**3, sampling_params.outer_radius**3
@@ -436,7 +440,12 @@ class SceneGenerator:
             if (
                 sampling_params.min_height is None or z >= sampling_params.min_height
             ) and (
-                sampling_params.max_height is None or z <= sampling_params.max_height
+                sampling_params.max_height is None
+                or z <= sampling_params.max_height
+                and (
+                    sampling_params.min_horizontal_radius is None
+                    or np.sqrt(x**2 + y**2) >= sampling_params.min_horizontal_radius
+                )
             ):
                 position = Point(x=x, y=y, z=z)
                 prefix = sampling_params.name
@@ -446,6 +455,10 @@ class SceneGenerator:
                     f"{prefix}_sampled_phi_rad": phi,
                 }
                 return position, sampled_values
+        raise RuntimeError(
+            f"Failed to sample a valid pose for '{sampling_params.name}' "
+            f"after {max_attempts} attempts. Your constraints may be too strict."
+        )
 
     def _calculate_base_facing_orientation(self, position: Point) -> Quaternion:
         """
