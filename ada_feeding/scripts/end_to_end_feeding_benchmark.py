@@ -184,8 +184,8 @@ class SceneGenerationParams:
     )
     resting_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="resting",
-        inner_radius=0.5,
-        outer_radius=0.9,
+        inner_radius=0.3,
+        outer_radius=0.5,
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0, math.pi / 2),
         min_height=0.2,
