@@ -194,7 +194,7 @@ class SceneGenerationParams:
         phi_range=(0, math.pi / 2),
         min_height=0.2,
         max_height=0.4,
-        min_horizontal_radius=0.3,
+        min_horizontal_radius=0.5,
     )
     above_plate_radial_dist: float = 0.3
     above_plate_polar_angle_rad_max: float = math.pi / 3
