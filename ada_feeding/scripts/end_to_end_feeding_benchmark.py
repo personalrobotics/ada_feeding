@@ -36,7 +36,7 @@ from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped
 from sensor_msgs.msg import JointState
-from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Rotation as R, Slerp
 import pinocchio as pin
 from moveit_msgs.msg import PlanningScene, AllowedCollisionEntry, AllowedCollisionMatrix
 from moveit_msgs.msg import (
@@ -2611,22 +2611,87 @@ class EndToEndBenchmark:
         """
         LOGGER.info("  Planning to Resting pose (S2-Heuristic)...")
 
-        # 1. Define goal and path constraints for the Jaco arm's wrist
+        # 1. Get the current pose of the Jaco EE via Forward Kinematics
+        start_joint_state = JointState(name=JOINT_NAMES_JACO, position=start_state_jaco)
+        fk_poses = self.motion_planner.compute_fk(
+            group_name=PLANNING_GROUP_JACO,
+            joint_state=start_joint_state,
+            fk_link_names=[END_EFFECTOR_LINK_JACO],
+        )
+        if not fk_poses:
+            LOGGER.error("  FK failed, cannot generate dynamic path constraint.")
+            return TrialStatus.IK_FAILURE, None, None, 0.0, 0.0
+
+        current_ee_pose = fk_poses[0].pose
+
+        # 2. Extract the current yaw from the wrist's orientation
+        q_current = current_ee_pose.orientation
+        R_current = R.from_quat([q_current.x, q_current.y, q_current.z, q_current.w])
+        z_axis_ee = R_current.apply([0.0, 0.0, 1.0])
+        current_yaw_rad = math.atan2(z_axis_ee[1], z_axis_ee[0])
+
+        # --- REVISED: Construct the dynamic target orientation directly ---
+        # This is the robust way to create the orientation we need.
+
+        # Define the desired axes of our target frame in world coordinates:
+        # Y-axis (up) should align with the world's Z-axis.
+        y_axis_target = np.array([0.0, 0.0, 1.0])
+
+        # Z-axis (forward) should be horizontal and point along the current yaw.
+        z_axis_target = np.array(
+            [math.cos(current_yaw_rad), math.sin(current_yaw_rad), 0.0]
+        )
+
+        # X-axis (left) is the cross product to form a right-handed system.
+        x_axis_target = np.cross(y_axis_target, z_axis_target)
+
+        # Create the rotation matrix from these axes and convert to a quaternion.
+        # The axes vectors form the columns of the rotation matrix.
+        rotation_matrix = np.array([x_axis_target, y_axis_target, z_axis_target]).T
+        R_dynamic_target = R.from_matrix(rotation_matrix)
+        q_dynamic_target = R_dynamic_target.as_quat()
+        # --- End of Revision ---
+
+        # 4. Define goal and the new dynamic path constraints
         goal_constraints = [
             create_position_constraint(
                 resting_wrist_pose.position, tolerance_position=0.1
             ),
             create_orientation_path_constraint(
-                quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW, tolerance_rad=(0.1, 2 * np.pi, 0.1)
+                quat_xyzw=(
+                    q_dynamic_target[0],
+                    q_dynamic_target[1],
+                    q_dynamic_target[2],
+                    q_dynamic_target[3],
+                ),
+                tolerance_rad=(0.1, 2 * np.pi, 0.1),
             ),
         ]
         path_constraints = [
             create_orientation_path_constraint(
-                quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
+                quat_xyzw=(
+                    q_dynamic_target[0],
+                    q_dynamic_target[1],
+                    q_dynamic_target[2],
+                    q_dynamic_target[3],
+                ),
                 tolerance_rad=PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
             )
         ]
-
+        # Analyze the start pose against the (potentially corrected) path constraint
+        LOGGER.info("  Analyzing start pose against final path constraint...")
+        error_report = self.compute_moveit_orientation_error(
+            current_ee_pose, path_constraints[0]
+        )
+        details = error_report["details"]
+        LOGGER.info(f"    - Constraint Satisfied: {error_report['is_satisfied']}")
+        for axis, data in details.items():
+            err_deg = math.degrees(data["error_rad"])
+            tol_deg = math.degrees(data["tolerance_rad"])
+            status = "OK" if data["satisfied"] else "FAILED"
+            LOGGER.info(
+                f"    - {axis.title():<10}: Error = {err_deg:6.1f}°, Tolerance = ±{tol_deg:.1f}° -> {status}"
+            )
         # 2. Plan the guided 6-DOF trajectory for the Jaco arm
         status, traj_jaco, planning_time = self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
@@ -3222,6 +3287,106 @@ class EndToEndBenchmark:
         self.planning_scene_publisher.publish(planning_scene_update)
         LOGGER.info("Published ground plane to planning scene.")
         time.sleep(1.0)  # Give a moment for the scene to update
+
+    def _compute_intermediate_level_orientation(
+        self, start_pose: Pose, end_pose: Pose
+    ) -> Quaternion:
+        """
+        Calculates an intermediate orientation that is level and rotationally
+        halfway between a start and an end pose using SLERP.
+        """
+        # 1. Convert the start and end quaternions to Scipy Rotation objects
+        q_start = start_pose.orientation
+        R_start = R.from_quat([q_start.x, q_start.y, q_start.z, q_start.w])
+
+        q_end = end_pose.orientation
+        R_end = R.from_quat([q_end.x, q_end.y, q_end.z, q_end.w])
+
+        # 2. Use SLERP to find the rotation halfway between the two
+        key_rotations = R.concatenate([R_start, R_end])
+        slerp_interpolator = Slerp([0, 1], key_rotations)
+        R_intermediate = slerp_interpolator(0.5)
+
+        # 3. Convert the result back to a geometry_msgs/Quaternion
+        q_interp = R_intermediate.as_quat()
+        intermediate_orientation = Quaternion(
+            x=q_interp[0], y=q_interp[1], z=q_interp[2], w=q_interp[3]
+        )
+
+        return intermediate_orientation
+
+    def compute_moveit_orientation_error(
+        self,
+        current_pose: Pose,
+        orientation_constraint: Tuple[Any, Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Computes the orientation error as interpreted by a MoveIt2 path constraint.
+
+        This function replicates the process of calculating the rotational error between
+        a current orientation and a target quaternion, converting it to Euler angles
+        (xyz), and comparing against tolerances. Your convention of x=pitch, y=yaw,
+        z=roll is used for the output keys.
+
+        Args:
+            current_pose: The current pose of the Jaco EE link (from FK).
+            orientation_constraint: The constraint tuple, containing the target
+                                    orientation and tolerances.
+
+        Returns:
+            A dictionary detailing the error, tolerances, and satisfaction status.
+        """
+        constraint_type, constraint_dict = orientation_constraint
+        if constraint_type != MoveIt2ConstraintType.ORIENTATION:
+            raise ValueError("Provided constraint is not an orientation constraint.")
+
+        # 1. Convert the current and target Quaternions to Scipy Rotation objects
+        q_current = current_pose.orientation
+        R_current = R.from_quat([q_current.x, q_current.y, q_current.z, q_current.w])
+
+        q_target = constraint_dict["quat_xyzw"]
+        R_target = R.from_quat([q_target.x, q_target.y, q_target.z, q_target.w])
+
+        # 2. Calculate the rotational error. This represents the full 3D rotation
+        # required to get from the target orientation to the current one.
+        R_error = R_target.inv() * R_current
+
+        # 3. Convert the error into Euler angles (x, y, z). This is where a large
+        # yaw can "leak" into the pitch and roll components.
+        euler_error_rad = R_error.as_euler("xyz")
+        pitch_error_rad, yaw_error_rad, roll_error_rad = euler_error_rad
+
+        # 4. Extract the (X, Y, Z) tolerances from the constraint
+        tolerances_rad = constraint_dict["tolerance"]
+        pitch_tol_rad, yaw_tol_rad, roll_tol_rad = tolerances_rad
+
+        # 5. Check if each component of the error is within its tolerance
+        pitch_ok = abs(pitch_error_rad) <= pitch_tol_rad
+        yaw_ok = abs(yaw_error_rad) <= yaw_tol_rad
+        roll_ok = abs(roll_error_rad) <= roll_tol_rad
+        is_satisfied = pitch_ok and yaw_ok and roll_ok
+
+        # 6. Return a detailed report for analysis
+        return {
+            "is_satisfied": is_satisfied,
+            "details": {
+                "pitch (x)": {
+                    "error_rad": pitch_error_rad,
+                    "tolerance_rad": pitch_tol_rad,
+                    "satisfied": pitch_ok,
+                },
+                "yaw (y)": {
+                    "error_rad": yaw_error_rad,
+                    "tolerance_rad": yaw_tol_rad,
+                    "satisfied": yaw_ok,
+                },
+                "roll (z)": {
+                    "error_rad": roll_error_rad,
+                    "tolerance_rad": roll_tol_rad,
+                    "satisfied": roll_ok,
+                },
+            },
+        }
 
     # --- Main Benchmark Loop ---
     def run(self):
