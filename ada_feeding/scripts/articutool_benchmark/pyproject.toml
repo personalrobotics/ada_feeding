@@ -1,0 +1,10 @@
+# pyproject.toml
+
+[project]
+name = "feeding_benchmark"
+version = "0.1.0"
+
+[tool.pyright]
+# This section is optional but good practice.
+# It tells pyright to use the currently active Python environment.
+useLibraryCodeForTypes = true
