@@ -206,72 +206,6 @@ def analyze_resting_stage_failures(df_stages: pd.DataFrame):
     print("=" * 85)
 
 
-def analyze_pre_transport_posture(df_stages: pd.DataFrame):
-    """
-    Generates a histogram of the chosen Jaco EE pitch angle from the
-    PreAcquisition stage to analyze the starting posture for transport.
-    """
-    print("\n" + "=" * 85)
-    print("                Pre-Transport Jaco Wrist Posture Analysis")
-    print("=" * 85)
-
-    # Filter for successful 'PreAcquisition' stages for the Articutool
-    df_pre_acq = df_stages[
-        (df_stages["mode"] == "Articutool")
-        & (df_stages["stage_name"] == "PreAcquisition")
-        & (df_stages["is_success"] == 1)
-    ].copy()
-
-    if df_pre_acq.empty:
-        print("No successful 'PreAcquisition' stages found to analyze.")
-        print("=" * 85)
-        return
-
-    # Access the flattened column directly.
-    # json_normalize turns 'custom_metrics':{'key':val} into a column named 'custom_metrics.key'
-    metric_col = "custom_metrics.chosen_jaco_pitch_tilt_rad"
-    if metric_col not in df_pre_acq.columns:
-        print(f"Metric column '{metric_col}' not found in the data.")
-        print("=" * 85)
-        return
-
-    df_pre_acq.dropna(subset=[metric_col], inplace=True)
-
-    if df_pre_acq.empty:
-        print("Pitch angle metric not found in 'PreAcquisition' custom_metrics.")
-        print("=" * 85)
-        return
-
-    df_pre_acq["jaco_pitch_deg"] = df_pre_acq[metric_col].apply(
-        lambda x: x * 180 / math.pi
-    )
-
-    fig = px.histogram(
-        df_pre_acq,
-        x="jaco_pitch_deg",
-        nbins=20,
-        title="Distribution of Chosen Jaco Wrist Pitch for Acquisition",
-        labels={"jaco_pitch_deg": "Jaco Wrist Pitch Angle (Degrees)"},
-    )
-    fig.update_layout(
-        xaxis_title="Jaco Wrist Pitch (0° is Level, +90° is Top-Down)",
-        yaxis_title="Frequency (Number of Trials)",
-    )
-    fig.write_html("pre_transport_posture_distribution.html")
-    print("Saved pre-transport posture plot to pre_transport_posture_distribution.html")
-
-    # Provide a statistical summary
-    mean_pitch = df_pre_acq["jaco_pitch_deg"].mean()
-    std_pitch = df_pre_acq["jaco_pitch_deg"].std()
-    print(f"\nStatistical Summary of Chosen Jaco Wrist Pitch:")
-    print(f"- Average: {mean_pitch:.1f} degrees")
-    print(f"- Std Dev: {std_pitch:.1f} degrees")
-    print(
-        f"- Range:   {df_pre_acq['jaco_pitch_deg'].min():.1f} to {df_pre_acq['jaco_pitch_deg'].max():.1f} degrees"
-    )
-    print("=" * 85)
-
-
 def plot_stage_success_rates(df_stages: pd.DataFrame):
     """Generates a grouped bar chart comparing success rates for each stage."""
     stage_order = [
@@ -389,6 +323,5 @@ if __name__ == "__main__":
         generate_summary_table(df_trials)
         generate_stage_by_stage_summary(df_stages)
         analyze_resting_stage_failures(df_stages)
-        analyze_pre_transport_posture(df_stages)
         plot_stage_success_rates(df_stages)
         plot_planning_times(df_stages)
