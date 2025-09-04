@@ -477,6 +477,13 @@ class EndToEndBenchmark:
             f"    - Constraint Satisfied at Start: {error_report['is_satisfied']}"
         )
 
+        LOGGER.info("  Analyzing end pose against final path constraint for Staging...")
+        error_report = metrics.compute_moveit_orientation_error(
+            staging_wrist_pose, path_constraints[0]
+        )
+        LOGGER.info(
+            f"    - Constraint Satisfied at End: {error_report['is_satisfied']}"
+        )
         status, traj_jaco, planning_time = self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
             start_state=start_state_jaco,
