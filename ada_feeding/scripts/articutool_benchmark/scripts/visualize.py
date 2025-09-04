@@ -27,6 +27,8 @@ import numpy as np
 import pandas as pd
 import pinocchio as pin
 import pinocchio.visualize
+from PIL import Image
+import imageio
 
 
 def xacro_to_urdf_string(xacro_filename: str, logger_func=print) -> Optional[str]:
@@ -282,7 +284,7 @@ def update_q_from_waypoint(q, model, waypoint, joint_names, joint_map):
                 q[model.joints[joint_id].idx_q + 1] = np.sin(pos)
 
 
-def trajectory_playback_loop(pin_viz, model, data, selected_stage, args):
+def trajectory_playback_loop(pin_viz, model, data, selected_stage, args, trial_id):
     """
     Runs the interactive UI for a SINGLE trajectory.
     Handles different execution modes and frame-by-frame controls.
@@ -390,7 +392,7 @@ def trajectory_playback_loop(pin_viz, model, data, selected_stage, args):
         print(f"\nDisplaying Frame: {current_idx + 1}/{len(waypoints)}")
         print(f"--- Stage: {selected_stage['stage_name']} ---")
         print(
-            "Commands: [n]ext, [p]rev, [f]irst, [l]ast, [a]nimate, [b]ack to stage selection, [q]uit"
+            "Commands: [n]ext, [p]rev, [f]irst, [l]ast, [a]nimate, [s]creenshot, [r]ecord animation, [b]ack, [q]uit"
         )
         user_input = input("Enter command: ").strip().lower()
 
@@ -407,8 +409,21 @@ def trajectory_playback_loop(pin_viz, model, data, selected_stage, args):
             current_idx = 0
         elif user_input == "l":
             current_idx = len(waypoints) - 1
-        elif user_input == "a":
-            print("Animating... Press Ctrl+C to stop.")
+        elif user_input == "s":
+            filepath = os.path.join(
+                args.output_dir,
+                f"trial_{trial_id}_{selected_stage['stage_name']}_frame_{current_idx + 1}.png",
+            )
+            print(f"Saving screenshot to {filepath}...")
+            img = pin_viz.viewer.get_image()
+            img.save(filepath)
+            print("Screenshot saved successfully.")
+        elif user_input in ["a", "r"]:
+            record_video = user_input == "r"
+            frames = []
+            animation_type = "Recording" if record_video else "Animating"
+
+            print(f"{animation_type}... Press Ctrl+C to stop.")
             try:
                 for i in range(current_idx, len(waypoints)):
                     # Also reset q inside the animation loop for consistency
@@ -479,12 +494,24 @@ def trajectory_playback_loop(pin_viz, model, data, selected_stage, args):
 
                     pin.forwardKinematics(model, data, q_anim)
                     pin_viz.display(q_anim)
+                    if record_video:
+                        img = pin_viz.viewer.get_image()
+                        frames.append(np.array(img))
+
                     print(f"  Displaying frame {i + 1}/{len(waypoints)}", end="\r")
                     time.sleep(1.0 / args.fps)
                 current_idx = len(waypoints) - 1
-                print("\nAnimation finished.")
+                print(f"\n{animation_type} finished.")
             except KeyboardInterrupt:
-                print("\nAnimation stopped.")
+                print(f"\n{animation_type} stopped.")
+            if record_video and frames:
+                filepath = os.path.join(
+                    args.output_dir,
+                    f"trial_{trial_id}_{selected_stage['stage_name']}.mp4",
+                )
+                print(f"Saving video to {filepath}...")
+                imageio.mimsave(filepath, frames, fps=args.fps)
+                print("Video saved successfully.")
 
 
 def trial_visualization_loop(pin_viz, model, data, trial_df, args):
@@ -531,8 +558,9 @@ def trial_visualization_loop(pin_viz, model, data, trial_df, args):
             print("Invalid choice.")
             continue
 
-        print("Select an option:")
-        print("  [0] Animate Full Sequence (All Successful Stages)")
+        print("\nSelect an option:")
+        print("  [a] Animate Full Sequence")
+        print("  [ra] Record Full Sequence as Video")
         print("\n--- Or select a single trajectory to play: ---")
         for i, stage in enumerate(available_stages):
             print(
@@ -542,20 +570,24 @@ def trial_visualization_loop(pin_viz, model, data, trial_df, args):
         print("  [q] Quit")
 
         try:
-            choice_str = (
-                input(f"Enter choice (1-{len(available_stages)} or m/q): ")
-                .strip()
-                .lower()
-            )
+            choice_str = input("Enter choice: ").strip().lower()
             if choice_str == "q":
                 return "quit"
             if choice_str == "m":
                 return "menu"
-            if choice_str == "0":
+
+            if choice_str in ["a", "ra"]:
                 animate_full_trial_sequence(
-                    pin_viz, model, data, trial_df, args, stage_order
+                    pin_viz,
+                    model,
+                    data,
+                    trial_df,
+                    args,
+                    stage_order,
+                    trial_id,
+                    record=(choice_str == "ra"),
                 )
-                continue  # Go back to the menu after animation
+                continue
 
             selected_stage_data = available_stages[int(choice_str) - 1]
 
@@ -584,22 +616,23 @@ def trial_visualization_loop(pin_viz, model, data, trial_df, args):
             except ValueError:
                 pass
 
-            # Enter the playback loop for the chosen trajectory
+            # Pass trial_id to the playback loop
             action = trajectory_playback_loop(
-                pin_viz, model, data, selected_stage_data, args
+                pin_viz, model, data, selected_stage_data, args, trial_id
             )
             if action == "quit":
                 return "quit"
-            # If 'back', the loop will continue, re-displaying this menu
 
         except (ValueError, IndexError):
             print("Invalid choice.")
 
 
-def animate_full_trial_sequence(pin_viz, model, data, trial_df, args, stage_order):
+def animate_full_trial_sequence(
+    pin_viz, model, data, trial_df, args, stage_order, trial_id, record=False
+):
     """
     Gathers all successful trajectories for a trial, sorts them, and plays
-    them back as a single continuous animation.
+    them back as a single continuous animation, with optional video recording.
     """
     print("\n--- Preparing Full Trial Animation ---")
 
@@ -707,21 +740,34 @@ def animate_full_trial_sequence(pin_viz, model, data, trial_df, args, stage_orde
         input("Press Enter to continue...")
         return
 
+    frames = []
+    animation_type = "Recording" if record else "Animating"
     print(
-        f"\nAnimating {len(successful_stages)} stages ({len(q_sequence)} frames)... Press Ctrl+C to stop."
+        f"\n{animation_type} {len(successful_stages)} stages ({len(q_sequence)} frames)... Press Ctrl+C to stop."
     )
+
     try:
-        # Set the visualizer to the first frame before starting
         pin_viz.display(q_sequence[0])
         time.sleep(1)
 
         for i, q in enumerate(q_sequence):
             pin_viz.display(q)
+            if record:
+                img = pin_viz.viewer.get_image()
+                frames.append(np.array(img))
             print(f"  Displaying frame {i + 1}/{len(q_sequence)}", end="\r")
             time.sleep(1.0 / args.fps)
-        print("\nAnimation finished.")
+        print(f"\n{animation_type} finished.")
+
     except KeyboardInterrupt:
-        print("\nAnimation stopped by user.")
+        print(f"\n{animation_type} stopped by user.")
+
+    if record and frames:
+        filepath = os.path.join(args.output_dir, f"trial_{trial_id}_full_sequence.mp4")
+        print(f"Saving video to {filepath}...")
+        imageio.mimsave(filepath, frames, fps=args.fps)
+        print("Video saved successfully.")
+
     input("Press Enter to return to the menu...")
 
 
@@ -781,7 +827,19 @@ if __name__ == "__main__":
         help="Path to the robot URDF/XACRO file.",
     )
     parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="visualization_output",
+        help="Directory to save screenshots and videos.",
+    )
+    parser.add_argument(
         "--fps", type=int, default=30, help="Frames per second for animation."
     )
     args = parser.parse_args()
+    # Create the output directory if it doesn't exist
+    if args.output_dir:
+        os.makedirs(args.output_dir, exist_ok=True)
+        print(
+            f"Screenshots and videos will be saved to: {os.path.abspath(args.output_dir)}"
+        )
     main(args)
