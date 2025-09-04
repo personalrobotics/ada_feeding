@@ -531,7 +531,9 @@ def trial_visualization_loop(pin_viz, model, data, trial_df, args):
             print("Invalid choice.")
             continue
 
-        print("Select a trajectory to play:")
+        print("Select an option:")
+        print("  [0] Animate Full Sequence (All Successful Stages)")
+        print("\n--- Or select a single trajectory to play: ---")
         for i, stage in enumerate(available_stages):
             print(
                 f"  [{i + 1}] {stage['stage_name']} (Mode: {stage['execution_mode']})"
@@ -549,6 +551,11 @@ def trial_visualization_loop(pin_viz, model, data, trial_df, args):
                 return "quit"
             if choice_str == "m":
                 return "menu"
+            if choice_str == "0":
+                animate_full_trial_sequence(
+                    pin_viz, model, data, trial_df, args, stage_order
+                )
+                continue  # Go back to the menu after animation
 
             selected_stage_data = available_stages[int(choice_str) - 1]
 
@@ -587,6 +594,135 @@ def trial_visualization_loop(pin_viz, model, data, trial_df, args):
 
         except (ValueError, IndexError):
             print("Invalid choice.")
+
+
+def animate_full_trial_sequence(pin_viz, model, data, trial_df, args, stage_order):
+    """
+    Gathers all successful trajectories for a trial, sorts them, and plays
+    them back as a single continuous animation.
+    """
+    print("\n--- Preparing Full Trial Animation ---")
+
+    # 1. Filter for successful stages and sort them chronologically
+    successful_stages = trial_df[trial_df["status"] == "Success"].to_dict("records")
+    if not successful_stages:
+        print("No successful stages to animate.")
+        input("Press Enter to continue...")
+        return
+
+    def get_stage_index(stage):
+        try:
+            return stage_order.index(stage["stage_name"])
+        except ValueError:
+            return float("inf")
+
+    successful_stages.sort(key=get_stage_index)
+
+    # 2. Build the master list of joint configurations (q) for the full animation
+    q_sequence = []
+    q_current = pin.neutral(model)  # Start from the neutral pose
+
+    print("Stitching trajectories:")
+    for stage in successful_stages:
+        print(f"  - Processing stage: {stage['stage_name']}")
+        traj_jaco = stage.get("traj_jaco")
+        traj_atool = stage.get("traj_atool")
+        execution_mode = stage.get("execution_mode")
+
+        # Get joint maps for the current stage's trajectories
+        jaco_map = get_joint_map(model, (traj_jaco or {}).get("joint_names", []))
+        atool_map = get_joint_map(model, (traj_atool or {}).get("joint_names", []))
+
+        # Determine waypoints for this stage
+        jaco_points = (traj_jaco or {}).get("points", [])
+        atool_points = (traj_atool or {}).get("points", [])
+
+        if execution_mode == "Sequential":
+            num_waypoints = len(jaco_points) + len(atool_points)
+        else:
+            num_waypoints = max(len(jaco_points), len(atool_points))
+
+        if num_waypoints == 0:
+            continue
+
+        for i in range(num_waypoints):
+            q_frame = q_current.copy()  # Start from the previous stage's end state
+
+            if execution_mode == "Sequential":
+                if i < len(jaco_points):  # Jaco movement phase
+                    update_q_from_waypoint(
+                        q_frame,
+                        model,
+                        jaco_points[i],
+                        traj_jaco["joint_names"],
+                        jaco_map,
+                    )
+                else:  # Articutool movement phase
+                    # Hold Jaco at its final position
+                    update_q_from_waypoint(
+                        q_frame,
+                        model,
+                        jaco_points[-1],
+                        traj_jaco["joint_names"],
+                        jaco_map,
+                    )
+                    # Move Articutool
+                    atool_idx = i - len(jaco_points)
+                    update_q_from_waypoint(
+                        q_frame,
+                        model,
+                        atool_points[atool_idx],
+                        traj_atool["joint_names"],
+                        atool_map,
+                    )
+            else:  # Synchronous, Jaco Only, Articutool Only
+                if jaco_points:
+                    jaco_idx = min(i, len(jaco_points) - 1)
+                    update_q_from_waypoint(
+                        q_frame,
+                        model,
+                        jaco_points[jaco_idx],
+                        traj_jaco["joint_names"],
+                        jaco_map,
+                    )
+                if atool_points:
+                    atool_idx = min(i, len(atool_points) - 1)
+                    update_q_from_waypoint(
+                        q_frame,
+                        model,
+                        atool_points[atool_idx],
+                        traj_atool["joint_names"],
+                        atool_map,
+                    )
+
+            q_sequence.append(q_frame)
+
+        # Carry over the final state of this stage for the next one
+        if q_sequence:
+            q_current = q_sequence[-1]
+
+    # 3. Animate the full sequence
+    if not q_sequence:
+        print("No animation frames were generated.")
+        input("Press Enter to continue...")
+        return
+
+    print(
+        f"\nAnimating {len(successful_stages)} stages ({len(q_sequence)} frames)... Press Ctrl+C to stop."
+    )
+    try:
+        # Set the visualizer to the first frame before starting
+        pin_viz.display(q_sequence[0])
+        time.sleep(1)
+
+        for i, q in enumerate(q_sequence):
+            pin_viz.display(q)
+            print(f"  Displaying frame {i + 1}/{len(q_sequence)}", end="\r")
+            time.sleep(1.0 / args.fps)
+        print("\nAnimation finished.")
+    except KeyboardInterrupt:
+        print("\nAnimation stopped by user.")
+    input("Press Enter to return to the menu...")
 
 
 def main(args):
