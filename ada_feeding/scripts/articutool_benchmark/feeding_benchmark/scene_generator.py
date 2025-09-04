@@ -38,14 +38,44 @@ class SceneGenerator:
         scene["food_pose"] = Pose(position=food_position, orientation=food_orientation)
         scene_characteristics.update(food_params)
 
-        mouth_position, mouth_params = self._sample_pose_in_spherical_shell(
+        initial_mouth_position, mouth_params = self._sample_pose_in_spherical_shell(
             self.params.mouth_sampling
         )
-        mouth_orientation = self._calculate_base_facing_orientation(mouth_position)
-        scene["mouth_pose"] = Pose(
-            position=mouth_position, orientation=mouth_orientation
-        )
         scene_characteristics.update(mouth_params)
+
+        initial_mouth_orientation = self._calculate_tangential_facing_orientation(
+            initial_mouth_position,
+        )
+
+        R_initial_mouth = R.from_quat(
+            [
+                initial_mouth_orientation.x,
+                initial_mouth_orientation.y,
+                initial_mouth_orientation.z,
+                initial_mouth_orientation.w,
+            ]
+        )
+        x_axis_initial_mouth = R_initial_mouth.apply([1.0, 0.0, 0.0])
+
+        scoot_dist = (
+            self.params.staging_offset_dist * self.params.staging_scoot_back_factor
+        )
+        p_initial_mouth = np.array(
+            [
+                initial_mouth_position.x,
+                initial_mouth_position.y,
+                initial_mouth_position.z,
+            ]
+        )
+        p_final_mouth = p_initial_mouth - (x_axis_initial_mouth * scoot_dist)
+
+        scene["mouth_pose"] = Pose(
+            position=Point(x=p_final_mouth[0], y=p_final_mouth[1], z=p_final_mouth[2]),
+            orientation=initial_mouth_orientation,
+        )
+        scene_characteristics.update(
+            self._characterize_pose(scene["mouth_pose"], "mouth_pose")
+        )
 
         resting_position, resting_params = self._sample_pose_in_spherical_shell(
             self.params.resting_sampling
@@ -352,3 +382,33 @@ class SceneGenerator:
             orientation=final_orientation,
         )
         return presentation_pose, staging_pose
+
+    def _calculate_tangential_facing_orientation(
+        self, position: Point, yaw_variability_rad: float = 0.0
+    ) -> Quaternion:
+        """
+        Calculates an orientation that is upright (Z-up) and has its X-axis
+        pointing tangentially to a circle around the robot base, with optional variability.
+        """
+        v_radial = np.array([position.x, position.y, 0.0])
+        if np.linalg.norm(v_radial) < 1e-6:
+            v_radial = np.array([1.0, 0.0, 0.0])
+
+        if np.random.rand() > 0.5:
+            v_tangent = np.array([-v_radial[1], v_radial[0], 0.0])
+        else:
+            v_tangent = np.array([v_radial[1], -v_radial[0], 0.0])
+
+        # Use the passed-in variability instead of a hardcoded value
+        yaw_offset = np.random.uniform(-yaw_variability_rad, yaw_variability_rad)
+        R_variability = R.from_euler("z", yaw_offset)
+        x_axis = R_variability.apply(v_tangent)
+        x_axis /= np.linalg.norm(x_axis)
+
+        z_axis = np.array([0.0, 0.0, 1.0])
+        y_axis = np.cross(z_axis, x_axis)
+
+        rotation_matrix = np.array([x_axis, y_axis, z_axis]).T
+        quat = R.from_matrix(rotation_matrix).as_quat()
+
+        return Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3])

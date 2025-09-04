@@ -91,13 +91,13 @@ class SceneGenerationParams:
     )
     mouth_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="mouth",
-        inner_radius=0.7,
-        outer_radius=0.85,
+        inner_radius=0.4,
+        outer_radius=0.6,
         theta_range=(0.0, 2 * math.pi),
         phi_range=(0.0, math.pi / 2),
         min_height=0.3,
-        max_height=0.5,
-        min_horizontal_radius=0.7,
+        max_height=0.7,
+        min_horizontal_radius=0.3,
     )
     resting_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="resting",
@@ -117,3 +117,6 @@ class SceneGenerationParams:
     above_food_offset_dist: float = 0.05
     staging_offset_dist: float = ARTICUTOOL_LENGTH_M + 0.25
     presentation_offset_dist: float = 0.05
+    # Defines how much to offset the mouth from an ideal staging pose.
+    # 1.0 means the staging_pose will be at the initially sampled location.
+    staging_scoot_back_factor: float = 1.0
