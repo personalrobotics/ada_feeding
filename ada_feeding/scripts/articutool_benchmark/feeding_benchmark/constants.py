@@ -33,5 +33,5 @@ ARTICUTOOL_LENGTH_M = 0.14
 
 # Benchmark-Specific Parameters
 PATH_CONSTRAINT_QUAT_XYZW = (0.707, 0.0, 0.0, 0.707)
-PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (math.pi / 2, 2 * math.pi, math.pi / 3)
+PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (math.pi / 2, 2 * math.pi, math.pi / 4)
 BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (0.1, 2 * math.pi, 0.1)
