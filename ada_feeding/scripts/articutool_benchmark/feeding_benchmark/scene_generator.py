@@ -45,6 +45,7 @@ class SceneGenerator:
 
         initial_mouth_orientation = self._calculate_tangential_facing_orientation(
             initial_mouth_position,
+            food_position=scene["food_pose"].position,
         )
 
         R_initial_mouth = R.from_quat(
@@ -384,26 +385,47 @@ class SceneGenerator:
         return presentation_pose, staging_pose
 
     def _calculate_tangential_facing_orientation(
-        self, position: Point, yaw_variability_rad: float = 0.0
+        self,
+        mouth_position: Point,
+        food_position: Point,
+        yaw_variability_rad: float = 0.0,
     ) -> Quaternion:
         """
-        Calculates an orientation that is upright (Z-up) and has its X-axis
-        pointing tangentially to a circle around the robot base, with optional variability.
+        Calculates a tangential orientation that is deterministically chosen
+        to face towards the food position.
         """
-        v_radial = np.array([position.x, position.y, 0.0])
+        # Vector from base to the mouth
+        v_radial = np.array([mouth_position.x, mouth_position.y, 0.0])
         if np.linalg.norm(v_radial) < 1e-6:
             v_radial = np.array([1.0, 0.0, 0.0])
 
-        if np.random.rand() > 0.5:
-            v_tangent = np.array([-v_radial[1], v_radial[0], 0.0])
-        else:
-            v_tangent = np.array([v_radial[1], -v_radial[0], 0.0])
+        # Define one of the two possible tangential vectors
+        v_tangent_candidate = np.array([-v_radial[1], v_radial[0], 0.0])
+        if np.linalg.norm(v_tangent_candidate) < 1e-6:
+            v_tangent_candidate = np.array([0.0, 1.0, 0.0])
+        v_tangent_candidate /= np.linalg.norm(v_tangent_candidate)
 
-        # Use the passed-in variability instead of a hardcoded value
+        # Vector from the mouth to the food
+        v_mouth_to_food = np.array(
+            [
+                food_position.x - mouth_position.x,
+                food_position.y - mouth_position.y,
+                0.0,
+            ]
+        )
+        if np.linalg.norm(v_mouth_to_food) > 1e-6:
+            v_mouth_to_food /= np.linalg.norm(v_mouth_to_food)
+
+        # Use the dot product to choose the tangent vector that faces the food
+        if np.dot(v_tangent_candidate, v_mouth_to_food) >= 0:
+            chosen_tangent = v_tangent_candidate
+        else:
+            chosen_tangent = -v_tangent_candidate  # The opposite direction
+
+        # Apply random yaw variability to the chosen direction
         yaw_offset = np.random.uniform(-yaw_variability_rad, yaw_variability_rad)
         R_variability = R.from_euler("z", yaw_offset)
-        x_axis = R_variability.apply(v_tangent)
-        x_axis /= np.linalg.norm(x_axis)
+        x_axis = R_variability.apply(chosen_tangent)
 
         z_axis = np.array([0.0, 0.0, 1.0])
         y_axis = np.cross(z_axis, x_axis)
