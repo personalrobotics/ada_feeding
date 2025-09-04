@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Tuple, Any
 
 # Third-party imports
 import numpy as np
-from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Rotation as R, Slerp
 import tf2_ros
 from pymoveit2 import MoveIt2
 
@@ -418,8 +418,7 @@ class EndToEndBenchmark:
         """
         LOGGER.info("  Planning to Staging pose (S2-Heuristic)...")
 
-        # 1. Get the current pose of the Jaco EE via Forward Kinematics to build a
-        # dynamic, achievable path constraint.
+        # 1. Get the start pose's orientation (q_start)
         start_joint_state = JointState(name=JOINT_NAMES_JACO, position=start_state_jaco)
         fk_poses = self.motion_planner.compute_fk(
             group_name=PLANNING_GROUP_JACO,
@@ -431,59 +430,78 @@ class EndToEndBenchmark:
             return TrialStatus.IK_FAILURE, None, None, {}, 0.0
 
         current_ee_pose = fk_poses[0].pose
-
-        # 2. Extract the current yaw from the wrist's orientation. This is the
-        # component we want to preserve in our path constraint.
-        q_current = current_ee_pose.orientation
-        R_current = R.from_quat([q_current.x, q_current.y, q_current.z, q_current.w])
-        z_axis_ee = R_current.apply([0.0, 0.0, 1.0])  # Tool's forward vector
-        current_yaw_rad = math.atan2(z_axis_ee[1], z_axis_ee[0])
-
-        # 3. Construct the dynamic target orientation quaternion.
-        #    - Y-axis (up) aligns with the world's Z-axis for leveling.
-        #    - Z-axis (forward) is horizontal and points along the current yaw.
-        #    - X-axis is the cross product to form a right-handed system.
-        y_axis_target = np.array([0.0, 0.0, 1.0])
-        z_axis_target = np.array(
-            [math.cos(current_yaw_rad), math.sin(current_yaw_rad), 0.0]
+        q_start = R.from_quat(
+            [
+                current_ee_pose.orientation.x,
+                current_ee_pose.orientation.y,
+                current_ee_pose.orientation.z,
+                current_ee_pose.orientation.w,
+            ]
         )
-        x_axis_target = np.cross(y_axis_target, z_axis_target)
-        rotation_matrix = np.array([x_axis_target, y_axis_target, z_axis_target]).T
-        R_dynamic_target = R.from_matrix(rotation_matrix)
-        q_dynamic_target = R_dynamic_target.as_quat()  # Result is [x, y, z, w]
 
-        goal_constraints = [
-            create_pose_constraint(staging_wrist_pose, tolerance_position=0.1)
-        ]
+        # 2. Get the goal pose's orientation (q_goal)
+        q_goal = R.from_quat(
+            [
+                staging_wrist_pose.orientation.x,
+                staging_wrist_pose.orientation.y,
+                staging_wrist_pose.orientation.z,
+                staging_wrist_pose.orientation.w,
+            ]
+        )
+
+        # 3. Use SLERP to find the midpoint orientation for the path constraint
+        # Ensure canonical quaternions (short path) for correct interpolation
+        if np.dot(q_start.as_quat(), q_goal.as_quat()) < 0:
+            q_goal_negated_array = -q_goal.as_quat()
+            q_goal = R.from_quat(q_goal_negated_array)
+
+        key_rots = R.from_quat([q_start.as_quat(), q_goal.as_quat()])
+        slerp = Slerp([0, 1], key_rots)
+        q_midpoint = slerp(0.5).as_quat()  # Get the orientation at t=0.5
+
+        # 4. Build the path constraint using the midpoint orientation
         path_constraints = [
             create_orientation_path_constraint(
                 quat_xyzw=(
-                    q_dynamic_target[0],
-                    q_dynamic_target[1],
-                    q_dynamic_target[2],
-                    q_dynamic_target[3],
+                    q_midpoint[0],
+                    q_midpoint[1],
+                    q_midpoint[2],
+                    q_midpoint[3],
                 ),
                 tolerance_rad=PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
             )
         ]
+        goal_constraints = [
+            create_pose_constraint(staging_wrist_pose, tolerance_position=0.1)
+        ]
 
-        LOGGER.info(
-            "  Analyzing start pose against final path constraint for Staging..."
-        )
+        LOGGER.info("  Analyzing start pose against final path constraint...")
         error_report = metrics.compute_moveit_orientation_error(
             current_ee_pose, path_constraints[0]
         )
-        LOGGER.info(
-            f"    - Constraint Satisfied at Start: {error_report['is_satisfied']}"
-        )
-
-        LOGGER.info("  Analyzing end pose against final path constraint for Staging...")
+        details = error_report["details"]
+        LOGGER.info(f"    - Constraint Satisfied: {error_report['is_satisfied']}")
+        for axis, data in details.items():
+            err_deg = math.degrees(data["error_rad"])
+            tol_deg = math.degrees(data["tolerance_rad"])
+            status = "OK" if data["satisfied"] else "FAILED"
+            LOGGER.info(
+                f"    - {axis.title():<10}: Error = {err_deg:6.1f}°, Tolerance = ±{tol_deg:.1f}° -> {status}"
+            )
+        LOGGER.info("  Analyzing end pose against final path constraint...")
         error_report = metrics.compute_moveit_orientation_error(
             staging_wrist_pose, path_constraints[0]
         )
-        LOGGER.info(
-            f"    - Constraint Satisfied at End: {error_report['is_satisfied']}"
-        )
+        details = error_report["details"]
+        LOGGER.info(f"    - Constraint Satisfied: {error_report['is_satisfied']}")
+        for axis, data in details.items():
+            err_deg = math.degrees(data["error_rad"])
+            tol_deg = math.degrees(data["tolerance_rad"])
+            status = "OK" if data["satisfied"] else "FAILED"
+            LOGGER.info(
+                f"    - {axis.title():<10}: Error = {err_deg:6.1f}°, Tolerance = ±{tol_deg:.1f}° -> {status}"
+            )
+
         status, traj_jaco, planning_time = self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
             start_state=start_state_jaco,
