@@ -9,6 +9,8 @@ This script is the main entry point for the End-to-End Assistive Feeding Benchma
 # Standard imports
 import argparse
 from threading import Thread
+import os
+from datetime import datetime
 
 # Third-party imports
 import rclpy
@@ -55,12 +57,6 @@ def main():
         "--timeout", type=float, default=5.0, help="Planning timeout in seconds."
     )
     parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="benchmark_output",
-        help="Directory to save results.",
-    )
-    parser.add_argument(
         "--mode",
         type=str,
         default="articutool",
@@ -68,6 +64,15 @@ def main():
         help="The execution mode for the benchmark.",
     )
     args = parser.parse_args()
+
+    # 1. Create a unique, timestamped directory for this benchmark run.
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    output_dir = os.path.join(os.getcwd(), "results", f"run_{timestamp}")
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 2. Set the ROS_LOG_DIR environment variable BEFORE rclpy.init().
+    # This directs all ROS 2 file logging for this process into our unique directory.
+    os.environ["ROS_LOG_DIR"] = output_dir
 
     rclpy.init()
     node = Node("end_to_end_benchmark_node")
@@ -122,7 +127,7 @@ def main():
         args.xacro_file,
         args.num_trials,
         args.timeout,
-        args.output_dir,
+        output_dir=output_dir,
         mode=args.mode,
     )
 

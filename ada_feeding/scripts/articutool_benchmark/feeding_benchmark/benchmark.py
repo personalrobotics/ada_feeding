@@ -89,8 +89,11 @@ class EndToEndBenchmark:
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             # Use the .jsonl extension for JSON Lines format
             self.output_filename = os.path.join(
-                output_dir, f"benchmark_{self.mode}_{timestamp}.jsonl"
+                output_dir, f"benchmark_{self.mode}.jsonl"
             )
+            # Log a message confirming where the JSONL file will be saved.
+            # Use the original ROS 2 LOGGER.
+            LOGGER.info(f"Benchmark results will be saved to: {self.output_filename}")
 
         self.motion_planner = MotionPlanner(
             node,
