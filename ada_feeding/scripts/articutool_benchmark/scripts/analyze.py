@@ -143,67 +143,89 @@ def generate_stage_by_stage_summary(df_stages: pd.DataFrame):
     print("=" * 85)
 
 
-def analyze_resting_stage_failures(df_stages: pd.DataFrame):
+def analyze_stage_failures(df_stages: pd.DataFrame):
     """
-    Analyzes and prints a summary of failure modes specifically for the 'Resting' stage.
+    Analyzes and prints a summary of failure modes for each stage,
+    focusing on the Articutool mode.
     """
     print("\n" + "=" * 85)
-    print("                      'Resting' Stage Failure Mode Analysis")
+    print("                      DETAILED STAGE FAILURE ANALYSIS (Articutool Mode)")
     print("=" * 85)
 
-    # Filter for only the Articutool mode and the Resting stage
-    df_resting = df_stages[
-        (df_stages["mode"] == "Articutool") & (df_stages["stage_name"] == "Resting")
-    ].copy()
+    # Define a consistent order for stages to analyze
+    stage_order = [
+        "HomeToAbovePlate",
+        "PreAcquisition",
+        "AbovePlateToAboveFood",
+        "AboveFoodToInFood",
+        "LevelTool",
+        "Resting",
+        "Staging",
+        "Presentation",
+    ]
 
-    if df_resting.empty:
-        print("No 'Resting' stage attempts found for the Articutool.")
-        print("=" * 85)
-        return
+    # Filter to only stages that are actually present in the dataframe
+    present_stages = [s for s in stage_order if s in df_stages["stage_name"].unique()]
 
-    # Filter for only the failures
-    df_failures = df_resting[df_resting["is_success"] == 0]
-    total_failures = len(df_failures)
+    for stage_name in present_stages:
+        print(f"\n--- Analysis for Stage: '{stage_name}' ---")
 
-    if total_failures == 0:
-        print("No failures recorded for the 'Resting' stage. Great job!")
-        print("=" * 85)
-        return
+        # Filter for the specific stage and mode
+        df_stage_mode = df_stages[
+            (df_stages["mode"] == "Articutool")
+            & (df_stages["stage_name"] == stage_name)
+        ].copy()
 
-    # Count the occurrences of each failure status
-    failure_counts = df_failures["status"].value_counts()
+        if df_stage_mode.empty:
+            print(f"No attempts found for this stage.")
+            continue
 
-    print(f"Total Failures in 'Resting' Stage for Articutool: {total_failures}\n")
-    print("Breakdown of Failure Types:")
-    for status, count in failure_counts.items():
-        percentage = (count / total_failures) * 100
-        print(f"- {status:<25}: {count:<5} ({percentage:.1f}%)")
+        # Filter for only the failures in this stage
+        df_failures = df_stage_mode[df_stage_mode["is_success"] == 0]
+        total_failures = len(df_failures)
 
-    # Provide an interpretation based on the dominant failure mode
-    if (
-        "Planner Failure" in failure_counts
-        and "Path Verification Failure" in failure_counts
-    ):
+        if total_failures == 0:
+            print("No failures recorded for this stage. Great job!")
+            continue
+
+        # Count the occurrences of each failure status
+        failure_counts = df_failures["status"].value_counts()
+
+        print(f"Total Failures: {total_failures}\n")
+        print("Breakdown of Failure Types:")
+        for status, count in failure_counts.items():
+            percentage = (count / total_failures) * 100
+            print(f"- {status:<25}: {count:<5} ({percentage:.1f}%)")
+
+        # Provide an interpretation based on the dominant failure modes
         if (
-            failure_counts["Planner Failure"]
-            > failure_counts["Path Verification Failure"]
+            "Planner Failure" in failure_counts
+            or "Verification Failure" in failure_counts
         ):
-            print("\nInterpretation: Most failures are PLANNER_FAILURE.")
-            print(
-                "The planner is struggling to find any path, suggesting the goal or constraints are too strict."
-            )
-        else:
-            print("\nInterpretation: Most failures are VERIFICATION_FAILURE.")
-            print(
-                "The planner finds paths, but they are kinematically infeasible for leveling."
-            )
-            print("This suggests the heuristic path constraint may be too loose.")
-    elif "Planner Failure" in failure_counts:
-        print("\nInterpretation: All failures are PLANNER_FAILURE.")
-    elif "Path Verification Failure" in failure_counts:
-        print("\nInterpretation: All failures are VERIFICATION_FAILURE.")
+            # This interpretation is particularly relevant for transport stages like Resting/Staging
+            planner_fails = failure_counts.get("Planner Failure", 0)
+            verification_fails = failure_counts.get("Verification Failure", 0)
 
-    print("=" * 85)
+            print("\nInterpretation:")
+            if planner_fails > verification_fails:
+                print("-> Dominant failure is PLANNER_FAILURE.")
+                print(
+                    "   The planner is struggling to find any path, suggesting the goal or constraints are too strict."
+                )
+            elif verification_fails > planner_fails:
+                print("-> Dominant failure is VERIFICATION_FAILURE.")
+                print(
+                    "   The planner finds paths, but they are kinematically infeasible for leveling."
+                )
+                print(
+                    "   This suggests the heuristic path constraint may be too loose."
+                )
+            else:
+                print(
+                    "-> Planner and Verification failures are balanced or other failure types dominate."
+                )
+
+    print("\n" + "=" * 85)
 
 
 def plot_stage_success_rates(df_stages: pd.DataFrame):
@@ -322,6 +344,6 @@ if __name__ == "__main__":
     if df_trials is not None and df_stages is not None:
         generate_summary_table(df_trials)
         generate_stage_by_stage_summary(df_stages)
-        analyze_resting_stage_failures(df_stages)
+        analyze_stage_failures(df_stages)
         plot_stage_success_rates(df_stages)
         plot_planning_times(df_stages)
