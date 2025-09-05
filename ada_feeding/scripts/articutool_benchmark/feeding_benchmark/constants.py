@@ -30,6 +30,7 @@ ARTICUTOOL_PITCH_LIMITS_RAD = (-math.pi / 2, math.pi / 2)
 ARTICUTOOL_ROLL_LIMITS_RAD = (-math.pi, math.pi)
 WORLD_UP_VECTOR = np.array([0.0, 0.0, 1.0])
 ARTICUTOOL_LENGTH_M = 0.14
+ARTICUTOOL_MAX_VELOCITY_RAD_S = 4.0  # Conservative limit for Dynamixel XC430
 
 # Benchmark-Specific Parameters
 PATH_CONSTRAINT_QUAT_XYZW = (0.707, 0.0, 0.0, 0.707)
