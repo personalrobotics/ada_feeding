@@ -67,7 +67,7 @@ def main():
 
     # 1. Create a unique, timestamped directory for this benchmark run.
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    output_dir = os.path.join(os.getcwd(), "results", f"run_{timestamp}")
+    output_dir = os.path.join(os.getcwd(), "results", f"run_{args.mode}_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
     # 2. Set the ROS_LOG_DIR environment variable BEFORE rclpy.init().
