@@ -1,9 +1,10 @@
 # Standard imports
 from typing import Optional, List, Dict, Any, Tuple
 import numpy as np
+import pinocchio as pin
 
 # ROS 2 message imports
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, Point, Quaternion
 from trajectory_msgs.msg import JointTrajectory
 from scipy.spatial.transform import Rotation as R
 
@@ -13,10 +14,16 @@ from .constants import (
     PLANNING_GROUP_JACO,
     JOINT_NAMES_JACO,
     JOINT_NAMES_ATOOL,
+    END_EFFECTOR_LINK_JACO,
     END_EFFECTOR_LINK_FULL,
+    ARTICUTOOL_MAX_VELOCITY_RAD_S,
 )
 from .kinematics import PinocchioModel
-from .kinematic_solvers import is_config_kinematically_feasible
+from .kinematic_solvers import (
+    is_config_kinematically_feasible,
+    compute_leveling_joints,
+    get_articutool_jacobian,
+)
 from .motion_planner import MoveIt2ConstraintType
 
 
@@ -81,34 +88,100 @@ def calculate_total_joint_travel(trajectory: Optional[JointTrajectory]) -> float
 
 
 def verify_trajectory(
-    trajectory: JointTrajectory, kinematics_model: PinocchioModel
-) -> Dict[str, Any]:
+    traj_jaco: JointTrajectory, kinematics_model: PinocchioModel
+) -> Dict:
     """
-    Verifies a trajectory and returns a dictionary of feasibility metrics.
+    Verifies a Jaco trajectory for both kinematic and dynamic feasibility
+    for the Articutool to maintain a level orientation.
     """
-    if not trajectory or not trajectory.points:
-        return {
-            "feasible_percent": 0.0,
-            "kinematic_failures": 0,
-            "total_waypoints": 0,
-        }
-
-    feasible_waypoints = 0
-    for point in trajectory.points:
-        jaco_joint_config = list(point.positions)
-        if is_config_kinematically_feasible(jaco_joint_config, kinematics_model):
-            feasible_waypoints += 1
-
-    total_waypoints = len(trajectory.points)
-    feasible_percent = (
-        (feasible_waypoints / total_waypoints) * 100.0 if total_waypoints > 0 else 0.0
-    )
-
-    return {
-        "feasible_percent": feasible_percent,
-        "kinematic_failures": total_waypoints - feasible_waypoints,
-        "total_waypoints": total_waypoints,
+    results = {
+        "feasible_percent": 0.0,
+        "is_kinematically_feasible": False,
+        "is_dynamically_feasible": False,
+        "max_required_velocity_rad_s": 0.0,
     }
+    if not traj_jaco or not traj_jaco.points:
+        return results
+
+    kinematically_feasible_waypoints = 0
+    max_required_velocity = 0.0
+    dynamic_check_possible = True
+
+    for point in traj_jaco.points:
+        jaco_config = list(point.positions)
+        jaco_wrist_transform = kinematics_model.get_frame_transform(
+            END_EFFECTOR_LINK_JACO, jaco_config
+        )
+        if jaco_wrist_transform is None:
+            continue
+
+        # Convert the pin.SE3 object to a geometry_msgs.msg.Pose object
+        translation = jaco_wrist_transform.translation
+        rotation_quat = R.from_matrix(jaco_wrist_transform.rotation).as_quat()
+
+        jaco_wrist_pose = Pose()
+        jaco_wrist_pose.position = Point(
+            x=translation[0], y=translation[1], z=translation[2]
+        )
+        jaco_wrist_pose.orientation = Quaternion(
+            x=rotation_quat[0],
+            y=rotation_quat[1],
+            z=rotation_quat[2],
+            w=rotation_quat[3],
+        )
+        # 1. Kinematic Check (can it be level at this pose?)
+        leveling_solution = compute_leveling_joints(jaco_wrist_pose)
+        if leveling_solution is None:
+            continue
+        kinematically_feasible_waypoints += 1
+        pitch, roll = leveling_solution
+
+        # 2. Dynamic Check (can it move fast enough to stay level?)
+        if not point.velocities:
+            dynamic_check_possible = False
+            continue
+
+        q_dot_jaco = np.array(point.velocities)
+        J_local = kinematics_model.get_frame_jacobian(
+            frame_name=END_EFFECTOR_LINK_JACO,
+            jaco_joints=jaco_config,
+            group=PLANNING_GROUP_JACO,
+            reference_frame=pin.ReferenceFrame.LOCAL,
+        )
+        if J_local is None:
+            dynamic_check_possible = False
+            continue
+
+        # Angular velocity disturbance in the Jaco EE's local frame
+        omega_disturbance_local = J_local[3:6, :] @ q_dot_jaco
+
+        # Solve for required Articutool velocities
+        J_atool_inv = np.linalg.pinv(get_articutool_jacobian(pitch, roll))
+        q_dot_atool = -J_atool_inv @ omega_disturbance_local
+
+        required_velocity_norm = np.linalg.norm(q_dot_atool)
+        max_required_velocity = max(max_required_velocity, required_velocity_norm)
+
+    # Finalize results
+    total_waypoints = len(traj_jaco.points)
+    results["feasible_percent"] = (
+        kinematically_feasible_waypoints / total_waypoints
+    ) * 100
+    results["is_kinematically_feasible"] = bool(results["feasible_percent"] > 99.0)
+
+    if not dynamic_check_possible:
+        LOGGER.warn(
+            "Could not perform dynamic check; trajectory missing velocity data."
+        )
+        results["is_dynamically_feasible"] = False
+    else:
+        results["is_dynamically_feasible"] = bool(
+            max_required_velocity <= ARTICUTOOL_MAX_VELOCITY_RAD_S
+        )
+
+    results["max_required_velocity_rad_s"] = max_required_velocity
+
+    return results
 
 
 def compute_moveit_orientation_error(

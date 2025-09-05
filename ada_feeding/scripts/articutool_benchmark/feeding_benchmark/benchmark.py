@@ -194,7 +194,7 @@ class EndToEndBenchmark:
         TrialStatus,
         Optional[JointTrajectory],
         Optional[JointTrajectory],
-        float,
+        Dict[str, Any],
         float,
     ]:
         """
@@ -293,22 +293,27 @@ class EndToEndBenchmark:
             planning_time=20.0,
         )
         if status != TrialStatus.SUCCESS:
-            return TrialStatus.PLANNER_FAILURE, None, None, 0.0, planning_time
+            return TrialStatus.PLANNER_FAILURE, None, None, {}, planning_time
 
         # 3. VERIFY the Jaco trajectory for leveling feasibility
         verification_results = metrics.verify_trajectory(
             traj_jaco, self.kinematics_model
         )
-        feasibility_percent = verification_results["feasible_percent"]
-        if feasibility_percent < 99.0:
+        if not verification_results.get(
+            "is_kinematically_feasible", False
+        ) or not verification_results.get("is_dynamically_feasible", False):
             LOGGER.warning(
-                f"  Path to Resting failed verification ({feasibility_percent:.1f}% feasible)."
+                f"  Path to Resting failed verification. "
+                f"Kinematic: {verification_results.get('is_kinematically_feasible', False)} "
+                f"({verification_results.get('feasible_percent', 0.0):.1f}%). "
+                f"Dynamic: {verification_results.get('is_dynamically_feasible', False)} "
+                f"(Max required vel: {verification_results.get('max_required_velocity_rad_s', 0.0):.2f} rad/s)."
             )
             return (
                 TrialStatus.VERIFICATION_FAILURE,
                 traj_jaco,
                 None,
-                feasibility_percent,
+                verification_results,  # Return the full dict for logging
                 planning_time,
             )
 
@@ -324,14 +329,14 @@ class EndToEndBenchmark:
                 TrialStatus.IK_FAILURE,
                 traj_jaco,
                 None,
-                feasibility_percent,
+                verification_results,
                 planning_time,
             )
         return (
             TrialStatus.SUCCESS,
             traj_jaco,
             traj_atool,
-            feasibility_percent,
+            verification_results,
             planning_time,
         )
 
@@ -449,7 +454,16 @@ class EndToEndBenchmark:
         verification_results = metrics.verify_trajectory(
             traj_jaco, self.kinematics_model
         )
-        if verification_results["feasible_percent"] < 99.0:
+        if not verification_results.get(
+            "is_kinematically_feasible", False
+        ) or not verification_results.get("is_dynamically_feasible", False):
+            LOGGER.warning(
+                f"  Path to Staging failed verification. "
+                f"Kinematic: {verification_results.get('is_kinematically_feasible', False)} "
+                f"({verification_results.get('feasible_percent', 0.0):.1f}%). "
+                f"Dynamic: {verification_results.get('is_dynamically_feasible', False)} "
+                f"(Max required vel: {verification_results.get('max_required_velocity_rad_s', 0.0):.2f} rad/s)."
+            )
             return (
                 TrialStatus.VERIFICATION_FAILURE,
                 traj_jaco,
