@@ -103,8 +103,14 @@ def is_config_kinematically_feasible(
 def is_elbow_up_configuration(
     jaco_joint_config: List[float], kinematics_model: PinocchioModel
 ) -> bool:
-    """Checks if a Jaco arm configuration is "elbow-up" using a geometric method."""
+    """
+    Checks if a Jaco arm configuration is "elbow-up" by ensuring the normal
+    vector of the arm's plane has a positive component in the world's
+    up direction.
+    """
     try:
+        # Get the positions of the key links that define the arm plane.
+        # Link 2 is the shoulder, 3 is the elbow, and 4 is the wrist.
         p_shoulder = kinematics_model.get_frame_transform(
             "j2n6s200_link_2", jaco_joint_config
         ).translation
@@ -114,12 +120,19 @@ def is_elbow_up_configuration(
         p_wrist = kinematics_model.get_frame_transform(
             "j2n6s200_link_4", jaco_joint_config
         ).translation
+
+        # Create vectors for the upper arm and forearm.
         v_upper_arm = p_elbow - p_shoulder
         v_forearm = p_wrist - p_elbow
+
+        # The cross product gives a vector normal to the arm's plane.
+        # This vector's direction indicates if the elbow is "up" or "down".
         elbow_normal = np.cross(v_upper_arm, v_forearm)
-        v_arm_direction = p_wrist - p_shoulder
-        arm_side_vector = np.cross(v_arm_direction, WORLD_UP_VECTOR)
-        return np.dot(elbow_normal, arm_side_vector) > 0
+
+        # The dot product with the world's up vector directly checks the "up-ness".
+        # A positive result means the elbow normal has an upward component.
+        return np.dot(elbow_normal, WORLD_UP_VECTOR) > 0
+
     except Exception as e:
         LOGGER.warning(f"  Elbow-up check failed with exception: {e}")
         return False
