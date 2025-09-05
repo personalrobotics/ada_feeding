@@ -1361,6 +1361,7 @@ class EndToEndBenchmark:
                         self._plan_level_and_extract_8dof_baseline(
                             current_jaco_state + current_atool_state,
                             scene["in_food_pose"],
+                            extraction_height_m=0.1,
                         )
                     )
 
