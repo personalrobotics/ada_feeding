@@ -916,20 +916,43 @@ class EndToEndBenchmark:
                 elif self.mode == "8dof_baseline":
                     LOGGER.info("Stage 2: Pre-acquisition")
                     start_time = time.time()
-                    ik_above = self.motion_planner.compute_ik(
-                        PLANNING_GROUP_FULL,
-                        scene["above_food_pose"],
-                        current_jaco_state + current_atool_state,
-                    )
-                    ik_in = self.motion_planner.compute_ik(
-                        PLANNING_GROUP_FULL,
-                        scene["in_food_pose"],
-                        current_jaco_state + current_atool_state,
-                    )
+                    found_valid_pair = False
+                    # Try up to 10 times to find a valid elbow-up pair for both poses
+                    for _ in range(10):
+                        # Check AboveFood pose
+                        ik_above_msg = self.motion_planner.compute_ik(
+                            PLANNING_GROUP_FULL,
+                            scene["above_food_pose"],
+                            current_jaco_state + current_atool_state,
+                        )
+                        if (
+                            not ik_above_msg
+                            or not kinematic_solvers.is_elbow_up_configuration(
+                                list(ik_above_msg.position)[:6], self.kinematics_model
+                            )
+                        ):
+                            continue  # Try again if IK fails or is elbow-down
+
+                        # If AboveFood is good, check InFood pose
+                        ik_in_msg = self.motion_planner.compute_ik(
+                            PLANNING_GROUP_FULL,
+                            scene["in_food_pose"],
+                            current_jaco_state + current_atool_state,
+                        )
+                        if ik_in_msg and kinematic_solvers.is_elbow_up_configuration(
+                            list(ik_in_msg.position)[:6], self.kinematics_model
+                        ):
+                            # Found a pair where both are valid and elbow-up
+                            LOGGER.info(
+                                "    Found a valid 'elbow-up' IK solution pair."
+                            )
+                            found_valid_pair = True
+                            break  # Success, exit the loop
+
                     planning_time = time.time() - start_time
                     status = (
                         TrialStatus.SUCCESS
-                        if ik_above and ik_in
+                        if found_valid_pair
                         else TrialStatus.IK_FAILURE
                     )
                     trial_data["stages"].append(
