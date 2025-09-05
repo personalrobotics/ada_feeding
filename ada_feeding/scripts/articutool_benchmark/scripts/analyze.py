@@ -4,6 +4,8 @@ import plotly.express as px
 import os
 import math
 
+ARTICUTOOL_MAX_VELOCITY_RAD_S = 4.0
+
 
 def load_and_prepare_data(articutool_file: str, baseline_files: list):
     """Loads and merges data from multiple .jsonl files for comparison."""
@@ -319,6 +321,65 @@ def plot_planning_times(df_stages: pd.DataFrame):
     print("Saved planning time plot to planning_times.html")
 
 
+def plot_required_velocities(df_stages: pd.DataFrame):
+    """
+    Generates a box plot of the max required Articutool velocities for
+    transport stages, relative to the motor limit.
+    """
+    # Filter for the relevant stages that have the dynamic check data.
+    transport_stages = df_stages[
+        df_stages["stage_name"].isin(["Resting", "Staging"])
+    ].copy()
+
+    velocity_col_name = "custom_metrics.max_required_velocity_rad_s"
+
+    # Check if the dynamic verification data exists in the DataFrame
+    if velocity_col_name not in transport_stages.columns:
+        print(
+            "\nNo dynamic verification data ('max_required_velocity_rad_s') found to plot."
+        )
+        return
+
+    # Rename the column for easier access in Plotly
+    transport_stages.rename(
+        columns={velocity_col_name: "max_required_velocity"}, inplace=True
+    )
+
+    # Drop rows where the metric is null (e.g., planner failures before verification)
+    transport_stages.dropna(subset=["max_required_velocity"], inplace=True)
+
+    if transport_stages.empty:
+        print("\nNo dynamic verification data found to plot required velocities.")
+        return
+
+    fig = px.box(
+        transport_stages,
+        x="stage_name",
+        y="max_required_velocity",
+        points="all",  # Show all individual data points
+        title="Max Required Articutool Velocity During Transport",
+        labels={
+            "stage_name": "Benchmark Stage",
+            "max_required_velocity": "Max Required Velocity (rad/s)",
+        },
+    )
+
+    # Add a horizontal line indicating the maximum velocity threshold.
+    fig.add_hline(
+        y=ARTICUTOOL_MAX_VELOCITY_RAD_S,
+        line_dash="dash",
+        line_color="red",
+        annotation_text="Motor Velocity Limit",
+        annotation_position="bottom right",
+    )
+
+    # Adjust the y-axis to give some space above the limit line for clarity.
+    fig.update_yaxes(range=[0, ARTICUTOOL_MAX_VELOCITY_RAD_S + 1.0])
+
+    fig.write_html("required_velocities.html")
+    print("\nSaved required velocity plot to required_velocities.html")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Analyze and compare benchmark results."
@@ -347,3 +408,4 @@ if __name__ == "__main__":
         analyze_stage_failures(df_stages)
         plot_stage_success_rates(df_stages)
         plot_planning_times(df_stages)
+        plot_required_velocities(df_stages)
