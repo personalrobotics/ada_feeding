@@ -12,7 +12,7 @@ import tf2_ros
 from pymoveit2 import MoveIt2
 
 # ROS 2 message imports
-from geometry_msgs.msg import Pose, Quaternion
+from geometry_msgs.msg import Pose, Quaternion, Point
 from trajectory_msgs.msg import JointTrajectory
 from sensor_msgs.msg import JointState
 from moveit_msgs.msg import PlanningScene, CollisionObject
@@ -147,72 +147,6 @@ class EndToEndBenchmark:
             start_state=start_state_jaco,
             goal_constraints=goal_constraints,
             target_link=END_EFFECTOR_LINK_JACO,
-        )
-
-    def _plan_to_in_food(
-        self,
-        target_ik_solution_full: List[float],
-        target_tool_tip_pose: Pose,
-        start_state_jaco: List[float],
-    ) -> Tuple[
-        TrialStatus,
-        Optional[JointTrajectory],
-        Optional[JointTrajectory],
-        Optional[Pose],
-        float,
-    ]:
-        LOGGER.info("  Planning Cartesian motion to pre-computed InFood pose...")
-
-        # 1. Convert the provided optimal IK solution to a JointState message for FK
-        ik_solution = JointState()
-        ik_solution.name = JOINT_NAMES_FULL
-        ik_solution.position = target_ik_solution_full
-
-        # 2. Use FK to find the Jaco wrist pose from the 8-DOF solution
-        fk_poses = self.motion_planner.compute_fk(
-            group_name=PLANNING_GROUP_FULL,
-            joint_state=ik_solution,
-            fk_link_names=[END_EFFECTOR_LINK_JACO],
-        )
-
-        if not fk_poses:
-            LOGGER.warning("  FK calculation for Jaco wrist failed.")
-            return TrialStatus.IK_FAILURE, None, None, None, 0.0
-
-        # The goal for the Jaco arm is the calculated pose of its wrist
-        jaco_wrist_goal_pose = fk_poses[0].pose
-
-        # 3. Plan a Cartesian motion for the Jaco arm to the wrist pose
-        jaco_goal_constraints = [create_pose_constraint(jaco_wrist_goal_pose)]
-
-        # 4. Plan a Cartesian motion for the Jaco arm to the wrist pose
-        status_jaco, traj_jaco, planning_time = self.motion_planner.plan(
-            group_name=PLANNING_GROUP_JACO,
-            start_state=start_state_jaco,
-            goal_constraints=jaco_goal_constraints,
-            cartesian=True,
-        )
-
-        if status_jaco != TrialStatus.SUCCESS:
-            LOGGER.warning("  Jaco arm planning failed.")
-            return TrialStatus.PLANNER_FAILURE, None, None, None, planning_time
-
-        # 4. Generate the corresponding synchronous Articutool trajectory
-        LOGGER.info("  Generating synchronous Articutool trajectory...")
-        traj_atool = trajectory_utils.generate_orientation_holding_atool_trajectory(
-            traj_jaco, target_tool_tip_pose.orientation, self.kinematics_model
-        )
-
-        if traj_atool is None:
-            LOGGER.error("  Failed to generate synchronous Articutool trajectory.")
-            return TrialStatus.IK_FAILURE, traj_jaco, None, None, planning_time
-
-        return (
-            TrialStatus.SUCCESS,
-            traj_jaco,
-            traj_atool,
-            jaco_wrist_goal_pose,
-            planning_time,
         )
 
     def _plan_to_level_articutool(
@@ -544,25 +478,87 @@ class EndToEndBenchmark:
             planning_time,
         )
 
-    def _plan_to_presentation(
+    def _plan_presentation_from_staging(
         self,
-        target_ik_solution_full: List[float],
-        target_tool_tip_pose: Pose,
+        presentation_pose: Pose,
         start_state_jaco: List[float],
     ) -> Tuple[
         TrialStatus, Optional[JointTrajectory], Optional[JointTrajectory], float
     ]:
         """
-        Plans a synchronous Cartesian motion to the final presentation pose.
+        Plans a direct Cartesian motion from Staging to Presentation by calculating
+        a geometric offset, avoiding the need for a full IK solve.
         """
-        LOGGER.info("  Planning Cartesian motion to Presentation pose...")
+        LOGGER.info("  Planning direct Cartesian motion to Presentation pose...")
 
-        status, traj_jaco, traj_atool, _, planning_time = self._plan_to_in_food(
-            target_ik_solution_full, target_tool_tip_pose, start_state_jaco
+        # 1. Get the starting pose of the Jaco EE via Forward Kinematics.
+        start_joint_state = JointState(name=JOINT_NAMES_JACO, position=start_state_jaco)
+        fk_poses = self.motion_planner.compute_fk(
+            group_name=PLANNING_GROUP_JACO,
+            joint_state=start_joint_state,
+            fk_link_names=[END_EFFECTOR_LINK_JACO],
+        )
+        if not fk_poses:
+            LOGGER.info("  FK failed for starting EE pose, cannot plan presentation.")
+            return TrialStatus.IK_FAILURE, None, None, 0.0
+        start_ee_pose = fk_poses[0].pose
+
+        # 2. Calculate the static transform from the EE to the tool tip.
+        #    This assumes the Articutool is at its zero configuration ([0,0]) to stay level.
+        T_ee_tip = self.kinematics_model.get_relative_transform(
+            parent_frame=END_EFFECTOR_LINK_JACO,
+            child_frame=END_EFFECTOR_LINK_ATOOL,
+            jaco_joints=start_state_jaco,
+            atool_joints=[0.0, 0.0],
+        )
+        if T_ee_tip is None:
+            LOGGER.info("  Could not calculate tool tip offset.")
+            return TrialStatus.IK_FAILURE, None, None, 0.0
+
+        # 3. Calculate the target Jaco EE pose.
+        #    The orientation should remain the same as the staging pose.
+        target_ee_orientation = start_ee_pose.orientation
+        R_ee = R.from_quat(
+            [
+                target_ee_orientation.x,
+                target_ee_orientation.y,
+                target_ee_orientation.z,
+                target_ee_orientation.w,
+            ]
+        )
+
+        #    The target position is the tool tip's goal minus the rotated offset.
+        p_tip_target = np.array(
+            [
+                presentation_pose.position.x,
+                presentation_pose.position.y,
+                presentation_pose.position.z,
+            ]
+        )
+        t_offset_world = R_ee.apply(T_ee_tip.translation)
+        p_ee_target = p_tip_target - t_offset_world
+
+        target_ee_pose = Pose(
+            position=Point(x=p_ee_target[0], y=p_ee_target[1], z=p_ee_target[2]),
+            orientation=target_ee_orientation,
+        )
+
+        # 4. Plan the Cartesian motion for the Jaco arm.
+        goal_constraints = [create_pose_constraint(target_ee_pose)]
+        status, traj_jaco, planning_time = self.motion_planner.plan(
+            group_name=PLANNING_GROUP_JACO,
+            start_state=start_state_jaco,
+            goal_constraints=goal_constraints,
+            cartesian=True,
         )
 
         if status != TrialStatus.SUCCESS:
-            return status, traj_jaco, traj_atool, planning_time
+            return status, None, None, planning_time
+
+        # 5. Create a holding trajectory for the Articutool.
+        traj_atool = trajectory_utils.generate_hold_trajectory(
+            traj_jaco, JOINT_NAMES_ATOOL, [0.0, 0.0]
+        )
 
         return TrialStatus.SUCCESS, traj_jaco, traj_atool, planning_time
 
@@ -1605,8 +1601,7 @@ class EndToEndBenchmark:
                             traj_jaco,
                             traj_atool,
                             planning_time,
-                        ) = self._plan_to_presentation(
-                            ik_sol_full,
+                        ) = self._plan_presentation_from_staging(
                             scene["presentation_pose"],
                             current_jaco_state,
                         )
