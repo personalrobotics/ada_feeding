@@ -49,6 +49,21 @@ def solve_articutool_ik(target_vector: np.ndarray) -> List[Tuple[float, float]]:
     return solutions
 
 
+def get_articutool_jacobian(pitch: float, roll: float) -> np.ndarray:
+    """
+    Computes the analytical Jacobian for the Articutool's 'up' vector (y-axis).
+    This relates the tool's joint velocities to the angular velocity of its y-axis.
+    """
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    cr, sr = math.cos(roll), math.sin(roll)
+
+    # Partial derivatives of the local y-axis vector [sr, cp*cr, sp*cr] w.r.t. pitch and roll
+    dydp = np.array([0, -sp * cr, cp * cr])
+    dydr = np.array([-cr, -cp * sr, -sp * sr])
+
+    return np.vstack([dydp, dydr]).T
+
+
 def compute_leveling_joints(
     jaco_wrist_pose: Pose,
 ) -> Optional[List[float]]:
