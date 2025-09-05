@@ -79,7 +79,7 @@ class EndToEndBenchmark:
         self.mode = mode
 
         # --- Mode-Aware Configuration ---
-        if self.mode == "baseline":
+        if self.mode == "6dof_baseline":
             self.jaco_ee_link = "forkTip"
         else:
             self.jaco_ee_link = END_EFFECTOR_LINK_JACO
