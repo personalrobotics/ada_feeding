@@ -917,37 +917,62 @@ class EndToEndBenchmark:
                     LOGGER.info("Stage 2: Pre-acquisition")
                     start_time = time.time()
                     found_valid_pair = False
-                    # Try up to 10 times to find a valid elbow-up pair for both poses
-                    for _ in range(10):
-                        # Check AboveFood pose
-                        ik_above_msg = self.motion_planner.compute_ik(
-                            PLANNING_GROUP_FULL,
-                            scene["above_food_pose"],
-                            current_jaco_state + current_atool_state,
-                        )
-                        if (
-                            not ik_above_msg
-                            or not kinematic_solvers.is_elbow_up_configuration(
-                                list(ik_above_msg.position)[:6], self.kinematics_model
-                            )
-                        ):
-                            continue  # Try again if IK fails or is elbow-down
+                    target_above_food_8dof_config = None
 
-                        # If AboveFood is good, check InFood pose
-                        ik_in_msg = self.motion_planner.compute_ik(
-                            PLANNING_GROUP_FULL,
+                    # 1. Use the Articutool's solver to find the ideal Jaco EE pose
+                    jaco_ee_above_food, _, skewer_angles = (
+                        kinematic_solvers.find_optimal_skewer_config(
+                            scene["above_food_pose"],
                             scene["in_food_pose"],
-                            current_jaco_state + current_atool_state,
+                            scene_characteristics["in_food_sampled_polar_angle_rad"],
+                            self.kinematics_model,
+                            self.motion_planner,
                         )
-                        if ik_in_msg and kinematic_solvers.is_elbow_up_configuration(
-                            list(ik_in_msg.position)[:6], self.kinematics_model
-                        ):
-                            # Found a pair where both are valid and elbow-up
-                            LOGGER.info(
-                                "    Found a valid 'elbow-up' IK solution pair."
+                    )
+
+                    # 2. Find an elbow-up 6-DOF solution for the Jaco arm
+                    if jaco_ee_above_food and skewer_angles:
+                        for _ in range(10):
+                            ik_sol_msg = self.motion_planner.compute_ik(
+                                PLANNING_GROUP_JACO,
+                                jaco_ee_above_food,
+                                current_jaco_state,
                             )
-                            found_valid_pair = True
-                            break  # Success, exit the loop
+
+                            # 3. Sanitize the IK result
+                            if not ik_sol_msg or not ik_sol_msg.name:
+                                continue
+
+                            solution_map = dict(
+                                zip(ik_sol_msg.name, ik_sol_msg.position)
+                            )
+                            if not all(
+                                name in solution_map for name in JOINT_NAMES_JACO
+                            ):
+                                continue  # Incomplete solution, try again
+
+                            # Build a clean, ordered list of the 6 Jaco joint values
+                            sanitized_jaco_solution = [
+                                solution_map[name] for name in JOINT_NAMES_JACO
+                            ]
+
+                            # 4. Check the sanitized solution for the elbow-up constraint
+                            if kinematic_solvers.is_elbow_up_configuration(
+                                sanitized_jaco_solution, self.kinematics_model
+                            ):
+                                # 5. If valid, combine into a full 8-DOF target configuration
+                                atool_solution = [
+                                    skewer_angles["calculated_atool_pitch_rad"],
+                                    0.0,
+                                ]
+                                target_above_food_8dof_config = (
+                                    sanitized_jaco_solution + atool_solution
+                                )
+                                found_valid_pair = True
+                                LOGGER.info(
+                                    "    Found a valid, sanitized, 'elbow-up' IK solution."
+                                )
+                                break  # Success, exit the loop
 
                     planning_time = time.time() - start_time
                     status = (
@@ -1102,9 +1127,7 @@ class EndToEndBenchmark:
                 elif self.mode == "8dof_baseline":
                     LOGGER.info("Stage 3: AbovePlate -> AboveFood")
                     goal_constraints = [
-                        create_pose_constraint(
-                            scene["above_food_pose"], tolerance_position=0.01
-                        )
+                        create_joint_constraint(target_above_food_8dof_config)
                     ]
                     status, traj_full, planning_time = self.motion_planner.plan(
                         group_name=PLANNING_GROUP_FULL,
