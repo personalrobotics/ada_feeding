@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import os
 import math
+import numpy as np
 
 ARTICUTOOL_MAX_VELOCITY_RAD_S = 4.0
 
@@ -380,6 +381,69 @@ def plot_required_velocities(df_stages: pd.DataFrame):
     print("\nSaved required velocity plot to required_velocities.html")
 
 
+def analyze_6dof_reachability(df_trials: pd.DataFrame, df_stages: pd.DataFrame):
+    """
+    Analyzes and plots 6-DOF reachability failures against horizontal distance
+    and the polar approach angle (phi).
+    """
+    preacq_6dof = df_stages[
+        (df_stages["mode"] == "6dof_baseline")
+        & (df_stages["stage_name"] == "PreAcquisition")
+    ]
+
+    if preacq_6dof.empty:
+        print("\nNo 6-DOF PreAcquisition data found to analyze.")
+        return
+
+    success_map = preacq_6dof.set_index("trial_id")["is_success"]
+    analysis_df = df_trials[df_trials["mode"] == "6dof_baseline"].copy()
+    analysis_df["Success"] = (
+        analysis_df["trial_id"].map(success_map).map({1: "Success", 0: "Failure"})
+    )
+    analysis_df.dropna(subset=["Success"], inplace=True)
+
+    try:
+        analysis_df["in_food_dist_2d"] = analysis_df["scene_characteristics"].apply(
+            lambda x: x.get("in_food_pose_dist_2d")
+        )
+        analysis_df["in_food_polar_rad"] = analysis_df["scene_characteristics"].apply(
+            lambda x: x.get("in_food_sampled_polar_angle_rad")
+        )
+
+        # Convert polar angle to degrees for more intuitive plotting
+        analysis_df["in_food_polar_deg"] = np.rad2deg(analysis_df["in_food_polar_rad"])
+
+        analysis_df.dropna(
+            subset=["in_food_dist_2d", "in_food_polar_deg"], inplace=True
+        )
+
+    except (KeyError, TypeError):
+        print("\nCould not extract required characteristics for reachability plot.")
+        return
+
+    if analysis_df.empty:
+        print("\nNo valid data left to plot after extraction.")
+        return
+
+    fig = px.scatter(
+        analysis_df,
+        x="in_food_dist_2d",
+        y="in_food_polar_deg",
+        color="Success",
+        color_discrete_map={"Success": "green", "Failure": "red"},
+        title="6-DOF Baseline: Reachability vs. Distance and Approach Angle",
+        labels={
+            "in_food_dist_2d": "Horizontal Distance of InFood Pose (m)",
+            "in_food_polar_deg": "Polar Approach Angle (Phi, degrees)",
+        },
+        hover_data=["trial_id"],
+    )
+
+    fig.update_traces(marker=dict(size=8, opacity=0.7))
+    fig.write_html("6dof_reachability_analysis.html")
+    print("\nSaved 6-DOF reachability analysis plot to 6dof_reachability_analysis.html")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Analyze and compare benchmark results."
@@ -409,3 +473,4 @@ if __name__ == "__main__":
         plot_stage_success_rates(df_stages)
         plot_planning_times(df_stages)
         plot_required_velocities(df_stages)
+        analyze_6dof_reachability(df_trials, df_stages)
