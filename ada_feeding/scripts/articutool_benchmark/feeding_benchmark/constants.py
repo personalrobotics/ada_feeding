@@ -40,3 +40,4 @@ BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (
     2 * math.pi,
     np.deg2rad(10.0),
 )
+MAX_PLANNING_TIME_S = 60.0

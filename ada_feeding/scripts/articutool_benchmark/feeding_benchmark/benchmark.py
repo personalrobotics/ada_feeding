@@ -37,6 +37,7 @@ from .constants import (
     PATH_CONSTRAINT_QUAT_XYZW,
     PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
     BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
+    MAX_PLANNING_TIME_S,
 )
 from .data_structures import (
     TrialStatus,
@@ -320,7 +321,7 @@ class EndToEndBenchmark:
             start_state=start_state_jaco,
             goal_constraints=goal_constraints,
             path_constraints=path_constraints,
-            planning_time=20.0,
+            planning_time=MAX_PLANNING_TIME_S,
         )
         if status != TrialStatus.SUCCESS:
             return TrialStatus.PLANNER_FAILURE, None, None, {}, planning_time
@@ -476,7 +477,7 @@ class EndToEndBenchmark:
             start_state=start_state_jaco,
             goal_constraints=goal_constraints,
             path_constraints=path_constraints,
-            planning_time=20.0,
+            planning_time=MAX_PLANNING_TIME_S,
         )
         if status != TrialStatus.SUCCESS:
             return TrialStatus.PLANNER_FAILURE, None, None, {}, planning_time
@@ -1139,7 +1140,7 @@ class EndToEndBenchmark:
                             start_state=current_jaco_state,
                             goal_constraints=goal_constraints_jaco,
                             target_link=END_EFFECTOR_LINK_JACO,
-                            planning_time=20.0,
+                            planning_time=MAX_PLANNING_TIME_S,
                         )
                     )
 
@@ -1228,7 +1229,7 @@ class EndToEndBenchmark:
                         group_name=PLANNING_GROUP_JACO,
                         start_state=current_jaco_state,
                         goal_constraints=goal_constraints,
-                        planning_time=20.0,
+                        planning_time=MAX_PLANNING_TIME_S,
                     )
                     cartesian_path_length = metrics.calculate_cartesian_path_length(
                         traj_jaco,
@@ -1262,7 +1263,7 @@ class EndToEndBenchmark:
                         group_name=PLANNING_GROUP_FULL,
                         start_state=current_jaco_state + current_atool_state,
                         goal_constraints=goal_constraints,
-                        planning_time=20.0,
+                        planning_time=MAX_PLANNING_TIME_S,
                     )
                     cartesian_path_length = metrics.calculate_cartesian_path_length(
                         traj_full,
@@ -1700,7 +1701,7 @@ class EndToEndBenchmark:
                             goal_constraints=goal_constraints,
                             path_constraints=path_constraints,
                             target_link=self.jaco_ee_link,
-                            planning_time=20.0,
+                            planning_time=MAX_PLANNING_TIME_S,
                         )
                     cartesian_path_length = metrics.calculate_cartesian_path_length(
                         traj_jaco,
@@ -1840,7 +1841,7 @@ class EndToEndBenchmark:
                             goal_constraints=goal_constraints,
                             path_constraints=path_constraints,
                             target_link=END_EFFECTOR_LINK_FULL,
-                            planning_time=20.0,
+                            planning_time=MAX_PLANNING_TIME_S,
                         )
                     cartesian_path_length = metrics.calculate_cartesian_path_length(
                         traj_full,
@@ -1971,7 +1972,7 @@ class EndToEndBenchmark:
                             goal_constraints=goal_constraints,
                             path_constraints=path_constraints,
                             target_link=self.jaco_ee_link,
-                            planning_time=20.0,
+                            planning_time=MAX_PLANNING_TIME_S,
                         )
                     cartesian_path_length = metrics.calculate_cartesian_path_length(
                         traj_jaco,
@@ -2062,7 +2063,7 @@ class EndToEndBenchmark:
                             goal_constraints=goal_constraints,
                             path_constraints=path_constraints,
                             target_link=END_EFFECTOR_LINK_FULL,
-                            planning_time=20.0,
+                            planning_time=MAX_PLANNING_TIME_S,
                         )
                     cartesian_path_length = metrics.calculate_cartesian_path_length(
                         traj_full,
