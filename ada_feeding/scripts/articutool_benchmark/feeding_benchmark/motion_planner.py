@@ -338,16 +338,6 @@ class MotionPlanner:
             cartesian=cartesian,
             cartesian_fraction_threshold=cartesian_fraction_threshold,
         )
-        if traj and traj.points:
-            # Check the first waypoint to confirm it has velocity data
-            if traj.points[0].velocities:
-                LOGGER.info(
-                    "Confirmed: Trajectory is time-parameterized and contains velocity data."
-                )
-            else:
-                LOGGER.warn(
-                    "Warning: Trajectory is missing velocity data. Time parameterization may be disabled in your MoveIt2 config."
-                )
         if not traj or not traj.points:
             return TrialStatus.PLANNER_FAILURE, None, planning_time
         if cartesian and planner.max_velocity > 0.0:
