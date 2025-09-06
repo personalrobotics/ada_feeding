@@ -35,4 +35,4 @@ ARTICUTOOL_MAX_VELOCITY_RAD_S = 4.0  # Conservative limit for Dynamixel XC430
 # Benchmark-Specific Parameters
 PATH_CONSTRAINT_QUAT_XYZW = (0.707, 0.0, 0.0, 0.707)
 PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (math.pi / 2, 2 * math.pi, math.pi / 4)
-BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (0.1, 2 * math.pi, 0.1)
+BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD = (math.pi / 4, 2 * math.pi, math.pi / 4)

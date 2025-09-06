@@ -1554,7 +1554,7 @@ class EndToEndBenchmark:
                         path_constraints = [
                             create_orientation_path_constraint(
                                 quat_xyzw=q_midpoint,
-                                tolerance_rad=(np.pi / 4, 2 * np.pi, np.pi / 4),
+                                tolerance_rad=BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
                             )
                         ]
 
@@ -1660,7 +1660,7 @@ class EndToEndBenchmark:
                         path_constraints = [
                             create_orientation_path_constraint(
                                 quat_xyzw=q_midpoint,
-                                tolerance_rad=(np.pi / 4, 2 * np.pi, np.pi / 4),
+                                tolerance_rad=BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
                             )
                         ]
 
@@ -1825,7 +1825,7 @@ class EndToEndBenchmark:
                         path_constraints = [
                             create_orientation_path_constraint(
                                 quat_xyzw=q_midpoint,
-                                tolerance_rad=(np.pi / 4, 2 * np.pi, np.pi / 4),
+                                tolerance_rad=BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
                             )
                         ]
 
@@ -1916,7 +1916,7 @@ class EndToEndBenchmark:
                         path_constraints = [
                             create_orientation_path_constraint(
                                 quat_xyzw=q_midpoint,
-                                tolerance_rad=(np.pi / 4, 2 * np.pi, np.pi / 4),
+                                tolerance_rad=BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
                             )
                         ]
 
