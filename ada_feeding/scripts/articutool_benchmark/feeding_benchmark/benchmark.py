@@ -816,6 +816,74 @@ class EndToEndBenchmark:
         LOGGER.info("Published ground plane to planning scene.")
         time.sleep(1.0)  # Give a moment for the scene to update
 
+    def _find_leveled_recovery_config(
+        self, jaco_state: List[float]
+    ) -> Optional[List[float]]:
+        """
+        Calculates a valid IK solution that is 'level' after a LevelTool failure.
+        It inherits the position and yaw from the provided joint state.
+        """
+        # 1. First, get the pose of the last known configuration
+        start_joint_state = JointState(name=JOINT_NAMES_JACO, position=jaco_state)
+        fk_poses = self.motion_planner.compute_fk(
+            group_name=PLANNING_GROUP_JACO,
+            joint_state=start_joint_state,
+            fk_link_names=[self.jaco_ee_link],
+        )
+        if not fk_poses:
+            LOGGER.error(
+                "  Recovery failed: Could not compute FK for last known state."
+            )
+            return None
+        last_pose = fk_poses[0].pose
+
+        # 2. Inherit the position from this last pose
+        target_position = last_pose.position
+
+        # 3. Construct a new "level" orientation that inherits the yaw
+        R_last = R.from_quat(
+            [
+                last_pose.orientation.x,
+                last_pose.orientation.y,
+                last_pose.orientation.z,
+                last_pose.orientation.w,
+            ]
+        )
+        z_axis_last = R_last.apply([0.0, 0.0, 1.0])
+        current_yaw_rad = math.atan2(z_axis_last[1], z_axis_last[0])
+
+        # Y-axis (up) aligns with world Z
+        y_axis_target = np.array([0.0, 0.0, 1.0])
+        # Z-axis (forward) is horizontal and preserves the original yaw
+        z_axis_target = np.array(
+            [math.cos(current_yaw_rad), math.sin(current_yaw_rad), 0.0]
+        )
+        # X-axis is the cross product
+        x_axis_target = np.cross(y_axis_target, z_axis_target)
+
+        rotation_matrix = np.array([x_axis_target, y_axis_target, z_axis_target]).T
+        q_level = R.from_matrix(rotation_matrix).as_quat()
+        target_orientation = Quaternion(
+            x=q_level[0], y=q_level[1], z=q_level[2], w=q_level[3]
+        )
+
+        recovery_pose = Pose(position=target_position, orientation=target_orientation)
+
+        # 4. Compute IK to this new leveled pose
+        # We use the original jaco_state as the seed
+        ik_solution = self.motion_planner.compute_ik(
+            PLANNING_GROUP_JACO, recovery_pose, start_joint_state=jaco_state
+        )
+
+        if not ik_solution:
+            return None
+
+        # Extract the ordered joint solution from the message
+        solution_map = dict(zip(ik_solution.name, ik_solution.position))
+        ordered_solution = [solution_map[name] for name in JOINT_NAMES_JACO]
+
+        return ordered_solution
+
     # --- Main Benchmark Loop ---
     def run(self):
         """Main benchmark execution loop with granular metric collection."""
@@ -867,6 +935,7 @@ class EndToEndBenchmark:
             current_jaco_state = scene["home_config"]
             current_atool_state = [0.0, 0.0]
             trial_failed = False
+            recovery_state_injected = False
 
             # --- Stage 1: Home -> AbovePlate ---
             if not trial_failed:
@@ -1393,6 +1462,43 @@ class EndToEndBenchmark:
                             extraction_height_m=0.1,
                         )
                     )
+
+                    recovery_state_injected = False
+                    if status != TrialStatus.SUCCESS:
+                        LOGGER.warning(
+                            "  LevelTool failed. Attempting to find a recovery state to continue."
+                        )
+
+                        # Get the intended goal pose from the failed trajectory if it exists
+                        # This is better than starting from the 'in_food_pose'
+                        last_known_jaco_state = (
+                            list(traj_jaco.points[-1].positions)
+                            if traj_jaco
+                            else current_jaco_state
+                        )
+
+                        # Find a valid, leveled IK solution from this last known state
+                        recovery_config = self._find_leveled_recovery_config(
+                            last_known_jaco_state
+                        )
+
+                        if recovery_config:
+                            LOGGER.info(
+                                "  Successfully found a recovery configuration. Proceeding with subsequent stages."
+                            )
+                            current_jaco_state = recovery_config
+                            recovery_state_injected = True
+                        else:
+                            LOGGER.error(
+                                "  Could not find a recovery configuration. Trial must stop here."
+                            )
+                            trial_failed = (
+                                True  # Ensure the rest of the stages are skipped
+                            )
+                    else:
+                        # If the stage succeeded, update state as normal
+                        current_jaco_state = list(traj_jaco.points[-1].positions)
+
                     cartesian_path_length = metrics.calculate_cartesian_path_length(
                         traj_jaco,
                         PLANNING_GROUP_JACO,
@@ -1405,6 +1511,7 @@ class EndToEndBenchmark:
                             "stage_name": "LevelTool",
                             "target_frame": self.jaco_ee_link,
                             "status": status.value,
+                            "recovery_state_injected": recovery_state_injected,
                             "execution_mode": ExecutionMode.JACO_ONLY.value,
                             "planning_time_sec": planning_time,
                             "trajectory_path_length_m": cartesian_path_length,
@@ -1412,10 +1519,6 @@ class EndToEndBenchmark:
                             "traj_jaco": results.serialize_trajectory(traj_jaco),
                         }
                     )
-                    if status != TrialStatus.SUCCESS:
-                        trial_failed = True
-                    else:
-                        current_jaco_state = list(traj_jaco.points[-1].positions)
                 elif self.mode == "8dof_baseline":
                     LOGGER.info("Stage 5: InFood -> LevelTool")
                     status, traj_full, planning_time = (
@@ -2116,7 +2219,7 @@ class EndToEndBenchmark:
                     trial_failed = True
 
             # --- Finalize Trial ---
-            if not trial_failed:
+            if not trial_failed and not recovery_state_injected:
                 trial_data["end_to_end_success"] = True
 
             results.save_trial_data(trial_data, self.output_filename)
