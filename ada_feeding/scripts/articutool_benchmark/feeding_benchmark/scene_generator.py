@@ -37,7 +37,9 @@ class SceneGenerator:
         food_orientation = self._calculate_base_facing_orientation(food_position)
         scene["food_pose"] = Pose(position=food_position, orientation=food_orientation)
         scene_characteristics.update(food_params)
-
+        scene_characteristics.update(
+            self._characterize_pose(scene["food_pose"], "food_pose")
+        )
         initial_mouth_position, mouth_params = self._sample_pose_in_spherical_shell(
             self.params.mouth_sampling
         )
