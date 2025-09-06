@@ -596,22 +596,49 @@ class EndToEndBenchmark:
         # 1. The start pose for the Cartesian motion is the provided `in_food_pose`.
         start_pose = in_food_pose
 
-        # 2. Define the goal pose for the maneuver.
+        R_in_food = R.from_quat(
+            [
+                start_pose.orientation.x,
+                start_pose.orientation.y,
+                start_pose.orientation.z,
+                start_pose.orientation.w,
+            ]
+        )
+        # Get the forward vector (local Z) of the in_food_pose
+        z_axis_in_food = R_in_food.apply([0.0, 0.0, 1.0])
+        # Project it onto the XY plane to find the yaw
+        current_yaw_rad = math.atan2(z_axis_in_food[1], z_axis_in_food[0])
+
+        # Construct a new "level" orientation (Y-up) with this yaw
+        target_y_axis = np.array([0.0, 0.0, 1.0])  # Level component
+        target_z_axis = np.array(
+            [math.cos(current_yaw_rad), math.sin(current_yaw_rad), 0.0]
+        )  # Yaw component
+        target_x_axis = np.cross(target_y_axis, target_z_axis)
+
+        rotation_matrix = np.array([target_x_axis, target_y_axis, target_z_axis]).T
+        R_level_target = R.from_matrix(rotation_matrix)
+        q_level_target = R_level_target.as_quat()
+        level_orientation = Quaternion(
+            x=q_level_target[0],
+            y=q_level_target[1],
+            z=q_level_target[2],
+            w=q_level_target[3],
+        )
+
+        # 2. Define the goal pose: vertically offset with a level orientation.
         goal_pose = Pose()
-        # The position is offset vertically in the world frame from the InFood pose.
         goal_pose.position.x = start_pose.position.x
         goal_pose.position.y = start_pose.position.y
         goal_pose.position.z = start_pose.position.z + extraction_height_m
-        # The orientation is level with gravity (Y-up for the Jaco EE).
-        goal_pose.orientation = Quaternion(
-            x=PATH_CONSTRAINT_QUAT_XYZW[0],
-            y=PATH_CONSTRAINT_QUAT_XYZW[1],
-            z=PATH_CONSTRAINT_QUAT_XYZW[2],
-            w=PATH_CONSTRAINT_QUAT_XYZW[3],
-        )
+        goal_pose.orientation = level_orientation
 
-        # 3. Plan a Cartesian trajectory from the start to the goal pose.
-        goal_constraints = [create_pose_constraint(goal_pose, tolerance_position=0.1)]
+        # 3. Plan a Cartesian trajectory using the full 6-DOF planning group.
+        goal_constraints = [
+            create_pose_constraint(
+                goal_pose, tolerance_position=0.1, tolerance_orientation=0.01
+            )
+        ]
         status, traj_jaco, planning_time = self.motion_planner.plan(
             group_name=PLANNING_GROUP_JACO,
             start_state=start_state_jaco,
@@ -1330,6 +1357,7 @@ class EndToEndBenchmark:
                         self._plan_level_and_extract_baseline(
                             current_jaco_state,
                             scene["in_food_pose"],
+                            extraction_height_m=0.1,
                         )
                     )
                     cartesian_path_length = metrics.calculate_cartesian_path_length(
