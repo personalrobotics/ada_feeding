@@ -628,7 +628,7 @@ class EndToEndBenchmark:
 
         # 2. Define the goal pose: vertically offset with a level orientation.
         goal_pose = Pose()
-        goal_pose.position.x = start_pose.position.x
+        goal_pose.position.x = start_pose.position.x + extraction_height_m
         goal_pose.position.y = start_pose.position.y
         goal_pose.position.z = start_pose.position.z + extraction_height_m
         goal_pose.orientation = level_orientation
@@ -636,7 +636,7 @@ class EndToEndBenchmark:
         # 3. Plan a Cartesian trajectory using the full 6-DOF planning group.
         goal_constraints = [
             create_pose_constraint(
-                goal_pose, tolerance_position=0.1, tolerance_orientation=0.01
+                goal_pose, tolerance_position=0.2, tolerance_orientation=0.01
             )
         ]
         status, traj_jaco, planning_time = self.motion_planner.plan(
