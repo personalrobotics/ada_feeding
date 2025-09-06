@@ -186,7 +186,7 @@ actions:
       ext_duration: 0.5200517177581787
       ext_force: 50.0
       ext_torque: 4.0
-    - ## 8 (pronounced grasp forward rotation)
+    - ## 51 (was 8 pronounced grasp forward rotation)
       pre_pos: [-0.002959228034460005,0.04584299368442489,0.0700856193569379]
       pre_quat: [0.2794592, 0.9489021, 0.1060026, -0.101246]
       pre_offset: [0.0, 0.0, -0.03]
@@ -477,3 +477,21 @@ actions:
       ext_duration: 0.6699807643890381
       ext_force: 50.0
       ext_torque: 4.0
+
+
+      - ##8 (Scoop to Level for ICARUS paper)
+      pre_pos: [0.25265,-0.38127,0.33834]
+      pre_quat: [0.861, 0.260, -0.352, 0.260]
+      pre_offset: [0.0, 0.0, -0.03]
+      pre_force: 1.5
+      pre_torque: 4.0
+      grasp_linear: [-0.003, -0.003, -0.003]
+      grasp_angular: [0.0, 0.0, 0.0]
+      grasp_duration: 5
+      grasp_force: 4
+      grasp_torque: 0 #bc grasp_angular is the zero vector
+      ext_linear: [0.0, 0.0, 0.003]
+      ext_angular: [0.0, 0.0, 0.0]
+      ext_duration: 1.0
+      ext_force: 1.5
+      ext_torque: 0
