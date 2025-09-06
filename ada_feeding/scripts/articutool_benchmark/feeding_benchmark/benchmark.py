@@ -1485,25 +1485,87 @@ class EndToEndBenchmark:
                         current_atool_state = list(traj_atool.points[-1].positions)
                 elif self.mode == "6dof_baseline":
                     LOGGER.info("Stage 6: Resting")
-                    goal_constraints = [
-                        create_position_constraint(
-                            scene["resting_pose"].position, tolerance_position=0.1
-                        )
-                    ]
-                    path_constraints = [
-                        create_orientation_path_constraint(
-                            quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
-                            tolerance_rad=BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
-                        )
-                    ]
-                    status, traj_jaco, planning_time = self.motion_planner.plan(
-                        group_name=PLANNING_GROUP_JACO,
-                        start_state=current_jaco_state,
-                        goal_constraints=goal_constraints,
-                        path_constraints=path_constraints,
-                        target_link=END_EFFECTOR_LINK_JACO,
-                        planning_time=20.0,
+
+                    # 1. Get the start pose's orientation via FK
+                    start_state_msg = JointState(
+                        name=JOINT_NAMES_JACO, position=current_jaco_state
                     )
+                    fk_poses = self.motion_planner.compute_fk(
+                        group_name=PLANNING_GROUP_JACO,
+                        joint_state=start_state_msg,
+                        fk_link_names=[self.jaco_ee_link],
+                    )
+                    if not fk_poses:
+                        LOGGER.error(
+                            "  FK failed for start pose, cannot plan to Resting."
+                        )
+                        status, traj_jaco, planning_time = (
+                            TrialStatus.IK_FAILURE,
+                            None,
+                            0.0,
+                        )
+                    else:
+                        start_pose = fk_poses[0].pose
+                        q_start = R.from_quat(
+                            [
+                                start_pose.orientation.x,
+                                start_pose.orientation.y,
+                                start_pose.orientation.z,
+                                start_pose.orientation.w,
+                            ]
+                        )
+
+                        # 2. Get the goal pose's orientation from the scene
+                        goal_pose = scene["resting_pose"]
+                        q_goal = R.from_quat(
+                            [
+                                goal_pose.orientation.x,
+                                goal_pose.orientation.y,
+                                goal_pose.orientation.z,
+                                goal_pose.orientation.w,
+                            ]
+                        )
+
+                        # 3. Use SLERP to find the midpoint orientation
+                        if np.dot(q_start.as_quat(), q_goal.as_quat()) < 0:
+                            q_goal_negated = -q_goal.as_quat()
+                            q_goal = R.from_quat(q_goal_negated)
+
+                        slerp = Slerp(
+                            [0, 1], R.from_quat([q_start.as_quat(), q_goal.as_quat()])
+                        )
+                        q_midpoint = slerp(0.5).as_quat()
+
+                        # 4. Build constraints
+                        goal_constraints = [
+                            create_position_constraint(
+                                goal_pose.position, tolerance_position=0.1
+                            ),
+                            create_orientation_path_constraint(
+                                quat_xyzw=(
+                                    goal_pose.orientation.x,
+                                    goal_pose.orientation.y,
+                                    goal_pose.orientation.z,
+                                    goal_pose.orientation.w,
+                                ),
+                                tolerance_rad=(0.1, 2 * np.pi, 0.1),
+                            ),
+                        ]
+                        path_constraints = [
+                            create_orientation_path_constraint(
+                                quat_xyzw=q_midpoint,
+                                tolerance_rad=(np.pi / 4, 2 * np.pi, np.pi / 4),
+                            )
+                        ]
+
+                        status, traj_jaco, planning_time = self.motion_planner.plan(
+                            group_name=PLANNING_GROUP_JACO,
+                            start_state=current_jaco_state,
+                            goal_constraints=goal_constraints,
+                            path_constraints=path_constraints,
+                            target_link=self.jaco_ee_link,
+                            planning_time=20.0,
+                        )
                     cartesian_path_length = metrics.calculate_cartesian_path_length(
                         traj_jaco,
                         PLANNING_GROUP_JACO,
