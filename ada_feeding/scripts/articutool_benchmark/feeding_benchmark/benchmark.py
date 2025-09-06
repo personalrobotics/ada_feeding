@@ -1718,32 +1718,83 @@ class EndToEndBenchmark:
                     )
                 elif self.mode == "8dof_baseline":
                     LOGGER.info("Stage 7: Resting -> Staging")
-                    goal_constraints = [
-                        create_pose_constraint(
-                            scene["staging_pose"], tolerance_position=0.1
-                        )
-                    ]
-                    path_constraints = [
-                        create_orientation_path_constraint(
-                            quat_xyzw=PATH_CONSTRAINT_QUAT_XYZW,
-                            tolerance_rad=BASELINE_PATH_CONSTRAINT_TOLERANCE_XYZ_RAD,
-                        )
-                    ]
-                    status, traj_full, planning_time = self.motion_planner.plan(
-                        group_name=PLANNING_GROUP_FULL,
-                        start_state=current_jaco_state + current_atool_state,
-                        goal_constraints=goal_constraints,
-                        path_constraints=path_constraints,
-                        target_link=END_EFFECTOR_LINK_FULL,
-                        planning_time=20.0,
+                    # 1. Get the start pose's orientation via FK
+                    start_state_msg = JointState(
+                        name=JOINT_NAMES_FULL,
+                        position=current_jaco_state + current_atool_state,
                     )
+                    fk_poses = self.motion_planner.compute_fk(
+                        group_name=PLANNING_GROUP_FULL,
+                        joint_state=start_state_msg,
+                        fk_link_names=[END_EFFECTOR_LINK_FULL],
+                    )
+                    if not fk_poses:
+                        LOGGER.error(
+                            "  FK failed for start pose, cannot plan to Staging."
+                        )
+                        status, traj_full, planning_time = (
+                            TrialStatus.IK_FAILURE,
+                            None,
+                            0.0,
+                        )
+                    else:
+                        start_pose = fk_poses[0].pose
+                        q_start = R.from_quat(
+                            [
+                                start_pose.orientation.x,
+                                start_pose.orientation.y,
+                                start_pose.orientation.z,
+                                start_pose.orientation.w,
+                            ]
+                        )
+
+                        # 2. Get the goal pose's orientation from the scene
+                        goal_pose = scene["staging_pose"]
+                        q_goal = R.from_quat(
+                            [
+                                goal_pose.orientation.x,
+                                goal_pose.orientation.y,
+                                goal_pose.orientation.z,
+                                goal_pose.orientation.w,
+                            ]
+                        )
+
+                        # 3. Use SLERP to find the midpoint orientation
+                        if np.dot(q_start.as_quat(), q_goal.as_quat()) < 0:
+                            q_goal_negated = -q_goal.as_quat()
+                            q_goal = R.from_quat(q_goal_negated)
+
+                        slerp = Slerp(
+                            [0, 1], R.from_quat([q_start.as_quat(), q_goal.as_quat()])
+                        )
+                        q_midpoint = slerp(0.5).as_quat()
+
+                        # 4. Build constraints
+                        goal_constraints = [
+                            create_pose_constraint(goal_pose, tolerance_position=0.1)
+                        ]
+                        path_constraints = [
+                            create_orientation_path_constraint(
+                                quat_xyzw=q_midpoint,
+                                tolerance_rad=(np.pi / 4, 2 * np.pi, np.pi / 4),
+                            )
+                        ]
+
+                        status, traj_full, planning_time = self.motion_planner.plan(
+                            group_name=PLANNING_GROUP_FULL,
+                            start_state=current_jaco_state + current_atool_state,
+                            goal_constraints=goal_constraints,
+                            path_constraints=path_constraints,
+                            target_link=END_EFFECTOR_LINK_FULL,
+                            planning_time=20.0,
+                        )
                     cartesian_path_length = metrics.calculate_cartesian_path_length(
                         traj_full,
                         PLANNING_GROUP_FULL,
                         self.kinematics_model,
                         self.jaco_ee_link,
                     )
-                    joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
+                    joint_travel = metrics.calculate_total_joint_travel(traj_full)
                     traj_jaco, traj_atool = trajectory_utils.split_full_trajectory(
                         traj_full
                     )
