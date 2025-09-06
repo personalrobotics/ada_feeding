@@ -131,6 +131,36 @@ class EndToEndBenchmark:
 
         return ordered_solution
 
+    def _is_scene_reachable(self, scene: Dict[str, Any]) -> bool:
+        """
+        Performs a simple IK check to see if the key acquisition poses are
+        reachable before starting a trial.
+        """
+        LOGGER.info("  Checking scene reachability...")
+        group_name = ""
+        if self.mode == "6dof_baseline":
+            group_name = PLANNING_GROUP_JACO
+        elif self.mode in ["articutool", "8dof_baseline"]:
+            group_name = PLANNING_GROUP_FULL
+        else:
+            LOGGER.error(f"Unknown mode '{self.mode}' for reachability check.")
+            return False
+
+        # Check IK for the AboveFood pose
+        ik_above = self.motion_planner.compute_ik(group_name, scene["above_food_pose"])
+        if not ik_above:
+            LOGGER.warning("    AboveFood pose is unreachable. Regenerating scene.")
+            return False
+
+        # Check IK for the InFood pose
+        ik_in = self.motion_planner.compute_ik(group_name, scene["in_food_pose"])
+        if not ik_in:
+            LOGGER.warning("    InFood pose is unreachable. Regenerating scene.")
+            return False
+
+        LOGGER.info("    Scene is reachable.")
+        return True
+
     # --- Planning Primitive ---
     def _plan_to_above_plate(
         self, above_plate_pose: Pose, start_state_jaco: Any
@@ -798,8 +828,11 @@ class EndToEndBenchmark:
             generation_params = SceneGenerationParams()
             scene_generator = SceneGenerator(generation_params)
 
-            # 2. Generate the scene and characteristics with a single, clean call
-            scene, scene_characteristics = scene_generator.generate()
+            # 2. Generate scenes until a reachable one is found
+            while True:
+                scene, scene_characteristics = scene_generator.generate()
+                if self._is_scene_reachable(scene):
+                    break
 
             params_dict = asdict(generation_params)
             params_dict["path_constraint_tolerance_xyz_rad"] = list(
