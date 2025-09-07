@@ -37,6 +37,8 @@ from ada_feeding.behaviors.acquisition import (
     ComputeActionTwist,
     RotateLocalApproachPoses,
     ConditionallyRotateFoodFrame,
+    GenerateSkewerTiltCandidates,
+    CalculateSkewerPoseForTilt,
 )
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2JointConstraint,
@@ -267,9 +269,7 @@ class AcquireFoodTree(MoveToTree):
                                 "jaco_ee_frame_id_pin": BlackboardKey(
                                     "jaco_ee_frame_id_pin"
                                 ),
-                                "jaco_trajectory": BlackboardKey(
-                                    "move_into_jaco_arm_trajectory"
-                                ),
+                                "jaco_trajectory": BlackboardKey("resting_trajectory"),
                                 "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
                                 "articutool_roll_limits_rad": (-np.pi, np.pi),
                                 "num_trajectory_points_to_check": 20,
@@ -1377,18 +1377,9 @@ class AcquireFoodTree(MoveToTree):
                                         ),
                                     ],
                                 ),
-                                py_trees.decorators.Retry(
-                                    name="PlanAcquisitionSequenceRetry",
-                                    num_failures=10,
-                                    child=py_trees.composites.Sequence(
-                                        name="PlanAcquisitionSequence",
-                                        memory=True,
-                                        children=[
-                                            move_above_sequence(),
-                                            move_into_sequence(),
-                                        ],
-                                    ),
-                                ),
+                                # This sequence implements the benchmark's robust planning logic.
+                                # It finds a reachable skewer configuration, plans all motions,
+                                # and then executes the first part of the motion.
                                 CallSetOrientationControl(
                                     name="DisableArticutoolOrientation",
                                     ns=name,
@@ -1396,6 +1387,33 @@ class AcquireFoodTree(MoveToTree):
                                         "control_mode": 0,
                                     },
                                     outputs={},
+                                ),
+                                MoveIt2JointConstraint(
+                                    name="SetAtoolHomeGoal",
+                                    ns=name,
+                                    inputs={
+                                        "joint_positions": [0.0, 0.0],
+                                    },
+                                    outputs={
+                                        "constraints": BlackboardKey(
+                                            "goal_constraints_home"
+                                        )
+                                    },
+                                ),
+                                MoveIt2Plan(
+                                    name="PlanAtoolToPitch",
+                                    ns=name,
+                                    inputs={
+                                        "goal_constraints": BlackboardKey(
+                                            "goal_constraints_home"
+                                        ),
+                                        "group_name": "articutool",
+                                    },
+                                    outputs={
+                                        "trajectory": BlackboardKey(
+                                            "articutool_home_traj"
+                                        )
+                                    },
                                 ),
                                 SwitchArticutoolControllers(
                                     name="SwitchArticutoolToJointTrajectory",
@@ -1414,12 +1432,12 @@ class AcquireFoodTree(MoveToTree):
                                     },
                                 ),
                                 ExecuteArticutoolTrajectory(
-                                    name="MoveAboveArticutool",
+                                    name="ExecuteAtoolToPitch",
                                     ns=name,
                                     inputs={
                                         "trajectory": BlackboardKey(
-                                            "move_above_articutool_trajectory"
-                                        ),
+                                            "articutool_home_traj"
+                                        )
                                     },
                                     outputs={
                                         "action_goal_accepted": BlackboardKey(
@@ -1433,16 +1451,268 @@ class AcquireFoodTree(MoveToTree):
                                         ),
                                     },
                                 ),
-                                MoveIt2Execute(
-                                    name="MoveAboveJacoArm",
-                                    ns=name,
-                                    inputs={
-                                        "trajectory": BlackboardKey(
-                                            "move_above_jaco_arm_trajectory"
+                                py_trees.composites.Sequence(
+                                    name="DecoupledAcquisitionPlanAndMove",
+                                    memory=True,
+                                    children=[
+                                        # A. Find a reachable skewer configuration by looping through tilt angles
+                                        py_trees.composites.Sequence(
+                                            name="FindReachableSkewerConfig",
+                                            memory=True,
+                                            children=[
+                                                GenerateSkewerTiltCandidates(
+                                                    name="GenerateTiltCandidates",
+                                                    ns=name,
+                                                    outputs={
+                                                        "tilt_candidates_rad": BlackboardKey(
+                                                            "tilt_candidates_rad"
+                                                        ),
+                                                        "tilt_index": BlackboardKey(
+                                                            "tilt_index"
+                                                        ),
+                                                    },
+                                                ),
+                                                py_trees.decorators.Retry(
+                                                    name="RetryWithNextTiltAngle",
+                                                    num_failures=10,
+                                                    child=py_trees.composites.Sequence(
+                                                        name="AttemptSingleTiltAngle",
+                                                        memory=True,
+                                                        children=[
+                                                            CalculateSkewerPoseForTilt(
+                                                                name="CalculateCandidatePoses",
+                                                                ns=name,
+                                                                inputs={
+                                                                    "tilt_candidates_rad": BlackboardKey(
+                                                                        "tilt_candidates_rad"
+                                                                    ),
+                                                                    "tilt_index": BlackboardKey(
+                                                                        "tilt_index"
+                                                                    ),
+                                                                    "tool_tip_move_above_pose_world": BlackboardKey(
+                                                                        "tool_tip_move_above_pose_world"
+                                                                    ),
+                                                                    "tool_tip_move_into_pose_world": BlackboardKey(
+                                                                        "tool_tip_move_into_pose_world"
+                                                                    ),
+                                                                    "pinocchio_model": BlackboardKey(
+                                                                        "pinocchio_model"
+                                                                    ),
+                                                                    "pinocchio_data": BlackboardKey(
+                                                                        "pinocchio_data"
+                                                                    ),
+                                                                    "articutool_joint_names": [
+                                                                        "atool_joint1",
+                                                                        "atool_joint2",
+                                                                    ],
+                                                                },
+                                                                outputs={
+                                                                    "candidate_jaco_ee_above_pose": BlackboardKey(
+                                                                        "candidate_jaco_ee_above_pose"
+                                                                    ),
+                                                                    "candidate_jaco_ee_into_pose": BlackboardKey(
+                                                                        "candidate_jaco_ee_into_pose"
+                                                                    ),
+                                                                    "articutool_joint_positions": BlackboardKey(
+                                                                        "candidate_atool_joint_positions"
+                                                                    ),
+                                                                    "tilt_index": BlackboardKey(
+                                                                        "tilt_index"
+                                                                    ),
+                                                                },
+                                                            ),
+                                                            StampPoseFromPose(
+                                                                name="StampCandidatePoseForIK",
+                                                                ns=name,
+                                                                inputs={
+                                                                    "input_pose": BlackboardKey(
+                                                                        "candidate_jaco_ee_above_pose"
+                                                                    ),
+                                                                    "frame_id": "world",
+                                                                },
+                                                                outputs={
+                                                                    "output_pose_stamped": BlackboardKey(
+                                                                        "stamped_candidate_pose"
+                                                                    )
+                                                                },
+                                                            ),
+                                                            MoveIt2ComputeIK(
+                                                                name="CheckCandidatePoseReachable",
+                                                                ns=name,
+                                                                inputs={
+                                                                    "target_pose": BlackboardKey(
+                                                                        "stamped_candidate_pose"
+                                                                    ),
+                                                                    "group_name": "jaco_arm",
+                                                                },
+                                                                outputs={
+                                                                    "ik_solution_joint_state": None,
+                                                                    "success": BlackboardKey(
+                                                                        "candidate_ik_success"
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ],
+                                                    ),
+                                                ),
+                                            ],
                                         ),
-                                        "group_name": "jaco_arm",
-                                    },
-                                    outputs={},
+                                        # B. Plan all three trajectory segments now that we have a valid goal
+                                        MoveIt2PoseConstraint(
+                                            name="SetJacoAbovePoseGoal",
+                                            ns=name,
+                                            inputs={
+                                                "pose": BlackboardKey(
+                                                    "candidate_jaco_ee_above_pose"
+                                                )
+                                            },
+                                            outputs={
+                                                "constraints": BlackboardKey(
+                                                    "goal_constraints_s1"
+                                                )
+                                            },
+                                        ),
+                                        MoveIt2Plan(
+                                            name="PlanJacoToAbove",
+                                            ns=name,
+                                            inputs={
+                                                "goal_constraints": BlackboardKey(
+                                                    "goal_constraints_s1"
+                                                ),
+                                                "group_name": "jaco_arm",
+                                                "max_velocity_scale": self.max_velocity_scaling_move_above,
+                                                "max_acceleration_scale": self.max_acceleration_scaling_move_above,
+                                                "allowed_planning_time": self.allowed_planning_time_for_move_above,
+                                            },
+                                            outputs={
+                                                "trajectory": BlackboardKey(
+                                                    "jaco_move_above_traj"
+                                                ),
+                                                "end_joint_state": BlackboardKey(
+                                                    "jaco_move_above_end_joint_state"
+                                                ),
+                                            },
+                                        ),
+                                        MoveIt2JointConstraint(
+                                            name="SetAtoolPitchGoal",
+                                            ns=name,
+                                            inputs={
+                                                "joint_positions": BlackboardKey(
+                                                    "candidate_atool_joint_positions"
+                                                ),
+                                            },
+                                            outputs={
+                                                "constraints": BlackboardKey(
+                                                    "goal_constraints_s2"
+                                                )
+                                            },
+                                        ),
+                                        MoveIt2Plan(
+                                            name="PlanAtoolToPitch",
+                                            ns=name,
+                                            inputs={
+                                                "goal_constraints": BlackboardKey(
+                                                    "goal_constraints_s2"
+                                                ),
+                                                "group_name": "articutool",
+                                            },
+                                            outputs={
+                                                "trajectory": BlackboardKey(
+                                                    "articutool_set_pitch_traj"
+                                                ),
+                                            },
+                                        ),
+                                        MoveIt2PoseConstraint(
+                                            name="SetJacoIntoPoseGoal",
+                                            ns=name,
+                                            inputs={
+                                                "pose": BlackboardKey(
+                                                    "candidate_jaco_ee_into_pose"
+                                                )
+                                            },
+                                            outputs={
+                                                "constraints": BlackboardKey(
+                                                    "goal_constraints_s3"
+                                                )
+                                            },
+                                        ),
+                                        MoveIt2Plan(
+                                            name="PlanJacoToInto",
+                                            ns=name,
+                                            inputs={
+                                                "goal_constraints": BlackboardKey(
+                                                    "goal_constraints_s3"
+                                                ),
+                                                "group_name": "jaco_arm",
+                                                "cartesian": True,
+                                                "max_velocity_scale": self.max_velocity_scaling_move_into,
+                                                "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                                                "cartesian_max_step": 0.001,
+                                                "cartesian_fraction_threshold": 0.92,
+                                                "start_joint_state": BlackboardKey(
+                                                    "jaco_move_above_end_joint_state"
+                                                ),
+                                                "max_path_len_joint": max_path_len_joint,
+                                                "allowed_planning_time": self.allowed_planning_time_for_move_into,
+                                            },
+                                            outputs={
+                                                "trajectory": BlackboardKey(
+                                                    "jaco_move_into_traj"
+                                                )
+                                            },
+                                        ),
+                                        # C. Execute the first motion to move above the food
+                                        MoveIt2Execute(
+                                            name="ExecuteJacoToAbove",
+                                            ns=name,
+                                            inputs={
+                                                "trajectory": BlackboardKey(
+                                                    "jaco_move_above_traj"
+                                                ),
+                                                "group_name": "jaco_arm",
+                                            },
+                                            outputs={
+                                                "error_code": None,
+                                            },
+                                        ),
+                                        # D. Execute the Articutool pitch motion
+                                        SwitchArticutoolControllers(
+                                            name="SwitchArticutoolToJointTrajectory",
+                                            ns=name,
+                                            inputs={
+                                                "controllers_to_activate": [
+                                                    "joint_trajectory_controller"
+                                                ],
+                                                "controllers_to_deactivate": [
+                                                    "velocity_controller"
+                                                ],
+                                            },
+                                            outputs={
+                                                "switch_call_succeeded": None,
+                                                "switch_response_ok": None,
+                                            },
+                                        ),
+                                        ExecuteArticutoolTrajectory(
+                                            name="ExecuteAtoolToPitch",
+                                            ns=name,
+                                            inputs={
+                                                "trajectory": BlackboardKey(
+                                                    "articutool_set_pitch_traj"
+                                                )
+                                            },
+                                            outputs={
+                                                "action_goal_accepted": BlackboardKey(
+                                                    "tool_goal_accepted"
+                                                ),
+                                                "action_result_code": BlackboardKey(
+                                                    "tool_exec_result_code"
+                                                ),
+                                                "action_status": BlackboardKey(
+                                                    "tool_action_status"
+                                                ),
+                                            },
+                                        ),
+                                    ],
                                 ),
                                 # If Anything goes wrong, reset FT to safe levels
                                 scoped_behavior(
@@ -1500,55 +1770,23 @@ class AcquireFoodTree(MoveToTree):
                                     # Starts a new Sequence w/ Memory internally
                                     workers=[
                                         ### Move Into Food
-                                        SwitchArticutoolControllers(
-                                            name="SwitchArticutoolToVelocity",
-                                            ns=name,
-                                            inputs={
-                                                "controllers_to_activate": [
-                                                    "velocity_controller"
-                                                ],
-                                                "controllers_to_deactivate": [
-                                                    "joint_trajectory_controller"
-                                                ],
-                                            },
-                                            outputs={
-                                                "switch_call_succeeded": None,
-                                                "switch_response_ok": None,
-                                            },
-                                        ),
-                                        py_trees.timers.Timer(
-                                            name="WaitForIMUToSettle",
-                                            duration=2.0,
-                                        ),
-                                        TriggerArticutoolCalibration(
-                                            name="TriggerArticutoolCalibration",
-                                            ns=name,
-                                            inputs={},
-                                            outputs={},
-                                        ),
-                                        CallSetOrientationControl(
-                                            name="SetArticutoolOrientation",
-                                            ns=name,
-                                            inputs={
-                                                "control_mode": 2,
-                                                "target_orientation_robot_base_quat": BlackboardKey(
-                                                    "move_into_tool_tip_orientation"
-                                                ),
-                                            },
-                                            outputs={},
-                                        ),
-                                        # MoveInto expect F/T failure
+                                        # E. Execute the final Jaco Cartesian insertion.
+                                        # This is wrapped in FailureIsSuccess because we expect
+                                        # it to be interrupted by the F/T sensor.
                                         py_trees.decorators.FailureIsSuccess(
-                                            name="MoveIntoJacoArmExecuteSucceed",
+                                            name="ExecuteJacoToInto_SucceedOnFT",
                                             child=MoveIt2Execute(
-                                                name="MoveIntoJacoArm",
+                                                name="ExecuteJacoToInto",
                                                 ns=name,
                                                 inputs={
                                                     "trajectory": BlackboardKey(
-                                                        "move_into_jaco_arm_trajectory"
-                                                    )
+                                                        "jaco_move_into_traj"
+                                                    ),
+                                                    "group_name": "jaco_arm",
                                                 },
-                                                outputs={},
+                                                outputs={
+                                                    "error_code": None,
+                                                },
                                             ),
                                         ),
                                         CallSetOrientationControl(
