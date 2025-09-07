@@ -133,6 +133,9 @@ class CalculateSkewerPoseForTilt(BlackboardBehavior):
                 return Status.FAILURE
 
             jaco_pitch_tilt = tilt_candidates[index]
+            self.logger.info(
+                f"Attempting tilt angle {np.rad2deg(jaco_pitch_tilt):.1f} deg (index {index})."
+            )
             self.feedback_message = f"Attempting tilt angle {np.rad2deg(jaco_pitch_tilt):.1f} deg (index {index})."
 
             # Increment the index for the *next* run before any potential failure
@@ -160,6 +163,9 @@ class CalculateSkewerPoseForTilt(BlackboardBehavior):
             ):
                 self.feedback_message = (
                     "Required Articutool pitch is out of limits for this tilt."
+                )
+                self.logger.warning(
+                    f"[{self.name}] Tilt {np.rad2deg(jaco_pitch_tilt):.1f} deg failed: required pitch {np.rad2deg(required_atool_pitch):.1f} deg is outside limits."
                 )
                 return Status.FAILURE  # This will trigger the parent Retry decorator
 
