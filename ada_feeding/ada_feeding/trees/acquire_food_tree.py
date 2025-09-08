@@ -694,6 +694,12 @@ class AcquireFoodTree(MoveToTree):
                                 "ext_thresh": BlackboardKey("ext_thresh"),
                                 "action": BlackboardKey("action"),
                                 "action_index": BlackboardKey("action_index"),
+                                "pre_move_into_primitive_name": BlackboardKey(
+                                    "pre_move_into_action_name"
+                                ),
+                                "pre_move_into_primitive_params": BlackboardKey(
+                                    "pre_move_into_action_params"
+                                ),
                                 "post_move_into_primitive_name": BlackboardKey(
                                     "post_move_into_action_name"
                                 ),
@@ -1453,7 +1459,7 @@ class AcquireFoodTree(MoveToTree):
                                     },
                                 ),
                                 ExecuteArticutoolTrajectory(
-                                    name="ExecuteAtoolToPitch",
+                                    name="ExecuteAtoolToHome",
                                     ns=name,
                                     inputs={
                                         "trajectory": BlackboardKey(
@@ -1793,6 +1799,45 @@ class AcquireFoodTree(MoveToTree):
                                     on_preempt_timeout=5.0,
                                     # Starts a new Sequence w/ Memory internally
                                     workers=[
+                                        CallSetOrientationControl(
+                                            name="SetArticutoolOrientation",
+                                            ns=name,
+                                            inputs={
+                                                "control_mode": 0,
+                                            },
+                                            outputs={},
+                                        ),
+                                        SwitchArticutoolControllers(
+                                            name="SwitchArticutoolToVelocity",
+                                            ns=name,
+                                            inputs={
+                                                "controllers_to_activate": [
+                                                    "velocity_controller"
+                                                ],
+                                                "controllers_to_deactivate": [
+                                                    "joint_trajectory_controller"
+                                                ],
+                                            },
+                                            outputs={
+                                                "switch_call_succeeded": None,
+                                                "switch_response_ok": None,
+                                            },
+                                        ),
+                                        ExecuteNamedPrimitive(
+                                            name="RunPreMoveIntoPrimitive",
+                                            ns=name,
+                                            inputs={
+                                                "primitive_name": BlackboardKey(
+                                                    "pre_move_into_action_name"
+                                                ),
+                                                "primitive_params": BlackboardKey(
+                                                    "pre_move_into_action_params"
+                                                ),
+                                            },
+                                            outputs={
+                                                "primitive_status": None,
+                                            },
+                                        ),
                                         ### Move Into Food
                                         # E. Execute the final Jaco Cartesian insertion.
                                         # This is wrapped in FailureIsSuccess because we expect

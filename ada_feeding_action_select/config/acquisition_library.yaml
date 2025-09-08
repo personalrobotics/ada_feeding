@@ -409,17 +409,15 @@ actions:
   - 0.0
   - 1.0
   pre_quat:
-  # - -0.707
-  # - 0.707
-  # - 0.0
-  # - 0.0
   - 0.0
   - 0.7071068
   - -0.7071068
   - 0.0
   pre_torque: 4.0
-  post_move_into_primitive_name: "NONE"
-  post_move_into_primitive_params: []
+  pre_move_into_primitive_name: "TWIRL_CW"
+  pre_move_into_primitive_params: [2.0, 2.0]
+  post_move_into_primitive_name: "TWIRL_CCW"
+  post_move_into_primitive_params: [2.0, 2.0]
   post_acquisition_primitive_name: "NONE"
   post_acquisition_primitive_params: []
   align_to_robot_base: True

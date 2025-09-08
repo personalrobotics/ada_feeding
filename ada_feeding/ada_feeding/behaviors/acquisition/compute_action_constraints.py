@@ -93,6 +93,8 @@ class ComputeActionConstraints(BlackboardBehavior):
         ext_thresh: Optional[BlackboardKey],  # SetParameters.Request
         action: Optional[BlackboardKey],  # AcquisitionSchema.msg
         action_index: Optional[BlackboardKey],  # int
+        pre_move_into_primitive_name: Optional[BlackboardKey],
+        pre_move_into_primitive_params: Optional[BlackboardKey],
         post_move_into_primitive_name: Optional[BlackboardKey],
         post_move_into_primitive_params: Optional[BlackboardKey],
         post_acquisition_primitive_name: Optional[BlackboardKey],
@@ -213,6 +215,18 @@ class ComputeActionConstraints(BlackboardBehavior):
             self.blackboard_set(
                 "ext_thresh",
                 create_ft_thresh_request(action.ext_force, action.ext_torque),
+            )
+
+            # Pre-Move-Into Primitive
+            # pre_move_into_name = (
+            #     action.pre_move_into_primitive_name or "NONE"
+            # )  # Default to NONE
+            pre_move_into_name = action.pre_move_into_primitive_name
+            pre_move_into_params = list(action.pre_move_into_primitive_params)
+            self.blackboard_set("pre_move_into_primitive_name", pre_move_into_name)
+            self.blackboard_set("pre_move_into_primitive_params", pre_move_into_params)
+            self.logger.info(
+                f"[{self.name}] Set Pre-MoveInto Primitive to: '{pre_move_into_name}' with params: {pre_move_into_params}"
             )
 
             # Post-Move-Into Primitive

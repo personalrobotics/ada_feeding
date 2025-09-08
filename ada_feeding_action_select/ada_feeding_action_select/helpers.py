@@ -117,6 +117,13 @@ def get_action_library(
         schema.ext_force = element["ext_force"]
         schema.ext_torque = element["ext_torque"]
 
+        schema.pre_move_into_primitive_name = str(
+            element.get("pre_move_into_primitive_name", "NONE")
+        )
+        schema.pre_move_into_primitive_params = [
+            float(p) for p in element.get("pre_move_into_primitive_params", [])
+        ]
+
         schema.post_move_into_primitive_name = str(
             element.get("post_move_into_primitive_name", "NONE")
         )

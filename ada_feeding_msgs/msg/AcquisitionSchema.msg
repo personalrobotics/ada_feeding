@@ -64,6 +64,13 @@ builtin_interfaces/Duration ext_duration
 float64 ext_force
 float64 ext_torque
 
+# The name of the primitive to run *before* the MoveInto Cartesian push.
+# e.g., "TWIRL_CW" or "NONE".
+string pre_move_into_primitive_name
+
+# Parameters for the post_move_into_primitive.
+float64[] pre_move_into_primitive_params
+
 # The name of the primitive to run *after* the MoveInto Cartesian push.
 # e.g., "TWIRL_CW" or "NONE".
 string post_move_into_primitive_name
