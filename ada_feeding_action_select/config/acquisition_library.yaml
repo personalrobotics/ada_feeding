@@ -376,3 +376,50 @@ actions:
   post_acquisition_primitive_name: "NONE"
   post_acquisition_primitive_params: []
   align_to_robot_base: True
+# Skewer + Twirl for Noodles
+- ext_angular:
+  - 0.0
+  - 0.0
+  - 0.0
+  ext_duration: 1.0
+  ext_force: 50.0
+  ext_linear:
+  - 0.0
+  - 0.0
+  - 0.0
+  ext_torque: 4.0
+  grasp_angular:
+  - 0.0
+  - 0.0
+  - 0.0
+  grasp_duration: 0.0
+  grasp_force: 15.0
+  grasp_linear:
+  - 0.0
+  - 0.0
+  - 0.0
+  grasp_torque: 4.0
+  pre_force: 20.0
+  pre_offset:
+  - 0.0
+  - 0.0
+  - -0.02
+  pre_pos:
+  - 0.0
+  - 0.0
+  - 1.0
+  pre_quat:
+  # - -0.707
+  # - 0.707
+  # - 0.0
+  # - 0.0
+  - 0.0
+  - 0.7071068
+  - -0.7071068
+  - 0.0
+  pre_torque: 4.0
+  post_move_into_primitive_name: "NONE"
+  post_move_into_primitive_params: []
+  post_acquisition_primitive_name: "NONE"
+  post_acquisition_primitive_params: []
+  align_to_robot_base: True
