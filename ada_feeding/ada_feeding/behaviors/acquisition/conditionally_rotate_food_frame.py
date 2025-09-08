@@ -137,7 +137,7 @@ class ConditionallyRotateFoodFrame(BlackboardBehavior):
                 return Status.SUCCESS
 
             desired_global_approach_yaw_rb = math.atan2(
-                L_xy_rb_numpy[1], L_xy_rb_numpy[0]
+                -L_xy_rb_numpy[1], -L_xy_rb_numpy[0]
             )
 
             X_axis_in_food_frame = np.array([1.0, 0.0, 0.0])
