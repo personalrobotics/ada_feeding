@@ -90,6 +90,40 @@ ada_feeding_action_servers:
       - -3.0701456341812565
       - 1.8009590918986131
       planning_scene_namespace_to_use: bedside_90
+    exp_staging_near:
+      MoveFromMouth.tree_kwargs.linear_speed_near_mouth: 0.08
+      MoveFromMouth.tree_kwargs.max_linear_speed_to_staging_configuration: 0.15
+      MoveToMouth.tree_kwargs.linear_speed_near_mouth: 0.06
+      MoveToMouth.tree_kwargs.max_linear_speed: 0.15
+      MoveToMouth.tree_kwargs.plan_distance_from_mouth:
+      - 0.05
+      - 0.0
+      - -0.01
+      MoveToStagingConfiguration.tree_kwargs.goal_configuration:
+      - -2.32526
+      - 4.456298
+      - 4.16769
+      - 1.53262
+      - -2.18359
+      - -2.19525
+      planning_scene_namespace_to_use: seated
+    exp_staging_far:
+      MoveFromMouth.tree_kwargs.linear_speed_near_mouth: 0.08
+      MoveFromMouth.tree_kwargs.max_linear_speed_to_staging_configuration: 0.15
+      MoveToMouth.tree_kwargs.linear_speed_near_mouth: 0.06
+      MoveToMouth.tree_kwargs.max_linear_speed: 0.15
+      MoveToMouth.tree_kwargs.plan_distance_from_mouth:
+      - 0.05
+      - 0.0
+      - -0.01
+      MoveToStagingConfiguration.tree_kwargs.goal_configuration:
+      - -3.9334740403409687
+      - 4.6597017558836695
+      - 4.318793636211704
+      - -3.5039983671488946
+      - -1.5551370912132034
+      - 3.826862239728413
+      planning_scene_namespace_to_use: seated
     custom_namespaces:
     - bed_side_table_1
     - bed_front_table_1
@@ -97,6 +131,8 @@ ada_feeding_action_servers:
     - side_staging_1
     - side_staging_2
     - side_staging_3
+    - exp_staging_near
+    - exp_staging_far
     - demo
     demo:
       MoveFromMouth.tree_kwargs.linear_speed_near_mouth: 0.08
@@ -108,7 +144,7 @@ ada_feeding_action_servers:
       - 0.0
       - -0.01
       planning_scene_namespace_to_use: seated
-    namespace_to_use: demo
+    namespace_to_use: exp_staging_far
     side_staging_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.8849039817349507
