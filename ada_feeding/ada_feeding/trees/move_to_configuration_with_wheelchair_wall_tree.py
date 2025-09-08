@@ -30,7 +30,7 @@ from ada_feeding.behaviors.moveit2 import (
 )
 from ada_feeding.behaviors.state import (
     GetJointStates,
-    CheckArticutoolPathLevelingFeasibility,
+    CheckArticutoolPathDynamicFeasibility,
     LoadPinocchioModel,
 )
 from ada_feeding.helpers import BlackboardKey
@@ -239,8 +239,8 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                                 outputs={"trajectory": BlackboardKey("trajectory")},
                             ),
                         ),
-                        CheckArticutoolPathLevelingFeasibility(
-                            name="CheckArticutoolLevelingFeasibilityForConfiguration",
+                        CheckArticutoolPathDynamicFeasibility(
+                            name="CheckArticutoolDynamicFeasibilityForStaging",
                             ns=name,
                             inputs={
                                 "pinocchio_model": BlackboardKey("pinocchio_model"),
@@ -259,10 +259,13 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                                 "jaco_trajectory": BlackboardKey("trajectory"),
                                 "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
                                 "articutool_roll_limits_rad": (-np.pi, np.pi),
-                                "num_trajectory_points_to_check": 20,
+                                "jaco_vel_indices_pin": BlackboardKey(
+                                    "jaco_vel_indices_pin"
+                                ),
+                                "articutool_max_joint_velocity": 4.0,
                             },
                             outputs={
-                                "articutool_is_leveling_feasible": BlackboardKey(
+                                "articutool_is_dynamic_feasible": BlackboardKey(
                                     "articutool_can_maintain_leveling"
                                 )
                             },

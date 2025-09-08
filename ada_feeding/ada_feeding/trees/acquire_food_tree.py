@@ -61,6 +61,7 @@ from ada_feeding.behaviors.state import (
     CheckJacoDirectionalManipulability,
     CheckArticutoolPathOrientationFeasibility,
     CheckArticutoolPathLevelingFeasibility,
+    CheckArticutoolPathDynamicFeasibility,
     LoadPinocchioModel,
     PublishPoseAsTf,
 )
@@ -260,8 +261,8 @@ class AcquireFoodTree(MoveToTree):
                                 },
                             ),
                         ),
-                        CheckArticutoolPathLevelingFeasibility(
-                            name="CheckArticutoolLevelingFeasibilityForResting",
+                        CheckArticutoolPathDynamicFeasibility(
+                            name="CheckArticutoolDynamicFeasibilityForResting",
                             ns=name,
                             inputs={
                                 "pinocchio_model": BlackboardKey("pinocchio_model"),
@@ -280,10 +281,13 @@ class AcquireFoodTree(MoveToTree):
                                 "jaco_trajectory": BlackboardKey("resting_trajectory"),
                                 "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
                                 "articutool_roll_limits_rad": (-np.pi, np.pi),
-                                "num_trajectory_points_to_check": 20,
+                                "jaco_vel_indices_pin": BlackboardKey(
+                                    "jaco_vel_indices_pin"
+                                ),
+                                "articutool_max_joint_velocity": 4.0,
                             },
                             outputs={
-                                "articutool_is_leveling_feasible": BlackboardKey(
+                                "articutool_is_dynamic_feasible": BlackboardKey(
                                     "articutool_can_maintain_leveling"
                                 )
                             },

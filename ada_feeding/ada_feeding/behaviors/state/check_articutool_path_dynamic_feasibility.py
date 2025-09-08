@@ -14,8 +14,8 @@ It combines the kinematic check with a dynamic analysis at each waypoint.
 # Standard imports
 import math
 from typing import Union, Optional, List, Tuple
+import traceback
 
-# Third-party imports
 from geometry_msgs.msg import Pose
 from moveit_msgs.msg import RobotTrajectory
 from trajectory_msgs.msg import JointTrajectory
@@ -27,7 +27,6 @@ from py_trees.common import Status
 import rclpy.node
 import pinocchio as pin
 
-# Local imports
 from ada_feeding.behaviors import BlackboardBehavior
 from ada_feeding.helpers import BlackboardKey
 
@@ -207,7 +206,10 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
     def update(self) -> Status:
         """Execute the behavior's logic."""
         if not self.node or not self._get_pinocchio_essentials_from_blackboard():
-            self.feedback_message = "Behavior not properly initialized."
+            self.feedback_message = (
+                "Behavior not properly initialized or blackboard inputs missing."
+            )
+            self.logger.error(f"[{self.name}] {self.feedback_message}")
             self.blackboard_set("articutool_is_dynamic_feasible", False)
             return Status.FAILURE
 
@@ -229,12 +231,23 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
             last_valid_atool_q = None
 
             for idx in indices:
-                q_jaco, v_jaco = jaco_points[idx]
+                q_jaco_partial, v_jaco_partial = jaco_points[idx]
 
-                # --- KINEMATIC FEASIBILITY CHECK (Prerequisite) ---
+                # Construct the full configuration vector for Pinocchio
+                q_full_robot = pin.neutral(self._pin_model)
+                for i, joint_name in enumerate(self._jaco_joint_names_pin):
+                    joint_id = self._pin_model.getJointId(joint_name)
+                    joint_obj = self._pin_model.joints[joint_id]
+                    theta = q_jaco_partial[i]
+                    if joint_obj.nq == 2 and joint_obj.nv == 1:
+                        q_full_robot[joint_obj.idx_q] = math.cos(theta)
+                        q_full_robot[joint_obj.idx_q + 1] = math.sin(theta)
+                    elif joint_obj.nq == 1 and joint_obj.nv == 1:
+                        q_full_robot[joint_obj.idx_q] = theta
 
-                # 1. Get Articutool base orientation from Jaco FK
-                pin.forwardKinematics(self._pin_model, self._pin_data, q_jaco)
+                pin.forwardKinematics(
+                    self._pin_model, self._pin_data, q_full_robot
+                )  # Use full vector
                 pin.updateFramePlacements(self._pin_model, self._pin_data)
                 T_world_atool_base = self._pin_data.oMf[self._jaco_ee_frame_id_pin]
                 R_world_atool_base = Rotation.from_matrix(T_world_atool_base.rotation)
@@ -264,6 +277,7 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
                     self.feedback_message = (
                         f"Path is kinematically infeasible at point {idx}."
                     )
+                    self.logger.warning(f"[{self.name}] {self.feedback_message}")
                     self.blackboard_set("articutool_is_dynamic_feasible", False)
                     return Status.FAILURE
 
@@ -284,14 +298,17 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
                 J_jaco_full = pin.computeFrameJacobian(
                     self._pin_model,
                     self._pin_data,
-                    q_jaco,
+                    q_full_robot,  # Use full vector
                     self._jaco_ee_frame_id_pin,
                     pin.ReferenceFrame.WORLD,
                 )
-                v_jaco_full = J_jaco_full @ v_jaco
-                omega_disturbance_world = v_jaco_full[3:6]  # Angular velocity part
 
-                # 2. Transform disturbance to Articutool's local frame
+                # Construct full velocity vector
+                v_full_robot = np.zeros(self._pin_model.nv)
+                v_full_robot[self._jaco_vel_indices_pin] = v_jaco_partial
+
+                v_jaco_full = J_jaco_full @ v_full_robot
+                omega_disturbance_world = v_jaco_full[3:6]
                 omega_correction_local = -R_world_atool_base.inv().apply(
                     omega_disturbance_world
                 )
@@ -307,6 +324,7 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
                     self.feedback_message = (
                         f"Articutool Jacobian is singular at point {idx}."
                     )
+                    self.logger.warning(f"[{self.name}] {self.feedback_message}")
                     self.blackboard_set("articutool_is_dynamic_feasible", False)
                     return Status.FAILURE
 
@@ -314,9 +332,10 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
                 if np.linalg.norm(q_dot_atool_required) > self._max_atool_vel:
                     self.feedback_message = (
                         f"Path is dynamically infeasible at point {idx}. "
-                        f"Required vel: {np.linalg.norm(q_dot_atool_required):.2f} > "
-                        f"Max vel: {self._max_atool_vel:.2f}"
+                        f"Required vel: {np.linalg.norm(q_dot_atool_required):.2f} rad/s > "
+                        f"Max vel: {self._max_atool_vel:.2f} rad/s"
                     )
+                    self.logger.warning(f"[{self.name}] {self.feedback_message}")
                     self.blackboard_set("articutool_is_dynamic_feasible", False)
                     return Status.FAILURE
 
@@ -327,10 +346,14 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
 
         except KeyError as e:
             self.feedback_message = f"Blackboard key error: {e}"
+            self.logger.error(f"[{self.name}] {self.feedback_message}")
             self.blackboard_set("articutool_is_dynamic_feasible", False)
             return Status.FAILURE
         except Exception as e:
             self.feedback_message = f"Unexpected error: {e}"
+            self.logger.error(
+                f"[{self.name}] {self.feedback_message}\n{traceback.format_exc()}"
+            )
             self.blackboard_set("articutool_is_dynamic_feasible", False)
             return Status.FAILURE
 
