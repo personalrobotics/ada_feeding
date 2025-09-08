@@ -19,6 +19,7 @@ from typing import List, Optional
 from overrides import override
 import py_trees
 from rclpy.node import Node
+from py_trees.behaviours import Success
 
 # Local imports
 from ada_feeding.behaviors.moveit2 import (
@@ -197,13 +198,20 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                 # from moving unnecessarily close to the user.
                 scoped_behavior(
                     name=name + " InFrontOfWheelchairWallScope",
-                    pre_behavior=get_add_in_front_of_face_wall_behavior(
-                        name + "AddWheelchairWall",
+                    # TODO: Revert this when not running benchmarks
+                    pre_behavior=(
+                        Success()  # pylint: disable=abstract-class-instantiated
                     ),
-                    # Remove the wall in front of the wheelchair
-                    post_behavior=get_remove_in_front_of_face_wall_behavior(
-                        name + "RemoveWheelchairWall",
+                    post_behavior=(
+                        Success()  # pylint: disable=abstract-class-instantiated
                     ),
+                    # pre_behavior=get_add_in_front_of_face_wall_behavior(
+                    #     name + "AddWheelchairWall",
+                    # ),
+                    # # Remove the wall in front of the wheelchair
+                    # post_behavior=get_remove_in_front_of_face_wall_behavior(
+                    #     name + "RemoveWheelchairWall",
+                    # ),
                     # Move to the staging configuration
                     workers=constraints
                     + [
