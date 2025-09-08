@@ -1658,7 +1658,8 @@ class AcquireFoodTree(MoveToTree):
                                             inputs={
                                                 "pose": BlackboardKey(
                                                     "candidate_jaco_ee_into_pose"
-                                                )
+                                                ),
+                                                "tolerance_position": 0.01,
                                             },
                                             outputs={
                                                 "constraints": BlackboardKey(
@@ -1677,8 +1678,9 @@ class AcquireFoodTree(MoveToTree):
                                                 "cartesian": True,
                                                 "max_velocity_scale": self.max_velocity_scaling_move_into,
                                                 "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                                "cartesian_max_step": 0.01,
+                                                "cartesian_max_step": 0.001,
                                                 "cartesian_fraction_threshold": 0.92,
+                                                "cartesian_jump_threshold": 5.0,
                                                 "start_joint_state": BlackboardKey(
                                                     "jaco_move_above_end_joint_state"
                                                 ),
