@@ -62,6 +62,7 @@ from ada_feeding.behaviors.state import (
     CheckArticutoolPathOrientationFeasibility,
     CheckArticutoolPathLevelingFeasibility,
     LoadPinocchioModel,
+    PublishPoseAsTf,
 )
 from ada_feeding.behaviors.ros.msgs import StampPoseFromPose
 from ada_feeding.behaviors.ros.tf import ApplyTransform
@@ -721,7 +722,7 @@ class AcquireFoodTree(MoveToTree):
                             ),
                         },
                         outputs={
-                            "food_frame_updated": None,
+                            "food_frame_updated": BlackboardKey("final_food_frame"),
                         },
                     ),
                     # Re-Tare FT Sensor and default to 4N threshold
@@ -779,6 +780,26 @@ class AcquireFoodTree(MoveToTree):
                             "transformed_msg": BlackboardKey(
                                 "tool_tip_move_into_pose_world"
                             )
+                        },
+                    ),
+                    PublishPoseAsTf(
+                        name="PublishAboveFoodDebugFrame",
+                        ns=name,
+                        inputs={
+                            "pose_to_publish": BlackboardKey(
+                                "tool_tip_move_above_pose_world"
+                            ),
+                            "child_frame_id": "debug_above_pose",
+                        },
+                    ),
+                    PublishPoseAsTf(
+                        name="PublishIntoFoodDebugFrame",
+                        ns=name,
+                        inputs={
+                            "pose_to_publish": BlackboardKey(
+                                "tool_tip_move_into_pose_world"
+                            ),
+                            "child_frame_id": "debug_into_pose",
                         },
                     ),
                     LoadPinocchioModel(
@@ -1474,7 +1495,7 @@ class AcquireFoodTree(MoveToTree):
                                                 ),
                                                 py_trees.decorators.Retry(
                                                     name="RetryWithNextTiltAngle",
-                                                    num_failures=10,
+                                                    num_failures=20,
                                                     child=py_trees.composites.Sequence(
                                                         name="AttemptSingleTiltAngle",
                                                         memory=True,
@@ -1494,6 +1515,9 @@ class AcquireFoodTree(MoveToTree):
                                                                     ),
                                                                     "tool_tip_move_into_pose_world": BlackboardKey(
                                                                         "tool_tip_move_into_pose_world"
+                                                                    ),
+                                                                    "initial_food_frame": BlackboardKey(
+                                                                        "final_food_frame"
                                                                     ),
                                                                     "pinocchio_model": BlackboardKey(
                                                                         "pinocchio_model"
