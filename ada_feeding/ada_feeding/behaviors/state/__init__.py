@@ -38,3 +38,4 @@ from .offset_position_from_pose import (
 from .extract_pose_from_transform_stamped import (
     ExtractPoseFromTransformStamped,
 )
+from .publish_pose_as_tf import PublishPoseAsTf
