@@ -37,6 +37,7 @@ ada_feeding_action_servers:
           - toggle_watchdog_listener
           - f_mag
           - max_velocity_scaling_factor
+          - home_articutool_on_completion
         tree_kwargs: # optional
           joint_positions: # required
             - -2.4538579336877304 # j2n6s200_joint_1
@@ -48,6 +49,7 @@ ada_feeding_action_servers:
           toggle_watchdog_listener: false # optional, default: true
           f_mag: 4.0 # N
           max_velocity_scaling_factor: 1.0 # optional in (0.0, 1.0], default: 0.1
+          home_articutool_on_completion: True
         tick_rate: 10 # Hz, optional, default: 30
 
       # Parameters for the AcquireFood action
