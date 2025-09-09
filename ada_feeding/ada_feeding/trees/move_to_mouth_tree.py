@@ -12,7 +12,7 @@ wrap that behaviour tree in a ROS2 action server.
 
 # Standard imports
 from collections.abc import Sequence
-from typing import Annotated, Tuple
+from typing import Annotated, Tuple, Optional, List
 import numpy as np
 
 # Third-party imports
@@ -68,6 +68,10 @@ from ada_feeding.behaviors.state import (
     ExtractPoseFromPosesByLink,
     ComputeForwardCartesianGoal,
 )
+from ada_feeding.behaviors.articutool import (
+    ExecuteNamedPrimitive,
+    CallSetOrientationControl,
+)
 from .activate_controller import ActivateControllerTree
 
 
@@ -113,6 +117,8 @@ class MoveToMouthTree(MoveToTree):
         ),
         use_simple_presentation: bool = False,
         simple_presentation_distance_m: float = 0.05,
+        post_presentation_primitive_name: str = "NONE",
+        post_presentation_primitive_params: Optional[List[float]] = None,
     ):
         """
         Initializes tree-specific parameters.
@@ -177,6 +183,8 @@ class MoveToMouthTree(MoveToTree):
         self.fork_target_orientation_from_mouth = fork_target_orientation_from_mouth
         self.use_simple_presentation = use_simple_presentation
         self.simple_presentation_distance_m = simple_presentation_distance_m
+        self.post_presentation_primitive_name = post_presentation_primitive_name
+        self.post_presentation_primitive_params = post_presentation_primitive_params
 
         self.face_detection_relative_blackboard_key = "face_detection"
 
@@ -617,6 +625,26 @@ class MoveToMouthTree(MoveToTree):
                     },
                     outputs={
                         "error_code": None,
+                    },
+                ),
+                CallSetOrientationControl(
+                    name="SetArticutoolOrientation",
+                    ns=name,
+                    inputs={
+                        "control_mode": 0,
+                    },
+                    outputs={},
+                ),
+                ExecuteNamedPrimitive(
+                    name="RunPostPresentationPrimitive",
+                    ns=name,
+                    inputs={
+                        "primitive_name": self.post_presentation_primitive_name,
+                        "primitive_params": self.post_presentation_primitive_params,
+                    },
+                    outputs={
+                        "primitive_result": None,
+                        "primitive_status": None,
                     },
                 ),
             ],
