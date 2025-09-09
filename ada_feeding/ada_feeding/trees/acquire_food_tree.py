@@ -126,7 +126,7 @@ class AcquireFoodTree(MoveToTree):
         pickle_goal_path: Optional[str] = None,
         allowed_planning_time_for_move_above: float = 1.0,
         allowed_planning_time_for_move_into: float = 0.5,
-        allowed_planning_time_to_resting_configuration: float = 0.5,
+        allowed_planning_time_to_resting_configuration: float = 20.0,
         allowed_planning_time_for_recovery: float = 0.5,
     ):
         """
@@ -348,8 +348,7 @@ class AcquireFoodTree(MoveToTree):
                         py_trees.decorators.Timeout(
                             name="RestingPlanTimeout",
                             # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                            duration=10.0
-                            * self.allowed_planning_time_to_resting_configuration,
+                            duration=self.allowed_planning_time_to_resting_configuration,
                             child=MoveIt2Plan(
                                 name="RestingPlan",
                                 ns=name,
@@ -662,6 +661,7 @@ class AcquireFoodTree(MoveToTree):
                                     "articutool_leveling_constraints"
                                 ),
                                 "group_name": "articutool",
+                                "max_velocity_scale": 0.5,
                             },
                             outputs={
                                 "trajectory": BlackboardKey(
@@ -1098,6 +1098,7 @@ class AcquireFoodTree(MoveToTree):
                                             "goal_constraints_home"
                                         ),
                                         "group_name": "articutool",
+                                        "max_velocity_scale": 1.0,
                                     },
                                     outputs={
                                         "trajectory": BlackboardKey(
@@ -1308,6 +1309,7 @@ class AcquireFoodTree(MoveToTree):
                                                     "goal_constraints_s2"
                                                 ),
                                                 "group_name": "articutool",
+                                                "max_velocity_scale": 1.0,
                                             },
                                             outputs={
                                                 "trajectory": BlackboardKey(
