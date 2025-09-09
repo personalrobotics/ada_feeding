@@ -13,6 +13,7 @@ wrap that behaviour tree in a ROS2 action server.
 # Standard imports
 from collections.abc import Sequence
 from typing import Annotated, Tuple
+import numpy as np
 
 # Third-party imports
 from geometry_msgs.msg import (
@@ -55,6 +56,17 @@ from ada_feeding.idioms.bite_transfer import (
 )
 from ada_feeding.trees import (
     MoveToTree,
+)
+from ada_feeding.behaviors.moveit2 import (
+    MoveIt2PoseConstraint,
+    MoveIt2Plan,
+    MoveIt2Execute,
+    MoveIt2ComputeFK,
+)
+from ada_feeding.behaviors.state import (
+    GetJointStates,
+    ExtractPoseFromPosesByLink,
+    ComputeForwardCartesianGoal,
 )
 from .activate_controller import ActivateControllerTree
 
@@ -99,6 +111,8 @@ class MoveToMouthTree(MoveToTree):
             -0.5,
             0.5,
         ),
+        use_simple_presentation: bool = False,
+        simple_presentation_distance_m: float = 0.05,
     ):
         """
         Initializes tree-specific parameters.
@@ -161,6 +175,8 @@ class MoveToMouthTree(MoveToTree):
         self.face_detection_timeout = face_detection_timeout
         self.plan_distance_from_mouth = plan_distance_from_mouth
         self.fork_target_orientation_from_mouth = fork_target_orientation_from_mouth
+        self.use_simple_presentation = use_simple_presentation
+        self.simple_presentation_distance_m = simple_presentation_distance_m
 
         self.face_detection_relative_blackboard_key = "face_detection"
 
@@ -252,7 +268,7 @@ class MoveToMouthTree(MoveToTree):
             )
 
         # Root Sequence
-        root_seq = py_trees.composites.Sequence(
+        original_face_detection_sequence = py_trees.composites.Sequence(
             name=name,
             memory=True,
             children=[
@@ -502,8 +518,116 @@ class MoveToMouthTree(MoveToTree):
             ],
         )
 
+        simple_presentation_sequence = py_trees.composites.Sequence(
+            name=name + " SimplePresentationSequence",
+            memory=True,
+            children=[
+                # 1. Get current joint state for FK
+                GetJointStates(
+                    name="GetJacoStartStateForPresentation",
+                    ns=name,
+                    node=self._node,
+                    inputs={
+                        "joint_names": [
+                            "j2n6s200_joint_1",
+                            "j2n6s200_joint_2",
+                            "j2n6s200_joint_3",
+                            "j2n6s200_joint_4",
+                            "j2n6s200_joint_5",
+                            "j2n6s200_joint_6",
+                        ]
+                    },
+                    outputs={
+                        "joint_state": BlackboardKey("current_jaco_joint_state"),
+                        "joint_positions": BlackboardKey(
+                            "current_jaco_joint_positions"
+                        ),
+                        "joint_names": BlackboardKey("current_jaco_joint_names"),
+                    },
+                ),
+                # 2. Perform FK to get current Jaco EE pose
+                MoveIt2ComputeFK(
+                    name="GetPresentationStartPose",
+                    ns=name,
+                    inputs={
+                        "group_name": "jaco_arm",
+                        "joint_state": BlackboardKey("current_jaco_joint_state"),
+                        "fk_link_names": ["j2n6s200_end_effector"],
+                    },
+                    outputs={
+                        "fk_poses": BlackboardKey("presentation_start_fk_poses"),
+                        "success": None,
+                    },
+                ),
+                ExtractPoseFromPosesByLink(
+                    name="ExtractPresentationStartPose",
+                    ns=name,
+                    inputs={
+                        "fk_poses": BlackboardKey("presentation_start_fk_poses"),
+                        "target_link_name": "j2n6s200_end_effector",
+                        "requested_link_names": ["j2n6s200_end_effector"],
+                    },
+                    outputs={
+                        "extracted_pose": BlackboardKey("current_ee_pose"),
+                        "success": None,
+                    },
+                ),
+                # 3. Calculate the goal pose manually
+                ComputeForwardCartesianGoal(
+                    name="CalculatePresentationGoal",
+                    ns=name,
+                    inputs={
+                        "current_ee_pose": BlackboardKey("current_ee_pose"),
+                        "forward_distance_m": self.simple_presentation_distance_m,
+                    },
+                    outputs={"cartesian_goal_pose": BlackboardKey("goal_pose")},
+                ),
+                # 4. Create a MoveIt2 goal constraint from the calculated pose
+                MoveIt2PoseConstraint(
+                    name="SetPresentationGoalConstraint",
+                    ns=name,
+                    inputs={"pose": BlackboardKey("goal_pose")},
+                    outputs={"constraints": BlackboardKey("goal_constraints")},
+                ),
+                # 5. Plan and execute the Cartesian motion
+                MoveIt2Plan(
+                    name="PlanSimplePresentation",
+                    ns=name,
+                    inputs={
+                        "goal_constraints": BlackboardKey("goal_constraints"),
+                        "group_name": "jaco_arm",
+                        "max_velocity_scale": 1.0,
+                        "max_acceleration_scale": 0.8,
+                        "cartesian_max_step": 0.001,
+                        "cartesian_fraction_threshold": 0.92,
+                        "cartesian_jump_threshold": 5.0,
+                        "cartesian": True,
+                    },
+                    outputs={
+                        "trajectory": BlackboardKey("trajectory"),
+                        "end_joint_state": None,
+                        "error_code": None,
+                    },
+                ),
+                MoveIt2Execute(
+                    name="ExecuteSimplePresentation",
+                    ns=name,
+                    inputs={
+                        "trajectory": BlackboardKey("trajectory"),
+                    },
+                    outputs={
+                        "error_code": None,
+                    },
+                ),
+            ],
+        )
+        root = (
+            simple_presentation_sequence
+            if self.use_simple_presentation
+            else original_face_detection_sequence
+        )
         ### Return tree
-        return py_trees.trees.BehaviourTree(root_seq)
+        return py_trees.trees.BehaviourTree(root)
 
     # Override goal to read arguments into local blackboard
     @override

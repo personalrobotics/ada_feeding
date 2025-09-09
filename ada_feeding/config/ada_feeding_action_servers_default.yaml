@@ -164,6 +164,8 @@ ada_feeding_action_servers:
           - plan_distance_from_mouth
           - max_linear_speed
           - linear_speed_near_mouth
+          - use_simple_presentation
+          - simple_presentation_distance_m
         tree_kwargs: # optional
           face_detection_msg_timeout: 10.0 # sec
           face_detection_timeout: 5.0 # sec
@@ -184,6 +186,8 @@ ada_feeding_action_servers:
             - -0.01 # m
           max_linear_speed: 0.15 # m/s
           linear_speed_near_mouth: 0.06 # m/s
+          use_simple_presentation: False
+          simple_presentation_distance_m: 0.05
         tick_rate: 10 # Hz, optional, default: 30
 
       # Parameters for the MoveFromMouth action.

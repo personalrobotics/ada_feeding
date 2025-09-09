@@ -106,6 +106,8 @@ ada_feeding_action_servers:
       - 1.53262
       - -2.18359
       - -2.19525
+      MoveToMouth.tree_kwargs.use_simple_presentation: True
+      MoveToMouth.tree_kwargs.simple_presentation_distance_m: 0.1 # Example: 10cm forward motion
       planning_scene_namespace_to_use: seated
     exp_staging_far:
       MoveFromMouth.tree_kwargs.linear_speed_near_mouth: 0.08
@@ -123,6 +125,8 @@ ada_feeding_action_servers:
       - -3.5039983671488946
       - -1.5551370912132034
       - 3.826862239728413
+      MoveToMouth.tree_kwargs.use_simple_presentation: True
+      MoveToMouth.tree_kwargs.simple_presentation_distance_m: 0.1 # Example: 10cm forward motion
       planning_scene_namespace_to_use: seated
     custom_namespaces:
     - bed_side_table_1
