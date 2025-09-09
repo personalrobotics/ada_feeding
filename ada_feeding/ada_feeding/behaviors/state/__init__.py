@@ -42,3 +42,4 @@ from .extract_pose_from_transform_stamped import (
     ExtractPoseFromTransformStamped,
 )
 from .publish_pose_as_tf import PublishPoseAsTf
+from .compute_slerp_midpoint_orientation import ComputeSlerpMidpointOrientation
