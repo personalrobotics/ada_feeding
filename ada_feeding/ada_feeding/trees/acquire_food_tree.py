@@ -348,7 +348,8 @@ class AcquireFoodTree(MoveToTree):
                         py_trees.decorators.Timeout(
                             name="RestingPlanTimeout",
                             # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                            duration=self.allowed_planning_time_to_resting_configuration,
+                            duration=10.0
+                            * self.allowed_planning_time_to_resting_configuration,
                             child=MoveIt2Plan(
                                 name="RestingPlan",
                                 ns=name,

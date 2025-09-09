@@ -308,7 +308,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                         py_trees.decorators.Timeout(
                             name="MoveToStagingConfigurationPlanTimeout",
                             # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                            duration=self.allowed_planning_time,
+                            duration=10.0 * self.allowed_planning_time,
                             child=MoveIt2Plan(
                                 name="MoveToStagingConfigurationPlan",
                                 ns=name,
@@ -322,7 +322,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                                     "planner_id": self.planner_id,
                                     "allowed_planning_time": self.allowed_planning_time,
                                     "max_velocity_scale": self.max_velocity_scaling_factor,
-                                    "ignore_violated_path_constraints": True,
+                                    "ignore_violated_path_constraints": False,
                                     "group_name": "jaco_arm",
                                 },
                                 outputs={"trajectory": BlackboardKey("trajectory")},
