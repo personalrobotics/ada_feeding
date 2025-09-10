@@ -442,7 +442,7 @@ actions:
   pre_offset:
   - 0.035
   - 0.0
-  - 0.0
+  - -0.02
   pre_pos:
   - 1.0
   - 0.0
@@ -460,7 +460,7 @@ actions:
   post_acquisition_primitive_name: "NONE"
   post_acquisition_primitive_params: []
   align_to_robot_base: True
-# Tilted scoop (70 deg polar angle from vertical)
+# Tilted scoop (60 deg polar angle from vertical)
 - ext_angular:
   - 0.0
   - 0.0
@@ -481,16 +481,16 @@ actions:
   pre_offset:
   - 0.035
   - 0.0
-  - 0.0
+  - -0.02
   pre_pos:
   - 1.0
   - 0.0
   - 1.0
   pre_quat:
-  - -0.406
-  - -0.579
-  - 0.579
-  - 0.406
+  - -0.354065
+  - -0.6119149
+  - 0.6119149
+  - 0.354065
   pre_torque: 4.0
   pre_move_into_primitive_name: "NONE"
   pre_move_into_primitive_params: []
