@@ -1,4 +1,5 @@
 import argparse
+import seaborn as sns
 import pandas as pd
 import plotly.express as px
 import os
@@ -562,6 +563,153 @@ def plot_stage_survival(df_stages: pd.DataFrame):
     print("Saved stage survival plot (matplotlib) to stage_survival_plot.pdf")
 
 
+def plot_transport_success_rate(df_stages: pd.DataFrame):
+    """
+    Generates a matplotlib bar chart for transport stage success rates,
+    designed for publication.
+    """
+    # --- Data Preparation ---
+    transport_stages = df_stages[
+        df_stages["stage_name"].isin(["Resting", "Staging"])
+    ].copy()
+
+    if transport_stages.empty:
+        print("\nNo transport stage data ('Resting', 'Staging') found to plot.")
+        return
+
+    # Calculate success rates and pivot for grouped bar chart
+    success_rates = (
+        transport_stages.groupby(["mode", "stage_name"])["is_success"].mean().unstack()
+        * 100
+    )
+    success_rates = success_rates.fillna(0)  # Fill non-attempts with 0% success
+
+    # Ensure consistent order for modes
+    mode_order = ["6dof_baseline", "8dof_baseline", "Articutool"]
+    success_rates = success_rates.reindex(mode_order).dropna()
+
+    # --- Plotting ---
+    plt.rcParams["font.family"] = "Times New Roman"
+    plt.rcParams["font.size"] = 14
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    n_modes = len(success_rates.index)
+    n_stages = len(success_rates.columns)
+    bar_width = 0.8 / n_stages
+    index = np.arange(n_modes)
+
+    colors = {
+        "Articutool": "#19878C",  # High-contrast teal
+        "6dof_baseline": "#C8C8C8",  # Light grey
+        "8dof_baseline": "#969696",  # Dark grey
+    }
+
+    for i, stage in enumerate(success_rates.columns):
+        positions = index + (i - (n_stages - 1) / 2) * bar_width
+        bars = ax.bar(
+            positions,
+            success_rates[stage],
+            bar_width,
+            label=stage,
+            color=plt.cm.viridis(i / n_stages),  # Use a colormap for stages
+        )
+        ax.bar_label(bars, fmt="%.1f%%", padding=3, fontsize=12)
+
+    ax.set_title(
+        "Decoupled Approach Excels at Long-Range Constrained Transport",
+        fontsize=16,
+        weight="bold",
+    )
+    ax.set_ylabel("Planning Success Rate (%)")
+    ax.set_ylim(0, 105)
+    ax.set_xticks(index)
+    ax.set_xticklabels(success_rates.index)
+
+    ax.legend(title="Transport Stage")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.savefig("transport_success_rate.pdf", bbox_inches="tight", pad_inches=0.05)
+    plt.close()
+    print("\nSaved transport success rate plot to transport_success_rate.pdf")
+
+
+def plot_dynamic_feasibility(df_stages: pd.DataFrame):
+    """
+    Generates a matplotlib/seaborn violin plot for dynamic feasibility,
+    designed for publication.
+    """
+    # --- Data Preparation ---
+    transport_stages = df_stages[
+        df_stages["stage_name"].isin(["Resting", "Staging"])
+    ].copy()
+
+    velocity_col = "custom_metrics.max_required_velocity_rad_s"
+    if velocity_col not in transport_stages.columns:
+        print(f"\nNo dynamic feasibility data ('{velocity_col}') found to plot.")
+        return
+
+    # Extract nested data
+    transport_stages["velocity"] = transport_stages[velocity_col]
+    transport_stages.dropna(subset=["velocity"], inplace=True)
+
+    if transport_stages.empty:
+        print("\nNo valid dynamic feasibility data points found after cleaning.")
+        return
+
+    # --- Plotting ---
+    plt.rcParams["font.family"] = "Times New Roman"
+    plt.rcParams["font.size"] = 14
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    sns.violinplot(
+        data=transport_stages,
+        x="stage_name",
+        y="velocity",
+        ax=ax,
+        color="#19878C",
+        inner="box",  # Show a boxplot inside the violin
+        cut=0,  # Don't extend past the data range
+    )
+
+    # Add a horizontal line for the motor limit
+    ax.axhline(
+        y=ARTICUTOOL_MAX_VELOCITY_RAD_S,
+        color="red",
+        linestyle="--",
+        linewidth=2,
+        label="Motor Velocity Limit",
+    )
+    ax.text(
+        0.95,
+        ARTICUTOOL_MAX_VELOCITY_RAD_S,
+        " Motor Velocity Limit",
+        transform=ax.get_yaxis_transform(),
+        ha="left",
+        va="bottom",
+        color="red",
+        fontsize=12,
+    )
+
+    ax.set_title(
+        "Dynamic Feasibility Check Shows Significant Safety Factor",
+        fontsize=16,
+        weight="bold",
+    )
+    ax.set_ylabel("Max. Required Velocity (rad/s)")
+    ax.set_xlabel("Benchmark Stage")
+    ax.set_ylim(0, ARTICUTOOL_MAX_VELOCITY_RAD_S + 1.0)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.savefig("dynamic_feasibility.pdf", bbox_inches="tight", pad_inches=0.05)
+    plt.close()
+    print("Saved dynamic feasibility plot to dynamic_feasibility.pdf")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Analyze and compare benchmark results."
@@ -592,5 +740,7 @@ if __name__ == "__main__":
         plot_planning_times(df_stages)
         plot_required_velocities(df_stages)
         analyze_6dof_reachability(df_trials, df_stages)
-        plot_end_to_end_success(df_trials)
-        plot_stage_survival(df_stages)
+
+        print("\n--- Generating Publication Figures ---")
+        plot_transport_success_rate(df_stages)
+        plot_dynamic_feasibility(df_stages)
