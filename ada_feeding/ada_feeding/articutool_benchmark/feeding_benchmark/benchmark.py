@@ -17,6 +17,7 @@ from trajectory_msgs.msg import JointTrajectory
 from sensor_msgs.msg import JointState
 from moveit_msgs.msg import PlanningScene, CollisionObject
 from shape_msgs.msg import SolidPrimitive
+import rclpy
 from rclpy.node import Node
 
 # Local application imports
@@ -885,6 +886,42 @@ class EndToEndBenchmark:
 
         return ordered_solution
 
+    def _validate_scene_reachability(self, scene: Dict[str, Any]) -> bool:
+        """
+        Performs a comprehensive IK check for all key poses in a scene to ensure
+        it is kinematically viable before a trial begins.
+        """
+        LOGGER.info("  Validating scene reachability...")
+
+        # Determine the correct planning group based on the mode
+        if self.mode == "6dof_baseline":
+            group = PLANNING_GROUP_JACO
+        elif self.mode in ["articutool", "8dof_baseline"]:
+            group = PLANNING_GROUP_FULL
+        else:
+            return False
+
+        # A comprehensive list of all goal poses in the trial
+        poses_to_check = {
+            "AbovePlate": scene["above_plate_pose"],
+            "AboveFood": scene["above_food_pose"],
+            "InFood": scene["in_food_pose"],
+            "Resting": scene["resting_pose"],
+            "Staging": scene["staging_pose"],
+            "Presentation": scene["presentation_pose"],
+        }
+
+        # Check if an IK solution exists for every single key pose
+        for name, pose in poses_to_check.items():
+            if not self.motion_planner.compute_ik(group, pose):
+                LOGGER.warning(
+                    f"    Scene failed validation: {name} pose is unreachable for {self.mode}. Regenerating."
+                )
+                return False
+
+        LOGGER.info("    Scene is valid and reachable.")
+        return True
+
     # --- Main Benchmark Loop ---
     def run(self):
         """Main benchmark execution loop with granular metric collection."""
@@ -898,9 +935,10 @@ class EndToEndBenchmark:
             scene_generator = SceneGenerator(generation_params)
 
             # 2. Generate scenes until a reachable one is found
-            while True:
+            while rclpy.ok():
                 scene, scene_characteristics = scene_generator.generate()
-                if self._is_scene_reachable(scene):
+                # Use the new, unified validation function
+                if self._validate_scene_reachability(scene):
                     break
 
             params_dict = asdict(generation_params)
