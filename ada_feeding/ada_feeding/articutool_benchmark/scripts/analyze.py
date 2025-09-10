@@ -5,6 +5,8 @@ import os
 import math
 import numpy as np
 
+import matplotlib.pyplot as plt
+
 ARTICUTOOL_MAX_VELOCITY_RAD_S = 4.0
 
 
@@ -444,6 +446,122 @@ def analyze_6dof_reachability(df_trials: pd.DataFrame, df_stages: pd.DataFrame):
     print("\nSaved 6-DOF reachability analysis plot to 6dof_reachability_analysis.html")
 
 
+def plot_end_to_end_success(df_trials: pd.DataFrame):
+    """Generates the primary 'hero' bar chart using matplotlib."""
+    plt.rcParams["font.family"] = "Times New Roman"
+    plt.rcParams["font.size"] = 14
+    summary = df_trials.groupby("mode")["end_to_end_success"].agg("mean").reset_index()
+    summary["end_to_end_success"] *= 100
+    mode_order = ["6dof_baseline", "8dof_baseline", "Articutool"]
+    summary["mode"] = pd.Categorical(
+        summary["mode"], categories=mode_order, ordered=True
+    )
+    summary = summary.sort_values("mode")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    colors = {
+        "Articutool": "#19878C",
+        "6dof_baseline": "#C8C8C8",
+        "8dof_baseline": "#969696",
+    }
+    bars = ax.bar(
+        summary["mode"],
+        summary["end_to_end_success"],
+        color=[colors[m] for m in summary["mode"]],
+    )
+    ax.set_title(
+        "Articutool's Decoupled Approach Improves End-to-End Success",
+        fontsize=16,
+        weight="bold",
+    )
+    ax.set_ylabel("End-to-End Success Rate (%)")
+    ax.set_ylim(0, 100)
+    ax.bar_label(bars, fmt="%.1f%%", padding=3)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    plt.savefig("end_to_end_success.pdf", bbox_inches="tight", pad_inches=0.05)
+    plt.close()
+    print("\nSaved end-to-end success plot (matplotlib) to end_to_end_success.pdf")
+
+
+def plot_stage_survival(df_stages: pd.DataFrame):
+    """Generates a 'survival plot' using matplotlib."""
+    plt.rcParams["font.family"] = "Times New Roman"
+    plt.rcParams["font.size"] = 12
+    stage_order = [
+        "HomeToAbovePlate",
+        "PreAcquisition",
+        "AbovePlateToAboveFood",
+        "AboveFoodToInFood",
+        "LevelTool",
+        "Resting",
+        "Staging",
+        "Presentation",
+    ]
+    success_rates = df_stages.groupby(["mode", "stage_name"])["is_success"].mean()
+    survival_df = success_rates.groupby(level="mode").cumprod().reset_index()
+    survival_df.rename(columns={"is_success": "survival_rate"}, inplace=True)
+    survival_df["survival_rate"] *= 100
+    start_points = pd.DataFrame(
+        {
+            "mode": survival_df["mode"].unique(),
+            "stage_name": "Start",
+            "survival_rate": 100.0,
+        }
+    )
+    full_survival_df = pd.concat([start_points, survival_df], ignore_index=True)
+    full_survival_df["stage_name"] = pd.Categorical(
+        full_survival_df["stage_name"], categories=["Start"] + stage_order, ordered=True
+    )
+    full_survival_df = full_survival_df.sort_values("stage_name")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    colors = {
+        "Articutool": "#19878C",
+        "6dof_baseline": "#C8C8C8",
+        "8dof_baseline": "#969696",
+    }
+    for mode, group in full_survival_df.groupby("mode"):
+        ax.plot(
+            group["stage_name"],
+            group["survival_rate"],
+            marker="o",
+            linestyle="-",
+            label=mode,
+            color=colors.get(mode),
+        )
+    ax.set_title(
+        "Baselines Fail at Critical Dexterity and Planning Complexity Bottlenecks",
+        fontsize=16,
+        weight="bold",
+    )
+    ax.set_ylabel("Trials Remaining Successful (%)")
+    ax.set_xlabel("Benchmark Stage")
+    ax.set_ylim(-5, 105)
+    plt.xticks(rotation=30, ha="right")
+    ax.legend(title="System")
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.annotate(
+        "6-DOF Dexterity Failure",
+        xy=("LevelTool", 27),
+        xytext=("AboveFoodToInFood", 45),
+        arrowprops=dict(facecolor="black", shrink=0.05, width=1, headwidth=8),
+        fontsize=12,
+        ha="center",
+    )
+    ax.annotate(
+        "8-DOF Planning Complexity Failure",
+        xy=("Resting", 21),
+        xytext=("LevelTool", 40),
+        arrowprops=dict(facecolor="black", shrink=0.05, width=1, headwidth=8),
+        fontsize=12,
+        ha="center",
+    )
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    plt.savefig("stage_survival_plot.pdf", bbox_inches="tight", pad_inches=0.05)
+    plt.close()
+    print("Saved stage survival plot (matplotlib) to stage_survival_plot.pdf")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Analyze and compare benchmark results."
@@ -474,3 +592,5 @@ if __name__ == "__main__":
         plot_planning_times(df_stages)
         plot_required_velocities(df_stages)
         analyze_6dof_reachability(df_trials, df_stages)
+        plot_end_to_end_success(df_trials)
+        plot_stage_survival(df_stages)
