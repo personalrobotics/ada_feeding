@@ -124,10 +124,10 @@ class AcquireFoodTree(MoveToTree):
         max_velocity_scaling_to_resting_configuration: Optional[float] = 0.8,
         max_acceleration_scaling_to_resting_configuration: Optional[float] = 0.8,
         pickle_goal_path: Optional[str] = None,
-        allowed_planning_time_for_move_above: float = 1.0,
-        allowed_planning_time_for_move_into: float = 0.5,
-        allowed_planning_time_to_resting_configuration: float = 20.0,
-        allowed_planning_time_for_recovery: float = 0.5,
+        allowed_planning_time_for_move_above: float = 2.0,
+        allowed_planning_time_for_move_into: float = 1.0,
+        allowed_planning_time_to_resting_configuration: float = 1.0,
+        allowed_planning_time_for_recovery: float = 1.0,
     ):
         """
         Initializes tree-specific parameters.
@@ -1205,7 +1205,7 @@ class AcquireFoodTree(MoveToTree):
                                                 "group_name": "jaco_arm",
                                                 "max_velocity_scale": self.max_velocity_scaling_move_above,
                                                 "max_acceleration_scale": self.max_acceleration_scaling_move_above,
-                                                "allowed_planning_time": 10.0,
+                                                "allowed_planning_time": self.allowed_planning_time_for_move_above,
                                             },
                                             outputs={
                                                 "trajectory": BlackboardKey(
@@ -1279,7 +1279,7 @@ class AcquireFoodTree(MoveToTree):
                                                     "jaco_move_above_end_joint_state"
                                                 ),
                                                 "max_path_len_joint": max_path_len_joint,
-                                                "allowed_planning_time": 10.0,
+                                                "allowed_planning_time": self.allowed_planning_time_for_move_into,
                                             },
                                             outputs={
                                                 "trajectory": BlackboardKey(

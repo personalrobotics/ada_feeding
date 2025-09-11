@@ -73,7 +73,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
         orientation_constraint_quaternion: Optional[List[float]] = None,
         orientation_constraint_tolerances: Optional[List[float]] = None,
         planner_id: str = "RRTstarkConfigDefault",
-        allowed_planning_time: float = 20.0,
+        allowed_planning_time: float = 2.0,
         max_velocity_scaling_factor: float = 0.1,
         force_threshold: float = 4.0,
         torque_threshold: float = 4.0,
