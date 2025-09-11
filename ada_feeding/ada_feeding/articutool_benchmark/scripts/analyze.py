@@ -86,8 +86,15 @@ def generate_summary_table(df_trials: pd.DataFrame):
 
 
 def generate_stage_by_stage_summary(df_stages: pd.DataFrame):
-    """Calculates and prints a detailed, stage-by-stage aggregate summary."""
-    # Calculate success rate on all attempts
+    """
+    Calculates and prints detailed, stage-by-stage aggregate summaries,
+    including success rates and distributional statistics for key metrics.
+    """
+    print("\n" + "=" * 85)
+    print("                           STAGE-BY-STAGE AGGREGATE RESULTS")
+    print("=" * 85)
+
+    # --- 1. Success Rate Summary ---
     success_rates = (
         df_stages.groupby(["mode", "stage_name"])["is_success"]
         .agg(["mean", "count"])
@@ -98,58 +105,59 @@ def generate_stage_by_stage_summary(df_stages: pd.DataFrame):
         columns={"mean": "Success Rate (%)", "count": "Attempts"}
     )
 
-    # Calculate other metrics only on successful attempts
+    stage_order = ["Resting", "Staging"]
+    success_rates["stage_name"] = pd.Categorical(
+        success_rates["stage_name"], categories=stage_order, ordered=True
+    )
+    success_rates = success_rates.sort_values(["mode", "stage_name"])
+
+    print("\n--- Success Rate Summary ---")
+    print(success_rates.to_string(index=False, float_format="%.2f"))
+
+    # --- 2. Detailed Metric Analysis ---
     df_success = df_stages[df_stages["is_success"] == 1].copy()
-    aggregations = {
-        "planning_time_sec": "mean",
-        "trajectory_path_length_m": "mean",
-        "total_joint_travel_rad": "mean",
+
+    # Define the distributional stats we want to compute
+    dist_aggregations = {
+        "mean",
+        "median",
+        "min",
+        lambda x: x.quantile(0.25),
+        lambda x: x.quantile(0.75),
+        "max",
     }
-    agg_results = (
-        df_success.groupby(["mode", "stage_name"]).agg(aggregations).reset_index()
-    )
-    agg_results = agg_results.rename(
-        columns={
-            "planning_time_sec": "Avg Plan Time (s)",
-            "trajectory_path_length_m": "Avg Path Length (m)",
-            "total_joint_travel_rad": "Avg Joint Travel (rad)",
-        }
-    )
 
-    # Merge the two dataframes
-    final_summary = pd.merge(
-        success_rates, agg_results, on=["mode", "stage_name"], how="left"
-    )
+    def analyze_and_print_metric(df, metric_col, title):
+        if metric_col not in df.columns:
+            print(f"\n--- {title} ---")
+            print(f"Metric column '{metric_col}' not found in data.")
+            return
 
-    # Define a consistent order for stages
-    stage_order = [
-        "HomeToAbovePlate",
-        "PreAcquisition",
-        "AbovePlateToAboveFood",
-        "AboveFoodToInFood",
-        "LevelTool",
-        "Resting",
-        "Staging",
-        "Presentation",
-    ]
-    final_summary["stage_name"] = pd.Categorical(
-        final_summary["stage_name"], categories=stage_order, ordered=True
+        agg_results = (
+            df.groupby(["mode", "stage_name"])[metric_col]
+            .agg(dist_aggregations)
+            .reset_index()
+        )
+        agg_results.rename(
+            columns={"<lambda_0>": "25th Pct", "<lambda_1>": "75th Pct"}, inplace=True
+        )
+
+        agg_results["stage_name"] = pd.Categorical(
+            agg_results["stage_name"], categories=stage_order, ordered=True
+        )
+        agg_results = agg_results.sort_values(["mode", "stage_name"])
+
+        print(f"\n--- {title} ---")
+        print(agg_results.to_string(index=False, float_format="%.2f"))
+
+    analyze_and_print_metric(
+        df_success, "planning_time_sec", "Detailed Planning Time Analysis (s)"
     )
-    final_summary = final_summary.sort_values(["mode", "stage_name"])
+    analyze_and_print_metric(
+        df_success, "total_joint_travel_rad", "Detailed Joint Travel Analysis (rad)"
+    )
 
     print("\n" + "=" * 85)
-    print("                           STAGE-BY-STAGE AGGREGATE RESULTS")
-    print("=" * 85)
-    for mode in final_summary["mode"].unique():
-        print(f"\n--- {mode} Results ---")
-        mode_df = (
-            final_summary[final_summary["mode"] == mode]
-            .copy()
-            .drop(columns="mode")
-            .dropna(subset=["stage_name"])
-        )
-        print(mode_df.to_string(index=False, float_format="%.2f"))
-    print("=" * 85)
 
 
 def analyze_stage_failures(df_stages: pd.DataFrame):
