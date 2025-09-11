@@ -65,6 +65,7 @@ from ada_feeding.behaviors.state import (
     LoadPinocchioModel,
     PublishPoseAsTf,
     ComputeSlerpMidpointOrientation,
+    CheckElbowUpConfiguration,
 )
 from ada_feeding.behaviors.ros.msgs import StampPoseFromPose
 from ada_feeding.behaviors.ros.tf import ApplyTransform
@@ -1169,10 +1170,35 @@ class AcquireFoodTree(MoveToTree):
                                                                     "group_name": "jaco_arm",
                                                                 },
                                                                 outputs={
-                                                                    "ik_solution_joint_state": None,
+                                                                    "ik_solution_joint_state": BlackboardKey(
+                                                                        "candidate_ik_solution"
+                                                                    ),
                                                                     "success": BlackboardKey(
                                                                         "candidate_ik_success"
                                                                     ),
+                                                                },
+                                                            ),
+                                                            CheckElbowUpConfiguration(
+                                                                name="ValidateElbowUp",
+                                                                ns=name,
+                                                                inputs={
+                                                                    "ik_solution_joint_state": BlackboardKey(
+                                                                        "candidate_ik_solution"
+                                                                    ),
+                                                                    "pinocchio_model": BlackboardKey(
+                                                                        "pinocchio_model"
+                                                                    ),
+                                                                    "pinocchio_data": BlackboardKey(
+                                                                        "pinocchio_data"
+                                                                    ),
+                                                                    "jaco_joint_names": [
+                                                                        "j2n6s200_joint_1",
+                                                                        "j2n6s200_joint_2",
+                                                                        "j2n6s200_joint_3",
+                                                                        "j2n6s200_joint_4",
+                                                                        "j2n6s200_joint_5",
+                                                                        "j2n6s200_joint_6",
+                                                                    ],
                                                                 },
                                                             ),
                                                         ],
