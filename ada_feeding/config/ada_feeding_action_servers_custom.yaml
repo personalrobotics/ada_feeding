@@ -162,7 +162,7 @@ ada_feeding_action_servers:
       - 0.0
       - -0.01
       planning_scene_namespace_to_use: seated
-    namespace_to_use: exp_staging_far
+    namespace_to_use: demo
     side_staging_1:
       AcquireFood.tree_kwargs.resting_joint_positions:
       - -0.8849039817349507
