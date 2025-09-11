@@ -5,7 +5,9 @@ import plotly.express as px
 import os
 import math
 import numpy as np
+import json
 
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 import matplotlib.pyplot as plt
 
 ARTICUTOOL_MAX_VELOCITY_RAD_S = 4.0
@@ -710,6 +712,105 @@ def plot_dynamic_feasibility(df_stages: pd.DataFrame):
     print("Saved dynamic feasibility plot to dynamic_feasibility.pdf")
 
 
+def plot_transport_planning_time(df_stages: pd.DataFrame):
+    """
+    Generates a matplotlib/seaborn box plot for transport stage planning times,
+    designed for publication.
+    """
+    # --- Data Preparation ---
+    transport_stages = df_stages[
+        (df_stages["stage_name"].isin(["Resting", "Staging"]))
+        & (df_stages["is_success"] == 1)  # Only analyze successful plans
+    ].copy()
+
+    if transport_stages.empty:
+        print("\nNo successful transport stage data found to plot planning times.")
+        return
+
+    # --- Plotting ---
+    plt.rcParams["font.family"] = "Times New Roman"
+    plt.rcParams["font.size"] = 14
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    sns.boxplot(
+        data=transport_stages,
+        x="stage_name",
+        y="planning_time_sec",
+        hue="mode",
+        hue_order=["6dof_baseline", "8dof_baseline", "Articutool"],
+        ax=ax,
+    )
+
+    # Use a log scale to better visualize the massive difference in times
+    ax.set_yscale("log")
+
+    ax.set_title(
+        "Monolithic Baselines Suffer from Extreme Planning Times",
+        fontsize=16,
+        weight="bold",
+    )
+    ax.set_ylabel("Planning Time (s, log scale)")
+    ax.set_xlabel("Benchmark Stage")
+
+    ax.legend(title="System")
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.savefig("transport_planning_time.pdf", bbox_inches="tight", pad_inches=0.05)
+    plt.close()
+    print("\nSaved transport planning time plot to transport_planning_time.pdf")
+
+
+def plot_transport_joint_travel(df_stages: pd.DataFrame):
+    """
+    Generates a matplotlib/seaborn box plot for total joint travel during
+    transport stages, designed for publication.
+    """
+    # --- Data Preparation ---
+    transport_stages = df_stages[
+        (df_stages["stage_name"].isin(["Resting", "Staging"]))
+        & (df_stages["is_success"] == 1)  # Only analyze successful plans
+    ].copy()
+
+    if transport_stages.empty:
+        print("\nNo successful transport stage data found to plot joint travel.")
+        return
+
+    # --- Plotting ---
+    plt.rcParams["font.family"] = "Times New Roman"
+    plt.rcParams["font.size"] = 14
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    sns.boxplot(
+        data=transport_stages,
+        x="stage_name",
+        y="total_joint_travel_rad",
+        hue="mode",
+        hue_order=["6dof_baseline", "8dof_baseline", "Articutool"],
+        ax=ax,
+    )
+
+    ax.set_title(
+        "Decoupled Approach Produces More Efficient Motions",
+        fontsize=16,
+        weight="bold",
+    )
+    ax.set_ylabel("Total Joint Travel (rad)")
+    ax.set_xlabel("Benchmark Stage")
+
+    ax.legend(title="System")
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.savefig("transport_joint_travel.pdf", bbox_inches="tight", pad_inches=0.05)
+    plt.close()
+    print("\nSaved transport joint travel plot to transport_joint_travel.pdf")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Analyze and compare benchmark results."
@@ -744,3 +845,5 @@ if __name__ == "__main__":
         print("\n--- Generating Publication Figures ---")
         plot_transport_success_rate(df_stages)
         plot_dynamic_feasibility(df_stages)
+        plot_transport_planning_time(df_stages)
+        plot_transport_joint_travel(df_stages)
