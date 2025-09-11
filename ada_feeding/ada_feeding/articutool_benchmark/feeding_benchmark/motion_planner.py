@@ -313,6 +313,7 @@ class MotionPlanner:
                 elif constraint_type == MoveIt2ConstraintType.POSE:
                     planner.set_pose_goal(**kwargs, target_link=target_link)
             planner.allowed_planning_time = planning_time
+            planner.cartesian_avoid_collisions = True
             if path_constraints:
                 for constraint_type, kwargs in path_constraints:
                     if constraint_type == MoveIt2ConstraintType.JOINT:
