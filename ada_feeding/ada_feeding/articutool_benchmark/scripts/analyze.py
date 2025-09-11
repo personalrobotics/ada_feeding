@@ -6,6 +6,7 @@ import os
 import math
 import numpy as np
 import json
+from scipy import stats
 
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 import matplotlib.pyplot as plt
@@ -568,7 +569,7 @@ def plot_stage_survival(df_stages: pd.DataFrame):
 def plot_transport_success_rate(df_stages: pd.DataFrame):
     """
     Generates a matplotlib bar chart for transport stage success rates,
-    designed for publication.
+    now with 95% confidence interval error bars.
     """
     # --- Data Preparation ---
     transport_stages = df_stages[
@@ -579,62 +580,91 @@ def plot_transport_success_rate(df_stages: pd.DataFrame):
         print("\nNo transport stage data ('Resting', 'Staging') found to plot.")
         return
 
-    # Calculate success rates and pivot for grouped bar chart
-    success_rates = (
-        transport_stages.groupby(["mode", "stage_name"])["is_success"].mean().unstack()
-        * 100
+    # Aggregate to get sum of successes (for p_hat) and count of attempts (for n)
+    agg_data = (
+        transport_stages.groupby(["mode", "stage_name"])["is_success"]
+        .agg(["sum", "count"])
+        .reset_index()
     )
-    success_rates = success_rates.fillna(0)  # Fill non-attempts with 0% success
+    agg_data["p_hat"] = agg_data["sum"] / agg_data["count"]
 
-    # Ensure consistent order for modes
+    # Calculate Wilson CIs for each group
+    cis = agg_data.apply(
+        lambda row: _calculate_wilson_ci(row["p_hat"], row["count"]), axis=1
+    )
+    agg_data[["ci_lower", "ci_upper"]] = pd.DataFrame(
+        cis.tolist(), index=agg_data.index
+    )
+
+    # Calculate error bar lengths from the mean
+    agg_data["error_lower"] = (agg_data["p_hat"] - agg_data["ci_lower"]) * 100
+    agg_data["error_upper"] = (agg_data["ci_upper"] - agg_data["p_hat"]) * 100
+    agg_data["mean_percent"] = agg_data["p_hat"] * 100
+
+    # Pivot for plotting
+    plot_data = agg_data.pivot(
+        index="mode",
+        columns="stage_name",
+        values=["mean_percent", "error_lower", "error_upper"],
+    )
+
     mode_order = ["6dof_baseline", "8dof_baseline", "Articutool"]
-    success_rates = success_rates.reindex(mode_order).dropna()
+    plot_data = plot_data.reindex(mode_order).dropna(axis=0, how="all")
 
     # --- Plotting ---
     plt.rcParams["font.family"] = "Times New Roman"
     plt.rcParams["font.size"] = 14
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-
-    n_modes = len(success_rates.index)
-    n_stages = len(success_rates.columns)
+    n_modes = len(plot_data.index)
+    n_stages = len(plot_data.columns.levels[1])
     bar_width = 0.8 / n_stages
     index = np.arange(n_modes)
 
+    stages = plot_data["mean_percent"].columns
     colors = {
-        "Articutool": "#19878C",  # High-contrast teal
-        "6dof_baseline": "#C8C8C8",  # Light grey
-        "8dof_baseline": "#969696",  # Dark grey
-    }
+        "Resting": "#4a1486",
+        "Staging": "#208b8c",
+    }  # High-contrast purple and teal
 
-    for i, stage in enumerate(success_rates.columns):
+    for i, stage in enumerate(stages):
         positions = index + (i - (n_stages - 1) / 2) * bar_width
+        means = plot_data["mean_percent"][stage]
+        lower_err = plot_data["error_lower"][stage]
+        upper_err = plot_data["error_upper"][stage]
+
         bars = ax.bar(
             positions,
-            success_rates[stage],
+            means,
             bar_width,
             label=stage,
-            color=plt.cm.viridis(i / n_stages),  # Use a colormap for stages
+            color=colors.get(stage),
+            yerr=[lower_err, upper_err],  # Add error bars
+            capsize=5,  # Add caps to error bars
         )
         ax.bar_label(bars, fmt="%.1f%%", padding=3, fontsize=12)
 
     ax.set_title(
-        "Decoupled Approach Excels at Long-Range Constrained Transport",
+        "Decoupled Approach is Significantly More Reliable for Transport",
         fontsize=16,
         weight="bold",
     )
     ax.set_ylabel("Planning Success Rate (%)")
     ax.set_ylim(0, 105)
     ax.set_xticks(index)
-    ax.set_xticklabels(success_rates.index)
-
+    ax.set_xticklabels(plot_data.index)
     ax.legend(title="Transport Stage")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
 
-    plt.savefig("transport_success_rate.pdf", bbox_inches="tight", pad_inches=0.05)
+    plt.savefig(
+        "transport_success_rate_with_ci.pdf", bbox_inches="tight", pad_inches=0.05
+    )
     plt.close()
-    print("\nSaved transport success rate plot to transport_success_rate.pdf")
+    print(
+        "\nSaved transport success rate plot with 95% CI to transport_success_rate_with_ci.pdf"
+    )
 
 
 def plot_dynamic_feasibility(df_stages: pd.DataFrame):
@@ -739,6 +769,7 @@ def plot_transport_planning_time(df_stages: pd.DataFrame):
         y="planning_time_sec",
         hue="mode",
         hue_order=["6dof_baseline", "8dof_baseline", "Articutool"],
+        notch=True,
         ax=ax,
     )
 
@@ -787,9 +818,10 @@ def plot_transport_joint_travel(df_stages: pd.DataFrame):
     sns.boxplot(
         data=transport_stages,
         x="stage_name",
-        y="total_joint_travel_rad",
+        y="total_joint_travel_rad",  # Or your jaco_joint_travel column
         hue="mode",
         hue_order=["6dof_baseline", "8dof_baseline", "Articutool"],
+        notch=True,
         ax=ax,
     )
 
@@ -809,6 +841,22 @@ def plot_transport_joint_travel(df_stages: pd.DataFrame):
     plt.savefig("transport_joint_travel.pdf", bbox_inches="tight", pad_inches=0.05)
     plt.close()
     print("\nSaved transport joint travel plot to transport_joint_travel.pdf")
+
+
+def _calculate_wilson_ci(p_hat, n, z=1.96):
+    """Calculates the Wilson score interval for a binomial proportion."""
+    if n == 0:
+        return 0.5, 0.5  # Default for no data
+
+    # Wilson score interval calculation
+    denominator = 1 + z**2 / n
+    centre_adjusted_p = p_hat + z**2 / (2 * n)
+    adjusted_standard_error = np.sqrt((p_hat * (1 - p_hat) / n) + z**2 / (4 * n**2))
+
+    lower_bound = (centre_adjusted_p - z * adjusted_standard_error) / denominator
+    upper_bound = (centre_adjusted_p + z * adjusted_standard_error) / denominator
+
+    return max(0, lower_bound), min(1, upper_bound)
 
 
 if __name__ == "__main__":
