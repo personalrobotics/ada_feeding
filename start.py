@@ -66,6 +66,11 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--disable_table_detect",
+    action="store_true",
+    help="If set, disables table detection.",
+)
+parser.add_argument(
     "--real_domain_id",
     default=42,
     type=int,
@@ -342,6 +347,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy} "
                     f"end_effector_tool:={args.end_effector_tool} "
                     f"action:={args.action} "
+                    f"run_table_detection:={'false' if args.disable_table_detect else 'true'}"
                 ),
             ],
             "browser": [
