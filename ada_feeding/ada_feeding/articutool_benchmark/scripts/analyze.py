@@ -569,7 +569,7 @@ def plot_stage_survival(df_stages: pd.DataFrame):
 def plot_transport_success_rate(df_stages: pd.DataFrame):
     """
     Generates a matplotlib bar chart for transport stage success rates,
-    now with 95% confidence interval error bars.
+    grouped by stage, with 95% CI error bars and a high-contrast color scheme.
     """
     # --- Data Preparation ---
     transport_stages = df_stages[
@@ -603,44 +603,47 @@ def plot_transport_success_rate(df_stages: pd.DataFrame):
 
     # Pivot for plotting
     plot_data = agg_data.pivot(
-        index="mode",
-        columns="stage_name",
+        index="stage_name",
+        columns="mode",
         values=["mean_percent", "error_lower", "error_upper"],
     )
 
     mode_order = ["6dof_baseline", "8dof_baseline", "Articutool"]
-    plot_data = plot_data.reindex(mode_order).dropna(axis=0, how="all")
+    # Reorder columns to ensure consistent plotting order
+    plot_data = plot_data.reindex(columns=mode_order, level="mode")
 
     # --- Plotting ---
     plt.rcParams["font.family"] = "Times New Roman"
     plt.rcParams["font.size"] = 14
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    n_modes = len(plot_data.index)
-    n_stages = len(plot_data.columns.levels[1])
-    bar_width = 0.8 / n_stages
-    index = np.arange(n_modes)
+    n_stages = len(plot_data.index)
+    n_modes = len(plot_data.columns.levels[1])
+    bar_width = 0.8 / n_modes
+    index = np.arange(n_stages)
 
-    stages = plot_data["mean_percent"].columns
     colors = {
-        "Resting": "#4a1486",
-        "Staging": "#208b8c",
-    }  # High-contrast purple and teal
+        "Articutool": "#19878C",  # High-contrast teal
+        "6dof_baseline": "#C8C8C8",  # Light, desaturated grey
+        "8dof_baseline": "#969696",  # Darker, desaturated grey
+    }
 
-    for i, stage in enumerate(stages):
-        positions = index + (i - (n_stages - 1) / 2) * bar_width
-        means = plot_data["mean_percent"][stage]
-        lower_err = plot_data["error_lower"][stage]
-        upper_err = plot_data["error_upper"][stage]
+    modes = [m for m in mode_order if m in plot_data["mean_percent"].columns]
+
+    for i, mode in enumerate(modes):
+        positions = index + (i - (n_modes - 1) / 2) * bar_width
+        means = plot_data["mean_percent"][mode]
+        lower_err = plot_data["error_lower"][mode]
+        upper_err = plot_data["error_upper"][mode]
 
         bars = ax.bar(
             positions,
             means,
             bar_width,
-            label=stage,
-            color=colors.get(stage),
-            yerr=[lower_err, upper_err],  # Add error bars
-            capsize=5,  # Add caps to error bars
+            label=mode,
+            color=colors.get(mode),
+            yerr=[lower_err, upper_err],
+            capsize=5,
         )
         ax.bar_label(bars, fmt="%.1f%%", padding=3, fontsize=12)
 
@@ -650,20 +653,21 @@ def plot_transport_success_rate(df_stages: pd.DataFrame):
         weight="bold",
     )
     ax.set_ylabel("Planning Success Rate (%)")
+    ax.set_xlabel("Benchmark Stage")
     ax.set_ylim(0, 105)
     ax.set_xticks(index)
     ax.set_xticklabels(plot_data.index)
-    ax.legend(title="Transport Stage")
+    ax.legend(title="System")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.grid(axis="y", linestyle="--", alpha=0.7)
 
     plt.savefig(
-        "transport_success_rate_with_ci.pdf", bbox_inches="tight", pad_inches=0.05
+        "transport_success_rate_by_stage.pdf", bbox_inches="tight", pad_inches=0.05
     )
     plt.close()
     print(
-        "\nSaved transport success rate plot with 95% CI to transport_success_rate_with_ci.pdf"
+        "\nSaved transport success rate plot (grouped by stage) to transport_success_rate_by_stage.pdf"
     )
 
 
@@ -745,12 +749,12 @@ def plot_dynamic_feasibility(df_stages: pd.DataFrame):
 def plot_transport_planning_time(df_stages: pd.DataFrame):
     """
     Generates a matplotlib/seaborn box plot for transport stage planning times,
-    designed for publication.
+    grouped by stage with a high-contrast color scheme.
     """
     # --- Data Preparation ---
     transport_stages = df_stages[
         (df_stages["stage_name"].isin(["Resting", "Staging"]))
-        & (df_stages["is_success"] == 1)  # Only analyze successful plans
+        & (df_stages["is_success"] == 1)
     ].copy()
 
     if transport_stages.empty:
@@ -763,6 +767,12 @@ def plot_transport_planning_time(df_stages: pd.DataFrame):
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
+    colors = {
+        "Articutool": "#19878C",  # High-contrast teal
+        "6dof_baseline": "#C8C8C8",  # Light, desaturated grey
+        "8dof_baseline": "#969696",  # Darker, desaturated grey
+    }
+
     sns.boxplot(
         data=transport_stages,
         x="stage_name",
@@ -770,6 +780,7 @@ def plot_transport_planning_time(df_stages: pd.DataFrame):
         hue="mode",
         hue_order=["6dof_baseline", "8dof_baseline", "Articutool"],
         notch=True,
+        palette=colors,
         ax=ax,
     )
 
@@ -777,7 +788,7 @@ def plot_transport_planning_time(df_stages: pd.DataFrame):
     ax.set_yscale("log")
 
     ax.set_title(
-        "Monolithic Baselines Suffer from Extreme Planning Times",
+        "Decoupled Approach Plans Dramatically Faster than Monolithic Baselines",
         fontsize=16,
         weight="bold",
     )
@@ -789,9 +800,13 @@ def plot_transport_planning_time(df_stages: pd.DataFrame):
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
-    plt.savefig("transport_planning_time.pdf", bbox_inches="tight", pad_inches=0.05)
+    plt.savefig(
+        "transport_planning_time_by_stage.pdf", bbox_inches="tight", pad_inches=0.05
+    )
     plt.close()
-    print("\nSaved transport planning time plot to transport_planning_time.pdf")
+    print(
+        "\nSaved transport planning time plot to transport_planning_time_by_stage.pdf"
+    )
 
 
 def plot_transport_joint_travel(df_stages: pd.DataFrame):
