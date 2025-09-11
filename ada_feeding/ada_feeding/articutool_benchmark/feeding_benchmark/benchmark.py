@@ -75,10 +75,12 @@ class EndToEndBenchmark:
         planning_timeout: float = 5.0,
         output_dir: Optional[str] = None,
         mode: str = "articutool",
+        benchmark_type: str = "end-to-end",
     ):
         self.node = node
         self.num_trials = num_trials
         self.mode = mode
+        self.benchmark_type = benchmark_type
 
         # --- Mode-Aware Configuration ---
         if self.mode == "6dof_baseline":
@@ -772,7 +774,7 @@ class EndToEndBenchmark:
 
         # Position the plane slightly below the robot's base to avoid initial collision
         plane_pose = Pose()
-        plane_pose.position.z = -0.005
+        plane_pose.position.z = -0.01
 
         collision_object.primitives.append(plane_primitive)
         collision_object.primitive_poses.append(plane_pose)
@@ -872,14 +874,20 @@ class EndToEndBenchmark:
             return False
 
         # A comprehensive list of all goal poses in the trial
-        poses_to_check = {
-            "AbovePlate": scene["above_plate_pose"],
-            "AboveFood": scene["above_food_pose"],
-            "InFood": scene["in_food_pose"],
-            "Resting": scene["resting_pose"],
-            "Staging": scene["staging_pose"],
-            "Presentation": scene["presentation_pose"],
-        }
+        if self.benchmark_type == "transport-only":
+            poses_to_check = {
+                "Resting": scene["resting_pose"],
+                "Staging": scene["staging_pose"],
+            }
+        else:
+            poses_to_check = {
+                "AbovePlate": scene["above_plate_pose"],
+                "AboveFood": scene["above_food_pose"],
+                "InFood": scene["in_food_pose"],
+                "Resting": scene["resting_pose"],
+                "Staging": scene["staging_pose"],
+                "Presentation": scene["presentation_pose"],
+            }
 
         # Check if an IK solution exists for every single key pose
         for name, pose in poses_to_check.items():
@@ -891,6 +899,64 @@ class EndToEndBenchmark:
 
         LOGGER.info("    Scene is valid and reachable.")
         return True
+
+    def _generate_transport_start_state(
+        self, scene: Dict[str, Any]
+    ) -> Optional[List[float]]:
+        """
+        Generates a valid, leveled start state for the transport-only benchmark.
+        Returns a valid joint configuration or None if no IK solution can be found.
+        """
+        LOGGER.info("  Generating start state for transport-only benchmark...")
+
+        # Use the 'in_food_pose' as the base, and add a vertical extraction offset
+        base_pose = scene["in_food_pose"]
+        extraction_height_m = 0.1
+
+        # 1. Construct the target "leveled-and-extracted" pose
+        # This logic is adapted from your existing _find_leveled_recovery_config
+        R_base = R.from_quat(
+            [
+                base_pose.orientation.x,
+                base_pose.orientation.y,
+                base_pose.orientation.z,
+                base_pose.orientation.w,
+            ]
+        )
+        z_axis = R_base.apply([0.0, 0.0, 1.0])
+        yaw_rad = math.atan2(z_axis[1], z_axis[0])
+
+        y_axis_target = np.array([0.0, 0.0, 1.0])  # World Z is "up"
+        z_axis_target = np.array([math.cos(yaw_rad), math.sin(yaw_rad), 0.0])
+        x_axis_target = np.cross(y_axis_target, z_axis_target)
+
+        rotation_matrix = np.array([x_axis_target, y_axis_target, z_axis_target]).T
+        q_level = R.from_matrix(rotation_matrix).as_quat()
+
+        target_pose = Pose()
+        target_pose.position.x = base_pose.position.x
+        target_pose.position.y = base_pose.position.y
+        target_pose.position.z = base_pose.position.z + extraction_height_m
+        target_pose.orientation = Quaternion(
+            x=q_level[0], y=q_level[1], z=q_level[2], w=q_level[3]
+        )
+
+        # 2. Compute IK to find a valid joint configuration for this pose
+        group = PLANNING_GROUP_JACO  # Transport stages only concern the Jaco arm
+        ik_solution = self.motion_planner.compute_ik(group, target_pose)
+
+        if not ik_solution:
+            LOGGER.warning(
+                "  Could not find IK for transport start state. Skipping trial."
+            )
+            return None
+
+        # Extract and return the ordered joint solution
+        solution_map = dict(zip(ik_solution.name, ik_solution.position))
+        ordered_solution = [solution_map[name] for name in JOINT_NAMES_JACO]
+
+        LOGGER.info("  Successfully generated transport start state.")
+        return ordered_solution
 
     # --- Main Benchmark Loop ---
     def run(self):
@@ -946,181 +1012,30 @@ class EndToEndBenchmark:
             trial_failed = False
             recovery_state_injected = False
 
+            if self.benchmark_type == "end-to-end":
+                current_jaco_state = scene["home_config"]
+                # These stages are only for end-to-end
+                acquisition_stages = [
+                    "HomeToAbovePlate",
+                    "AbovePlateToAboveFood",
+                    "AboveFoodToInFood",
+                    "LevelTool",
+                ]
+            elif self.benchmark_type == "transport-only":
+                current_jaco_state = self._generate_transport_start_state(scene)
+                if current_jaco_state is None:
+                    # Could not generate a valid start state for this scene, skip
+                    continue
+                acquisition_stages = []  # Skip these stages
+            else:
+                raise ValueError(f"Unknown benchmark_type: {self.benchmark_type}")
+
             # --- Stage 1: Home -> AbovePlate ---
-            if not trial_failed:
-                LOGGER.info("Stage 1: Home -> AbovePlate")
-                status, traj_jaco, planning_time = self._plan_to_above_plate(
-                    scene["above_plate_pose"], current_jaco_state
-                )
-                cartesian_path_length = metrics.calculate_cartesian_path_length(
-                    traj_jaco,
-                    PLANNING_GROUP_JACO,
-                    self.kinematics_model,
-                    self.jaco_ee_link,
-                )
-                joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
-                trial_data["stages"].append(
-                    {
-                        "stage_name": "HomeToAbovePlate",
-                        "target_frame": END_EFFECTOR_LINK_JACO,
-                        "status": status.value,
-                        "execution_mode": ExecutionMode.JACO_ONLY.value,
-                        "planning_time_sec": planning_time,
-                        "trajectory_path_length_m": cartesian_path_length,
-                        "total_joint_travel_rad": joint_travel,
-                        "custom_metrics": {},
-                        "traj_jaco": results.serialize_trajectory(traj_jaco),
-                        "traj_atool": None,
-                    }
-                )
-                if status != TrialStatus.SUCCESS:
-                    LOGGER.error(f"  Stage 1 failed. Skipping trial.")
-                    trial_failed = True
-                else:
-                    current_jaco_state = list(traj_jaco.points[-1].positions)
-
-            # --- Stage 2: AbovePlate -> AboveFood ---
-            if not trial_failed:
-                if self.mode == "articutool":
-                    LOGGER.info("Stage 2: AbovePlate -> AboveFood")
-                    start_time_solver = time.time()
-                    jaco_ee_above_food, jaco_ee_in_food, skewer_angles = (
-                        kinematic_solvers.find_optimal_skewer_config(
-                            scene["above_food_pose"],
-                            scene["in_food_pose"],
-                            scene_characteristics["in_food_sampled_polar_angle_rad"],
-                            self.kinematics_model,
-                            self.motion_planner,
-                        )
-                    )
-                    planning_time_solver = time.time() - start_time_solver
-
-                    if not (jaco_ee_above_food and jaco_ee_in_food):
-                        LOGGER.error(
-                            "  Stage 2 failed. Could not calculate required wrist poses."
-                        )
-                        trial_failed = True
-                        final_status = TrialStatus.IK_FAILURE
-                        planning_time = planning_time_solver
-                        cartesian_path_length, joint_travel = 0.0, 0.0
-                        traj_jaco, traj_atool = None, None
-                    else:
-                        LOGGER.info(
-                            "  Optimal skewer angles (deg): "
-                            f"Jaco Tilt: {np.rad2deg(skewer_angles['chosen_jaco_pitch_tilt_rad']):.1f}, "
-                            f"Atool Pitch: {np.rad2deg(skewer_angles['calculated_atool_pitch_rad']):.1f}, "
-                            f"Target Skewer Angle: {np.rad2deg(skewer_angles['skewer_polar_angle_rad']):.1f}"
-                        )
-                        goal_constraints_jaco = [
-                            create_pose_constraint(
-                                jaco_ee_above_food, tolerance_position=0.01
-                            )
-                        ]
-                        status_jaco, traj_jaco, planning_time_jaco = (
-                            self.motion_planner.plan(
-                                group_name=PLANNING_GROUP_JACO,
-                                start_state=current_jaco_state,
-                                goal_constraints=goal_constraints_jaco,
-                                target_link=END_EFFECTOR_LINK_JACO,
-                                planning_time=MAX_PLANNING_TIME_S,
-                            )
-                        )
-
-                        status_atool, traj_atool, planning_time_atool = (
-                            TrialStatus.SKIPPED,
-                            None,
-                            0.0,
-                        )
-                        if status_jaco == TrialStatus.SUCCESS:
-                            target_atool_config = [
-                                skewer_angles["calculated_atool_pitch_rad"],
-                                0.0,
-                            ]
-                            goal_constraints_atool = [
-                                create_joint_constraint(target_atool_config)
-                            ]
-                            status_atool, traj_atool, planning_time_atool = (
-                                self.motion_planner.plan(
-                                    group_name=PLANNING_GROUP_ATOOL,
-                                    start_state=current_atool_state,
-                                    goal_constraints=goal_constraints_atool,
-                                )
-                            )
-
-                        final_status = (
-                            status_jaco
-                            if status_jaco != TrialStatus.SUCCESS
-                            else status_atool
-                        )
-                        planning_time = (
-                            planning_time_solver
-                            + planning_time_jaco
-                            + planning_time_atool
-                        )
-                        cartesian_path_length_jaco = (
-                            metrics.calculate_cartesian_path_length(
-                                traj_jaco,
-                                PLANNING_GROUP_JACO,
-                                self.kinematics_model,
-                                self.jaco_ee_link,
-                            )
-                        )
-                        cartesian_path_length_atool = (
-                            metrics.calculate_cartesian_path_length(
-                                traj_atool,
-                                PLANNING_GROUP_ATOOL,
-                                self.kinematics_model,
-                                self.jaco_ee_link,
-                            )
-                        )
-                        cartesian_path_length = (
-                            cartesian_path_length_jaco + cartesian_path_length_atool
-                        )
-                        joint_travel_jaco = metrics.calculate_total_joint_travel(
-                            traj_jaco
-                        )
-                        joint_travel_atool = metrics.calculate_total_joint_travel(
-                            traj_atool
-                        )
-                        joint_travel = joint_travel_jaco + joint_travel_atool
-
-                        if final_status != TrialStatus.SUCCESS:
-                            LOGGER.error(f"  Stage 2 failed. Skipping trial.")
-                            trial_failed = True
-                        else:
-                            current_jaco_state = list(traj_jaco.points[-1].positions)
-                            current_atool_state = list(traj_atool.points[-1].positions)
-
-                    trial_data["stages"].append(
-                        {
-                            "stage_name": "AbovePlateToAboveFood",
-                            "target_frame": END_EFFECTOR_LINK_FULL,
-                            "status": final_status.value,
-                            "execution_mode": ExecutionMode.SEQUENTIAL.value,
-                            "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length,
-                            "total_joint_travel_rad": joint_travel,
-                            "custom_metrics": (
-                                skewer_angles
-                                if skewer_angles and not trial_failed
-                                else {}
-                            ),
-                            "traj_jaco": results.serialize_trajectory(traj_jaco),
-                            "traj_atool": results.serialize_trajectory(traj_atool),
-                        }
-                    )
-                elif self.mode == "6dof_baseline":
-                    LOGGER.info("Stage 2: AbovePlate -> AboveFood")
-                    goal_constraints = [
-                        create_pose_constraint(
-                            scene["above_food_pose"], tolerance_position=0.01
-                        )
-                    ]
-                    status, traj_jaco, planning_time = self.motion_planner.plan(
-                        group_name=PLANNING_GROUP_JACO,
-                        start_state=current_jaco_state,
-                        goal_constraints=goal_constraints,
-                        planning_time=MAX_PLANNING_TIME_S,
+            if "HomeToAbovePlate" in acquisition_stages:
+                if not trial_failed:
+                    LOGGER.info("Stage 1: Home -> AbovePlate")
+                    status, traj_jaco, planning_time = self._plan_to_above_plate(
+                        scene["above_plate_pose"], current_jaco_state
                     )
                     cartesian_path_length = metrics.calculate_cartesian_path_length(
                         traj_jaco,
@@ -1131,104 +1046,426 @@ class EndToEndBenchmark:
                     joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
                     trial_data["stages"].append(
                         {
-                            "stage_name": "AbovePlateToAboveFood",
+                            "stage_name": "HomeToAbovePlate",
+                            "target_frame": END_EFFECTOR_LINK_JACO,
                             "status": status.value,
                             "execution_mode": ExecutionMode.JACO_ONLY.value,
                             "planning_time_sec": planning_time,
                             "trajectory_path_length_m": cartesian_path_length,
                             "total_joint_travel_rad": joint_travel,
+                            "custom_metrics": {},
                             "traj_jaco": results.serialize_trajectory(traj_jaco),
+                            "traj_atool": None,
                         }
                     )
                     if status != TrialStatus.SUCCESS:
+                        LOGGER.error(f"  Stage 1 failed. Skipping trial.")
                         trial_failed = True
                     else:
                         current_jaco_state = list(traj_jaco.points[-1].positions)
 
-                elif self.mode == "8dof_baseline":
-                    LOGGER.info("Stage 2: AbovePlate -> AboveFood")
-                    start_time_solver = time.time()
-                    found_valid_pair = False
-                    target_above_food_8dof_config = None
-
-                    # 1. Use the Articutool's solver to find the ideal Jaco EE pose
-                    jaco_ee_above_food, _, skewer_angles = (
-                        kinematic_solvers.find_optimal_skewer_config(
-                            scene["above_food_pose"],
-                            scene["in_food_pose"],
-                            scene_characteristics["in_food_sampled_polar_angle_rad"],
-                            self.kinematics_model,
-                            self.motion_planner,
+            if "AbovePlateToAboveFood" in acquisition_stages:
+                # --- Stage 2: AbovePlate -> AboveFood ---
+                if not trial_failed:
+                    if self.mode == "articutool":
+                        LOGGER.info("Stage 2: AbovePlate -> AboveFood")
+                        start_time_solver = time.time()
+                        jaco_ee_above_food, jaco_ee_in_food, skewer_angles = (
+                            kinematic_solvers.find_optimal_skewer_config(
+                                scene["above_food_pose"],
+                                scene["in_food_pose"],
+                                scene_characteristics[
+                                    "in_food_sampled_polar_angle_rad"
+                                ],
+                                self.kinematics_model,
+                                self.motion_planner,
+                            )
                         )
-                    )
+                        planning_time_solver = time.time() - start_time_solver
 
-                    # 2. Find an elbow-up 6-DOF solution for the Jaco arm
-                    if jaco_ee_above_food and skewer_angles:
-                        for _ in range(10):
-                            ik_sol_msg = self.motion_planner.compute_ik(
-                                PLANNING_GROUP_JACO,
-                                jaco_ee_above_food,
-                                current_jaco_state,
+                        if not (jaco_ee_above_food and jaco_ee_in_food):
+                            LOGGER.error(
+                                "  Stage 2 failed. Could not calculate required wrist poses."
                             )
-
-                            # 3. Sanitize the IK result
-                            if not ik_sol_msg or not ik_sol_msg.name:
-                                continue
-
-                            solution_map = dict(
-                                zip(ik_sol_msg.name, ik_sol_msg.position)
+                            trial_failed = True
+                            final_status = TrialStatus.IK_FAILURE
+                            planning_time = planning_time_solver
+                            cartesian_path_length, joint_travel = 0.0, 0.0
+                            traj_jaco, traj_atool = None, None
+                        else:
+                            LOGGER.info(
+                                "  Optimal skewer angles (deg): "
+                                f"Jaco Tilt: {np.rad2deg(skewer_angles['chosen_jaco_pitch_tilt_rad']):.1f}, "
+                                f"Atool Pitch: {np.rad2deg(skewer_angles['calculated_atool_pitch_rad']):.1f}, "
+                                f"Target Skewer Angle: {np.rad2deg(skewer_angles['skewer_polar_angle_rad']):.1f}"
                             )
-                            if not all(
-                                name in solution_map for name in JOINT_NAMES_JACO
-                            ):
-                                continue  # Incomplete solution, try again
-
-                            # Build a clean, ordered list of the 6 Jaco joint values
-                            sanitized_jaco_solution = [
-                                solution_map[name] for name in JOINT_NAMES_JACO
+                            goal_constraints_jaco = [
+                                create_pose_constraint(
+                                    jaco_ee_above_food, tolerance_position=0.01
+                                )
                             ]
+                            status_jaco, traj_jaco, planning_time_jaco = (
+                                self.motion_planner.plan(
+                                    group_name=PLANNING_GROUP_JACO,
+                                    start_state=current_jaco_state,
+                                    goal_constraints=goal_constraints_jaco,
+                                    target_link=END_EFFECTOR_LINK_JACO,
+                                    planning_time=MAX_PLANNING_TIME_S,
+                                )
+                            )
 
-                            # 4. Check the sanitized solution for the elbow-up constraint
-                            if kinematic_solvers.is_elbow_up_configuration(
-                                sanitized_jaco_solution, self.kinematics_model
-                            ):
-                                # 5. If valid, combine into a full 8-DOF target configuration
-                                atool_solution = [
+                            status_atool, traj_atool, planning_time_atool = (
+                                TrialStatus.SKIPPED,
+                                None,
+                                0.0,
+                            )
+                            if status_jaco == TrialStatus.SUCCESS:
+                                target_atool_config = [
                                     skewer_angles["calculated_atool_pitch_rad"],
                                     0.0,
                                 ]
-                                target_above_food_8dof_config = (
-                                    sanitized_jaco_solution + atool_solution
+                                goal_constraints_atool = [
+                                    create_joint_constraint(target_atool_config)
+                                ]
+                                status_atool, traj_atool, planning_time_atool = (
+                                    self.motion_planner.plan(
+                                        group_name=PLANNING_GROUP_ATOOL,
+                                        start_state=current_atool_state,
+                                        goal_constraints=goal_constraints_atool,
+                                    )
                                 )
-                                found_valid_pair = True
-                                LOGGER.info(
-                                    "    Found a valid, sanitized, 'elbow-up' IK solution."
-                                )
-                                break  # Success, exit the loop
-                    planning_time_solver = time.time() - start_time_solver
 
-                    if not found_valid_pair:
-                        LOGGER.error(
-                            "  Stage 2 failed. Could not find a valid 8-DOF pre-acquisition config."
+                            final_status = (
+                                status_jaco
+                                if status_jaco != TrialStatus.SUCCESS
+                                else status_atool
+                            )
+                            planning_time = (
+                                planning_time_solver
+                                + planning_time_jaco
+                                + planning_time_atool
+                            )
+                            cartesian_path_length_jaco = (
+                                metrics.calculate_cartesian_path_length(
+                                    traj_jaco,
+                                    PLANNING_GROUP_JACO,
+                                    self.kinematics_model,
+                                    self.jaco_ee_link,
+                                )
+                            )
+                            cartesian_path_length_atool = (
+                                metrics.calculate_cartesian_path_length(
+                                    traj_atool,
+                                    PLANNING_GROUP_ATOOL,
+                                    self.kinematics_model,
+                                    self.jaco_ee_link,
+                                )
+                            )
+                            cartesian_path_length = (
+                                cartesian_path_length_jaco + cartesian_path_length_atool
+                            )
+                            joint_travel_jaco = metrics.calculate_total_joint_travel(
+                                traj_jaco
+                            )
+                            joint_travel_atool = metrics.calculate_total_joint_travel(
+                                traj_atool
+                            )
+                            joint_travel = joint_travel_jaco + joint_travel_atool
+
+                            if final_status != TrialStatus.SUCCESS:
+                                LOGGER.error(f"  Stage 2 failed. Skipping trial.")
+                                trial_failed = True
+                            else:
+                                current_jaco_state = list(
+                                    traj_jaco.points[-1].positions
+                                )
+                                current_atool_state = list(
+                                    traj_atool.points[-1].positions
+                                )
+
+                        trial_data["stages"].append(
+                            {
+                                "stage_name": "AbovePlateToAboveFood",
+                                "target_frame": END_EFFECTOR_LINK_FULL,
+                                "status": final_status.value,
+                                "execution_mode": ExecutionMode.SEQUENTIAL.value,
+                                "planning_time_sec": planning_time,
+                                "trajectory_path_length_m": cartesian_path_length,
+                                "total_joint_travel_rad": joint_travel,
+                                "custom_metrics": (
+                                    skewer_angles
+                                    if skewer_angles and not trial_failed
+                                    else {}
+                                ),
+                                "traj_jaco": results.serialize_trajectory(traj_jaco),
+                                "traj_atool": results.serialize_trajectory(traj_atool),
+                            }
                         )
-                        trial_failed = True
-                        status = TrialStatus.IK_FAILURE
-                        planning_time = planning_time_solver
-                        cartesian_path_length, joint_travel = 0.0, 0.0
-                        traj_jaco, traj_atool = None, None
-                    else:
+                    elif self.mode == "6dof_baseline":
+                        LOGGER.info("Stage 2: AbovePlate -> AboveFood")
                         goal_constraints = [
-                            create_joint_constraint(target_above_food_8dof_config)
+                            create_pose_constraint(
+                                scene["above_food_pose"], tolerance_position=0.01
+                            )
                         ]
-                        status, traj_full, planning_time_motion = (
-                            self.motion_planner.plan(
-                                group_name=PLANNING_GROUP_FULL,
-                                start_state=current_jaco_state + current_atool_state,
-                                goal_constraints=goal_constraints,
-                                planning_time=MAX_PLANNING_TIME_S,
+                        status, traj_jaco, planning_time = self.motion_planner.plan(
+                            group_name=PLANNING_GROUP_JACO,
+                            start_state=current_jaco_state,
+                            goal_constraints=goal_constraints,
+                            planning_time=MAX_PLANNING_TIME_S,
+                        )
+                        cartesian_path_length = metrics.calculate_cartesian_path_length(
+                            traj_jaco,
+                            PLANNING_GROUP_JACO,
+                            self.kinematics_model,
+                            self.jaco_ee_link,
+                        )
+                        joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
+                        trial_data["stages"].append(
+                            {
+                                "stage_name": "AbovePlateToAboveFood",
+                                "status": status.value,
+                                "execution_mode": ExecutionMode.JACO_ONLY.value,
+                                "planning_time_sec": planning_time,
+                                "trajectory_path_length_m": cartesian_path_length,
+                                "total_joint_travel_rad": joint_travel,
+                                "traj_jaco": results.serialize_trajectory(traj_jaco),
+                            }
+                        )
+                        if status != TrialStatus.SUCCESS:
+                            trial_failed = True
+                        else:
+                            current_jaco_state = list(traj_jaco.points[-1].positions)
+
+                    elif self.mode == "8dof_baseline":
+                        LOGGER.info("Stage 2: AbovePlate -> AboveFood")
+                        start_time_solver = time.time()
+                        found_valid_pair = False
+                        target_above_food_8dof_config = None
+
+                        # 1. Use the Articutool's solver to find the ideal Jaco EE pose
+                        jaco_ee_above_food, _, skewer_angles = (
+                            kinematic_solvers.find_optimal_skewer_config(
+                                scene["above_food_pose"],
+                                scene["in_food_pose"],
+                                scene_characteristics[
+                                    "in_food_sampled_polar_angle_rad"
+                                ],
+                                self.kinematics_model,
+                                self.motion_planner,
                             )
                         )
-                        planning_time = planning_time_solver + planning_time_motion
+
+                        # 2. Find an elbow-up 6-DOF solution for the Jaco arm
+                        if jaco_ee_above_food and skewer_angles:
+                            for _ in range(10):
+                                ik_sol_msg = self.motion_planner.compute_ik(
+                                    PLANNING_GROUP_JACO,
+                                    jaco_ee_above_food,
+                                    current_jaco_state,
+                                )
+
+                                # 3. Sanitize the IK result
+                                if not ik_sol_msg or not ik_sol_msg.name:
+                                    continue
+
+                                solution_map = dict(
+                                    zip(ik_sol_msg.name, ik_sol_msg.position)
+                                )
+                                if not all(
+                                    name in solution_map for name in JOINT_NAMES_JACO
+                                ):
+                                    continue  # Incomplete solution, try again
+
+                                # Build a clean, ordered list of the 6 Jaco joint values
+                                sanitized_jaco_solution = [
+                                    solution_map[name] for name in JOINT_NAMES_JACO
+                                ]
+
+                                # 4. Check the sanitized solution for the elbow-up constraint
+                                if kinematic_solvers.is_elbow_up_configuration(
+                                    sanitized_jaco_solution, self.kinematics_model
+                                ):
+                                    # 5. If valid, combine into a full 8-DOF target configuration
+                                    atool_solution = [
+                                        skewer_angles["calculated_atool_pitch_rad"],
+                                        0.0,
+                                    ]
+                                    target_above_food_8dof_config = (
+                                        sanitized_jaco_solution + atool_solution
+                                    )
+                                    found_valid_pair = True
+                                    LOGGER.info(
+                                        "    Found a valid, sanitized, 'elbow-up' IK solution."
+                                    )
+                                    break  # Success, exit the loop
+                        planning_time_solver = time.time() - start_time_solver
+
+                        if not found_valid_pair:
+                            LOGGER.error(
+                                "  Stage 2 failed. Could not find a valid 8-DOF pre-acquisition config."
+                            )
+                            trial_failed = True
+                            status = TrialStatus.IK_FAILURE
+                            planning_time = planning_time_solver
+                            cartesian_path_length, joint_travel = 0.0, 0.0
+                            traj_jaco, traj_atool = None, None
+                        else:
+                            goal_constraints = [
+                                create_joint_constraint(target_above_food_8dof_config)
+                            ]
+                            status, traj_full, planning_time_motion = (
+                                self.motion_planner.plan(
+                                    group_name=PLANNING_GROUP_FULL,
+                                    start_state=current_jaco_state
+                                    + current_atool_state,
+                                    goal_constraints=goal_constraints,
+                                    planning_time=MAX_PLANNING_TIME_S,
+                                )
+                            )
+                            planning_time = planning_time_solver + planning_time_motion
+                            cartesian_path_length = (
+                                metrics.calculate_cartesian_path_length(
+                                    traj_full,
+                                    PLANNING_GROUP_FULL,
+                                    self.kinematics_model,
+                                    self.jaco_ee_link,
+                                )
+                            )
+                            joint_travel = metrics.calculate_total_joint_travel(
+                                traj_full
+                            )
+                            traj_jaco, traj_atool = (
+                                trajectory_utils.split_full_trajectory(traj_full)
+                            )
+
+                            if status != TrialStatus.SUCCESS:
+                                trial_failed = True
+                            else:
+                                current_jaco_state = list(
+                                    traj_jaco.points[-1].positions
+                                )
+                                current_atool_state = list(
+                                    traj_atool.points[-1].positions
+                                )
+
+                        trial_data["stages"].append(
+                            {
+                                "stage_name": "AbovePlateToAboveFood",
+                                "status": status.value,
+                                "execution_mode": ExecutionMode.SYNCHRONOUS.value,
+                                "planning_time_sec": planning_time,
+                                "trajectory_path_length_m": cartesian_path_length,
+                                "total_joint_travel_rad": joint_travel,
+                                "traj_jaco": results.serialize_trajectory(traj_jaco),
+                                "traj_atool": results.serialize_trajectory(traj_atool),
+                            }
+                        )
+
+            if "AboveFoodToInFood" in acquisition_stages:
+                # --- Stage 3: AboveFood -> InFood ---
+                if not trial_failed:
+                    if self.mode == "articutool":
+                        LOGGER.info("Stage 3: AboveFood -> InFood (Cartesian)")
+                        goal_constraints = [
+                            create_pose_constraint(
+                                jaco_ee_in_food, tolerance_position=0.01
+                            )
+                        ]
+                        status, traj_jaco, planning_time = self.motion_planner.plan(
+                            group_name=PLANNING_GROUP_JACO,
+                            start_state=current_jaco_state,
+                            goal_constraints=goal_constraints,
+                            target_link=END_EFFECTOR_LINK_JACO,
+                            cartesian=True,
+                        )
+                        cartesian_path_length = metrics.calculate_cartesian_path_length(
+                            traj_jaco,
+                            PLANNING_GROUP_JACO,
+                            self.kinematics_model,
+                            self.jaco_ee_link,
+                        )
+                        joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
+
+                        # Create a hold trajectory for the Articutool with its target pitched angle
+                        traj_atool = None
+                        if status == TrialStatus.SUCCESS:
+                            target_atool_config = [
+                                skewer_angles["calculated_atool_pitch_rad"],
+                                0.0,
+                            ]
+                            traj_atool = trajectory_utils.generate_hold_trajectory(
+                                traj_jaco, JOINT_NAMES_ATOOL, target_atool_config
+                            )
+
+                        trial_data["stages"].append(
+                            {
+                                "stage_name": "AboveFoodToInFood",
+                                "target_frame": END_EFFECTOR_LINK_FULL,
+                                "status": status.value,
+                                "execution_mode": ExecutionMode.SYNCHRONOUS.value,
+                                "planning_time_sec": planning_time,
+                                "trajectory_path_length_m": cartesian_path_length,
+                                "total_joint_travel_rad": joint_travel,
+                                "custom_metrics": {},
+                                "traj_jaco": results.serialize_trajectory(traj_jaco),
+                                "traj_atool": results.serialize_trajectory(traj_atool),
+                            }
+                        )
+                        if status != TrialStatus.SUCCESS:
+                            LOGGER.error(f"  Stage 3 failed. Skipping trial.")
+                            trial_failed = True
+                        else:
+                            current_jaco_state = list(traj_jaco.points[-1].positions)
+                            current_atool_state = list(traj_atool.points[-1].positions)
+                    elif self.mode == "6dof_baseline":
+                        LOGGER.info("Stage 3: AboveFood -> InFood")
+                        goal_constraints = [
+                            create_pose_constraint(
+                                scene["in_food_pose"], tolerance_position=0.01
+                            )
+                        ]
+                        status, traj_jaco, planning_time = self.motion_planner.plan(
+                            group_name=PLANNING_GROUP_JACO,
+                            start_state=current_jaco_state,
+                            goal_constraints=goal_constraints,
+                            cartesian=True,
+                        )
+                        cartesian_path_length = metrics.calculate_cartesian_path_length(
+                            traj_jaco,
+                            PLANNING_GROUP_JACO,
+                            self.kinematics_model,
+                            self.jaco_ee_link,
+                        )
+                        joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
+                        trial_data["stages"].append(
+                            {
+                                "stage_name": "AboveFoodToInFood",
+                                "status": status.value,
+                                "execution_mode": ExecutionMode.JACO_ONLY.value,
+                                "planning_time_sec": planning_time,
+                                "trajectory_path_length_m": cartesian_path_length,
+                                "total_joint_travel_rad": joint_travel,
+                                "traj_jaco": results.serialize_trajectory(traj_jaco),
+                            }
+                        )
+                        if status != TrialStatus.SUCCESS:
+                            trial_failed = True
+                        else:
+                            current_jaco_state = list(traj_jaco.points[-1].positions)
+                    elif self.mode == "8dof_baseline":
+                        LOGGER.info("Stage 3: AboveFood -> InFood")
+                        goal_constraints = [
+                            create_pose_constraint(
+                                scene["in_food_pose"], tolerance_position=0.01
+                            )
+                        ]
+                        status, traj_full, planning_time = self.motion_planner.plan(
+                            group_name=PLANNING_GROUP_FULL,
+                            start_state=current_jaco_state + current_atool_state,
+                            goal_constraints=goal_constraints,
+                            cartesian=True,
+                        )
                         cartesian_path_length = metrics.calculate_cartesian_path_length(
                             traj_full,
                             PLANNING_GROUP_FULL,
@@ -1239,295 +1476,167 @@ class EndToEndBenchmark:
                         traj_jaco, traj_atool = trajectory_utils.split_full_trajectory(
                             traj_full
                         )
-
+                        trial_data["stages"].append(
+                            {
+                                "stage_name": "AboveFoodToInFood",
+                                "status": status.value,
+                                "execution_mode": ExecutionMode.SYNCHRONOUS.value,
+                                "planning_time_sec": planning_time,
+                                "trajectory_path_length_m": cartesian_path_length,
+                                "total_joint_travel_rad": joint_travel,
+                                "traj_jaco": results.serialize_trajectory(traj_jaco),
+                                "traj_atool": results.serialize_trajectory(traj_atool),
+                            }
+                        )
                         if status != TrialStatus.SUCCESS:
                             trial_failed = True
                         else:
                             current_jaco_state = list(traj_jaco.points[-1].positions)
                             current_atool_state = list(traj_atool.points[-1].positions)
 
-                    trial_data["stages"].append(
-                        {
-                            "stage_name": "AbovePlateToAboveFood",
-                            "status": status.value,
-                            "execution_mode": ExecutionMode.SYNCHRONOUS.value,
-                            "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length,
-                            "total_joint_travel_rad": joint_travel,
-                            "traj_jaco": results.serialize_trajectory(traj_jaco),
-                            "traj_atool": results.serialize_trajectory(traj_atool),
-                        }
-                    )
-
-            # --- Stage 3: AboveFood -> InFood ---
-            if not trial_failed:
-                if self.mode == "articutool":
-                    LOGGER.info("Stage 3: AboveFood -> InFood (Cartesian)")
-                    goal_constraints = [
-                        create_pose_constraint(jaco_ee_in_food, tolerance_position=0.01)
-                    ]
-                    status, traj_jaco, planning_time = self.motion_planner.plan(
-                        group_name=PLANNING_GROUP_JACO,
-                        start_state=current_jaco_state,
-                        goal_constraints=goal_constraints,
-                        target_link=END_EFFECTOR_LINK_JACO,
-                        cartesian=True,
-                    )
-                    cartesian_path_length = metrics.calculate_cartesian_path_length(
-                        traj_jaco,
-                        PLANNING_GROUP_JACO,
-                        self.kinematics_model,
-                        self.jaco_ee_link,
-                    )
-                    joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
-
-                    # Create a hold trajectory for the Articutool with its target pitched angle
-                    traj_atool = None
-                    if status == TrialStatus.SUCCESS:
-                        target_atool_config = [
-                            skewer_angles["calculated_atool_pitch_rad"],
-                            0.0,
-                        ]
-                        traj_atool = trajectory_utils.generate_hold_trajectory(
-                            traj_jaco, JOINT_NAMES_ATOOL, target_atool_config
-                        )
-
-                    trial_data["stages"].append(
-                        {
-                            "stage_name": "AboveFoodToInFood",
-                            "target_frame": END_EFFECTOR_LINK_FULL,
-                            "status": status.value,
-                            "execution_mode": ExecutionMode.SYNCHRONOUS.value,
-                            "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length,
-                            "total_joint_travel_rad": joint_travel,
-                            "custom_metrics": {},
-                            "traj_jaco": results.serialize_trajectory(traj_jaco),
-                            "traj_atool": results.serialize_trajectory(traj_atool),
-                        }
-                    )
-                    if status != TrialStatus.SUCCESS:
-                        LOGGER.error(f"  Stage 3 failed. Skipping trial.")
-                        trial_failed = True
-                    else:
-                        current_jaco_state = list(traj_jaco.points[-1].positions)
-                        current_atool_state = list(traj_atool.points[-1].positions)
-                elif self.mode == "6dof_baseline":
-                    LOGGER.info("Stage 3: AboveFood -> InFood")
-                    goal_constraints = [
-                        create_pose_constraint(
-                            scene["in_food_pose"], tolerance_position=0.01
-                        )
-                    ]
-                    status, traj_jaco, planning_time = self.motion_planner.plan(
-                        group_name=PLANNING_GROUP_JACO,
-                        start_state=current_jaco_state,
-                        goal_constraints=goal_constraints,
-                        cartesian=True,
-                    )
-                    cartesian_path_length = metrics.calculate_cartesian_path_length(
-                        traj_jaco,
-                        PLANNING_GROUP_JACO,
-                        self.kinematics_model,
-                        self.jaco_ee_link,
-                    )
-                    joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
-                    trial_data["stages"].append(
-                        {
-                            "stage_name": "AboveFoodToInFood",
-                            "status": status.value,
-                            "execution_mode": ExecutionMode.JACO_ONLY.value,
-                            "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length,
-                            "total_joint_travel_rad": joint_travel,
-                            "traj_jaco": results.serialize_trajectory(traj_jaco),
-                        }
-                    )
-                    if status != TrialStatus.SUCCESS:
-                        trial_failed = True
-                    else:
-                        current_jaco_state = list(traj_jaco.points[-1].positions)
-                elif self.mode == "8dof_baseline":
-                    LOGGER.info("Stage 3: AboveFood -> InFood")
-                    goal_constraints = [
-                        create_pose_constraint(
-                            scene["in_food_pose"], tolerance_position=0.01
-                        )
-                    ]
-                    status, traj_full, planning_time = self.motion_planner.plan(
-                        group_name=PLANNING_GROUP_FULL,
-                        start_state=current_jaco_state + current_atool_state,
-                        goal_constraints=goal_constraints,
-                        cartesian=True,
-                    )
-                    cartesian_path_length = metrics.calculate_cartesian_path_length(
-                        traj_full,
-                        PLANNING_GROUP_FULL,
-                        self.kinematics_model,
-                        self.jaco_ee_link,
-                    )
-                    joint_travel = metrics.calculate_total_joint_travel(traj_full)
-                    traj_jaco, traj_atool = trajectory_utils.split_full_trajectory(
-                        traj_full
-                    )
-                    trial_data["stages"].append(
-                        {
-                            "stage_name": "AboveFoodToInFood",
-                            "status": status.value,
-                            "execution_mode": ExecutionMode.SYNCHRONOUS.value,
-                            "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length,
-                            "total_joint_travel_rad": joint_travel,
-                            "traj_jaco": results.serialize_trajectory(traj_jaco),
-                            "traj_atool": results.serialize_trajectory(traj_atool),
-                        }
-                    )
-                    if status != TrialStatus.SUCCESS:
-                        trial_failed = True
-                    else:
-                        current_jaco_state = list(traj_jaco.points[-1].positions)
-                        current_atool_state = list(traj_atool.points[-1].positions)
-
-            # --- Stage 4: InFood -> LevelTool ---
-            if not trial_failed:
-                if self.mode == "articutool":
-                    LOGGER.info("Stage 4: Level Tool")
-                    status, traj_atool, planning_time = self._plan_to_level_articutool(
-                        jaco_ee_in_food, current_atool_state
-                    )
-                    cartesian_path_length = metrics.calculate_cartesian_path_length(
-                        traj_atool,
-                        PLANNING_GROUP_ATOOL,
-                        self.kinematics_model,
-                        self.jaco_ee_link,
-                    )
-                    joint_travel = metrics.calculate_total_joint_travel(traj_atool)
-                    trial_data["stages"].append(
-                        {
-                            "stage_name": "LevelTool",
-                            "target_frame": END_EFFECTOR_LINK_ATOOL,
-                            "status": status.value,
-                            "execution_mode": ExecutionMode.ATOOL_ONLY.value,
-                            "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length,
-                            "total_joint_travel_rad": joint_travel,
-                            "custom_metrics": {},
-                            "traj_jaco": None,
-                            "traj_atool": results.serialize_trajectory(traj_atool),
-                        }
-                    )
-                    if status != TrialStatus.SUCCESS:
-                        LOGGER.error(f"  Stage 4 failed. Skipping trial.")
-                        trial_failed = True
-                    else:
-                        current_atool_state = list(traj_atool.points[-1].positions)
-                elif self.mode == "6dof_baseline":
-                    LOGGER.info("Stage 4: Level Tool")
-                    status, traj_jaco, planning_time = (
-                        self._plan_level_and_extract_baseline(
-                            current_jaco_state,
-                            scene["in_food_pose"],
-                            extraction_height_m=0.1,
-                        )
-                    )
-
-                    recovery_state_injected = False
-                    if status != TrialStatus.SUCCESS:
-                        LOGGER.warning(
-                            "  LevelTool failed. Attempting to find a recovery state to continue."
-                        )
-
-                        # Get the intended goal pose from the failed trajectory if it exists
-                        # This is better than starting from the 'in_food_pose'
-                        last_known_jaco_state = (
-                            list(traj_jaco.points[-1].positions)
-                            if traj_jaco
-                            else current_jaco_state
-                        )
-
-                        # Find a valid, leveled IK solution from this last known state
-                        recovery_config = self._find_leveled_recovery_config(
-                            last_known_jaco_state
-                        )
-
-                        if recovery_config:
-                            LOGGER.info(
-                                "  Successfully found a recovery configuration. Proceeding with subsequent stages."
+            if "LevelTool" in acquisition_stages:
+                # --- Stage 4: InFood -> LevelTool ---
+                if not trial_failed:
+                    if self.mode == "articutool":
+                        LOGGER.info("Stage 4: Level Tool")
+                        status, traj_atool, planning_time = (
+                            self._plan_to_level_articutool(
+                                jaco_ee_in_food, current_atool_state
                             )
-                            current_jaco_state = recovery_config
-                            recovery_state_injected = True
+                        )
+                        cartesian_path_length = metrics.calculate_cartesian_path_length(
+                            traj_atool,
+                            PLANNING_GROUP_ATOOL,
+                            self.kinematics_model,
+                            self.jaco_ee_link,
+                        )
+                        joint_travel = metrics.calculate_total_joint_travel(traj_atool)
+                        trial_data["stages"].append(
+                            {
+                                "stage_name": "LevelTool",
+                                "target_frame": END_EFFECTOR_LINK_ATOOL,
+                                "status": status.value,
+                                "execution_mode": ExecutionMode.ATOOL_ONLY.value,
+                                "planning_time_sec": planning_time,
+                                "trajectory_path_length_m": cartesian_path_length,
+                                "total_joint_travel_rad": joint_travel,
+                                "custom_metrics": {},
+                                "traj_jaco": None,
+                                "traj_atool": results.serialize_trajectory(traj_atool),
+                            }
+                        )
+                        if status != TrialStatus.SUCCESS:
+                            LOGGER.error(f"  Stage 4 failed. Skipping trial.")
+                            trial_failed = True
                         else:
-                            LOGGER.error(
-                                "  Could not find a recovery configuration. Trial must stop here."
+                            current_atool_state = list(traj_atool.points[-1].positions)
+                    elif self.mode == "6dof_baseline":
+                        LOGGER.info("Stage 4: Level Tool")
+                        status, traj_jaco, planning_time = (
+                            self._plan_level_and_extract_baseline(
+                                current_jaco_state,
+                                scene["in_food_pose"],
+                                extraction_height_m=0.1,
                             )
-                            trial_failed = (
-                                True  # Ensure the rest of the stages are skipped
-                            )
-                    else:
-                        # If the stage succeeded, update state as normal
-                        current_jaco_state = list(traj_jaco.points[-1].positions)
-
-                    cartesian_path_length = metrics.calculate_cartesian_path_length(
-                        traj_jaco,
-                        PLANNING_GROUP_JACO,
-                        self.kinematics_model,
-                        self.jaco_ee_link,
-                    )
-                    joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
-                    trial_data["stages"].append(
-                        {
-                            "stage_name": "LevelTool",
-                            "target_frame": self.jaco_ee_link,
-                            "status": status.value,
-                            "recovery_state_injected": recovery_state_injected,
-                            "execution_mode": ExecutionMode.JACO_ONLY.value,
-                            "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length,
-                            "total_joint_travel_rad": joint_travel,
-                            "traj_jaco": results.serialize_trajectory(traj_jaco),
-                        }
-                    )
-                elif self.mode == "8dof_baseline":
-                    LOGGER.info("Stage 4: InFood -> LevelTool")
-                    status, traj_full, planning_time = (
-                        self._plan_level_and_extract_8dof_baseline(
-                            current_jaco_state + current_atool_state,
-                            scene["in_food_pose"],
-                            extraction_height_m=0.1,
                         )
-                    )
 
-                    # Split the 8-DOF trajectory for logging and state updates
-                    traj_jaco, traj_atool = trajectory_utils.split_full_trajectory(
-                        traj_full
-                    )
+                        recovery_state_injected = False
+                        if status != TrialStatus.SUCCESS:
+                            LOGGER.warning(
+                                "  LevelTool failed. Attempting to find a recovery state to continue."
+                            )
 
-                    cartesian_path_length = metrics.calculate_cartesian_path_length(
-                        traj_full,
-                        PLANNING_GROUP_FULL,
-                        self.kinematics_model,
-                        self.jaco_ee_link,
-                    )
-                    joint_travel = metrics.calculate_total_joint_travel(traj_full)
+                            # Get the intended goal pose from the failed trajectory if it exists
+                            # This is better than starting from the 'in_food_pose'
+                            last_known_jaco_state = (
+                                list(traj_jaco.points[-1].positions)
+                                if traj_jaco
+                                else current_jaco_state
+                            )
 
-                    trial_data["stages"].append(
-                        {
-                            "stage_name": "LevelTool",
-                            "target_frame": END_EFFECTOR_LINK_FULL,
-                            "status": status.value,
-                            "execution_mode": ExecutionMode.SYNCHRONOUS.value,
-                            "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length,
-                            "total_joint_travel_rad": joint_travel,
-                            "traj_jaco": results.serialize_trajectory(traj_jaco),
-                            "traj_atool": results.serialize_trajectory(traj_atool),
-                        }
-                    )
-                    if status != TrialStatus.SUCCESS:
-                        trial_failed = True
-                    else:
-                        current_jaco_state = list(traj_jaco.points[-1].positions)
-                        current_atool_state = list(traj_atool.points[-1].positions)
+                            # Find a valid, leveled IK solution from this last known state
+                            recovery_config = self._find_leveled_recovery_config(
+                                last_known_jaco_state
+                            )
+
+                            if recovery_config:
+                                LOGGER.info(
+                                    "  Successfully found a recovery configuration. Proceeding with subsequent stages."
+                                )
+                                current_jaco_state = recovery_config
+                                recovery_state_injected = True
+                            else:
+                                LOGGER.error(
+                                    "  Could not find a recovery configuration. Trial must stop here."
+                                )
+                                trial_failed = (
+                                    True  # Ensure the rest of the stages are skipped
+                                )
+                        else:
+                            # If the stage succeeded, update state as normal
+                            current_jaco_state = list(traj_jaco.points[-1].positions)
+
+                        cartesian_path_length = metrics.calculate_cartesian_path_length(
+                            traj_jaco,
+                            PLANNING_GROUP_JACO,
+                            self.kinematics_model,
+                            self.jaco_ee_link,
+                        )
+                        joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
+                        trial_data["stages"].append(
+                            {
+                                "stage_name": "LevelTool",
+                                "target_frame": self.jaco_ee_link,
+                                "status": status.value,
+                                "recovery_state_injected": recovery_state_injected,
+                                "execution_mode": ExecutionMode.JACO_ONLY.value,
+                                "planning_time_sec": planning_time,
+                                "trajectory_path_length_m": cartesian_path_length,
+                                "total_joint_travel_rad": joint_travel,
+                                "traj_jaco": results.serialize_trajectory(traj_jaco),
+                            }
+                        )
+                    elif self.mode == "8dof_baseline":
+                        LOGGER.info("Stage 4: InFood -> LevelTool")
+                        status, traj_full, planning_time = (
+                            self._plan_level_and_extract_8dof_baseline(
+                                current_jaco_state + current_atool_state,
+                                scene["in_food_pose"],
+                                extraction_height_m=0.1,
+                            )
+                        )
+
+                        # Split the 8-DOF trajectory for logging and state updates
+                        traj_jaco, traj_atool = trajectory_utils.split_full_trajectory(
+                            traj_full
+                        )
+
+                        cartesian_path_length = metrics.calculate_cartesian_path_length(
+                            traj_full,
+                            PLANNING_GROUP_FULL,
+                            self.kinematics_model,
+                            self.jaco_ee_link,
+                        )
+                        joint_travel = metrics.calculate_total_joint_travel(traj_full)
+
+                        trial_data["stages"].append(
+                            {
+                                "stage_name": "LevelTool",
+                                "target_frame": END_EFFECTOR_LINK_FULL,
+                                "status": status.value,
+                                "execution_mode": ExecutionMode.SYNCHRONOUS.value,
+                                "planning_time_sec": planning_time,
+                                "trajectory_path_length_m": cartesian_path_length,
+                                "total_joint_travel_rad": joint_travel,
+                                "traj_jaco": results.serialize_trajectory(traj_jaco),
+                                "traj_atool": results.serialize_trajectory(traj_atool),
+                            }
+                        )
+                        if status != TrialStatus.SUCCESS:
+                            trial_failed = True
+                        else:
+                            current_jaco_state = list(traj_jaco.points[-1].positions)
+                            current_atool_state = list(traj_atool.points[-1].positions)
 
             # --- Stage 5: LevelTool -> Resting ---
             if not trial_failed:
@@ -2062,129 +2171,132 @@ class EndToEndBenchmark:
                     if self.mode in ["articutool", "8dof_baseline"] and traj_atool:
                         current_atool_state = list(traj_atool.points[-1].positions)
 
-            # --- Stage 7: Staging -> Presentation ---
-            if not trial_failed:
-                if self.mode == "articutool":
-                    LOGGER.info("Stage 7: Staging -> Presentation")
-                    ik_sol_raw = self.motion_planner.compute_ik(
-                        PLANNING_GROUP_FULL,
-                        scene["presentation_pose"],
-                        current_jaco_state + current_atool_state,
-                    )
-                    ik_sol_full = self._extract_ordered_joint_solution(ik_sol_raw)
-
-                    if not ik_sol_full:
-                        status = TrialStatus.IK_FAILURE
-                        traj_jaco, traj_atool, planning_time = None, None, 0.0
-                    else:
-                        (
-                            status,
-                            traj_jaco,
-                            traj_atool,
-                            planning_time,
-                        ) = self._plan_presentation_from_staging(
+            if self.benchmark_type == "end-to-end":
+                # --- Stage 7: Staging -> Presentation ---
+                if not trial_failed:
+                    if self.mode == "articutool":
+                        LOGGER.info("Stage 7: Staging -> Presentation")
+                        ik_sol_raw = self.motion_planner.compute_ik(
+                            PLANNING_GROUP_FULL,
                             scene["presentation_pose"],
-                            current_jaco_state,
+                            current_jaco_state + current_atool_state,
                         )
-                    cartesian_path_length_jaco = (
-                        metrics.calculate_cartesian_path_length(
+                        ik_sol_full = self._extract_ordered_joint_solution(ik_sol_raw)
+
+                        if not ik_sol_full:
+                            status = TrialStatus.IK_FAILURE
+                            traj_jaco, traj_atool, planning_time = None, None, 0.0
+                        else:
+                            (
+                                status,
+                                traj_jaco,
+                                traj_atool,
+                                planning_time,
+                            ) = self._plan_presentation_from_staging(
+                                scene["presentation_pose"],
+                                current_jaco_state,
+                            )
+                        cartesian_path_length_jaco = (
+                            metrics.calculate_cartesian_path_length(
+                                traj_jaco,
+                                PLANNING_GROUP_JACO,
+                                self.kinematics_model,
+                                self.jaco_ee_link,
+                            )
+                        )
+                        cartesian_path_length_atool = (
+                            metrics.calculate_cartesian_path_length(
+                                traj_atool,
+                                PLANNING_GROUP_ATOOL,
+                                self.kinematics_model,
+                                self.jaco_ee_link,
+                            )
+                        )
+                        joint_travel_jaco = metrics.calculate_total_joint_travel(
+                            traj_jaco
+                        )
+                        joint_travel_atool = metrics.calculate_total_joint_travel(
+                            traj_atool
+                        )
+                        trial_data["stages"].append(
+                            {
+                                "stage_name": "Presentation",
+                                "status": status.value,
+                                "execution_mode": ExecutionMode.SYNCHRONOUS.value,
+                                "planning_time_sec": planning_time,
+                                "trajectory_path_length_m": cartesian_path_length_jaco
+                                + cartesian_path_length_atool,
+                                "total_joint_travel_rad": joint_travel_jaco
+                                + joint_travel_atool,
+                                "traj_jaco": results.serialize_trajectory(traj_jaco),
+                                "traj_atool": results.serialize_trajectory(traj_atool),
+                            }
+                        )
+                    elif self.mode == "6dof_baseline":
+                        LOGGER.info("Stage 7: Staging -> Presentation")
+                        goal_constraints = [
+                            create_pose_constraint(scene["presentation_pose"])
+                        ]
+                        status, traj_jaco, planning_time = self.motion_planner.plan(
+                            group_name=PLANNING_GROUP_JACO,
+                            start_state=current_jaco_state,
+                            goal_constraints=goal_constraints,
+                            cartesian=True,
+                        )
+                        cartesian_path_length = metrics.calculate_cartesian_path_length(
                             traj_jaco,
                             PLANNING_GROUP_JACO,
                             self.kinematics_model,
                             self.jaco_ee_link,
                         )
-                    )
-                    cartesian_path_length_atool = (
-                        metrics.calculate_cartesian_path_length(
-                            traj_atool,
-                            PLANNING_GROUP_ATOOL,
+                        joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
+                        trial_data["stages"].append(
+                            {
+                                "stage_name": "Presentation",
+                                "status": status.value,
+                                "execution_mode": ExecutionMode.JACO_ONLY.value,
+                                "planning_time_sec": planning_time,
+                                "trajectory_path_length_m": cartesian_path_length,
+                                "total_joint_travel_rad": joint_travel,
+                                "traj_jaco": results.serialize_trajectory(traj_jaco),
+                            }
+                        )
+                    elif self.mode == "8dof_baseline":
+                        LOGGER.info("Stage 7: Staging -> Presentation")
+                        goal_constraints = [
+                            create_pose_constraint(scene["presentation_pose"])
+                        ]
+                        status, traj_full, planning_time = self.motion_planner.plan(
+                            group_name=PLANNING_GROUP_FULL,
+                            start_state=current_jaco_state + current_atool_state,
+                            goal_constraints=goal_constraints,
+                            cartesian=True,
+                        )
+                        cartesian_path_length = metrics.calculate_cartesian_path_length(
+                            traj_full,
+                            PLANNING_GROUP_FULL,
                             self.kinematics_model,
                             self.jaco_ee_link,
                         )
-                    )
-                    joint_travel_jaco = metrics.calculate_total_joint_travel(traj_jaco)
-                    joint_travel_atool = metrics.calculate_total_joint_travel(
-                        traj_atool
-                    )
-                    trial_data["stages"].append(
-                        {
-                            "stage_name": "Presentation",
-                            "status": status.value,
-                            "execution_mode": ExecutionMode.SYNCHRONOUS.value,
-                            "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length_jaco
-                            + cartesian_path_length_atool,
-                            "total_joint_travel_rad": joint_travel_jaco
-                            + joint_travel_atool,
-                            "traj_jaco": results.serialize_trajectory(traj_jaco),
-                            "traj_atool": results.serialize_trajectory(traj_atool),
-                        }
-                    )
-                elif self.mode == "6dof_baseline":
-                    LOGGER.info("Stage 7: Staging -> Presentation")
-                    goal_constraints = [
-                        create_pose_constraint(scene["presentation_pose"])
-                    ]
-                    status, traj_jaco, planning_time = self.motion_planner.plan(
-                        group_name=PLANNING_GROUP_JACO,
-                        start_state=current_jaco_state,
-                        goal_constraints=goal_constraints,
-                        cartesian=True,
-                    )
-                    cartesian_path_length = metrics.calculate_cartesian_path_length(
-                        traj_jaco,
-                        PLANNING_GROUP_JACO,
-                        self.kinematics_model,
-                        self.jaco_ee_link,
-                    )
-                    joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
-                    trial_data["stages"].append(
-                        {
-                            "stage_name": "Presentation",
-                            "status": status.value,
-                            "execution_mode": ExecutionMode.JACO_ONLY.value,
-                            "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length,
-                            "total_joint_travel_rad": joint_travel,
-                            "traj_jaco": results.serialize_trajectory(traj_jaco),
-                        }
-                    )
-                elif self.mode == "8dof_baseline":
-                    LOGGER.info("Stage 7: Staging -> Presentation")
-                    goal_constraints = [
-                        create_pose_constraint(scene["presentation_pose"])
-                    ]
-                    status, traj_full, planning_time = self.motion_planner.plan(
-                        group_name=PLANNING_GROUP_FULL,
-                        start_state=current_jaco_state + current_atool_state,
-                        goal_constraints=goal_constraints,
-                        cartesian=True,
-                    )
-                    cartesian_path_length = metrics.calculate_cartesian_path_length(
-                        traj_full,
-                        PLANNING_GROUP_FULL,
-                        self.kinematics_model,
-                        self.jaco_ee_link,
-                    )
-                    joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
-                    traj_jaco, traj_atool = trajectory_utils.split_full_trajectory(
-                        traj_full
-                    )
-                    trial_data["stages"].append(
-                        {
-                            "stage_name": "Presentation",
-                            "status": status.value,
-                            "execution_mode": ExecutionMode.SYNCHRONOUS.value,
-                            "planning_time_sec": planning_time,
-                            "trajectory_path_length_m": cartesian_path_length,
-                            "total_joint_travel_rad": joint_travel,
-                            "traj_jaco": results.serialize_trajectory(traj_jaco),
-                            "traj_atool": results.serialize_trajectory(traj_atool),
-                        }
-                    )
+                        joint_travel = metrics.calculate_total_joint_travel(traj_jaco)
+                        traj_jaco, traj_atool = trajectory_utils.split_full_trajectory(
+                            traj_full
+                        )
+                        trial_data["stages"].append(
+                            {
+                                "stage_name": "Presentation",
+                                "status": status.value,
+                                "execution_mode": ExecutionMode.SYNCHRONOUS.value,
+                                "planning_time_sec": planning_time,
+                                "trajectory_path_length_m": cartesian_path_length,
+                                "total_joint_travel_rad": joint_travel,
+                                "traj_jaco": results.serialize_trajectory(traj_jaco),
+                                "traj_atool": results.serialize_trajectory(traj_atool),
+                            }
+                        )
 
-                if status != TrialStatus.SUCCESS:
-                    trial_failed = True
+                    if status != TrialStatus.SUCCESS:
+                        trial_failed = True
 
             # --- Finalize Trial ---
             if not trial_failed and not recovery_state_injected:

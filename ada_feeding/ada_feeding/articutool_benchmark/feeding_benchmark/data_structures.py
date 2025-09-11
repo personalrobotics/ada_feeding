@@ -81,13 +81,13 @@ class SceneGenerationParams:
 
     food_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="food",
-        inner_radius=0.5,
+        inner_radius=0.3,
         outer_radius=0.85,
         theta_range=(3 * math.pi / 2, 2 * math.pi),
         phi_range=(0.0, math.pi / 2),
         min_height=0.05,
         max_height=0.25,
-        min_horizontal_radius=0.5,
+        min_horizontal_radius=0.3,
     )
     mouth_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="mouth",
@@ -102,7 +102,7 @@ class SceneGenerationParams:
     resting_sampling: SphericalSamplingParams = SphericalSamplingParams(
         name="resting",
         inner_radius=0.5,
-        outer_radius=0.6,
+        outer_radius=0.7,
         theta_range=(0, 2 * math.pi),
         phi_range=(0, math.pi / 2),
         min_height=0.2,

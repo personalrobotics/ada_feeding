@@ -63,6 +63,13 @@ def main():
         choices=["articutool", "6dof_baseline", "8dof_baseline"],
         help="The execution mode for the benchmark.",
     )
+    parser.add_argument(
+        "--benchmark_type",
+        type=str,
+        default="end-to-end",
+        choices=["end-to-end", "transport-only"],
+        help="The benchmark type to run",
+    )
     args = parser.parse_args()
 
     # 1. Create a unique, timestamped directory for this benchmark run.
@@ -129,6 +136,7 @@ def main():
         args.timeout,
         output_dir=output_dir,
         mode=args.mode,
+        benchmark_type=args.benchmark_type,
     )
 
     try:
