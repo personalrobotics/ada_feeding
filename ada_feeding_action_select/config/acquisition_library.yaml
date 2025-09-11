@@ -432,7 +432,7 @@ actions:
   - 0.0
   - 0.0
   - 0.0
-  ext_torque: 4.0
+  ext_torque: 15.0
   grasp_angular: [0.0, 0.0, 0.0]
   grasp_duration: 1.0
   grasp_force: 70.0
