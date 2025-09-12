@@ -126,8 +126,8 @@ class AcquireFoodTree(MoveToTree):
         max_acceleration_scaling_to_resting_configuration: Optional[float] = 0.8,
         pickle_goal_path: Optional[str] = None,
         allowed_planning_time_for_move_above: float = 2.0,
-        allowed_planning_time_for_move_into: float = 1.0,
-        allowed_planning_time_to_resting_configuration: float = 1.0,
+        allowed_planning_time_for_move_into: float = 3.0,
+        allowed_planning_time_to_resting_configuration: float = 2.0,
         allowed_planning_time_for_recovery: float = 1.0,
     ):
         """
@@ -1300,7 +1300,7 @@ class AcquireFoodTree(MoveToTree):
                                                 "max_acceleration_scale": self.max_acceleration_scaling_move_into,
                                                 "cartesian_max_step": 0.001,
                                                 "cartesian_fraction_threshold": 0.92,
-                                                "cartesian_jump_threshold": 5.0,
+                                                "cartesian_jump_threshold": 0.0,
                                                 "start_joint_state": BlackboardKey(
                                                     "jaco_move_above_end_joint_state"
                                                 ),
@@ -1700,7 +1700,7 @@ class AcquireFoodTree(MoveToTree):
                                                                 ),
                                                             ],  # End InFoodGraspExtract.children
                                                         ),  # End InFoodGraspExtract
-                                                        recovery_tree,
+                                                        # recovery_tree,
                                                     ],  # End InFoodErrorSelector.children
                                                 ),  # End InFoodErrorSelector
                                             ],  # End MoveIt2Servo.workers
