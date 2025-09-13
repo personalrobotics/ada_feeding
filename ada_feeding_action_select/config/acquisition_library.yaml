@@ -40,7 +40,6 @@ actions:
   - -0.7071068
   - 0.0
   pre_torque: 4.0
-  align_to_robot_base: True
 - ext_angular:
   - 0.0
   - 0.0
@@ -262,4 +261,81 @@ actions:
   - 0.9860264
   - -0.0486593
   - -0.1055426
+  pre_torque: 4.0
+# Skewer + twirl and level
+- ext_angular:
+  - -1.57
+  - 0.0
+  - 0.0
+  ext_duration: 1.0
+  ext_force: 50.0
+  ext_linear:
+  - 0.0
+  - 0.0
+  - 0.0
+  ext_torque: 4.0
+  grasp_angular:
+  - 0.0
+  - 0.0
+  - 0.0
+  grasp_duration: 0.0
+  grasp_force: 15.0
+  grasp_linear:
+  - 0.0
+  - 0.0
+  - 0.0
+  grasp_torque: 4.0
+  pre_force: 20.0
+  pre_offset:
+  - 0.0
+  - 0.0
+  - 0.0
+  pre_pos:
+  - 0.0
+  - 0.0
+  - 1.0
+  pre_quat:
+  - 0.0
+  - 0.7071068
+  - -0.7071068
+  - 0.0
+  pre_torque: 4.0
+  align_to_robot_base: True
+# Scoop and level
+- ext_angular:
+  - -0.1
+  - 0.0
+  - 0.0
+  ext_duration: 15.0
+  ext_force: 50.0
+  ext_linear:
+  - 0.0
+  - 0.0
+  - 0.02
+  ext_torque: 4.0
+  grasp_angular:
+  - 0.0
+  - 0.0
+  - 0.0
+  grasp_duration: 1.0
+  grasp_force: 15.0
+  grasp_linear:
+  - 0.02
+  - 0.0
+  - 0.0
+  grasp_torque: 4.0
+  pre_force: 15.0
+  pre_offset:
+  - -0.01
+  - 0.0
+  - -0.025
+  pre_pos:
+  - -0.707
+  - 0.0
+  - 0.707
+  pre_quat:
+  - 0.2710956
+  - 0.6528595
+  - 0.6528595
+  - 0.2710956
   pre_torque: 4.0
