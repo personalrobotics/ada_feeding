@@ -101,7 +101,7 @@ class AcquireFoodTree(MoveToTree):
         pickle_goal_path: Optional[str] = None,
         allowed_planning_time_for_move_above: float = 0.5,
         allowed_planning_time_for_move_into: float = 0.5,
-        allowed_planning_time_to_resting_configuration: float = 10.0,
+        allowed_planning_time_to_resting_configuration: float = 5.0,
         allowed_planning_time_for_recovery: float = 0.5,
     ):
         """
