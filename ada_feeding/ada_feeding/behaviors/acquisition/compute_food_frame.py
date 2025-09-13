@@ -4,20 +4,15 @@
 
 """
 This module defines the ComputeFoodFrame behavior, which computes the
-food frame from the Mask provided from a perception algorithm, with an
-option to align it to the robot's base.
+food frame from the Mask provided from a perception algorithm.
 """
+
 # Standard imports
-import math
 from typing import Optional, Tuple, Union
 
 # Third-party imports
 import cv2 as cv
-from geometry_msgs.msg import (
-    PointStamped,
-    TransformStamped,
-    Vector3Stamped,
-)
+from geometry_msgs.msg import PointStamped, TransformStamped, Vector3Stamped
 import numpy as np
 import numpy.typing as npt
 from overrides import override
@@ -42,10 +37,8 @@ from ada_feeding.behaviors import BlackboardBehavior
 
 class ComputeFoodFrame(BlackboardBehavior):
     """
-    Computes the food reference frame from a perception mask.
-    Optionally rotates this frame around its Z-axis to align its
-    local X-axis with the vector from the robot base to the food origin.
-    See definition in AcquisitionSchema.msg.
+    Computes the food reference frame.
+    See definition in AcquisitionSchema.msg
     """
 
     # pylint: disable=arguments-differ
