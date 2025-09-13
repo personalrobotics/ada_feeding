@@ -31,7 +31,7 @@ ada_planning_scene:
     namespace_to_use: seated
 
     # Master switch for the face detection component
-    enable_face_detection_updates: False
+    enable_face_detection_updates: True
 
     ############################################################################
     # Parameters related to the PlanningSceneInitializer class
@@ -67,7 +67,7 @@ ada_planning_scene:
         quat_xyzw: [0.0, 0.0, 0.0, 1.0]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
-        add_on_initialize: False
+        add_on_initialize: True
       # NOTE: If you change this you must also change the hardcoded initial pose in
       # bite transfer.
       body: # an expanded mesh around the wheelchair to account for a user sitting in it
@@ -76,7 +76,7 @@ ada_planning_scene:
         quat_xyzw: [0.0, 0.0, 0.0, 1.0] # should match the wheelchair orientation
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
-        add_on_initialize: False
+        add_on_initialize: True
       table: # the table mesh
         filename: table.stl
         # Initial predicted position and orientation of the table; these values get
@@ -95,7 +95,7 @@ ada_planning_scene:
         quat_xyzw: [-0.0616284, -0.0616284, -0.6804416, 0.704416]
         frame_id: root # the frame_id that the pose is relative to
         within_workspace_walls: True # whether to add workspace walls around the wheelchair
-        add_on_initialize: False
+        add_on_initialize: True
       in_front_of_face_wall: # a wall in front of the user's face so robot motions don't unnecessarily move towards them.
         primitive_type: 1 # shape_msgs/SolidPrimitive.BOX
         primitive_dims: [0.65, 0.01, 0.4]
