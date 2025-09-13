@@ -134,12 +134,12 @@ ada_feeding_action_servers:
             # - 3.94225
             # - 4.26543
             # Front-staging configuration -- Shorter
-            - -2.32526
-            - 4.456298
-            - 4.16769
-            - 1.53262
-            - -2.18359
-            - -2.19525
+            - -2.121558793040347
+            - 4.496266046836531
+            - 4.0223860242692995
+            - -4.710213640564459
+            - -2.4929721777158056
+            - -1.9256090843408287
           orientation_constraint_quaternion: # perpendicular to the base link
             - 0.707168 # x
             - 0.0 # y
