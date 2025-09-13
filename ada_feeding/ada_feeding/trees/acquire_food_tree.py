@@ -35,7 +35,6 @@ from ada_feeding.behaviors.acquisition import (
     ComputeFoodFrame,
     ComputeActionConstraints,
     ComputeActionTwist,
-    RotateLocalApproachPoses,
     ConditionallyRotateFoodFrame,
     GenerateSkewerTiltCandidates,
     CalculateSkewerPoseForTilt,
@@ -54,13 +53,7 @@ from ada_feeding.behaviors.moveit2 import (
 )
 from ada_feeding.behaviors.state import (
     GetJointStates,
-    ExtractJointsFromState,
-    CombineJointStates,
     ExtractPoseFromPosesByLink,
-    ExtractPoseComponents,
-    CheckJacoDirectionalManipulability,
-    CheckArticutoolPathOrientationFeasibility,
-    CheckArticutoolPathLevelingFeasibility,
     CheckArticutoolPathDynamicFeasibility,
     LoadPinocchioModel,
     PublishPoseAsTf,
@@ -74,7 +67,6 @@ from ada_feeding.behaviors.articutool import (
     CallSetOrientationControl,
     SwitchArticutoolControllers,
     ComputeArticutoolLevelingJoints,
-    TriggerArticutoolCalibration,
     ExecuteNamedPrimitive,
 )
 from ada_feeding.helpers import BlackboardKey
