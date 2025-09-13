@@ -1533,7 +1533,7 @@ class AcquireFoodTree(MoveToTree):
                                                     .root,
                                                 ],
                                             ),
-                                            on_preempt_timeout=5.0,
+                                            on_preempt_timeout=60.0,
                                             # Starts a new Sequence w/ Memory internally
                                             workers=[
                                                 py_trees.composites.Selector(
