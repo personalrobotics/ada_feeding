@@ -755,7 +755,6 @@ class AcquireFoodTree(MoveToTree):
                                 # Default food_frame_id = "food"
                                 # Default world_frame = "world"
                                 "flip_food_frame": flip_food_frame,
-                                "align_to_robot_base": False,
                             },
                             outputs={
                                 "action_select_request": BlackboardKey(

@@ -17,9 +17,6 @@ from geometry_msgs.msg import (
     PointStamped,
     TransformStamped,
     Vector3Stamped,
-    Pose,
-    Quaternion,
-    Vector3,
 )
 import numpy as np
 import numpy.typing as npt
@@ -29,8 +26,6 @@ import pyrealsense2
 import rclpy
 from sensor_msgs.msg import CameraInfo
 import tf2_ros
-from scipy.spatial.transform import Rotation as R
-import ros2_numpy
 
 # Local imports
 from ada_feeding_msgs.msg import Mask
@@ -61,7 +56,6 @@ class ComputeFoodFrame(BlackboardBehavior):
     # pylint: disable=too-many-arguments
     # These are effectively config definitions
     # They require a lot of arguments.
-    EPSILON = 1e-6
 
     def blackboard_inputs(
         self,
@@ -70,8 +64,6 @@ class ComputeFoodFrame(BlackboardBehavior):
         timestamp: Union[BlackboardKey, rclpy.time.Time] = rclpy.time.Time(),
         food_frame_id: Union[BlackboardKey, str] = "food",
         world_frame: Union[BlackboardKey, str] = "world",
-        robot_base_frame_id: Union[BlackboardKey, str] = "j2n6s200_link_base",
-        align_to_robot_base: Union[BlackboardKey, bool] = True,
         flip_food_frame: Union[BlackboardKey, bool] = False,
     ) -> None:
         """
@@ -86,9 +78,6 @@ class ComputeFoodFrame(BlackboardBehavior):
         food_frame_id (string): If len>0, TF frame to publish static transform
                                    (relative to world_frame)
         world_frame (string): ID of the TF frame to represent the food frame in
-        robot_base_frame_id (string): ID of the robot's base frame for alignment.
-        align_to_robot_base (bool): If true, rotates the computed food_frame
-                                    around its Z-axis to align with the robot.
         flip_food_frame (bool): whether to rotate the food frame 180 about Z
         """
         # pylint: disable=unused-argument, duplicate-code
@@ -236,10 +225,6 @@ class ComputeFoodFrame(BlackboardBehavior):
 
         return (mask.roi.x_offset + c_x, mask.roi.y_offset + c_y, median_depth)
 
-    def _normalize_angle(self, angle: float) -> float:
-        """Normalize an angle to [-pi, pi]."""
-        return (angle + math.pi) % (2 * math.pi) - math.pi
-
     @override
     def update(self) -> py_trees.common.Status:
         # Docstring copied from @override
@@ -350,71 +335,15 @@ class ComputeFoodFrame(BlackboardBehavior):
         # Project to world x-y plane
         x_pos.vector.z = 0.0
 
-        world_food_initial_quat_xyzw = quat_between_vectors(
-            Vector3(x=1.0), x_pos.vector
-        )
-
-        R_world_food_initial = R.from_quat(
-            [
-                world_food_initial_quat_xyzw.x,
-                world_food_initial_quat_xyzw.y,
-                world_food_initial_quat_xyzw.z,
-                world_food_initial_quat_xyzw.w,
-            ]
-        )
-
-        # Conditionally rotate the food frame to align with the robot base
-        R_correction_z = R.identity()  # Start with no correction
-        if self.blackboard_get("align_to_robot_base"):
-            P_food_in_rb = ros2_numpy.numpify(center.point)
-            L_xy_rb_numpy = np.array([P_food_in_rb[0], P_food_in_rb[1]])
-
-            if np.linalg.norm(L_xy_rb_numpy) < self.EPSILON:
-                self.logger.info(
-                    f"[{self.name}] Food origin too close to robot base. No alignment rotation applied."
-                )
-            else:
-                desired_global_approach_yaw_rb = math.atan2(
-                    L_xy_rb_numpy[1], L_xy_rb_numpy[0]
-                )
-
-                X_axis_in_food_frame = np.array([1.0, 0.0, 0.0])
-                X_axis_in_rb_frame = R_world_food_initial.apply(X_axis_in_food_frame)
-                X_axis_xy_in_rb_frame = np.array(
-                    [X_axis_in_rb_frame[0], X_axis_in_rb_frame[1]]
-                )
-
-                if np.linalg.norm(X_axis_xy_in_rb_frame) < self.EPSILON:
-                    self.logger.warn(
-                        f"[{self.name}] Food frame X-axis has no projection in robot base XY plane. Cannot align."
-                    )
-                else:
-                    current_food_x_yaw_rb = math.atan2(
-                        X_axis_xy_in_rb_frame[1], X_axis_xy_in_rb_frame[0]
-                    )
-                    delta_psi_food_z = self._normalize_angle(
-                        desired_global_approach_yaw_rb - current_food_x_yaw_rb
-                    )
-
-                    self.logger.info(
-                        f"[{self.name}] Applying alignment rotation of {math.degrees(delta_psi_food_z):.1f} deg to food frame."
-                    )
-                    R_correction_z = R.from_euler("z", delta_psi_food_z)
-
-        # --- Final Transform Calculation ---
-        R_world_food_final = R_world_food_initial * R_correction_z
-
         # Convert to TransformStamped
         world_to_food_transform.transform.translation.x = center.point.x
         world_to_food_transform.transform.translation.y = center.point.y
         world_to_food_transform.transform.translation.z = center.point.z
 
-        final_quat_xyzw = R_world_food_final.as_quat()
-        world_to_food_transform.transform.rotation = Quaternion(
-            x=final_quat_xyzw[0],
-            y=final_quat_xyzw[1],
-            z=final_quat_xyzw[2],
-            w=final_quat_xyzw[3],
+        x_unit = Vector3Stamped()
+        x_unit.vector.x = 1.0
+        world_to_food_transform.transform.rotation = quat_between_vectors(
+            x_unit.vector, x_pos.vector
         )
 
         # # If you need to send a fixed food frame to the robot arm, e.g., to
