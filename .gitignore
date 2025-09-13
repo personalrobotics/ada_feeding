@@ -92,6 +92,10 @@ ada_feeding/scripts/e2e_benchmark_output/
 ada_feeding/scripts/holistic_benchmark_output/
 ada_feeding/scripts/manifold_data/
 ada_feeding/scripts/visualization_output/
+ada_feeding/ada_feeding/articutool_benchmark/*.html
+ada_feeding/ada_feeding/articutool_benchmark/*.pdf
+ada_feeding/ada_feeding/articutool_benchmark/results/
+ada_feeding/ada_feeding/articutool_benchmark/visualization_output/
 
 # Ignore specific generated files in the scripts directory
 ada_feeding/scripts/camera_poses.json
