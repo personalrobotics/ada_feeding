@@ -33,6 +33,7 @@ from ada_feeding.behaviors.acquisition import (
     ComputeFoodFrame,
     ComputeActionConstraints,
     ComputeActionTwist,
+    ConditionallyRotateFoodFrame,
 )
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2JointConstraint,
@@ -399,7 +400,7 @@ class AcquireFoodTree(MoveToTree):
                                 "action_select_request": BlackboardKey(
                                     "action_request"
                                 ),
-                                "food_frame": None,
+                                "food_frame": BlackboardKey("initial_food_frame"),
                             },
                         ),
                     ),
@@ -442,8 +443,24 @@ class AcquireFoodTree(MoveToTree):
                                 "ext_thresh": BlackboardKey("ext_thresh"),
                                 "action": BlackboardKey("action"),
                                 "action_index": BlackboardKey("action_index"),
+                                "should_align_to_base": BlackboardKey(
+                                    "should_align_to_base"
+                                ),
                             },
                         ),
+                    ),
+                    ConditionallyRotateFoodFrame(
+                        name="ConditionallyRotateFoodFrame",
+                        ns=name,
+                        inputs={
+                            "initial_food_frame": BlackboardKey("initial_food_frame"),
+                            "should_align_to_base": BlackboardKey(
+                                "should_align_to_base"
+                            ),
+                        },
+                        outputs={
+                            "food_frame_updated": BlackboardKey("final_food_frame"),
+                        },
                     ),
                     # Re-Tare FT Sensor and default to 4N threshold
                     pre_moveto_config(name="PreAcquireFTTare"),

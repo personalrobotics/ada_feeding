@@ -63,3 +63,7 @@ builtin_interfaces/Duration ext_duration
 # Extraction Force/Torque Thresholds
 float64 ext_force
 float64 ext_torque
+
+# Determines if the food_frame should be rotated to align its X-axis
+# with the robot's approach vector.
+bool align_to_robot_base

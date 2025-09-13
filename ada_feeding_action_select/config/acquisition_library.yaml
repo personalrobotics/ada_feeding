@@ -40,6 +40,7 @@ actions:
   - -0.7071068
   - 0.0
   pre_torque: 4.0
+  align_to_robot_base: True
 - ext_angular:
   - 0.0
   - 0.0

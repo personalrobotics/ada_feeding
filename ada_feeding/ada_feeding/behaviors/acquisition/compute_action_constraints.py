@@ -93,6 +93,7 @@ class ComputeActionConstraints(BlackboardBehavior):
         ext_thresh: Optional[BlackboardKey],  # SetParameters.Request
         action: Optional[BlackboardKey],  # AcquisitionSchema.msg
         action_index: Optional[BlackboardKey],  # int
+        should_align_to_base: Optional[BlackboardKey],
     ) -> None:
         """
         Blackboard Outputs
@@ -204,6 +205,10 @@ class ComputeActionConstraints(BlackboardBehavior):
             self.blackboard_set(
                 "ext_thresh",
                 create_ft_thresh_request(action.ext_force, action.ext_torque),
+            )
+            self.blackboard_set("should_align_to_base", action.align_to_robot_base)
+            self.logger.info(
+                f"[{self.name}] Set 'should_align_to_base' flag to: {action.align_to_robot_base}"
             )
 
             ### Final write to Blackboard

@@ -117,6 +117,8 @@ def get_action_library(
         schema.ext_force = element["ext_force"]
         schema.ext_torque = element["ext_torque"]
 
+        schema.align_to_robot_base = bool(element.get("align_to_robot_base", False))
+
         library.append(schema)
 
     return library
