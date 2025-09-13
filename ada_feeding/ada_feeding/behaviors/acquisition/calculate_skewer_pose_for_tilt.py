@@ -15,12 +15,6 @@ import pinocchio as pin
 from ada_feeding.behaviors import BlackboardBehavior
 from ada_feeding.helpers import BlackboardKey
 
-# Import benchmark constants for physical limits
-from ada_feeding.articutool_benchmark.feeding_benchmark import (
-    kinematics,
-    constants as benchmark_constants,
-)
-
 
 def calculate_skewer_angle_from_pose(
     tool_tip_pose_world: Pose, food_frame_pose_world: Pose, logger
@@ -182,8 +176,8 @@ class CalculateSkewerPoseForTilt(BlackboardBehavior):
             static_wrist_to_tip = self._get_relative_transform(
                 kin_model,
                 kin_data,
-                benchmark_constants.END_EFFECTOR_LINK_JACO,
-                benchmark_constants.END_EFFECTOR_LINK_ATOOL,
+                "j2n6s200_end_effector",
+                "tool_tip",
                 [0.0, 0.0],
                 atool_joint_names,
             )
@@ -217,13 +211,7 @@ class CalculateSkewerPoseForTilt(BlackboardBehavior):
                 f"Required Atool Pitch: {np.rad2deg(required_atool_pitch):.1f} deg"
             )
 
-            if not (
-                benchmark_constants.ARTICUTOOL_PITCH_LIMITS_RAD[0]
-                - benchmark_constants.EPSILON
-                <= required_atool_pitch
-                <= benchmark_constants.ARTICUTOOL_PITCH_LIMITS_RAD[1]
-                + benchmark_constants.EPSILON
-            ):
+            if not (-np.pi / 2 - 0.001 <= required_atool_pitch <= np.pi / 2 + 0.001):
                 self.feedback_message = "Required Articutool pitch is out of limits."
                 self.logger.warning(f"[{self.name}] {self.feedback_message}")
                 return Status.FAILURE
@@ -232,8 +220,8 @@ class CalculateSkewerPoseForTilt(BlackboardBehavior):
             T_wrist_tip = self._get_relative_transform(
                 kin_model,
                 kin_data,
-                benchmark_constants.END_EFFECTOR_LINK_JACO,
-                benchmark_constants.END_EFFECTOR_LINK_ATOOL,
+                "j2n6s200_end_effector",
+                "tool_tip",
                 atool_config,
                 atool_joint_names,
             )

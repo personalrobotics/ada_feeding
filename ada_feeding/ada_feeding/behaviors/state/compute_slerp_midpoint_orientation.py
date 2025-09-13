@@ -27,9 +27,6 @@ import rclpy.node
 from ada_feeding.behaviors import BlackboardBehavior
 from ada_feeding.helpers import BlackboardKey
 
-# Import the benchmark's PinocchioModel to perform FK
-from ada_feeding.articutool_benchmark.feeding_benchmark.kinematics import PinocchioModel
-
 
 class ComputeSlerpMidpointOrientation(BlackboardBehavior):
     """
