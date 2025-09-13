@@ -42,8 +42,14 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2PositionOffsetConstraint,
     MoveIt2Plan,
     MoveIt2Execute,
+    MoveIt2ComputeFK,
     ServoMove,
     ToggleCollisionObject,
+)
+from ada_feeding.behaviors.ros import (
+    ComputeSlerpMidpointOrientation,
+    ExtractPoseFromPosesByLink,
+    GetJointStates,
 )
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
@@ -95,7 +101,7 @@ class AcquireFoodTree(MoveToTree):
         pickle_goal_path: Optional[str] = None,
         allowed_planning_time_for_move_above: float = 0.5,
         allowed_planning_time_for_move_into: float = 0.5,
-        allowed_planning_time_to_resting_configuration: float = 0.5,
+        allowed_planning_time_to_resting_configuration: float = 10.0,
         allowed_planning_time_for_recovery: float = 0.5,
     ):
         """
@@ -192,6 +198,109 @@ class AcquireFoodTree(MoveToTree):
                             # Default fail if service is down
                             wait_for_server_timeout_sec=0.0,
                         ),
+                        # 1. Get the current joint state for the Jaco arm
+                        GetJointStates(
+                            name="GetJacoStartState",
+                            ns=name,
+                            node=self._node,
+                            inputs={
+                                "joint_names": [
+                                    "j2n6s200_joint_1",
+                                    "j2n6s200_joint_2",
+                                    "j2n6s200_joint_3",
+                                    "j2n6s200_joint_4",
+                                    "j2n6s200_joint_5",
+                                    "j2n6s200_joint_6",
+                                ]
+                            },
+                            outputs={
+                                "joint_state": BlackboardKey("current_jaco_joint_state")
+                            },
+                        ),
+                        # 2. Use FK to calculate the current EE pose
+                        MoveIt2ComputeFK(
+                            name="GetStartEEPose",
+                            ns=name,
+                            inputs={
+                                "joint_state": BlackboardKey(
+                                    "current_jaco_joint_state"
+                                ),
+                                "fk_link_names": ["forkTip"],
+                            },
+                            outputs={
+                                "fk_poses": BlackboardKey("start_ee_fk_poses"),
+                                "success": None,
+                            },
+                        ),
+                        ExtractPoseFromPosesByLink(
+                            name="ExtractStartEEPose",
+                            ns=name,
+                            inputs={
+                                "fk_poses": BlackboardKey("start_ee_fk_poses"),
+                                "target_link_name": "forkTip",
+                                "requested_link_names": ["forkTip"],
+                            },
+                            outputs={
+                                "extracted_pose": BlackboardKey("start_ee_pose"),
+                                "success": None,
+                            },
+                        ),
+                        MoveIt2ComputeFK(
+                            name="GetGoalEEPose",
+                            ns=name,
+                            inputs={
+                                "joint_state": self.resting_joint_positions,
+                                "fk_link_names": ["forkTip"],
+                            },
+                            outputs={
+                                "fk_poses": BlackboardKey("goal_ee_fk_poses"),
+                                "success": None,
+                            },
+                        ),
+                        ExtractPoseFromPosesByLink(
+                            name="ExtractGoalEEPose",
+                            ns=name,
+                            inputs={
+                                "fk_poses": BlackboardKey("goal_ee_fk_poses"),
+                                "target_link_name": "forkTip",
+                                "requested_link_names": ["forkTip"],
+                            },
+                            outputs={
+                                "extracted_pose": BlackboardKey("goal_ee_pose"),
+                                "success": None,
+                            },
+                        ),
+                        # 4. Compute the SLERP midpoint using the calculated poses
+                        ComputeSlerpMidpointOrientation(
+                            name="CalculateRestingPathConstraint",
+                            ns=name,
+                            inputs={
+                                "start_ee_pose": BlackboardKey("start_ee_pose"),
+                                "goal_ee_pose": BlackboardKey("goal_ee_pose"),
+                            },
+                            outputs={
+                                "midpoint_orientation_quaternion": BlackboardKey(
+                                    "path_constraint_quat"
+                                ),
+                                "path_constraint_tolerance": BlackboardKey(
+                                    "path_constraint_tol"
+                                ),
+                            },
+                        ),
+                        # Create the MoveIt2 orientation constraint message
+                        MoveIt2OrientationConstraint(
+                            name="CreateRestingPathConstraintMsg",
+                            ns=name,
+                            inputs={
+                                "quat_xyzw": BlackboardKey("path_constraint_quat"),
+                                "tolerance": BlackboardKey("path_constraint_tol"),
+                            },
+                            outputs={
+                                "constraints": BlackboardKey(
+                                    "resting_path_constraints"
+                                ),
+                            },
+                        ),
                         MoveIt2JointConstraint(
                             name="RestingConstraint",
                             ns=name,
@@ -213,6 +322,9 @@ class AcquireFoodTree(MoveToTree):
                                 inputs={
                                     "goal_constraints": BlackboardKey(
                                         "goal_constraints"
+                                    ),
+                                    "path_constraints": BlackboardKey(
+                                        "resting_path_constraints"
                                     ),
                                     "max_velocity_scale": self.max_velocity_scaling_to_resting_configuration,
                                     "max_acceleration_scale": self.max_acceleration_scaling_to_resting_configuration,

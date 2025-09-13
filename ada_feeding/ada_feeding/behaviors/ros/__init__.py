@@ -4,6 +4,7 @@
 """
 This package contains custom py_tree behaviors for interacting with ROS.
 """
+
 from .msgs import (
     UpdateTimestamp,
     CreatePoseStamped,
@@ -17,3 +18,6 @@ from .tf import (
 from .time import (
     TrackHz,
 )
+from .compute_slerp_midpoint_orientation import ComputeSlerpMidpointOrientation
+from .get_joint_states import GetJointStates
+from .extract_pose_from_poses_by_link import ExtractPoseFromPosesByLink

@@ -4,6 +4,7 @@
 """
 This subpackage contains custom py_tree behaviors for MoveIt2
 """
+
 # Planning, execution, and constraints
 from .moveit2_plan import MoveIt2Plan, MoveIt2ConstraintType
 from .moveit2_execute import MoveIt2Execute
@@ -14,6 +15,7 @@ from .moveit2_constraints import (
     MoveIt2OrientationConstraint,
     MoveIt2PoseConstraint,
 )
+from .moveit2_compute_fk import MoveIt2ComputeFK
 from .servo_move import ServoMove
 
 # Modifying the planning scene
