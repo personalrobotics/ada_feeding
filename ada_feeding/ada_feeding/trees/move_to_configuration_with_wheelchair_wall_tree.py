@@ -24,8 +24,14 @@ from rclpy.node import Node
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2Plan,
     MoveIt2Execute,
+    MoveIt2ComputeFK,
     MoveIt2JointConstraint,
     MoveIt2OrientationConstraint,
+)
+from ada_feeding.behaviors.ros import (
+    GetJointStates,
+    ExtractPoseFromPosesByLink,
+    ComputeSlerpMidpointOrientation,
 )
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
@@ -128,6 +134,106 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                 },
             ),
         ]
+        dynamic_path_constraint_sequence = [
+            # 1. Get the current joint state for the Jaco arm
+            GetJointStates(
+                name="GetJacoStartState",
+                ns=name,
+                node=self._node,
+                inputs={
+                    "joint_names": [
+                        "j2n6s200_joint_1",
+                        "j2n6s200_joint_2",
+                        "j2n6s200_joint_3",
+                        "j2n6s200_joint_4",
+                        "j2n6s200_joint_5",
+                        "j2n6s200_joint_6",
+                    ]
+                },
+                outputs={
+                    "joint_state": BlackboardKey("current_jaco_joint_state"),
+                    "joint_positions": None,
+                    "joint_names": None,
+                },
+            ),
+            # 2. Use FK to calculate the current EE pose
+            MoveIt2ComputeFK(
+                name="GetStartEEPose",
+                ns=name,
+                inputs={
+                    "joint_state": BlackboardKey("current_jaco_joint_state"),
+                    "fk_link_names": ["forkTip"],
+                },
+                outputs={
+                    "fk_poses": BlackboardKey("start_ee_fk_poses"),
+                    "success": None,
+                },
+            ),
+            ExtractPoseFromPosesByLink(
+                name="ExtractStartEEPose",
+                ns=name,
+                inputs={
+                    "fk_poses": BlackboardKey("start_ee_fk_poses"),
+                    "target_link_name": "forkTip",
+                    "requested_link_names": ["forkTip"],
+                },
+                outputs={
+                    "extracted_pose": BlackboardKey("start_ee_pose"),
+                    "success": None,
+                },
+            ),
+            # 3. Use FK to calculate the goal EE pose
+            MoveIt2ComputeFK(
+                name="GetGoalEEPose",
+                ns=name,
+                inputs={
+                    "joint_state": self.goal_configuration,
+                    "fk_link_names": ["forkTip"],
+                },
+                outputs={
+                    "fk_poses": BlackboardKey("goal_ee_fk_poses"),
+                    "success": None,
+                },
+            ),
+            ExtractPoseFromPosesByLink(
+                name="ExtractGoalEEPose",
+                ns=name,
+                inputs={
+                    "fk_poses": BlackboardKey("goal_ee_fk_poses"),
+                    "target_link_name": "forkTip",
+                    "requested_link_names": ["forkTip"],
+                },
+                outputs={
+                    "extracted_pose": BlackboardKey("goal_ee_pose"),
+                    "success": None,
+                },
+            ),
+            # 4. Compute the SLERP midpoint using the calculated poses
+            ComputeSlerpMidpointOrientation(
+                name="CalculateStagingPathConstraint",
+                ns=name,
+                inputs={
+                    "start_ee_pose": BlackboardKey("start_ee_pose"),
+                    "goal_ee_pose": BlackboardKey("goal_ee_pose"),
+                },
+                outputs={
+                    "midpoint_orientation_quaternion": BlackboardKey(
+                        "path_constraint_quat"
+                    ),
+                    "path_constraint_tolerance": BlackboardKey("path_constraint_tol"),
+                },
+            ),
+            # 5. Create the MoveIt2 orientation constraint message
+            MoveIt2OrientationConstraint(
+                name="CreateStagingPathConstraintMsg",
+                ns=name,
+                inputs={
+                    "quat_xyzw": BlackboardKey("path_constraint_quat"),
+                    "tolerance": BlackboardKey("path_constraint_tol"),
+                },
+                outputs={"constraints": BlackboardKey("path_constraints")},
+            ),
+        ]
         if self.orientation_constraint_quaternion is not None:
             constraints.append(
                 # Orientation path constraint to keep the fork straight
@@ -170,6 +276,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                     ),
                     # Move to the staging configuration
                     workers=constraints
+                    + dynamic_path_constraint_sequence
                     + [
                         # Plan
                         py_trees.decorators.Timeout(
