@@ -91,6 +91,7 @@ class ComputeActionConstraints(BlackboardBehavior):
         approach_thresh: Optional[BlackboardKey],  # SetParameters.Request
         grasp_thresh: Optional[BlackboardKey],  # SetParameters.Request
         ext_thresh: Optional[BlackboardKey],  # SetParameters.Request
+        retract_thresh: Optional[BlackboardKey],  # SetParameters.Request
         action: Optional[BlackboardKey],  # AcquisitionSchema.msg
         action_index: Optional[BlackboardKey],  # int
         pre_move_into_primitive_name: Optional[BlackboardKey],
@@ -216,6 +217,10 @@ class ComputeActionConstraints(BlackboardBehavior):
                 "ext_thresh",
                 create_ft_thresh_request(action.ext_force, action.ext_torque),
             )
+            self.blackboard_set(
+                "retract_thresh",
+                create_ft_thresh_request(action.retract_force, action.retract_torque),
+            )
 
             # Pre-Move-Into Primitive
             # pre_move_into_name = (
@@ -288,6 +293,7 @@ class ComputeActionTwist(BlackboardBehavior):
         self,
         action: Union[BlackboardKey, AcquisitionSchema],
         is_grasp: Union[BlackboardKey, bool] = True,
+        is_retract: Union[BlackboardKey, bool] = False,
         approach_frame_id: Union[BlackboardKey, str] = "approach",
         group_name: Union[BlackboardKey, str] = "jaco_arm_with_articutool",
     ) -> None:
@@ -358,17 +364,24 @@ class ComputeActionTwist(BlackboardBehavior):
         # Docstring copied from @override
 
         # Input Validation
-        if not self.blackboard_exists(["action", "is_grasp", "approach_frame_id"]):
+        if not self.blackboard_exists(
+            ["action", "is_grasp", "is_retract", "approach_frame_id"]
+        ):
             self.logger.error("Missing AcquisitionSchema action")
             return py_trees.common.Status.FAILURE
         action = self.blackboard_get("action")
         linear = action.ext_linear
         angular = action.ext_angular
         duration = action.ext_duration
-        if self.blackboard_get("is_grasp"):
-            linear = action.grasp_linear
-            angular = action.grasp_angular
-            duration = action.grasp_duration
+        if self.blackboard_get("is_retract"):
+            linear = action.retract_linear
+            angular = action.retract_angular
+            duration = action.retract_duration
+        else:
+            if self.blackboard_get("is_grasp"):
+                linear = action.grasp_linear
+                angular = action.grasp_angular
+                duration = action.grasp_duration
         approach_frame_id = self.blackboard_get("approach_frame_id")
 
         ### Lock used objects

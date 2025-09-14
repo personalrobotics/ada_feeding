@@ -117,6 +117,22 @@ def get_action_library(
         schema.ext_force = element["ext_force"]
         schema.ext_torque = element["ext_torque"]
 
+        # Retract
+        schema.retract_linear.x = element.get("retract_linear", [0.0, 0.0, 0.0])[0]
+        schema.retract_linear.y = element.get("retract_linear", [0.0, 0.0, 0.0])[1]
+        schema.retract_linear.z = element.get("retract_linear", [0.0, 0.0, 0.0])[2]
+        schema.retract_angular.x = element.get("retract_angular", [0.0, 0.0, 0.0])[0]
+        schema.retract_angular.y = element.get("retract_angular", [0.0, 0.0, 0.0])[1]
+        schema.retract_angular.z = element.get("retract_angular", [0.0, 0.0, 0.0])[2]
+
+        retract_duration_val = float(element.get("retract_duration", 0.0))
+        schema.retract_duration.sec = int(retract_duration_val)
+        decimal = retract_duration_val - schema.retract_duration.sec
+        schema.retract_duration.nanosec = int((decimal * 10**9) % 10**9)
+
+        schema.retract_force = float(element.get("retract_force", 0.0))
+        schema.retract_torque = float(element.get("retract_torque", 0.0))
+
         schema.pre_move_into_primitive_name = str(
             element.get("pre_move_into_primitive_name", "NONE")
         )

@@ -546,9 +546,54 @@ class AcquireFoodTree(MoveToTree):
             ],  # End RecoverySequence.children
         )  # End RecoverySequence
 
+        def post_retract_sequence() -> py_trees.behaviour.Behaviour:
+            return py_trees.composites.Sequence(
+                name="PostRetractSequence",
+                memory=True,
+                children=[
+                    SwitchArticutoolControllers(
+                        name="SwitchArticutoolToVelocity",
+                        ns=name,
+                        inputs={
+                            "controllers_to_activate": ["velocity_controller"],
+                            "controllers_to_deactivate": [
+                                "joint_trajectory_controller"
+                            ],
+                        },
+                        outputs={
+                            "switch_call_succeeded": None,
+                            "switch_response_ok": None,
+                        },
+                    ),
+                    ExecuteNamedPrimitive(
+                        name="RunPostAcquisitionPrimitive",
+                        ns=name,
+                        inputs={
+                            "primitive_name": BlackboardKey(
+                                "post_acquisition_action_name"
+                            ),
+                            "primitive_params": BlackboardKey(
+                                "post_acquisition_action_params"
+                            ),
+                        },
+                        outputs={
+                            "primitive_status": None,
+                        },
+                    ),
+                    CallSetOrientationControl(
+                        name="SetArticutoolOrientation",
+                        ns=name,
+                        inputs={
+                            "control_mode": 1,
+                        },
+                        outputs={},
+                    ),
+                ],
+            )
+
         def post_acquisition_sequence() -> py_trees.behaviour.Behaviour:
             return py_trees.composites.Sequence(
-                name="PreAcquisitionSequence",
+                name="PostAcquisitionSequence",
                 memory=True,
                 children=[
                     CallSetOrientationControl(
@@ -690,43 +735,6 @@ class AcquireFoodTree(MoveToTree):
                             "action_status": BlackboardKey("tool_action_status"),
                         },
                     ),
-                    SwitchArticutoolControllers(
-                        name="SwitchArticutoolToVelocity",
-                        ns=name,
-                        inputs={
-                            "controllers_to_activate": ["velocity_controller"],
-                            "controllers_to_deactivate": [
-                                "joint_trajectory_controller"
-                            ],
-                        },
-                        outputs={
-                            "switch_call_succeeded": None,
-                            "switch_response_ok": None,
-                        },
-                    ),
-                    ExecuteNamedPrimitive(
-                        name="RunPostAcquisitionPrimitive",
-                        ns=name,
-                        inputs={
-                            "primitive_name": BlackboardKey(
-                                "post_acquisition_action_name"
-                            ),
-                            "primitive_params": BlackboardKey(
-                                "post_acquisition_action_params"
-                            ),
-                        },
-                        outputs={
-                            "primitive_status": None,
-                        },
-                    ),
-                    CallSetOrientationControl(
-                        name="SetArticutoolOrientation",
-                        ns=name,
-                        inputs={
-                            "control_mode": 1,
-                        },
-                        outputs={},
-                    ),
                 ],
             )
 
@@ -805,6 +813,7 @@ class AcquireFoodTree(MoveToTree):
                                 "approach_thresh": BlackboardKey("approach_thresh"),
                                 "grasp_thresh": BlackboardKey("grasp_thresh"),
                                 "ext_thresh": BlackboardKey("ext_thresh"),
+                                "retract_thresh": BlackboardKey("retract_thresh"),
                                 "action": BlackboardKey("action"),
                                 "action_index": BlackboardKey("action_index"),
                                 "pre_move_into_primitive_name": BlackboardKey(
@@ -1466,9 +1475,7 @@ class AcquireFoodTree(MoveToTree):
                                                     ),
                                                     "group_name": "jaco_arm",
                                                 },
-                                                outputs={
-                                                    "error_code": None,
-                                                },
+                                                outputs={},
                                             ),
                                         ),
                                         CallSetOrientationControl(
@@ -1591,6 +1598,7 @@ class AcquireFoodTree(MoveToTree):
                                                                             "action"
                                                                         ),
                                                                         "is_grasp": True,
+                                                                        "is_retract": False,
                                                                     },
                                                                     outputs={
                                                                         "twist": BlackboardKey(
@@ -1624,6 +1632,7 @@ class AcquireFoodTree(MoveToTree):
                                                                             "action"
                                                                         ),
                                                                         "is_grasp": False,
+                                                                        "is_retract": False,
                                                                     },
                                                                     outputs={
                                                                         "twist": BlackboardKey(
@@ -1689,6 +1698,80 @@ class AcquireFoodTree(MoveToTree):
                                                                 ft_thresh_satisfied(
                                                                     name="CheckFTForkOffPlate"
                                                                 ),
+                                                                post_acquisition_sequence(),
+                                                                ### Retract
+                                                                retry_call_ros_service(
+                                                                    name="RetractFTThresh",
+                                                                    service_type=SetParameters,
+                                                                    service_name="~/set_cartesian_controller_parameters",
+                                                                    # Blackboard, not Constant
+                                                                    request=None,
+                                                                    # Need absolute Blackboard name
+                                                                    key_request=Blackboard.separator.join(
+                                                                        [
+                                                                            name,
+                                                                            BlackboardKey(
+                                                                                "retract_thresh"
+                                                                            ),
+                                                                        ]
+                                                                    ),
+                                                                    key_response=Blackboard.separator.join(
+                                                                        [
+                                                                            name,
+                                                                            BlackboardKey(
+                                                                                "ft_response"
+                                                                            ),
+                                                                        ]
+                                                                    ),
+                                                                    response_checks=[
+                                                                        py_trees.common.ComparisonExpression(
+                                                                            variable=Blackboard.separator.join(
+                                                                                [
+                                                                                    name,
+                                                                                    BlackboardKey(
+                                                                                        "ft_response"
+                                                                                    ),
+                                                                                ]
+                                                                            ),
+                                                                            value=SetParameters.Response(),  # Unused
+                                                                            operator=set_parameter_response_all_success,
+                                                                        )
+                                                                    ],
+                                                                ),
+                                                                ComputeActionTwist(
+                                                                    name="ComputeRetract",
+                                                                    ns=name,
+                                                                    inputs={
+                                                                        "action": BlackboardKey(
+                                                                            "action"
+                                                                        ),
+                                                                        "is_grasp": False,
+                                                                        "is_retract": True,
+                                                                    },
+                                                                    outputs={
+                                                                        "twist": BlackboardKey(
+                                                                            "twist"
+                                                                        ),
+                                                                        "duration": BlackboardKey(
+                                                                            "duration"
+                                                                        ),
+                                                                    },
+                                                                ),
+                                                                ServoMove(
+                                                                    name="RetractServo",
+                                                                    ns=name,
+                                                                    inputs={
+                                                                        "twist": BlackboardKey(
+                                                                            "twist"
+                                                                        ),
+                                                                        "duration": BlackboardKey(
+                                                                            "duration"
+                                                                        ),
+                                                                        "pub_topic": "~/cartesian_twist_cmds",
+                                                                        "servo_status_sub_topic": None,
+                                                                    },
+                                                                ),  # Auto Zero-Twist on terminate()
+                                                                post_retract_sequence(),
                                                             ],  # End InFoodGraspExtract.children
                                                         ),  # End InFoodGraspExtract
                                                         # recovery_tree,
@@ -1698,7 +1781,6 @@ class AcquireFoodTree(MoveToTree):
                                         ),  # End MoveIt2Servo
                                     ],  # End SafeFTPreempt.workers
                                 ),  # End SafeFTPreempt
-                                post_acquisition_sequence(),
                             ],  # End OctomapAndTableCollision.workers
                         ),  # OctomapAndTableCollision
                     ]

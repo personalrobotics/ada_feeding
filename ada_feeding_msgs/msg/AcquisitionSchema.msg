@@ -64,6 +64,19 @@ builtin_interfaces/Duration ext_duration
 float64 ext_force
 float64 ext_torque
 
+### Retract
+
+# Retract Twist
+# Linear (dX, dY, dZ) in *approach frame*
+geometry_msgs/Vector3 retract_linear
+# Angular (omegaX, omegaY, omegaZ) in *utensil frame*
+geometry_msgs/Vector3 retract_angular
+builtin_interfaces/Duration retract_duration
+
+# Retract Force/Torque Thresholds
+float64 retract_force
+float64 retract_torque
+
 # The name of the primitive to run *before* the MoveInto Cartesian push.
 # e.g., "TWIRL_CW" or "NONE".
 string pre_move_into_primitive_name
