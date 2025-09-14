@@ -44,7 +44,7 @@ class GenerateSkewerTiltCandidates(BlackboardBehavior):
         Initialize with the desired range of tilt angles in degrees.
         Format is (start, stop, step).
         """
-        self.tilt_range_deg = (0.0, 50.0, 5.0)
+        self.tilt_range_deg = (30.0, 50.0, 5.0)
 
     @override
     def update(self) -> Status:
