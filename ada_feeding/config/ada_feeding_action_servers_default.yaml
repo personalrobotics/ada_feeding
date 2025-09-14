@@ -228,7 +228,7 @@ ada_feeding_action_servers:
           max_velocity_scaling_factor_to_end_configuration: 1.0 # optional in (0.0, 1.0], default: 0.1.
           cartesian_jump_threshold_to_staging_configuration: 2.0 # If a jump for a joint across consecutive IK solutions is more than this factor greater than the average, it is rejected
           cartesian_max_step_to_staging_configuration: 0.01 # m
-          use_simple_presentation: False
+          use_simple_presentation: True
           simple_presentation_distance_m: 0.05
         tick_rate: 10 # Hz, optional, default: 30
 
