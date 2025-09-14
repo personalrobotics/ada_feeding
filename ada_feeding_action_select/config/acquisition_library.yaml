@@ -431,14 +431,14 @@ actions:
   ext_linear:
   - 0.0
   - 0.0
-  - 0.0025
-  ext_torque: 15.0
+  - 0.015
+  ext_torque: 4.0
   grasp_angular: [0.0, 0.0, 0.0]
   grasp_duration: 1.0
-  grasp_force: 70.0
-  grasp_linear: [0.02, 0.0, 0.0025]
-  grasp_torque: 15.0
-  pre_force: 20.0
+  grasp_force: 30.0
+  grasp_linear: [0.015, 0.0, 0.005]
+  grasp_torque: 4.0
+  pre_force: 10.0
   pre_offset:
   - 0.035
   - 0.0
@@ -457,8 +457,8 @@ actions:
   pre_move_into_primitive_params: []
   post_move_into_primitive_name: "NONE"
   post_move_into_primitive_params: []
-  post_acquisition_primitive_name: "NONE"
-  post_acquisition_primitive_params: []
+  post_acquisition_primitive_name: "VIBRATE_ROLL"
+  post_acquisition_primitive_params: [2.0, 0.5, 1.0] # [frequency_hz, amplitude_rad, duration_sec]
   align_to_robot_base: True
 # Tilted scoop (60 deg polar angle from vertical)
 - ext_angular:
