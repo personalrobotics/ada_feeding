@@ -49,7 +49,7 @@ class ComputeMouthFrame(BlackboardBehavior):
         world_frame: Union[BlackboardKey, str] = "root",  # +z will match this frame
         frame_to_orient_towards: Union[
             BlackboardKey, str
-        ] = "tool_tip",  # +x will point towards this frame
+        ] = "j2n6s200_end_effector",  # +x will point towards this frame
     ) -> None:
         """
         Blackboard Inputs
@@ -169,17 +169,27 @@ class ComputeMouthFrame(BlackboardBehavior):
                 f"Computed orientation target transform: {orientation_target_transform.transform}"
             )
 
-        # Get the yaw of the face frame
-        x_unit = Vector3(x=1.0, y=0.0, z=0.0)
-        x_pos = Vector3(
+        # Calculate the 3D vector from the mouth to the target frame
+        direction_vector = Vector3(
             x=orientation_target_transform.transform.translation.x
             - mouth_point.point.x,
             y=orientation_target_transform.transform.translation.y
             - mouth_point.point.y,
-            z=0.0,
+            z=orientation_target_transform.transform.translation.z
+            - mouth_point.point.z,
         )
-        self.logger.info(f"Computed x_pos: {x_pos}")
-        quat = quat_between_vectors(x_unit, x_pos)
+
+        # Project the vector onto the XY plane to ensure a level orientation (no pitch/roll)
+        # This creates the desired X-axis for the mouth frame.
+        level_x_axis = Vector3(x=direction_vector.x, y=direction_vector.y, z=0.0)
+        self.logger.info(f"Computed level X-axis: {level_x_axis}")
+
+        # The reference X-axis in the world frame
+        world_x_axis = Vector3(x=1.0, y=0.0, z=0.0)
+
+        # Calculate the quaternion that represents the rotation from the world's X-axis
+        # to our desired level X-axis. This is a pure yaw rotation.
+        quat = quat_between_vectors(world_x_axis, level_x_axis)
         self.logger.info(f"Computed orientation: {quat}")
 
         # Create return object

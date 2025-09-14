@@ -74,6 +74,8 @@ from ada_feeding.behaviors.articutool import (
 )
 from .activate_controller import ActivateControllerTree
 
+ARTICUTOOL_LENGTH = 0.266
+
 
 class MoveToMouthTree(MoveToTree):
     """
@@ -436,7 +438,8 @@ class MoveToMouthTree(MoveToTree):
                             ),
                             pose=Pose(
                                 position=Point(
-                                    x=self.plan_distance_from_mouth[0],
+                                    x=self.plan_distance_from_mouth[0]
+                                    + ARTICUTOOL_LENGTH,
                                     y=self.plan_distance_from_mouth[1],
                                     z=self.plan_distance_from_mouth[2],
                                 ),
