@@ -799,7 +799,6 @@ class AcquireFoodTree(MoveToTree):
                                     "action_response"
                                 ),
                                 "action": action,
-                                # Default move_above_dist_m = 0.05
                                 # Default food_frame_id = "food"
                                 # Default approach_frame_id = "approach"
                             },

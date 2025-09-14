@@ -125,6 +125,8 @@ def get_action_library(
         schema.retract_angular.y = element.get("retract_angular", [0.0, 0.0, 0.0])[1]
         schema.retract_angular.z = element.get("retract_angular", [0.0, 0.0, 0.0])[2]
 
+        schema.move_above_dist_m = float(element.get("move_above_dist_m", 0.05))
+
         retract_duration_val = float(element.get("retract_duration", 0.0))
         schema.retract_duration.sec = int(retract_duration_val)
         decimal = retract_duration_val - schema.retract_duration.sec

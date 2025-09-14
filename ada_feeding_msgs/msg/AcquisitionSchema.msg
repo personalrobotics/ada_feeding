@@ -77,6 +77,9 @@ builtin_interfaces/Duration retract_duration
 float64 retract_force
 float64 retract_torque
 
+# Standoff distance from the food origin along the pre_transform direction
+float64 move_above_dist_m
+
 # The name of the primitive to run *before* the MoveInto Cartesian push.
 # e.g., "TWIRL_CW" or "NONE".
 string pre_move_into_primitive_name

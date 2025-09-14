@@ -62,7 +62,6 @@ class ComputeActionConstraints(BlackboardBehavior):
     def blackboard_inputs(
         self,
         action_select_response: Union[BlackboardKey, AcquisitionSelect.Response],
-        move_above_dist_m: Union[BlackboardKey, float] = 0.05,
         food_frame_id: Union[BlackboardKey, str] = "food",
         approach_frame_id: Union[BlackboardKey, str] = "approach",
         action: Union[BlackboardKey, Optional[AcquisitionSchema]] = None,
@@ -73,7 +72,6 @@ class ComputeActionConstraints(BlackboardBehavior):
         Parameters
         ----------
         action_select_response: response from AcquisitionSelect.srv
-        move_above_dist_m: how far from the food to start
         food_frame_id: food frame defined in AcquisitionSchema.msg
         approach_frame_id: approach frame defined in AcquisitionSchema.msg
         action: which action has been chosen in the initial pi-symmetry break
@@ -175,11 +173,7 @@ class ComputeActionConstraints(BlackboardBehavior):
                     f"Malformed action pre_transform: {action.pre_transform.position}"
                 )
                 return py_trees.common.Status.FAILURE
-            position = (
-                position
-                * self.blackboard_get("move_above_dist_m")
-                / np.linalg.norm(position)
-            )
+            position = position * action.move_above_dist_m / np.linalg.norm(position)
             action.pre_transform.position = ros2_numpy.msgify(Point, position)
             self.blackboard_set("move_above_pose", action.pre_transform)
 
