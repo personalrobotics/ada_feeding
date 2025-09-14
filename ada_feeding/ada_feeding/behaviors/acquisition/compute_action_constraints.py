@@ -295,7 +295,7 @@ class ComputeActionTwist(BlackboardBehavior):
         is_grasp: Union[BlackboardKey, bool] = True,
         is_retract: Union[BlackboardKey, bool] = False,
         approach_frame_id: Union[BlackboardKey, str] = "approach",
-        group_name: Union[BlackboardKey, str] = "jaco_arm_with_articutool",
+        group_name: Union[BlackboardKey, str] = "jaco_arm",
     ) -> None:
         """
         Blackboard Inputs
