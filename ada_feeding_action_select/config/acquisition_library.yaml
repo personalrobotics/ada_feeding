@@ -441,7 +441,7 @@ actions:
   retract_force: 20.0
   retract_torque: 4.0
   retract_duration: 1.0
-  retract_linear: [-0.1, 0.0, 0.0]
+  retract_linear: [-0.075, 0.0, 0.0]
   retract_angular: [0.0, 0.0, 0.0]
   pre_force: 10.0
   pre_offset:
@@ -485,7 +485,7 @@ actions:
   retract_force: 20.0
   retract_torque: 4.0
   retract_duration: 1.0
-  retract_linear: [-0.1, 0.0, 0.0]
+  retract_linear: [-0.075, 0.0, 0.0]
   retract_angular: [0.0, 0.0, 0.0]
   pre_force: 10.0
   pre_offset:
