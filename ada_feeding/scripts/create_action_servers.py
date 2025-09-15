@@ -194,6 +194,9 @@ class CreateActionServers(Node):
             ),
         )
 
+        lock_joints = self.declare_parameter("lock_joints", False)
+        lock_joints_value = lock_joints.value
+
         # Read the custom parameter namespaces
         custom_namespaces = self.declare_parameter(
             "custom_namespaces",
@@ -347,15 +350,18 @@ class CreateActionServers(Node):
                             namespace=namespace,
                             full_name=full_name,
                         )
-                        self.parameters[namespace][
-                            full_name
-                        ] = CreateActionServers.get_parameter_value(custom_value)
+                        self.parameters[namespace][full_name] = (
+                            CreateActionServers.get_parameter_value(custom_value)
+                        )
                     if self.parameters[self.namespace_to_use][full_name] is not None:
                         tree_kwargs[kw] = self.parameters[self.namespace_to_use][
                             full_name
                         ]
                     else:
                         tree_kwargs[kw] = self.parameters[default_namespace][full_name]
+
+                if "lock_joints" in tree_kws.value:
+                    tree_kwargs["lock_joints"] = lock_joints_value
 
             action_server_params[server_name] = ActionServerParams(
                 server_name=server_name,
@@ -385,9 +391,9 @@ class CreateActionServers(Node):
                 namespace=namespace,
                 full_name=full_name,
             )
-            self.parameters[namespace][
-                full_name
-            ] = CreateActionServers.get_parameter_value(custom_value)
+            self.parameters[namespace][full_name] = (
+                CreateActionServers.get_parameter_value(custom_value)
+            )
 
     def set_namespace_to_use(
         self, namespace_to_use: str, create_if_not_exist: bool = False
@@ -1014,8 +1020,7 @@ class CreateActionServers(Node):
 
             goal_uuid = "".join(format(x, "02x") for x in goal_handle.goal_id.uuid)
             self.get_logger().info(
-                f"{server_name}: "
-                f"Executing goal {goal_uuid}"
+                f"{server_name}: Executing goal {goal_uuid}"
                 # f" with request {goal_handle.request}"
             )
 

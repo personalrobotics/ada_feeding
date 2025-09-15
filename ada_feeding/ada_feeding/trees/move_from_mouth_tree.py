@@ -99,6 +99,7 @@ class MoveFromMouthTree(MoveToTree):
         torque_threshold_to_staging_configuration: float = 1.0,
         force_threshold_to_end_configuration: float = 4.0,
         torque_threshold_to_end_configuration: float = 4.0,
+        lock_joints: bool = False,
     ):
         """
         Initializes tree-specific parameters.
@@ -224,6 +225,7 @@ class MoveFromMouthTree(MoveToTree):
         self.torque_threshold_to_end_configuration = (
             torque_threshold_to_end_configuration
         )
+        self.lock_joints = lock_joints
 
     @override
     def create_tree(

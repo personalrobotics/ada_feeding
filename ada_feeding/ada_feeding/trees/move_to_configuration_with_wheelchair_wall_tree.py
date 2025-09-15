@@ -77,6 +77,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
         max_velocity_scaling_factor: float = 0.1,
         force_threshold: float = 4.0,
         torque_threshold: float = 4.0,
+        lock_joints: bool = False,
     ):
         """
         Initializes tree-specific parameters.
@@ -115,6 +116,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
         self.force_threshold = force_threshold
         self.torque_threshold = torque_threshold
+        self.lock_joints = lock_joints
 
     @override
     def create_tree(

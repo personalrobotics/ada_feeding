@@ -121,6 +121,7 @@ class AcquireFoodTree(MoveToTree):
         allowed_planning_time_for_move_into: float = 3.0,
         allowed_planning_time_to_resting_configuration: float = 2.0,
         allowed_planning_time_for_recovery: float = 1.0,
+        lock_joints: bool = False,
     ):
         """
         Initializes tree-specific parameters.
@@ -161,6 +162,7 @@ class AcquireFoodTree(MoveToTree):
             allowed_planning_time_to_resting_configuration
         )
         self.allowed_planning_time_for_recovery = allowed_planning_time_for_recovery
+        self.lock_joints = lock_joints
 
     @override
     def create_tree(

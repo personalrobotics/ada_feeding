@@ -229,6 +229,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     f"policy:={args.policy} "
                     f"end_effector_tool:={args.end_effector_tool} "
                     f"action:={args.action} "
+                    f"lock_joints:={'true' if args.lock_joints else 'false'}"
                 ),
             ],
             "moveit": [
@@ -275,6 +276,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "run_real_sense:=false "
                     f"policy:={args.policy} "
                     f"action:={args.action} "
+                    f"lock_joints:={'true' if args.lock_joints else 'false'}"
                 ),
             ],
             "browser": [
@@ -354,7 +356,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy} "
                     f"end_effector_tool:={args.end_effector_tool} "
                     f"action:={args.action} "
-                    f"run_table_detection:={'false' if args.disable_table_detect else 'true'}"
+                    f"run_table_detection:={'false' if args.disable_table_detect else 'true'} "
+                    f"lock_joints:={'true' if args.lock_joints else 'false'}"
                 ),
             ],
             "browser": [

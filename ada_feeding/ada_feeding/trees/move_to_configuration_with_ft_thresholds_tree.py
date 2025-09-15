@@ -72,6 +72,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         t_z: float = 0.0,
         keys_to_not_write_to_blackboard: Set[str] = set(),
         clear_constraints: bool = True,
+        lock_joints: bool = False,
     ):
         """
         Initializes tree-specific parameters.
@@ -145,6 +146,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
 
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
         self.clear_constraints = clear_constraints
+        self.lock_joints = lock_joints
 
     @override
     def create_tree(
