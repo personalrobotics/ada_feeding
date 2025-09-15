@@ -71,6 +71,11 @@ parser.add_argument(
     help="If set, disables table detection.",
 )
 parser.add_argument(
+    "--lock_joints",
+    action="store_true",
+    help="If set, lock the Articutool joints so that they are set to fixed in the URDF",
+)
+parser.add_argument(
     "--real_domain_id",
     default=42,
     type=int,
@@ -228,7 +233,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             ],
             "moveit": [
                 "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock "
-                f"end_effector_tool:={args.end_effector_tool}"
+                f"end_effector_tool:={args.end_effector_tool} "
+                f"lock_joints:={'true' if args.lock_joints else 'false'}",
             ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
@@ -338,7 +344,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 # "export DISPLAY=:5" if not args.dev else "",
                 "ros2 launch ada_planning_scene ada_moveit_launch.xml "
                 f"use_rviz:={'true' if args.dev else 'false'} "
-                f"end_effector_tool:={args.end_effector_tool}",
+                f"end_effector_tool:={args.end_effector_tool} ",
+                f"lock_joints:={'true' if args.lock_joints else 'false'}",
             ],
             "feeding": [
                 # "sudo ./src/ada_feeding/configure_lovelace.sh",
