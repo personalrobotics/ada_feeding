@@ -51,6 +51,7 @@ class MoveIt2ComputeIK(BlackboardBehavior):
         self,
         target_pose: Union[BlackboardKey, PoseStamped],
         group_name: Union[BlackboardKey, str],
+        lock_joints: Union[BlackboardKey, bool],
         start_joint_state: Optional[Union[BlackboardKey, JointState]] = None,
         constraints: Optional[
             Union[BlackboardKey, List[Tuple[MoveIt2ConstraintType, Dict[str, Any]]]]
@@ -99,6 +100,7 @@ class MoveIt2ComputeIK(BlackboardBehavior):
         self.moveit2_obj: Optional[MoveIt2] = None
         self.moveit2_lock: Optional[Lock] = None
         self.ik_group_name: Optional[str] = None
+        self.lock_joints: Optional[bool] = self.blackboard_get("lock_joints")
 
         # Get group name from blackboard - needed to select the correct MoveIt2 instance
         try:
@@ -117,6 +119,7 @@ class MoveIt2ComputeIK(BlackboardBehavior):
                 blackboard=self.blackboard,
                 group_name=self.ik_group_name,
                 node=self.node,
+                lock_joints=self.lock_joints,
             )
             if self.moveit2_obj is None or self.moveit2_lock is None:
                 # Ensure setup fails completely if objects aren't retrieved

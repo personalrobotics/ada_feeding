@@ -290,6 +290,7 @@ class ComputeActionTwist(BlackboardBehavior):
         is_retract: Union[BlackboardKey, bool] = False,
         approach_frame_id: Union[BlackboardKey, str] = "approach",
         group_name: Union[BlackboardKey, str] = "jaco_arm",
+        lock_joints: Union[BlackboardKey, bool] = False,
     ) -> None:
         """
         Blackboard Inputs
@@ -341,6 +342,8 @@ class ComputeActionTwist(BlackboardBehavior):
         # Get group name from blackboard
         self.group_name = self.blackboard_get("group_name")
 
+        self.lock_joints = self.blackboard_get("lock_joints")
+
         # Get TF Listener from blackboard
         # For transform approach -> end_effector_frame
         self.tf_buffer, _, self.tf_lock = get_tf_object(self.blackboard, self.node)
@@ -351,6 +354,7 @@ class ComputeActionTwist(BlackboardBehavior):
             self.blackboard,
             self.node,
             self.group_name,
+            self.lock_joints,
         )
 
     @override

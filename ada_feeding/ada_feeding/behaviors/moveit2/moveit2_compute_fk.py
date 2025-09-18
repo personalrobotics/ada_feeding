@@ -45,6 +45,7 @@ class MoveIt2ComputeFK(BlackboardBehavior):
         group_name: Union[BlackboardKey, str],
         joint_state: Optional[Union[BlackboardKey, JointState, List[float]]] = None,
         fk_link_names: Optional[Union[BlackboardKey, List[str]]] = None,
+        lock_joints: Optional[Union[BlackboardKey, bool]] = False,
     ) -> None:
         """
         Blackboard Inputs
@@ -92,6 +93,7 @@ class MoveIt2ComputeFK(BlackboardBehavior):
         self.moveit2_obj: Optional[MoveIt2] = None
         self.moveit2_lock: Optional[Lock] = None
         self.fk_group_name: Optional[str] = None
+        self.lock_joints: Optional[bool] = self.blackboard_get("lock_joints")
 
         try:
             self.fk_group_name = self.blackboard_get("group_name")
@@ -107,6 +109,7 @@ class MoveIt2ComputeFK(BlackboardBehavior):
             self.moveit2_obj, self.moveit2_lock = get_moveit2_object(
                 blackboard=self.blackboard,
                 group_name=self.fk_group_name,
+                lock_joints=self.lock_joints,
                 node=self.node,
             )
             if self.moveit2_obj is None or self.moveit2_lock is None:
@@ -190,11 +193,11 @@ class MoveIt2ComputeFK(BlackboardBehavior):
                     f"with links: {fk_link_names_input or 'default EE'}."
                 )
 
-                result_poses: Optional[
-                    Union[PoseStamped, List[PoseStamped]]
-                ] = self.moveit2_obj.compute_fk(
-                    joint_state=joint_state_input,
-                    fk_link_names=fk_link_names_input,
+                result_poses: Optional[Union[PoseStamped, List[PoseStamped]]] = (
+                    self.moveit2_obj.compute_fk(
+                        joint_state=joint_state_input,
+                        fk_link_names=fk_link_names_input,
+                    )
                 )
 
                 # Determine success based on whether a result was returned

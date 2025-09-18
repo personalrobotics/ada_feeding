@@ -167,7 +167,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         turn_watchdog_listener_on_prefix = "turn_watchdog_listener_on"
 
         articutool_homing_sequence = []
-        if self.home_articutool_on_completion:
+        if self.home_articutool_on_completion and not self.lock_joints:
             articutool_homing_sequence = [
                 CallSetOrientationControl(
                     name="DisableArticutoolOrientation",
@@ -251,6 +251,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                             "max_velocity_scale": self.max_velocity_scaling_factor,
                             "max_acceleration_scale": self.max_acceleration_scaling_factor,
                             "group_name": "jaco_arm",
+                            "lock_joints": self.lock_joints,
                         },
                         outputs={"trajectory": BlackboardKey("trajectory")},
                     ),

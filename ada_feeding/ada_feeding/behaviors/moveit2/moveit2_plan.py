@@ -110,6 +110,7 @@ class MoveIt2Plan(BlackboardBehavior):
         ] = 10.0,  # np.sqrt(6.0) * np.pi,
         max_path_len_joint: Optional[Union[BlackboardKey, Dict[str, float]]] = None,
         group_name: Union[BlackboardKey, str] = "jaco_arm_with_articutool",
+        lock_joints: Union[BlackboardKey, bool] = False,
     ) -> None:
         """
         Blackboard Inputs
@@ -195,11 +196,14 @@ class MoveIt2Plan(BlackboardBehavior):
         # Get group name from blackboard
         self.group_name = self.blackboard_get("group_name")
 
+        self.lock_joints = self.blackboard_get("lock_joints")
+
         # Get the MoveIt2 object.
         self.moveit2, self.moveit2_lock = get_moveit2_object(
             self.blackboard,
             self.node,
             self.group_name,
+            self.lock_joints,
         )
 
         # Get TF Listener from blackboard
@@ -663,12 +667,16 @@ class MoveIt2Plan(BlackboardBehavior):
         tol = np.fabs(constraint_kwargs["tolerance"])
 
         t_stamped = self.tf_buffer.lookup_transform(
-            constraint_kwargs["frame_id"]
-            if constraint_kwargs["frame_id"] is not None
-            else self.moveit2.base_link_name,
-            constraint_kwargs["target_link"]
-            if constraint_kwargs["target_link"] is not None
-            else self.moveit2.end_effector_name,
+            (
+                constraint_kwargs["frame_id"]
+                if constraint_kwargs["frame_id"] is not None
+                else self.moveit2.base_link_name
+            ),
+            (
+                constraint_kwargs["target_link"]
+                if constraint_kwargs["target_link"] is not None
+                else self.moveit2.end_effector_name
+            ),
             rclpy.time.Time(),
         )
         current = ros2_numpy.numpify(t_stamped.transform.translation)
@@ -702,12 +710,16 @@ class MoveIt2Plan(BlackboardBehavior):
         tol = np.fabs(np.array(constraint_kwargs["tolerance"]) * np.ones(3))
 
         t_stamped = self.tf_buffer.lookup_transform(
-            constraint_kwargs["frame_id"]
-            if constraint_kwargs["frame_id"] is not None
-            else self.moveit2.base_link_name,
-            constraint_kwargs["target_link"]
-            if constraint_kwargs["target_link"] is not None
-            else self.moveit2.end_effector_name,
+            (
+                constraint_kwargs["frame_id"]
+                if constraint_kwargs["frame_id"] is not None
+                else self.moveit2.base_link_name
+            ),
+            (
+                constraint_kwargs["target_link"]
+                if constraint_kwargs["target_link"] is not None
+                else self.moveit2.end_effector_name
+            ),
             rclpy.time.Time(),
         )
         current = R.from_quat(list(ros2_numpy.numpify(t_stamped.transform.rotation)))
@@ -814,7 +826,7 @@ class MoveIt2Plan(BlackboardBehavior):
             os.mkdir(file_dir)
         filepath = os.path.join(
             file_dir,
-            f"{int(time.time()*10**9)}_{action_name}",
+            f"{int(time.time() * 10**9)}_{action_name}",
         )
 
         # Generate the CSV header
