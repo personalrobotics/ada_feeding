@@ -37,6 +37,7 @@ class ComputeSlerpMidpointOrientation(BlackboardBehavior):
         self,
         start_ee_pose: Union[BlackboardKey, Pose, PoseStamped],
         goal_ee_pose: Union[BlackboardKey, Pose, PoseStamped],
+        tolerance: Union[BlackboardKey, Tuple],
     ) -> None:
         """Define blackboard inputs."""
         super().blackboard_inputs(
@@ -142,7 +143,7 @@ class ComputeSlerpMidpointOrientation(BlackboardBehavior):
             R_midpoint = slerp(0.5)
 
             # --- 2. Validate Start and Goal Poses Against the New Constraint ---
-            benchmark_tolerance = (math.pi / 2, 2 * math.pi, math.pi / 4)
+            benchmark_tolerance = self.blackboard_get("tolerance")
             start_ok = self._check_and_log_pose(
                 "Start Pose", start_pose, R_midpoint, benchmark_tolerance
             )
