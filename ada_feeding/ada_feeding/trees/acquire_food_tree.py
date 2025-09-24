@@ -200,7 +200,7 @@ class AcquireFoodTree(MoveToTree):
                             name="GetStartEEPose",
                             ns=name,
                             inputs={
-                                "group_name": "jaco_arm_with_articutool",
+                                "group_name": "jaco_arm",
                                 "joint_state": BlackboardKey(
                                     "current_jaco_joint_state"
                                 ),
@@ -228,7 +228,7 @@ class AcquireFoodTree(MoveToTree):
                             name="GetGoalEEPose",
                             ns=name,
                             inputs={
-                                "group_name": "jaco_arm_with_articutool",
+                                "group_name": "jaco_arm",
                                 "joint_state": self.resting_joint_positions,
                                 "fk_link_names": ["tool_tip"],
                             },
@@ -314,7 +314,7 @@ class AcquireFoodTree(MoveToTree):
                                     "max_velocity_scale": self.max_velocity_scaling_to_resting_configuration,
                                     "max_acceleration_scale": self.max_acceleration_scaling_to_resting_configuration,
                                     "allowed_planning_time": self.allowed_planning_time_to_resting_configuration,
-                                    "group_name": "jaco_arm_with_articutool",
+                                    "group_name": "jaco_arm",
                                 },
                                 outputs={
                                     "trajectory": BlackboardKey("resting_trajectory")
@@ -326,7 +326,7 @@ class AcquireFoodTree(MoveToTree):
                             ns=name,
                             inputs={
                                 "trajectory": BlackboardKey("resting_trajectory"),
-                                "group_name": "jaco_arm_with_articutool",
+                                "group_name": "jaco_arm",
                             },
                             outputs={},
                         ),

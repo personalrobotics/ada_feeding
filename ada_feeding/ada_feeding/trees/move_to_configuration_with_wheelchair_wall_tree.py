@@ -169,7 +169,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                     name="GetStartEEPose",
                     ns=name,
                     inputs={
-                        "group_name": "jaco_arm_with_articutool",
+                        "group_name": "jaco_arm",
                         "joint_state": BlackboardKey("current_jaco_joint_state"),
                         "fk_link_names": ["tool_tip"],
                     },
@@ -196,7 +196,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                     name="GetGoalEEPose",
                     ns=name,
                     inputs={
-                        "group_name": "jaco_arm_with_articutool",
+                        "group_name": "jaco_arm",
                         "joint_state": self.goal_configuration,
                         "fk_link_names": ["tool_tip"],
                     },
@@ -375,7 +375,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                             "allowed_planning_time": self.allowed_planning_time,
                             "max_velocity_scale": self.max_velocity_scaling_factor,
                             "ignore_violated_path_constraints": False,
-                            "group_name": "jaco_arm_with_articutool",
+                            "group_name": "jaco_arm",
                         },
                         outputs={"trajectory": BlackboardKey("trajectory")},
                     ),
@@ -386,7 +386,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                     ns=name,
                     inputs={
                         "trajectory": BlackboardKey("trajectory"),
-                        "group_name": "jaco_arm_with_articutool",
+                        "group_name": "jaco_arm",
                     },
                     outputs={},
                 ),
