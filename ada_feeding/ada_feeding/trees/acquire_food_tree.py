@@ -160,7 +160,7 @@ class AcquireFoodTree(MoveToTree):
         self.allowed_planning_time_for_move_above = allowed_planning_time_for_move_above
         self.allowed_planning_time_for_move_into = allowed_planning_time_for_move_into
         self.allowed_planning_time_to_resting_configuration = (
-            allowed_planning_time_to_resting_configuration
+            allowed_planning_time_to_resting_configuration if not lock_joints else 15.0
         )
         self.allowed_planning_time_for_recovery = allowed_planning_time_for_recovery
         self.lock_joints = lock_joints
