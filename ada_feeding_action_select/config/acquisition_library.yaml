@@ -367,7 +367,7 @@ actions:
   grasp_duration: 1.0
   grasp_force: 30.0
   grasp_linear: [0.025, 0.0, 0.005]
-  grasp_torque: 4.0
+  grasp_torque: 10.0
   retract_force: 20.0
   retract_torque: 4.0
   retract_duration: 1.0
@@ -419,7 +419,7 @@ actions:
   retract_angular: [0.0, 0.0, 0.0]
   pre_force: 3.0
   pre_offset:
-  - 0.035
+  - 0.025
   - 0.0
   - 0.0
   pre_pos:
