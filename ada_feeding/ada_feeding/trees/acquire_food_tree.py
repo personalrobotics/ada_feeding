@@ -2031,6 +2031,29 @@ class AcquireFoodTree(MoveToTree):
                                                                         "servo_status_sub_topic": None,
                                                                     },
                                                                 ),  # Auto Zero-Twist on terminate()
+                                                                CallSetOrientationControl(
+                                                                    name="SetArticutoolOrientation",
+                                                                    ns=name,
+                                                                    inputs={
+                                                                        "control_mode": 0,
+                                                                    },
+                                                                    outputs={},
+                                                                ),
+                                                                ExecuteNamedPrimitive(
+                                                                    name="RunPostMoveIntoPrimitive",
+                                                                    ns=name,
+                                                                    inputs={
+                                                                        "primitive_name": BlackboardKey(
+                                                                            "post_move_into_action_name"
+                                                                        ),
+                                                                        "primitive_params": BlackboardKey(
+                                                                            "post_move_into_action_params"
+                                                                        ),
+                                                                    },
+                                                                    outputs={
+                                                                        "primitive_status": None,
+                                                                    },
+                                                                ),
                                                                 ### Extraction
                                                                 ComputeActionTwist(
                                                                     name="ComputeExtract",
@@ -2105,29 +2128,6 @@ class AcquireFoodTree(MoveToTree):
                                                                 ),  # Auto Zero-Twist on terminate()
                                                                 ft_thresh_satisfied(
                                                                     name="CheckFTForkOffPlate"
-                                                                ),
-                                                                CallSetOrientationControl(
-                                                                    name="SetArticutoolOrientation",
-                                                                    ns=name,
-                                                                    inputs={
-                                                                        "control_mode": 0,
-                                                                    },
-                                                                    outputs={},
-                                                                ),
-                                                                ExecuteNamedPrimitive(
-                                                                    name="RunPostMoveIntoPrimitive",
-                                                                    ns=name,
-                                                                    inputs={
-                                                                        "primitive_name": BlackboardKey(
-                                                                            "post_move_into_action_name"
-                                                                        ),
-                                                                        "primitive_params": BlackboardKey(
-                                                                            "post_move_into_action_params"
-                                                                        ),
-                                                                    },
-                                                                    outputs={
-                                                                        "primitive_status": None,
-                                                                    },
                                                                 ),
                                                                 post_acquisition_sequence(),
                                                                 ### Retract
