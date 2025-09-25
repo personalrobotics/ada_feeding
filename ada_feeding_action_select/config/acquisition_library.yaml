@@ -272,7 +272,7 @@ actions:
   ext_linear:
   - 0.0
   - 0.0
-  - 0.0
+  - 0.02
   ext_torque: 4.0
   grasp_angular:
   - 0.0
@@ -285,7 +285,7 @@ actions:
   - 0.0
   - 0.0
   grasp_torque: 4.0
-  pre_force: 20.0
+  pre_force: 5.0
   pre_offset:
   - 0.0
   - 0.0
@@ -299,7 +299,7 @@ actions:
   - 0.7071068
   - -0.7071068
   - 0.0
-  pre_torque: 4.0
+  pre_torque: 2.0
   pre_move_into_primitive_name: "TWIRL_CW"
   pre_move_into_primitive_params: [2.0, 3.0]
   post_move_into_primitive_name: "TWIRL_CCW"
