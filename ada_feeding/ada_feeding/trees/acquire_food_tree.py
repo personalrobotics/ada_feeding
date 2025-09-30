@@ -55,6 +55,7 @@ from ada_feeding.behaviors.moveit2 import (
 from ada_feeding.behaviors.state import (
     GetJointStates,
     ExtractPoseFromPosesByLink,
+    ExtractOrientationFromPose,
     CheckArticutoolPathDynamicFeasibility,
     LoadPinocchioModel,
     PublishPoseAsTf,
@@ -866,6 +867,38 @@ class AcquireFoodTree(MoveToTree):
                                 )
                             },
                         ),
+                        ExtractOrientationFromPose(
+                            name="ExtractLevelOrientation",
+                            ns=name,
+                            inputs={
+                                "input_pose": BlackboardKey("goal_level_pose"),
+                            },
+                            outputs={
+                                "output_orientation": BlackboardKey(
+                                    "level_orientation_quat"
+                                ),
+                            },
+                        ),
+                        # TODO: Refine these tolerances, they should be as tight as
+                        # possible while assuring that the tool tip does not spill
+                        # food when levelling
+                        MoveIt2OrientationConstraint(
+                            name="CreateLevelingPathConstraint",
+                            ns=name,
+                            inputs={
+                                "quat_xyzw": BlackboardKey("level_orientation_quat"),
+                                "tolerance": (
+                                    np.pi,
+                                    np.deg2rad(90.0),
+                                    np.deg2rad(45.0),
+                                ),
+                            },
+                            outputs={
+                                "constraints": BlackboardKey(
+                                    "leveling_path_constraints"
+                                ),
+                            },
+                        ),
                         # 5. Plan the Cartesian motion
                         MoveIt2Plan(
                             name="PlanToLevelTool",
@@ -875,6 +908,10 @@ class AcquireFoodTree(MoveToTree):
                                 "goal_constraints": BlackboardKey(
                                     "leveling_goal_constraints"
                                 ),
+                                "path_constraints": BlackboardKey(
+                                    "leveling_path_constraints"
+                                ),
+                                "target_link": "tool_tip",
                                 "lock_joints": self.lock_joints,
                                 "max_velocity_scale": self.max_velocity_scaling_move_into,
                                 "max_acceleration_scale": self.max_acceleration_scaling_move_into,
@@ -885,7 +922,7 @@ class AcquireFoodTree(MoveToTree):
                                 "start_joint_state": BlackboardKey(
                                     "current_joint_state"
                                 ),
-                                "allowed_planning_time": self.allowed_planning_time_for_move_into,
+                                "allowed_planning_time": 10.0,
                             },
                             outputs={
                                 "trajectory": BlackboardKey("leveling_trajectory")

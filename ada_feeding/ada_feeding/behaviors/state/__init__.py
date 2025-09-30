@@ -23,6 +23,7 @@ from .offset_position_from_pose import (
 from .extract_pose_from_transform_stamped import (
     ExtractPoseFromTransformStamped,
 )
+from .extract_orientation_from_pose import ExtractOrientationFromPose
 from .publish_pose_as_tf import PublishPoseAsTf
 from .compute_slerp_midpoint_orientation import ComputeSlerpMidpointOrientation
 from .compute_forward_cartesian_goal import ComputeForwardCartesianGoal
