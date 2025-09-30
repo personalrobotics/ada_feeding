@@ -91,6 +91,7 @@ class MoveIt2Plan(BlackboardBehavior):
         path_constraints: Optional[
             Union[BlackboardKey, List[Tuple[MoveIt2ConstraintType, Dict[str, Any]]]]
         ] = None,
+        target_link: Optional[Union[BlackboardKey, str]] = None,
         ignore_violated_path_constraints: Union[BlackboardKey, bool] = False,
         pipeline_id: Union[BlackboardKey, str] = "ompl",
         planner_id: Union[BlackboardKey, str] = "RRTstarkConfigDefault",
@@ -346,12 +347,21 @@ class MoveIt2Plan(BlackboardBehavior):
             ### New Plan
             ### Add Constraints to MoveIt Object
 
+            # Get target_link from blackboard
+            target_link = self.blackboard_get("target_link")
+
             # Check all goal constraints
             goals_satisfied = True
 
             for constraint_type, constraint_kwargs in self.blackboard_get(
                 "goal_constraints"
             ):
+                if (
+                    target_link is not None
+                    and constraint_type != MoveIt2ConstraintType.JOINT
+                ):
+                    constraint_kwargs["target_link"] = target_link
+
                 try:
                     if constraint_type == MoveIt2ConstraintType.JOINT:
                         goals_satisfied = (

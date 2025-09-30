@@ -376,6 +376,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                             "max_velocity_scale": self.max_velocity_scaling_factor,
                             "ignore_violated_path_constraints": False,
                             "group_name": "jaco_arm",
+                            "target_link": "tool_tip",
                         },
                         outputs={"trajectory": BlackboardKey("trajectory")},
                     ),

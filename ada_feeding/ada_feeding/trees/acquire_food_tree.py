@@ -315,6 +315,7 @@ class AcquireFoodTree(MoveToTree):
                                     "max_acceleration_scale": self.max_acceleration_scaling_to_resting_configuration,
                                     "allowed_planning_time": self.allowed_planning_time_to_resting_configuration,
                                     "group_name": "jaco_arm",
+                                    "target_link": "tool_tip",
                                 },
                                 outputs={
                                     "trajectory": BlackboardKey("resting_trajectory")
