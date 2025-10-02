@@ -101,6 +101,10 @@ string post_acquisition_primitive_name
 # Parameters for the post_acquisition_primitive.
 float64[] post_acquisition_primitive_params
 
+# The allowed tilt angle for the Jaco EE during acquisition with the Articutool
+float64 jaco_ee_tilt_angle_min
+float64 jaco_ee_tilt_angle_max
+
 # Determines if the food_frame should be rotated to align its X-axis
 # with the robot's approach vector.
 bool align_to_robot_base

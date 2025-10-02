@@ -155,6 +155,12 @@ def get_action_library(
         schema.post_acquisition_primitive_params = [
             float(p) for p in element.get("post_acquisition_primitive_params", [])
         ]
+        schema.jaco_ee_tilt_angle_min = float(
+            element.get("jaco_ee_tilt_angle_min", 0.0)
+        )
+        schema.jaco_ee_tilt_angle_max = float(
+            element.get("jaco_ee_tilt_angle_max", 50.0)
+        )
         schema.align_to_robot_base = bool(element.get("align_to_robot_base", False))
         library.append(schema)
 

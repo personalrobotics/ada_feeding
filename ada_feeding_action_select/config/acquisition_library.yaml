@@ -311,6 +311,8 @@ actions:
   post_move_into_primitive_params: [4.0, 3.0]
   post_acquisition_primitive_name: "NONE"
   post_acquisition_primitive_params: []
+  jaco_ee_tilt_angle_min: 0.0
+  jaco_ee_tilt_angle_max: 10.0
   align_to_robot_base: True
 # Tilted scoop (45 deg polar angle from vertical)
 - ext_angular:

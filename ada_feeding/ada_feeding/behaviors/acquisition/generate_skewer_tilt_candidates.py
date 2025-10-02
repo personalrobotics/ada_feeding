@@ -22,6 +22,8 @@ class GenerateSkewerTiltCandidates(BlackboardBehavior):
 
     def blackboard_inputs(
         self,
+        jaco_ee_tilt_angle_min: Optional[BlackboardKey],
+        jaco_ee_tilt_angle_max: Optional[BlackboardKey],
     ) -> None:
         """Define blackboard inputs for this behavior."""
         super().blackboard_inputs(
@@ -44,7 +46,12 @@ class GenerateSkewerTiltCandidates(BlackboardBehavior):
         Initialize with the desired range of tilt angles in degrees.
         Format is (start, stop, step).
         """
-        self.tilt_range_deg = (30.0, 50.0, 5.0)
+        # self.tilt_range_deg = (0.0, 10.0, 5.0)
+        self.tilt_range_deg = (
+            self.blackboard_get("jaco_ee_tilt_angle_min"),
+            self.blackboard_get("jaco_ee_tilt_angle_max"),
+            5.0,
+        )
 
     @override
     def update(self) -> Status:

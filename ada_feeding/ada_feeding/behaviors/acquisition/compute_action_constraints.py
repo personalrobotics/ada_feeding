@@ -98,6 +98,8 @@ class ComputeActionConstraints(BlackboardBehavior):
         post_move_into_primitive_params: Optional[BlackboardKey],
         post_acquisition_primitive_name: Optional[BlackboardKey],
         post_acquisition_primitive_params: Optional[BlackboardKey],
+        jaco_ee_tilt_angle_min: Optional[BlackboardKey],
+        jaco_ee_tilt_angle_max: Optional[BlackboardKey],
         should_align_to_base: Optional[BlackboardKey],
     ) -> None:
         """
@@ -257,6 +259,9 @@ class ComputeActionConstraints(BlackboardBehavior):
             self.logger.info(
                 f"[{self.name}] Set Post-Acquisition Primitive to: '{post_acquisition_name}' with params: {post_acquisition_params}"
             )
+
+            self.blackboard_set("jaco_ee_tilt_angle_min", action.jaco_ee_tilt_angle_min)
+            self.blackboard_set("jaco_ee_tilt_angle_max", action.jaco_ee_tilt_angle_max)
 
             self.blackboard_set("should_align_to_base", action.align_to_robot_base)
             self.logger.info(
