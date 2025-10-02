@@ -840,7 +840,7 @@ class AcquireFoodTree(MoveToTree):
                             ns=name,
                             inputs={
                                 "current_pose": BlackboardKey("current_tool_tip_pose"),
-                                "offset": Vector3(x=0.0, y=0.2, z=0.02),
+                                "offset": Vector3(x=0.0, y=0.0, z=0.00),
                             },
                             outputs={"goal_pose": BlackboardKey("goal_level_pose")},
                         ),
@@ -908,9 +908,9 @@ class AcquireFoodTree(MoveToTree):
                                 "goal_constraints": BlackboardKey(
                                     "leveling_goal_constraints"
                                 ),
-                                "path_constraints": BlackboardKey(
-                                    "leveling_path_constraints"
-                                ),
+                                # "path_constraints": BlackboardKey(
+                                #     "leveling_path_constraints"
+                                # ),
                                 "target_link": "tool_tip",
                                 "lock_joints": self.lock_joints,
                                 "max_velocity_scale": self.max_velocity_scaling_move_into,
