@@ -303,7 +303,7 @@ actions:
   retract_force: 20.0
   retract_torque: 4.0
   retract_duration: 1.0
-  retract_linear: [0.075, 0.0, 0.4]
+  retract_linear: [0.035, 0.0, 0.2]
   retract_angular: [0.0, 0.0, 0.0]
   pre_move_into_primitive_name: "TWIRL_CW"
   pre_move_into_primitive_params: [4.0, 3.0]
