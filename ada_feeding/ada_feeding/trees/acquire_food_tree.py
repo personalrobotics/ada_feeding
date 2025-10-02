@@ -1300,6 +1300,14 @@ class AcquireFoodTree(MoveToTree):
                                 GenerateSkewerTiltCandidates(
                                     name="GenerateTiltCandidates",
                                     ns=name,
+                                    inputs={
+                                        "jaco_ee_tilt_angle_min": BlackboardKey(
+                                            "jaco_ee_tilt_angle_min"
+                                        ),
+                                        "jaco_ee_tilt_angle_max": BlackboardKey(
+                                            "jaco_ee_tilt_angle_max"
+                                        ),
+                                    },
                                     outputs={
                                         "tilt_candidates_rad": BlackboardKey(
                                             "tilt_candidates_rad"
@@ -1654,6 +1662,12 @@ class AcquireFoodTree(MoveToTree):
                                 ),
                                 "post_acquisition_primitive_params": BlackboardKey(
                                     "post_acquisition_action_params"
+                                ),
+                                "jaco_ee_tilt_angle_min": BlackboardKey(
+                                    "jaco_ee_tilt_angle_min"
+                                ),
+                                "jaco_ee_tilt_angle_max": BlackboardKey(
+                                    "jaco_ee_tilt_angle_max"
                                 ),
                                 "should_align_to_base": BlackboardKey(
                                     "should_align_to_base"
