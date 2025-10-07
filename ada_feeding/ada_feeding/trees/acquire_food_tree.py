@@ -121,7 +121,7 @@ class AcquireFoodTree(MoveToTree):
         pickle_goal_path: Optional[str] = None,
         allowed_planning_time_for_move_above: float = 2.0,
         allowed_planning_time_for_move_into: float = 3.0,
-        allowed_planning_time_to_resting_configuration: float = 2.0,
+        allowed_planning_time_to_resting_configuration: float = 12.0,
         allowed_planning_time_for_recovery: float = 1.0,
         lock_joints: bool = False,
     ):
@@ -809,7 +809,7 @@ class AcquireFoodTree(MoveToTree):
                             name="GetStartPose",
                             ns=name,
                             inputs={
-                                "group_name": "jaco_arm_with_articutool",
+                                "group_name": "jaco_arm",
                                 "joint_state": BlackboardKey("current_joint_state"),
                                 "fk_link_names": ["tool_tip"],
                                 "lock_joints": self.lock_joints,
@@ -904,14 +904,14 @@ class AcquireFoodTree(MoveToTree):
                             name="PlanToLevelTool",
                             ns=name,
                             inputs={
-                                "group_name": "jaco_arm_with_articutool",
+                                "group_name": "jaco_arm",
+                                "target_link": "tool_tip",
                                 "goal_constraints": BlackboardKey(
                                     "leveling_goal_constraints"
                                 ),
                                 # "path_constraints": BlackboardKey(
                                 #     "leveling_path_constraints"
                                 # ),
-                                "target_link": "tool_tip",
                                 "lock_joints": self.lock_joints,
                                 "max_velocity_scale": self.max_velocity_scaling_move_into,
                                 "max_acceleration_scale": self.max_acceleration_scaling_move_into,
@@ -934,7 +934,7 @@ class AcquireFoodTree(MoveToTree):
                             ns=name,
                             inputs={
                                 "trajectory": BlackboardKey("leveling_trajectory"),
-                                "group_name": "jaco_arm_with_articutool",
+                                "group_name": "jaco_arm",
                             },
                             outputs={
                                 "error_code": None,
@@ -1118,7 +1118,7 @@ class AcquireFoodTree(MoveToTree):
                         ns=name,
                         inputs={
                             "trajectory": BlackboardKey("move_into_traj"),
-                            "group_name": "jaco_arm_with_articutool",
+                            "group_name": "jaco_arm",
                         },
                         outputs={
                             "error_code": None,
@@ -1223,7 +1223,8 @@ class AcquireFoodTree(MoveToTree):
                                 "goal_constraints": BlackboardKey(
                                     "goal_constraints_s1"
                                 ),
-                                "group_name": "jaco_arm_with_articutool",
+                                "group_name": "jaco_arm",
+                                "target_link": "tool_tip",
                                 "lock_joints": self.lock_joints,
                                 "max_velocity_scale": self.max_velocity_scaling_move_above,
                                 "max_acceleration_scale": self.max_acceleration_scaling_move_above,
@@ -1255,6 +1256,7 @@ class AcquireFoodTree(MoveToTree):
                                     "goal_constraints_s3"
                                 ),
                                 "group_name": "jaco_arm_with_articutool",
+                                "target_link": "tool_tip",
                                 "lock_joints": self.lock_joints,
                                 "cartesian": True,
                                 "max_velocity_scale": self.max_velocity_scaling_move_into,
@@ -1276,7 +1278,7 @@ class AcquireFoodTree(MoveToTree):
                             ns=name,
                             inputs={
                                 "trajectory": BlackboardKey("move_above_traj"),
-                                "group_name": "jaco_arm_with_articutool",
+                                "group_name": "jaco_arm",
                             },
                             outputs={
                                 "error_code": None,
