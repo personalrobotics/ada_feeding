@@ -446,6 +446,8 @@ actions:
   post_move_into_primitive_params: []
   post_acquisition_primitive_name: "NONE"
   post_acquisition_primitive_params: []
+  jaco_ee_tilt_angle_min: 30.0
+  jaco_ee_tilt_angle_max: 50.0
   align_to_robot_base: True
 # Scoop and level (6-DOF Baseline)
 - ext_angular:
