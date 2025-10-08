@@ -112,7 +112,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
         self.orientation_constraint_quaternion = orientation_constraint_quaternion
         self.orientation_constraint_tolerances = orientation_constraint_tolerances
         self.planner_id = planner_id
-        self.allowed_planning_time = allowed_planning_time if not lock_joints else 30.0
+        self.allowed_planning_time = allowed_planning_time if not lock_joints else 15.0
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
         self.force_threshold = force_threshold
         self.torque_threshold = torque_threshold
