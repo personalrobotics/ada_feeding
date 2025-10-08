@@ -200,7 +200,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 ),
             ],
             "articutool": [
-                f"ros2 launch articutool_system articutool.launch.py sim:=mock end_effector_tool:={args.end_effector_tool}",
+                f"ros2 launch articutool_system articutool.launch.py sim:=mock end_effector_tool:={args.end_effector_tool} lock_joints:={'true' if args.lock_joints else 'false'}",
             ],
             "nano_bridge_sender": [
                 "ros2 launch nano_bridge sender.launch.xml",
@@ -330,9 +330,9 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "-e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp "
                 f"-e ROS_DOMAIN_ID={args.real_domain_id} "  # Pass the domain ID to the container!
                 # The image to run.
-                "ros2_articutool:latest"
-                # The CMD from your Dockerfile will be executed, which is:
-                # ros2 launch articutool_system articutool.launch.py sim:=real
+                "ros2_articutool:latest "
+                "ros2 launch articutool_system articutool.launch.py sim:=real "
+                f"lock_joints:={'true' if args.lock_joints else 'false'}"
                 '"'
             ],
             "rosbridge": [
@@ -346,8 +346,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 # "export DISPLAY=:5" if not args.dev else "",
                 "ros2 launch ada_planning_scene ada_moveit_launch.xml "
                 f"use_rviz:={'true' if args.dev else 'false'} "
-                f"end_effector_tool:={args.end_effector_tool} ",
-                f"lock_joints:={'true' if args.lock_joints else 'false'}",
+                f"end_effector_tool:={args.end_effector_tool} "
+                f"lock_joints:={'true' if args.lock_joints else 'false'}"
             ],
             "feeding": [
                 # "sudo ./src/ada_feeding/configure_lovelace.sh",
