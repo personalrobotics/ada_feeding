@@ -226,9 +226,9 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                         "start_ee_pose": BlackboardKey("start_ee_pose"),
                         "goal_ee_pose": BlackboardKey("goal_ee_pose"),
                         "tolerance": (
-                            np.deg2rad(10.0),
+                            np.deg2rad(20.0),
                             np.pi,
-                            np.deg2rad(10.0),
+                            np.deg2rad(20.0),
                         ),
                     },
                     outputs={
