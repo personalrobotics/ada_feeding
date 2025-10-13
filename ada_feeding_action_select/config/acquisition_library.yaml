@@ -487,3 +487,52 @@ actions:
   - 0.6528595
   - 0.2710956
   pre_torque: 4.0
+# Tilted scoop for liquids (6-DOF Baseline)
+- ext_angular:
+  - -0.1
+  - 0.0
+  - 0.0
+  ext_duration: 10.0
+  ext_force: 50.0
+  ext_linear:
+  - 0.0
+  - 0.0
+  - 0.01
+  ext_torque: 4.0
+  grasp_angular: [0.0, 0.0, 0.0]
+  grasp_duration: 0.0
+  grasp_force: 30.0
+  grasp_linear: [0.0, 0.0, 0.0]
+  grasp_torque: 4.0
+  retract_force: 20.0
+  retract_torque: 4.0
+  retract_duration: 0.0
+  retract_linear: [0.0, 0.0, 0.0]
+  retract_angular: [0.0, 0.0, 0.0]
+  pre_force: 3.0
+  pre_offset:
+  - 0.025
+  - 0.0
+  - 0.0
+  pre_pos:
+  - 0.0
+  - 0.0
+  - 1.0
+  move_above_dist_m: 0.14
+  pre_quat:
+  - -0.2710956
+  - -0.6528595
+  - 0.6528595
+  - 0.2710956
+  # - -0.3541822
+  # - -0.6118463
+  # - 0.6118463
+  # - 0.3541822
+  pre_torque: 1.0
+  pre_move_into_primitive_name: "NONE"
+  pre_move_into_primitive_params: []
+  post_move_into_primitive_name: "NONE"
+  post_move_into_primitive_params: []
+  post_acquisition_primitive_name: "NONE"
+  post_acquisition_primitive_params: []
+  align_to_robot_base: True
