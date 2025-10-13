@@ -407,12 +407,12 @@ actions:
   - 0.0
   - 0.0
   - 0.0
-  ext_duration: 0.0
+  ext_duration: 1.0
   ext_force: 50.0
   ext_linear:
   - 0.0
   - 0.0
-  - 0.0
+  - 0.005
   ext_torque: 4.0
   grasp_angular: [0.0, 0.0, 0.0]
   grasp_duration: 0.0
@@ -447,7 +447,7 @@ actions:
   post_acquisition_primitive_name: "NONE"
   post_acquisition_primitive_params: []
   jaco_ee_tilt_angle_min: 30.0
-  jaco_ee_tilt_angle_max: 50.0
+  jaco_ee_tilt_angle_max: 40.0
   align_to_robot_base: True
 # Scoop and level (6-DOF Baseline)
 - ext_angular:
