@@ -905,7 +905,7 @@ class AcquireFoodTree(MoveToTree):
                             ns=name,
                             inputs={
                                 "group_name": "jaco_arm",
-                                "target_link": "tool_tip",
+                                "target_link": "j2n6s200_end_effector",
                                 "goal_constraints": BlackboardKey(
                                     "leveling_goal_constraints"
                                 ),
@@ -915,14 +915,14 @@ class AcquireFoodTree(MoveToTree):
                                 "lock_joints": self.lock_joints,
                                 "max_velocity_scale": self.max_velocity_scaling_move_into,
                                 "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                # "cartesian": True,
-                                # "cartesian_max_step": 0.001,
-                                # "cartesian_fraction_threshold": 0.92,
-                                # "cartesian_jump_threshold": 0.0,
+                                "cartesian": True,
+                                "cartesian_max_step": 0.001,
+                                "cartesian_fraction_threshold": 0.92,
+                                "cartesian_jump_threshold": 0.0,
                                 "start_joint_state": BlackboardKey(
                                     "current_joint_state"
                                 ),
-                                "allowed_planning_time": 10.0,
+                                "allowed_planning_time": 5.0,
                             },
                             outputs={
                                 "trajectory": BlackboardKey("leveling_trajectory")
