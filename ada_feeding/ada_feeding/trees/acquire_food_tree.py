@@ -811,7 +811,7 @@ class AcquireFoodTree(MoveToTree):
                             inputs={
                                 "group_name": "jaco_arm",
                                 "joint_state": BlackboardKey("current_joint_state"),
-                                "fk_link_names": ["tool_tip"],
+                                "fk_link_names": ["j2n6s200_end_effector"],
                                 "lock_joints": self.lock_joints,
                             },
                             outputs={
@@ -824,8 +824,8 @@ class AcquireFoodTree(MoveToTree):
                             ns=name,
                             inputs={
                                 "fk_poses": BlackboardKey("current_fk_poses"),
-                                "target_link_name": "tool_tip",
-                                "requested_link_names": ["tool_tip"],
+                                "target_link_name": "j2n6s200_end_effector",
+                                "requested_link_names": ["j2n6s200_end_effector"],
                             },
                             outputs={
                                 "extracted_pose": BlackboardKey(
@@ -859,7 +859,11 @@ class AcquireFoodTree(MoveToTree):
                             inputs={
                                 "pose": BlackboardKey("goal_level_pose"),
                                 "tolerance_position": 0.01,
-                                "tolerance_orientation": 0.01,
+                                "tolerance_orientation": [
+                                    0.01,
+                                    np.deg2rad(20.0),
+                                    0.01,
+                                ],
                             },
                             outputs={
                                 "constraints": BlackboardKey(
@@ -889,8 +893,8 @@ class AcquireFoodTree(MoveToTree):
                                 "quat_xyzw": BlackboardKey("level_orientation_quat"),
                                 "tolerance": (
                                     np.pi,
-                                    np.deg2rad(90.0),
-                                    np.deg2rad(45.0),
+                                    np.pi,
+                                    np.deg2rad(20.0),
                                 ),
                             },
                             outputs={
@@ -909,16 +913,12 @@ class AcquireFoodTree(MoveToTree):
                                 "goal_constraints": BlackboardKey(
                                     "leveling_goal_constraints"
                                 ),
-                                # "path_constraints": BlackboardKey(
-                                #     "leveling_path_constraints"
-                                # ),
+                                "path_constraints": BlackboardKey(
+                                    "leveling_path_constraints"
+                                ),
                                 "lock_joints": self.lock_joints,
                                 "max_velocity_scale": self.max_velocity_scaling_move_into,
                                 "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                "cartesian": True,
-                                "cartesian_max_step": 0.001,
-                                "cartesian_fraction_threshold": 0.92,
-                                "cartesian_jump_threshold": 0.0,
                                 "start_joint_state": BlackboardKey(
                                     "current_joint_state"
                                 ),
