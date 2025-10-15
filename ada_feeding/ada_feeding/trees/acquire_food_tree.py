@@ -161,7 +161,7 @@ class AcquireFoodTree(MoveToTree):
         self.allowed_planning_time_for_move_above = allowed_planning_time_for_move_above
         self.allowed_planning_time_for_move_into = allowed_planning_time_for_move_into
         self.allowed_planning_time_to_resting_configuration = (
-            allowed_planning_time_to_resting_configuration if not lock_joints else 15.0
+            allowed_planning_time_to_resting_configuration
         )
         self.allowed_planning_time_for_recovery = allowed_planning_time_for_recovery
         self.lock_joints = lock_joints
@@ -903,43 +903,43 @@ class AcquireFoodTree(MoveToTree):
                                 ),
                             },
                         ),
-                        # 5. Plan the Cartesian motion
-                        MoveIt2Plan(
-                            name="PlanToLevelTool",
-                            ns=name,
-                            inputs={
-                                "group_name": "jaco_arm",
-                                "target_link": "j2n6s200_end_effector",
-                                "goal_constraints": BlackboardKey(
-                                    "leveling_goal_constraints"
-                                ),
-                                "path_constraints": BlackboardKey(
-                                    "leveling_path_constraints"
-                                ),
-                                "lock_joints": self.lock_joints,
-                                "max_velocity_scale": self.max_velocity_scaling_move_into,
-                                "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                "start_joint_state": BlackboardKey(
-                                    "current_joint_state"
-                                ),
-                                "allowed_planning_time": 5.0,
-                            },
-                            outputs={
-                                "trajectory": BlackboardKey("leveling_trajectory")
-                            },
-                        ),
-                        # 6. Execute the motion
-                        MoveIt2Execute(
-                            name="ExecuteLeveling",
-                            ns=name,
-                            inputs={
-                                "trajectory": BlackboardKey("leveling_trajectory"),
-                                "group_name": "jaco_arm",
-                            },
-                            outputs={
-                                "error_code": None,
-                            },
-                        ),
+                        # # 5. Plan the Cartesian motion
+                        # MoveIt2Plan(
+                        #     name="PlanToLevelTool",
+                        #     ns=name,
+                        #     inputs={
+                        #         "group_name": "jaco_arm",
+                        #         "target_link": "j2n6s200_end_effector",
+                        #         "goal_constraints": BlackboardKey(
+                        #             "leveling_goal_constraints"
+                        #         ),
+                        #         "path_constraints": BlackboardKey(
+                        #             "leveling_path_constraints"
+                        #         ),
+                        #         "lock_joints": self.lock_joints,
+                        #         "max_velocity_scale": self.max_velocity_scaling_move_into,
+                        #         "max_acceleration_scale": self.max_acceleration_scaling_move_into,
+                        #         "start_joint_state": BlackboardKey(
+                        #             "current_joint_state"
+                        #         ),
+                        #         "allowed_planning_time": 10.0,
+                        #     },
+                        #     outputs={
+                        #         "trajectory": BlackboardKey("leveling_trajectory")
+                        #     },
+                        # ),
+                        # # 6. Execute the motion
+                        # MoveIt2Execute(
+                        #     name="ExecuteLeveling",
+                        #     ns=name,
+                        #     inputs={
+                        #         "trajectory": BlackboardKey("leveling_trajectory"),
+                        #         "group_name": "jaco_arm",
+                        #     },
+                        #     outputs={
+                        #         "error_code": None,
+                        #     },
+                        # ),
                     ],
                 )
             else:
