@@ -451,15 +451,15 @@ actions:
   align_to_robot_base: True
 # Scoop and level (6-DOF Baseline)
 - ext_angular:
-  - -0.1
+  - -0.2
   - 0.0
   - 0.0
-  ext_duration: 10.0
+  ext_duration: 5.0
   ext_force: 50.0
   ext_linear:
+  - -0.02
   - 0.0
-  - 0.0
-  - 0.01
+  - -0.05
   ext_torque: 4.0
   grasp_angular: [0.0, 0.0, 0.0]
   grasp_duration: 1.0
@@ -476,10 +476,10 @@ actions:
   - 0.0
   - 1.0
   pre_quat:
-  - -0.271
-  - -0.653
+  - -0.185
+  - -0.683
   - 0.653
-  - 0.271
+  - 0.185
   pre_torque: 4.0
   align_to_robot_base: True
 # Tilted scoop for liquids (6-DOF Baseline)
