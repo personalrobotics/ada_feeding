@@ -1262,7 +1262,7 @@ class AcquireFoodTree(MoveToTree):
                                 "max_velocity_scale": self.max_velocity_scaling_move_into,
                                 "max_acceleration_scale": self.max_acceleration_scaling_move_into,
                                 "cartesian_max_step": 0.001,
-                                "cartesian_fraction_threshold": 0.80,
+                                "cartesian_fraction_threshold": 0.92,
                                 "cartesian_jump_threshold": 0.0,
                                 "start_joint_state": BlackboardKey(
                                     "move_above_end_joint_state"
