@@ -490,7 +490,7 @@ actions:
   ext_duration: 5.0
   ext_force: 50.0
   ext_linear:
-  - -0.02
+  - 0.0
   - 0.0
   - -0.05
   ext_torque: 4.0
