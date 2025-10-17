@@ -306,11 +306,11 @@ actions:
   retract_linear: [0.075, 0.0, 0.2]
   retract_angular: [0.0, 0.0, 0.0]
   pre_move_into_primitive_name: "TWIRL_CW"
-  pre_move_into_primitive_params: [4.0, 3.0]
+  pre_move_into_primitive_params: [4.0, 4.0]
   post_move_into_primitive_name: "TWIRL_CCW"
-  post_move_into_primitive_params: [4.0, 3.0]
-  post_acquisition_primitive_name: "NOODLE_SHED"
-  post_acquisition_primitive_params: [180.0, 3.0, 20.0, 1.0]
+  post_move_into_primitive_params: [4.0, 4.0]
+  post_acquisition_primitive_name: "TWIRL_CCW"
+  post_acquisition_primitive_params: [1.0, 4.0]
   jaco_ee_tilt_angle_min: 0.0
   jaco_ee_tilt_angle_max: 10.0
   align_to_robot_base: True
