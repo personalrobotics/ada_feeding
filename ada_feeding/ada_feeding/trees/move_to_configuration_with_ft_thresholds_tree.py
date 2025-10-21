@@ -26,6 +26,7 @@ from ada_feeding.behaviors.articutool import (
     ExecuteArticutoolTrajectory,
     SwitchArticutoolControllers,
     CallSetOrientationControl,
+    ExecuteNamedPrimitive,
 )
 from ada_feeding.behaviors.state import GetJointStates
 from ada_feeding.helpers import BlackboardKey
@@ -177,44 +178,29 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                     },
                     outputs={},
                 ),
-                MoveIt2JointConstraint(
-                    name="SetAtoolHomeGoal",
-                    ns=name,
-                    inputs={
-                        "joint_positions": [0.0, 0.0],
-                    },
-                    outputs={"constraints": BlackboardKey("goal_constraints_home")},
-                ),
-                MoveIt2Plan(
-                    name="PlanAtoolToPitch",
-                    ns=name,
-                    inputs={
-                        "goal_constraints": BlackboardKey("goal_constraints_home"),
-                        "group_name": "articutool",
-                        "max_velocity_scale": 1.0,
-                    },
-                    outputs={"trajectory": BlackboardKey("articutool_home_traj")},
-                ),
                 SwitchArticutoolControllers(
-                    name="SwitchArticutoolToJointTrajectory",
+                    name="SwitchArticutoolToVelocity",
                     ns=name,
                     inputs={
-                        "controllers_to_activate": ["joint_trajectory_controller"],
-                        "controllers_to_deactivate": ["velocity_controller"],
+                        "controllers_to_activate": ["velocity_controller"],
+                        "controllers_to_deactivate": ["joint_trajectory_controller"],
                     },
                     outputs={
                         "switch_call_succeeded": None,
                         "switch_response_ok": None,
                     },
                 ),
-                ExecuteArticutoolTrajectory(
+                # Execute the new Homing Primitive
+                ExecuteNamedPrimitive(
                     name="ExecuteAtoolToHome",
                     ns=name,
-                    inputs={"trajectory": BlackboardKey("articutool_home_traj")},
+                    inputs={
+                        "primitive_name": "HOMING",
+                        # Params: [speed_rps]
+                        "primitive_params": [1.5],  # e.g., 1.5 rad/s
+                    },
                     outputs={
-                        "action_goal_accepted": BlackboardKey("tool_goal_accepted"),
-                        "action_result_code": BlackboardKey("tool_exec_result_code"),
-                        "action_status": BlackboardKey("tool_action_status"),
+                        "primitive_status": None,
                     },
                 ),
             ]
