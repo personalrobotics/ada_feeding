@@ -1052,6 +1052,7 @@ class AcquireFoodTree(MoveToTree):
                                     ),
                                     "group_name": "articutool",
                                     "max_velocity_scale": 0.5,
+                                    "allowed_planning_time": 0.1,
                                 },
                                 outputs={
                                     "trajectory": BlackboardKey(
