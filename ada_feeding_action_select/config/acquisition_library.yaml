@@ -262,7 +262,7 @@ actions:
   - -0.0486593
   - -0.1055426
   pre_torque: 4.0
-# Skewer + Twirl for Noodles
+# Skewer + Twirl for Noodles (Articutool)
 - ext_angular:
   - 0.0
   - 0.0
@@ -315,51 +315,7 @@ actions:
   jaco_ee_tilt_angle_min: 0.0
   jaco_ee_tilt_angle_max: 5.0
   align_to_robot_base: True
-# Tilted scoop (45 deg polar angle from vertical)
-- ext_angular:
-  - 0.0
-  - 0.0
-  - 0.0
-  ext_duration: 1.0
-  ext_force: 50.0
-  ext_linear:
-  - 0.0
-  - 0.0
-  - 0.015
-  ext_torque: 4.0
-  grasp_angular: [0.0, 0.0, 0.0]
-  grasp_duration: 1.0
-  grasp_force: 30.0
-  grasp_linear: [0.025, 0.0, 0.005]
-  grasp_torque: 4.0
-  retract_force: 20.0
-  retract_torque: 4.0
-  retract_duration: 1.0
-  retract_linear: [-0.075, 0.0, 0.0]
-  retract_angular: [0.0, 0.0, 0.0]
-  pre_force: 10.0
-  pre_offset:
-  - 0.035
-  - 0.0
-  - -0.05
-  pre_pos:
-  - 1.0
-  - 0.0
-  - 1.0
-  pre_quat:
-  - -0.271
-  - -0.653
-  - 0.653
-  - 0.271
-  pre_torque: 4.0
-  pre_move_into_primitive_name: "NONE"
-  pre_move_into_primitive_params: []
-  post_move_into_primitive_name: "NONE"
-  post_move_into_primitive_params: []
-  post_acquisition_primitive_name: "VIBRATE_ROLL"
-  post_acquisition_primitive_params: [2.0, 0.5, 1.0] # [frequency_hz, amplitude_rad, duration_sec]
-  align_to_robot_base: True
-# Tilted scoop (60 deg polar angle from vertical)
+# Tilted scoop for granulars (Articutool)
 - ext_angular:
   - 0.0
   - 0.0
@@ -391,10 +347,10 @@ actions:
   - 0.0
   - 1.0
   pre_quat:
-  - -0.354065
-  - -0.6119149
-  - 0.6119149
-  - 0.354065
+  - -0.4055798
+  - -0.579228
+  - 0.579228
+  - 0.4055798
   pre_torque: 4.0
   pre_move_into_primitive_name: "NONE"
   pre_move_into_primitive_params: []
@@ -402,8 +358,10 @@ actions:
   post_move_into_primitive_params: []
   post_acquisition_primitive_name: "VIBRATE_ROLL"
   post_acquisition_primitive_params: [2.0, 0.5, 1.0] # [frequency_hz, amplitude_rad, duration_sec]
+  jaco_ee_tilt_angle_min: 30.0
+  jaco_ee_tilt_angle_max: 50.0
   align_to_robot_base: True
-# Tilted scoop for liquids
+# Tilted scoop for liquids (Articutool)
 - ext_angular:
   - 0.0
   - 0.0
