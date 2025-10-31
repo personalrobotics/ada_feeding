@@ -2,8 +2,6 @@
 # Copyright (c) 2025, Personal Robotics Laboratory
 # License: BSD 3-Clause. See LICENSE.md file in root directory.
 
-# (Add appropriate Copyright/License if desired)
-
 """
 This module defines the MoveIt2ComputeFK behavior, which uses the
 ada_feeding MoveIt2 wrapper to compute Forward Kinematics.
