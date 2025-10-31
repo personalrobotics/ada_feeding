@@ -401,16 +401,6 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
         return py_trees.common.Status.SUCCESS
 
 
-# -*- coding: utf-8 -*-
-# (Add appropriate Copyright/License if desired)
-
-"""
-This module defines the StampPoseFromPose behavior, which converts a
-geometry_msgs/Pose message from the blackboard to a geometry_msgs/PoseStamped
-message by adding a header with a specified frame_id and the current timestamp.
-"""
-
-
 class StampPoseFromPose(BlackboardBehavior):
     """
     Takes a geometry_msgs/Pose from the blackboard, adds a header
