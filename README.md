@@ -2,7 +2,96 @@
 
 This README is the definitive source for downloading, installing, and running the Personal Robotics Lab's robot-assisted feeding software. This code has been run and tested on machines running **Ubuntu 22.04** and ROS2 Humble.
 
-## Setup
+## **Docker Setup (Recommended Method)**
+
+This is the fastest and most reliable way to set up the development environment. The Docker image contains all ROS, apt, and Python dependencies pre-installed and compiled.
+
+### **1\. Prerequisites (One-Time Host Setup)**
+
+You only need to do this once on your host machine (e.g., `lovelace`).
+
+1. **Install Docker:**  
+```
+   sudo apt install docker.io
+```
+
+2. **Add Your User to the Docker Group:** This is required to run Docker without sudo.  
+```
+   sudo usermod \-aG docker $USER
+```
+   **IMPORTANT:** You must **log out and log back in** for this change to take effect.  
+3. **Install Docker Buildx (Optional):** This will remove the DEPRECATED: The legacy builder... warning.  
+```
+   sudo apt install docker-buildx-plugin
+```
+
+### **2\. Get Project Files**
+
+The Dockerfile is included in this repository.
+
+```
+git clone \[https://github.com/personalrobotics/ada\_feeding.git\](https://github.com/personalrobotics/ada\_feeding.git)  
+cd ada\_feeding
+```
+
+### **3\. Download Kinova SDK**
+
+Download the Kinova Gen2 SDK from the link in the manual setup guide (Gen2 SDK v1.5.1).
+
+* **File:** `PS 0000 0009\_1.5.1.zip`
+* **Action:** **Rename the file** and place it in the `ada\_feeding` directory you just cloned. This is critical for the Docker build to find it.
+
+\# From your Downloads folder or wherever you saved it:  
+```
+mv \~/Downloads/"PS 0000 0009\_1.5.1.zip" ./kinova\_sdk.zip
+```
+
+### **4\. Build the Docker Image**
+
+You can build two different versions of the environment.
+
+* To Build the Baseline ADA System:  
+  This builds the default ada-feeding.https.rosinstall file.  
+  ```
+  docker build . \-t ada-baseline
+  ```
+
+* To Build the Articutool System (Recommended):  
+  This uses the feature branch in pr-rosinstalls to check out all the Articutool-specific branches.  
+  ```
+  docker build . \--build-arg ROSINSTALL\_FILE=articutool.https.rosinstall \-t articutool-dev
+  ```
+
+### **5\. Run the Docker Container**
+
+You are now ready to run the container, which will drop you into a bash shell with the full environment sourced.
+
+1. **(For GUI/RViz Only)** In your host terminal, allow local display connections:  
+   `xhost \+local`:
+
+2. **Run the Container:** This command includes all the necessary flags for hardware, networking, and performance.  
+```
+   docker run \-it \--rm \\  
+     \--network=host \\  
+     \--privileged \\  
+     \--cpus=20 \\  
+     \-e DISPLAY=$DISPLAY \\  
+     \-v /tmp/.X11-unix:/tmp/.X11-unix \\  
+     articutool-dev
+```
+
+   * \--network=host: For ROS 2 discovery and the web app.  
+   * \--privileged: Gives access to hardware (Jaco Arm, F/T sensor, E-stop).  
+   * \--cpus=20: Un-throttles the container to prevent slow planning (set to your host's core count).  
+   * \-e and \-v: For X11 forwarding (GUI).
+
+### **6\. Inside the Container**
+
+You are now in a terminal where ROS 2, your workspace, and Node.js are all sourced and ready. Your prompt will look like: ros@system76-pc:\~/colcon\_ws$
+
+## **Manual Setup (Archival / For Docker Development)**
+
+**Note:** These instructions are preserved for historical reference and for developers who are debugging the Dockerfile itself. For all normal development, demos, and research, please use the Docker setup above.
 
 ### Setup (Robot Software)
 
