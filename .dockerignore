@@ -1,0 +1,30 @@
+# Git directory
+.git/
+
+# Local Python virtual environments
+.venv/
+.ada_venv/
+
+# Colcon build/install artifacts
+# These will be generated INSIDE the container,
+# so we never want to copy the local ones.
+build/
+install/
+log/
+
+# Compiled Python files and caches
+**/*.pyc
+**/__pycache__/
+
+# Local IDE and editor config
+.vscode/
+.idea/
+
+# OS-specific metadata
+.DS_Store
+Thumbs.db
+
+# Project-specific data and artifacts to ignore
+data/
+screenshots/
+*.orig
