@@ -233,10 +233,10 @@ class CalculateSkewerPoseForTilt(BlackboardBehavior):
             R_world_tip = R.from_quat([q_tip.x, q_tip.y, q_tip.z, q_tip.w])
 
             R_wrist_tip = R.from_matrix(T_wrist_tip.rotation)
-            R_world_wrist_untilted = R_world_tip * R_wrist_tip.inv()
+            R_world_wrist_target = R_world_tip * R_wrist_tip.inv()
 
-            R_tilt = R.from_euler("x", jaco_pitch_tilt_rad)
-            R_world_wrist_target = R_world_wrist_untilted * R_tilt
+            # R_tilt = R.from_euler("x", jaco_pitch_tilt_rad)
+            # R_world_wrist_target = R_world_wrist_untilted * R_tilt
 
             p_tip_infood = np.array(
                 [
