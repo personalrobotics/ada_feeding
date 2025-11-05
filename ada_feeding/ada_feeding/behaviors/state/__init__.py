@@ -28,3 +28,7 @@ from .publish_pose_as_tf import PublishPoseAsTf
 from .compute_slerp_midpoint_orientation import ComputeSlerpMidpointOrientation
 from .compute_forward_cartesian_goal import ComputeForwardCartesianGoal
 from .check_elbow_up_configuration import CheckElbowUpConfiguration
+from .split_joint_state import SplitJointState
+from .compute_tilted_look_at_orientation import ComputeTiltedLookAtOrientation
+from .create_pose_stamped_from_orientation import CreatePoseStampedFromOrientation
+from .compute_jaco_ee_pose_for_tool_tip import ComputeJacoEEPoseForToolTip

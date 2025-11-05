@@ -61,6 +61,10 @@ from ada_feeding.behaviors.state import (
     PublishPoseAsTf,
     ComputeSlerpMidpointOrientation,
     CheckElbowUpConfiguration,
+    SplitJointState,
+    ComputeTiltedLookAtOrientation,
+    CreatePoseStampedFromOrientation,
+    ComputeJacoEEPoseForToolTip,
 )
 from ada_feeding.behaviors.ros.msgs import StampPoseFromPose
 from ada_feeding.behaviors.ros.tf import ApplyTransform
@@ -1295,149 +1299,271 @@ class AcquireFoodTree(MoveToTree):
                     name="DecoupledAcquisitionPlanAndMove",
                     memory=True,
                     children=[
-                        # A. Find a reachable skewer configuration by looping through tilt angles
+                        # --- A. Find a single, valid 8-DOF solution ---
                         py_trees.composites.Sequence(
-                            name="FindReachableSkewerConfig",
+                            name="FindConstrained8DofSolution",
                             memory=True,
                             children=[
-                                GenerateSkewerTiltCandidates(
-                                    name="GenerateTiltCandidates",
+                                # --- 1. COMPUTE THE GOAL ORIENTATION ---
+                                ComputeTiltedLookAtOrientation(
+                                    name="ComputeGoalOrientation",
                                     ns=name,
                                     inputs={
-                                        "jaco_ee_tilt_angle_min": BlackboardKey(
-                                            "jaco_ee_tilt_angle_min"
+                                        # The food pose in the world/base frame
+                                        "target_pose": BlackboardKey(
+                                            "initial_food_frame"
                                         ),
-                                        "jaco_ee_tilt_angle_max": BlackboardKey(
-                                            "jaco_ee_tilt_angle_max"
+                                        "pitch_down_rad": np.deg2rad(
+                                            45.0
+                                        ),  # Our 45-deg nominal pitch
+                                    },
+                                    outputs={
+                                        "goal_orientation_quat": BlackboardKey(
+                                            "skewer_goal_orientation"
+                                        )
+                                    },
+                                ),
+                                CreatePoseStampedFromOrientation(
+                                    name="CreateDebugPose",
+                                    ns=name,
+                                    inputs={
+                                        "orientation_quat": BlackboardKey(
+                                            "skewer_goal_orientation"
+                                        ),
+                                        "frame_id": "j2n6s200_link_base",
+                                    },
+                                    outputs={
+                                        "output_pose_stamped": BlackboardKey(
+                                            "skewer_goal_pose_debug"
+                                        )
+                                    },
+                                ),
+                                PublishPoseAsTf(
+                                    name="PublishDebugPose",
+                                    ns=name,
+                                    inputs={
+                                        "pose_to_publish": BlackboardKey(
+                                            "skewer_goal_pose_debug"
+                                        ),
+                                        "child_frame_id": "debug_skewer_goal",
+                                        "parent_frame_id": "j2n6s200_link_base",
+                                    },
+                                ),
+                                # --- 2. CREATE THE CONSTRAINT LIST ---
+                                MoveIt2OrientationConstraint(
+                                    name="SetTiltedLookAtConstraint",
+                                    ns=name,
+                                    inputs={
+                                        "target_link": "j2n6s200_end_effector",
+                                        "quat_xyzw": BlackboardKey(
+                                            "skewer_goal_orientation"
+                                        ),
+                                        "tolerance": (
+                                            np.deg2rad(45.0),  # X: +/- 45 deg (Pitch)
+                                            np.deg2rad(
+                                                45.0
+                                            ),  # Y: +/- 180 deg (Yaw - unconstrained)
+                                            np.deg2rad(
+                                                5.0
+                                            ),  # Z: +/- 5 deg (Roll - very tight)
+                                        ),
+                                        "weight": 1.0,
+                                    },
+                                    outputs={
+                                        "constraints": BlackboardKey(
+                                            "skewer_ik_constraints"
+                                        )
+                                    },
+                                ),
+                                # --- 2. CALL THE CONSTRAINED 8-DOF IK SOLVER ---
+                                GetJointStates(
+                                    name="GetStartState",
+                                    ns=name,
+                                    node=self._node,
+                                    inputs={
+                                        "joint_names": [
+                                            "j2n6s200_joint_1",
+                                            "j2n6s200_joint_2",
+                                            "j2n6s200_joint_3",
+                                            "j2n6s200_joint_4",
+                                            "j2n6s200_joint_5",
+                                            "j2n6s200_joint_6",
+                                            "atool_joint1",
+                                            "atool_joint2",
+                                        ]
+                                    },
+                                    outputs={
+                                        "joint_state": BlackboardKey(
+                                            "current_joint_state"
+                                        )
+                                    },
+                                ),
+                                MoveIt2ComputeIK(
+                                    name="ComputeConstrained8DofIK",
+                                    ns=name,
+                                    inputs={
+                                        "target_pose": BlackboardKey(
+                                            "tool_tip_move_above_pose_world"
+                                        ),
+                                        "group_name": "jaco_arm_with_articutool",
+                                        "start_joint_state": BlackboardKey(
+                                            "current_joint_state"
+                                        ),
+                                        "lock_joints": False,
+                                        "constraints": BlackboardKey(
+                                            "skewer_ik_constraints"
                                         ),
                                     },
                                     outputs={
-                                        "tilt_candidates_rad": BlackboardKey(
-                                            "tilt_candidates_rad"
+                                        "ik_solution_joint_state": BlackboardKey(
+                                            "full_8dof_solution_state"
                                         ),
-                                        "tilt_index": BlackboardKey("tilt_index"),
+                                        "success": BlackboardKey(
+                                            "candidate_ik_success"
+                                        ),
                                     },
                                 ),
-                                py_trees.decorators.Retry(
-                                    name="RetryWithNextTiltAngle",
-                                    num_failures=20,
-                                    child=py_trees.composites.Sequence(
-                                        name="AttemptSingleTiltAngle",
-                                        memory=True,
-                                        children=[
-                                            CalculateSkewerPoseForTilt(
-                                                name="CalculateCandidatePoses",
-                                                ns=name,
-                                                inputs={
-                                                    "tilt_candidates_rad": BlackboardKey(
-                                                        "tilt_candidates_rad"
-                                                    ),
-                                                    "tilt_index": BlackboardKey(
-                                                        "tilt_index"
-                                                    ),
-                                                    "tool_tip_move_above_pose_world": BlackboardKey(
-                                                        "tool_tip_move_above_pose_world"
-                                                    ),
-                                                    "tool_tip_move_into_pose_world": BlackboardKey(
-                                                        "tool_tip_move_into_pose_world"
-                                                    ),
-                                                    "initial_food_frame": BlackboardKey(
-                                                        "final_food_frame"
-                                                    ),
-                                                    "pinocchio_model": BlackboardKey(
-                                                        "pinocchio_model"
-                                                    ),
-                                                    "pinocchio_data": BlackboardKey(
-                                                        "pinocchio_data"
-                                                    ),
-                                                    "articutool_joint_names": [
-                                                        "atool_joint1",
-                                                        "atool_joint2",
-                                                    ],
-                                                },
-                                                outputs={
-                                                    "candidate_jaco_ee_above_pose": BlackboardKey(
-                                                        "candidate_jaco_ee_above_pose"
-                                                    ),
-                                                    "candidate_jaco_ee_into_pose": BlackboardKey(
-                                                        "candidate_jaco_ee_into_pose"
-                                                    ),
-                                                    "articutool_joint_positions": BlackboardKey(
-                                                        "candidate_atool_joint_positions"
-                                                    ),
-                                                    "tilt_index": BlackboardKey(
-                                                        "tilt_index"
-                                                    ),
-                                                },
-                                            ),
-                                            StampPoseFromPose(
-                                                name="StampCandidatePoseForIK",
-                                                ns=name,
-                                                inputs={
-                                                    "input_pose": BlackboardKey(
-                                                        "candidate_jaco_ee_above_pose"
-                                                    ),
-                                                    "frame_id": "world",
-                                                },
-                                                outputs={
-                                                    "output_pose_stamped": BlackboardKey(
-                                                        "stamped_candidate_pose"
-                                                    )
-                                                },
-                                            ),
-                                            MoveIt2ComputeIK(
-                                                name="CheckCandidatePoseReachable",
-                                                ns=name,
-                                                inputs={
-                                                    "target_pose": BlackboardKey(
-                                                        "stamped_candidate_pose"
-                                                    ),
-                                                    "group_name": "jaco_arm",
-                                                    "lock_joints": self.lock_joints,
-                                                },
-                                                outputs={
-                                                    "ik_solution_joint_state": BlackboardKey(
-                                                        "candidate_ik_solution"
-                                                    ),
-                                                    "success": BlackboardKey(
-                                                        "candidate_ik_success"
-                                                    ),
-                                                },
-                                            ),
-                                            CheckElbowUpConfiguration(
-                                                name="ValidateElbowUp",
-                                                ns=name,
-                                                inputs={
-                                                    "ik_solution_joint_state": BlackboardKey(
-                                                        "candidate_ik_solution"
-                                                    ),
-                                                    "pinocchio_model": BlackboardKey(
-                                                        "pinocchio_model"
-                                                    ),
-                                                    "pinocchio_data": BlackboardKey(
-                                                        "pinocchio_data"
-                                                    ),
-                                                    "jaco_joint_names": [
-                                                        "j2n6s200_joint_1",
-                                                        "j2n6s200_joint_2",
-                                                        "j2n6s200_joint_3",
-                                                        "j2n6s200_joint_4",
-                                                        "j2n6s200_joint_5",
-                                                        "j2n6s200_joint_6",
-                                                    ],
-                                                },
-                                            ),
+                                # # --- 3. VALIDATE AND SPLIT THE SOLUTION ---
+                                # CheckElbowUpConfiguration(
+                                #     name="ValidateElbowUp",
+                                #     ns=name,
+                                #     inputs={
+                                #         "ik_solution_joint_state": BlackboardKey(
+                                #             "full_8dof_solution_state"
+                                #         ),
+                                #         "pinocchio_model": BlackboardKey(
+                                #             "pinocchio_model"
+                                #         ),
+                                #         "pinocchio_data": BlackboardKey(
+                                #             "pinocchio_data"
+                                #         ),
+                                #         "jaco_joint_names": [
+                                #             "j2n6s200_joint_1",
+                                #             "j2n6s200_joint_2",
+                                #             "j2n6s200_joint_3",
+                                #             "j2n6s200_joint_4",
+                                #             "j2n6s200_joint_5",
+                                #             "j2n6s200_joint_6",
+                                #         ],
+                                #     },
+                                # ),
+                                SplitJointState(
+                                    name="Split8DofSolution",
+                                    ns=name,
+                                    inputs={
+                                        "full_joint_state": BlackboardKey(
+                                            "full_8dof_solution_state"
+                                        ),
+                                        "jaco_joint_names": [
+                                            "j2n6s200_joint_1",
+                                            "j2n6s200_joint_2",
+                                            "j2n6s200_joint_3",
+                                            "j2n6s200_joint_4",
+                                            "j2n6s200_joint_5",
+                                            "j2n6s200_joint_6",
                                         ],
-                                    ),
+                                        "articutool_joint_names": [
+                                            "atool_joint1",
+                                            "atool_joint2",
+                                        ],
+                                    },
+                                    outputs={
+                                        "jaco_joint_state": BlackboardKey(
+                                            "candidate_ik_solution"
+                                        ),
+                                        "jaco_joint_names": BlackboardKey(
+                                            "candidate_jaco_joint_names"
+                                        ),
+                                        "jaco_joint_positions": BlackboardKey(
+                                            "candidate_jaco_joint_positions"
+                                        ),
+                                        "articutool_joint_positions": BlackboardKey(
+                                            "candidate_atool_joint_positions"
+                                        ),
+                                    },
+                                ),
+                                # 7. Get the Jaco EE "Above" Pose (Goal S1)
+                                MoveIt2ComputeFK(
+                                    name="GetJacoAboveEEPose",
+                                    ns=name,
+                                    inputs={
+                                        "group_name": "jaco_arm",
+                                        "joint_state": BlackboardKey(
+                                            "candidate_ik_solution"
+                                        ),
+                                        "fk_link_names": ["j2n6s200_end_effector"],
+                                    },
+                                    outputs={
+                                        "fk_poses": BlackboardKey(
+                                            "jaco_above_fk_poses"
+                                        ),
+                                        "success": None,
+                                    },
+                                ),
+                                ExtractPoseFromPosesByLink(
+                                    name="ExtractJacoAboveEEPose",
+                                    ns=name,
+                                    inputs={
+                                        "fk_poses": BlackboardKey(
+                                            "jaco_above_fk_poses"
+                                        ),
+                                        "target_link_name": "j2n6s200_end_effector",
+                                        "requested_link_names": [
+                                            "j2n6s200_end_effector"
+                                        ],
+                                    },
+                                    outputs={
+                                        "extracted_pose": BlackboardKey(
+                                            "candidate_jaco_ee_above_pose"
+                                        ),
+                                        "success": None,
+                                    },
+                                ),
+                                # 8. Get the Jaco EE "Into" Pose (Goal S3)
+                                ComputeJacoEEPoseForToolTip(
+                                    name="ComputeJacoIntoEEPose",
+                                    ns=name,
+                                    inputs={
+                                        "tool_tip_target_pose": BlackboardKey(
+                                            "tool_tip_move_into_pose_world"
+                                        ),
+                                        "jaco_ee_above_pose": BlackboardKey(
+                                            "candidate_jaco_ee_above_pose"
+                                        ),
+                                        "articutool_joint_positions": BlackboardKey(
+                                            "candidate_atool_joint_positions"
+                                        ),
+                                        "pinocchio_model": BlackboardKey(
+                                            "pinocchio_model"
+                                        ),
+                                        "pinocchio_data": BlackboardKey(
+                                            "pinocchio_data"
+                                        ),
+                                        "articutool_joint_names": [
+                                            "atool_joint1",
+                                            "atool_joint2",
+                                        ],
+                                    },
+                                    outputs={
+                                        "jaco_ee_into_pose": BlackboardKey(
+                                            "candidate_jaco_ee_into_pose"
+                                        )
+                                    },
                                 ),
                             ],
                         ),
-                        # B. Plan all three trajectory segments now that we have a valid goal
-                        MoveIt2PoseConstraint(
-                            name="SetJacoAbovePoseGoal",
+                        # --- B. Plan all three trajectory segments ---
+                        # Plan 1: Jaco to "Above" (JOINT GOAL)
+                        MoveIt2JointConstraint(
+                            name="SetJacoAboveJointGoal",
                             ns=name,
                             inputs={
-                                "pose": BlackboardKey("candidate_jaco_ee_above_pose")
+                                "joint_names": BlackboardKey(
+                                    "candidate_jaco_joint_names"
+                                ),
+                                "joint_positions": BlackboardKey(
+                                    "candidate_jaco_joint_positions"
+                                ),
                             },
                             outputs={
                                 "constraints": BlackboardKey("goal_constraints_s1")
@@ -1462,6 +1588,7 @@ class AcquireFoodTree(MoveToTree):
                                 ),
                             },
                         ),
+                        # Plan 2: Articutool to "Pitch" (JOINT GOAL - Unchanged)
                         MoveIt2JointConstraint(
                             name="SetAtoolPitchGoal",
                             ns=name,
@@ -1490,6 +1617,7 @@ class AcquireFoodTree(MoveToTree):
                                 ),
                             },
                         ),
+                        # Plan 3: Jaco to "Into" (POSE GOAL)
                         MoveIt2PoseConstraint(
                             name="SetJacoIntoPoseGoal",
                             ns=name,
