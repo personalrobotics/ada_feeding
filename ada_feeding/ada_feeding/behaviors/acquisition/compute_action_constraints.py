@@ -268,6 +268,7 @@ class ComputeActionConstraints(BlackboardBehavior):
                 f"[{self.name}] Set 'should_align_to_base' flag to: {action.align_to_robot_base}"
             )
 
+            ### Final write to Blackboard
             self.blackboard_set("action", action)
             self.blackboard_set("action_index", index)
         return py_trees.common.Status.SUCCESS
