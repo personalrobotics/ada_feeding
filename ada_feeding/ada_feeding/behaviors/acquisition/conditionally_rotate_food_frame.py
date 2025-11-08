@@ -40,11 +40,8 @@ class ConditionallyRotateFoodFrame(BlackboardBehavior):
 
     def blackboard_inputs(
         self,
-        # The initial, un-aligned food_frame transform
         initial_food_frame: Union[BlackboardKey, TransformStamped],
-        # The boolean flag read from the action schema
         should_align_to_base: Union[BlackboardKey, bool],
-        # The frames needed for the calculation
         food_frame_id: Union[BlackboardKey, str] = "food",
         robot_base_frame_id: Union[BlackboardKey, str] = "j2n6s200_link_base",
     ) -> None:
@@ -68,11 +65,9 @@ class ConditionallyRotateFoodFrame(BlackboardBehavior):
         self.node: Optional[Node] = None
         self.tf_buffer: Optional[tf2_ros.Buffer] = None
         self.tf_listener: Optional[tf2_ros.TransformListener] = None
-        # _initialized_properly is handled by the base class setup
 
     @override
     def setup(self, **kwargs):
-        # This setup pattern is from your original code
         try:
             self.node = kwargs["node"]
             self.tf_buffer, _, self.tf_lock = get_tf_object(self.blackboard, self.node)
@@ -126,7 +121,6 @@ class ConditionallyRotateFoodFrame(BlackboardBehavior):
                 ros2_numpy.numpify(initial_transform.transform.rotation)
             )
 
-            # --- Rotation logic from RotateLocalApproachPoses ---
             L_xy_rb_numpy = np.array([P_food_in_rb[0], P_food_in_rb[1]])
             if np.linalg.norm(L_xy_rb_numpy) < self.EPSILON:
                 self.logger.info(
