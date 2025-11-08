@@ -17,45 +17,24 @@ from ada_feeding.helpers import BlackboardKey
 
 
 def calculate_skewer_angle_from_pose(
-    tool_tip_pose_world: Pose, food_frame_pose_world: Pose, logger
+    tool_tip_pose_world: Pose, food_frame_pose_world: Pose
 ) -> float:
     """
     Calculates the tool's skewer polar angle as its deviation from vertical.
     """
-    # --- DEBUG LOG 1: Print the raw input orientations ---
     q_tool = tool_tip_pose_world.orientation
     q_food = food_frame_pose_world.orientation
-    logger.debug(
-        f"    [Helper] Input Tool Quat (world): [x={q_tool.x:.3f}, y={q_tool.y:.3f}, z={q_tool.z:.3f}, w={q_tool.w:.3f}]"
-    )
-    logger.debug(
-        f"    [Helper] Input Food Quat (world): [x={q_food.x:.3f}, y={q_food.y:.3f}, z={q_food.z:.3f}, w={q_food.w:.3f}]"
-    )
 
     R_world_tool = R.from_quat([q_tool.x, q_tool.y, q_tool.z, q_tool.w])
     R_world_food = R.from_quat([q_food.x, q_food.y, q_food.z, q_food.w])
 
     R_food_tool = R_world_food.inv() * R_world_tool
 
-    # --- DEBUG LOG 2: Print the calculated relative orientation ---
-    q_food_tool = R_food_tool.as_quat()
-    logger.debug(
-        f"    [Helper] Relative Tool Quat (in food frame): [x={q_food_tool[0]:.3f}, y={q_food_tool[1]:.3f}, z={q_food_tool[2]:.3f}, w={q_food_tool[3]:.3f}]"
-    )
-
     tool_forward_in_food_frame = R_food_tool.apply([0.0, 0.0, 1.0])
-
-    # --- DEBUG LOG 3: Print the critical vector ---
-    logger.debug(
-        f"    [Helper] Tool +Z Vector (in food frame): [{tool_forward_in_food_frame[0]:.3f}, {tool_forward_in_food_frame[1]:.3f}, {tool_forward_in_food_frame[2]:.3f}]"
-    )
 
     food_down_vector = np.array([0.0, 0.0, -1.0])
     dot_product = np.dot(tool_forward_in_food_frame, food_down_vector)
     dot_product = np.clip(dot_product, -1.0, 1.0)
-
-    # --- DEBUG LOG 4: Print the dot product ---
-    logger.debug(f"    [Helper] Dot Product with 'down' vector: {dot_product:.3f}")
 
     skewer_angle_rad = math.acos(dot_product)
     return skewer_angle_rad
@@ -172,22 +151,6 @@ class CalculateSkewerPoseForTilt(BlackboardBehavior):
             kin_data = self.blackboard_get("pinocchio_data")
             atool_joint_names = self.blackboard_get("articutool_joint_names")
 
-            # --- DEBUG LOG: Expose the static transform from wrist to tip ---
-            static_wrist_to_tip = self._get_relative_transform(
-                kin_model,
-                kin_data,
-                "j2n6s200_end_effector",
-                "tool_tip",
-                [0.0, 0.0],
-                atool_joint_names,
-            )
-            if static_wrist_to_tip:
-                static_quat = R.from_matrix(static_wrist_to_tip.rotation).as_quat()
-                self.logger.debug(
-                    f"    [DEBUG] Static Wrist-to-Tip Quat: [x={static_quat[0]:.3f}, y={static_quat[1]:.3f}, z={static_quat[2]:.3f}, w={static_quat[3]:.3f}]"
-                )
-            # --- END DEBUG LOG ---
-
             food_frame_pose = Pose()
             food_frame_pose.position = Point(
                 x=initial_food_frame.transform.translation.x,
@@ -196,9 +159,8 @@ class CalculateSkewerPoseForTilt(BlackboardBehavior):
             )
             food_frame_pose.orientation = initial_food_frame.transform.rotation
 
-            # Pass the behavior's logger to the helper function
             skewer_polar_angle_rad = calculate_skewer_angle_from_pose(
-                tool_tip_into_pose, food_frame_pose, self.logger
+                tool_tip_into_pose, food_frame_pose
             )
 
             required_atool_pitch = (
@@ -234,9 +196,6 @@ class CalculateSkewerPoseForTilt(BlackboardBehavior):
 
             R_wrist_tip = R.from_matrix(T_wrist_tip.rotation)
             R_world_wrist_target = R_world_tip * R_wrist_tip.inv()
-
-            # R_tilt = R.from_euler("x", jaco_pitch_tilt_rad)
-            # R_world_wrist_target = R_world_wrist_untilted * R_tilt
 
             p_tip_infood = np.array(
                 [
