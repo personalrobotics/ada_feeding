@@ -43,9 +43,7 @@ class CallSetOrientationControl(BlackboardBehavior):
 
     def blackboard_inputs(
         self,
-        control_mode: Union[
-            BlackboardKey, int
-        ],  # MODE_DISABLED, MODE_LEVELING, MODE_FULL_ORIENTATION
+        control_mode: Union[BlackboardKey, int],  # MODE_DISABLED, MODE_LEVELING
         pitch_offset_deg: Optional[
             Union[BlackboardKey, float]
         ] = 0.0,  # For MODE_LEVELING
@@ -85,7 +83,6 @@ class CallSetOrientationControl(BlackboardBehavior):
     ) -> None:
         """
         Blackboard Outputs
-        (Same as before)
         """
         super().blackboard_outputs(
             **{key: value for key, value in locals().items() if key != "self"}
@@ -93,7 +90,7 @@ class CallSetOrientationControl(BlackboardBehavior):
 
     def setup(self, **kwargs):
         """Get the node and create the service client."""
-        self.node: Optional[Node] = kwargs.get("node")  # Use .get() for safety
+        self.node: Optional[Node] = kwargs.get("node")
         self.client = None
         if not self.node:
             self.logger.error(
@@ -184,64 +181,6 @@ class CallSetOrientationControl(BlackboardBehavior):
                     self.logger.info(
                         f"[{self.name}] Setting MODE_LEVELING with pitch_offset_rad={req.pitch_offset:.3f}, roll_offset_rad={req.roll_offset:.3f}"
                     )
-
-                elif (
-                    req.control_mode
-                    == SetOrientationControl.Request.MODE_FULL_ORIENTATION
-                ):
-                    target_orient_input = self.blackboard_get(
-                        "target_orientation_robot_base_quat"
-                    )
-                    if target_orient_input is None:
-                        self.logger.error(
-                            f"[{self.name}] 'target_orientation_robot_base_quat' is required for MODE_FULL_ORIENTATION but not found or None."
-                        )
-                        return Status.FAILURE
-
-                    temp_quat_msg = Quaternion()
-                    if isinstance(target_orient_input, Quaternion):
-                        temp_quat_msg = target_orient_input
-                    elif (
-                        isinstance(target_orient_input, (list, tuple))
-                        and len(target_orient_input) == 4
-                    ):
-                        try:
-                            temp_quat_msg.x = float(target_orient_input[0])
-                            temp_quat_msg.y = float(target_orient_input[1])
-                            temp_quat_msg.z = float(target_orient_input[2])
-                            temp_quat_msg.w = float(target_orient_input[3])
-                            norm = np.linalg.norm(
-                                [
-                                    temp_quat_msg.x,
-                                    temp_quat_msg.y,
-                                    temp_quat_msg.z,
-                                    temp_quat_msg.w,
-                                ]
-                            )
-                            if not np.isclose(norm, 1.0, atol=0.01) and not np.isclose(
-                                norm, 0.0, atol=0.01
-                            ):  # Allow zero quat if it means "don't care"
-                                self.logger.warning(
-                                    f"Input target_orientation_robot_base_quat norm is {norm:.3f}, not 1.0."
-                                )
-                        except (ValueError, TypeError, IndexError) as e:
-                            self.logger.error(
-                                f"Could not convert list/tuple {target_orient_input} to Quaternion: {e}"
-                            )
-                            return Status.FAILURE
-                    else:
-                        self.logger.error(
-                            f"[{self.name}] Input 'target_orientation_robot_base_quat' invalid type {type(target_orient_input)} for MODE_FULL_ORIENTATION."
-                        )
-                        return Status.FAILURE
-                    req.target_orientation_robot_base = temp_quat_msg
-                    # Set defaults for leveling offsets when not in MODE_LEVELING
-                    req.pitch_offset = 0.0
-                    req.roll_offset = 0.0
-                    self.logger.info(
-                        f"[{self.name}] Setting MODE_FULL_ORIENTATION with target_quat (xyzw): [{req.target_orientation_robot_base.x:.3f}, {req.target_orientation_robot_base.y:.3f}, {req.target_orientation_robot_base.z:.3f}, {req.target_orientation_robot_base.w:.3f}]"
-                    )
-
                 else:  # MODE_DISABLED or other
                     # Set defaults for all orientation fields
                     req.pitch_offset = 0.0
