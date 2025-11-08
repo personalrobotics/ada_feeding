@@ -6,7 +6,6 @@
 This module defines the ComputeFoodFrame behavior, which computes the
 food frame from the Mask provided from a perception algorithm.
 """
-
 # Standard imports
 from typing import Optional, Tuple, Union
 
