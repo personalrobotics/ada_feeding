@@ -185,16 +185,6 @@ class ADAPlanningScene(Node):
             ),
         )
         self.__initialization_hz = initialization_hz.value
-        enable_face_detection_updates = self.declare_parameter(
-            "enable_face_detection_updates",
-            True,  # Default to True to maintain original behavior
-            ParameterDescriptor(
-                name="enable_face_detection_updates",
-                type=ParameterType.PARAMETER_BOOL,
-                description="Master switch to enable or disable the UpdateFromFaceDetection component.",
-            ),
-        )
-        self.__enable_face_detection_updates = enable_face_detection_updates.value
 
     def initialize(self) -> bool:
         """
@@ -235,20 +225,16 @@ class ADAPlanningScene(Node):
         # even if not used.
 
         # Create an object to process planning scene updates from face detection
-        if self.__enable_face_detection_updates:
-            self.get_logger().info("Initializing face detection updates.")
-            self.__update_from_face_detection = UpdateFromFaceDetection(
-                node=self,
-                collision_object_manager=self.__collision_object_manager,
-                objects=self.__objects,
-                base_frame_id=self.__base_frame,
-                tf_buffer=self.__tf_buffer,
-                tf_broadcaster=self.__tf_broadcaster,
-                namespaces=self.__namespaces,
-                namespace_to_use=self.__namespace_to_use,
-            )
-        else:
-            self.get_logger().warn("Face detection updates are DISABLED by parameter.")
+        self.__update_from_face_detection = UpdateFromFaceDetection(
+            node=self,
+            collision_object_manager=self.__collision_object_manager,
+            objects=self.__objects,
+            base_frame_id=self.__base_frame,
+            tf_buffer=self.__tf_buffer,
+            tf_broadcaster=self.__tf_broadcaster,
+            namespaces=self.__namespaces,
+            namespace_to_use=self.__namespace_to_use,
+        )
 
         # Create an object to process planning scene updates from table detection
         self.__update_from_table_detection = UpdateFromTableDetection(
