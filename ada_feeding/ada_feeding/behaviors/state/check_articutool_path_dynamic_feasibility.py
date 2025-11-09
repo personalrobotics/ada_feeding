@@ -5,10 +5,11 @@
 """
 This module defines the CheckArticutoolPathDynamicFeasibility behavior.
 
-This behavior extends the kinematic feasibility check by also verifying if the
-Articutool has the dynamic capability (i.e., sufficient motor velocity) to
-maintain a level orientation throughout a given trajectory of the Jaco arm.
-It combines the kinematic check with a dynamic analysis at each waypoint.
+This behavior checks if a Jaco trajectory is dynamically feasible for the
+Articutool to maintain a level orientation. It uses the Articutool's
+analytic kinematic model and applies a fixed coordinate frame transformation
+to account for the difference between the JacoEE frame and the
+Articutool's kinematic base frame.
 """
 
 # Standard imports
@@ -33,19 +34,17 @@ from ada_feeding.helpers import BlackboardKey
 
 class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
     """
-    Checks if a Jaco trajectory is dynamically feasible for the Articutool.
-
-    For each point along a trajectory, this behavior performs a two-part check:
-    1.  Kinematic Check: Can the Articutool *be* level at this Jaco pose?
-        (Same as CheckArticutoolPathLevelingFeasibility).
-    2.  Dynamic Check: Is the Articutool *fast enough* to counteract the
-        tilting motion induced by the Jaco arm's movement?
-
-    If both checks pass for all waypoints, it returns SUCCESS. Otherwise, FAILURE.
+    Checks if a Jaco trajectory is dynamically feasible for the Articutool
+    to maintain a level orientation.
     """
 
     EPSILON = 1e-6
     WORLD_Z_UP_VECTOR = np.array([0.0, 0.0, 1.0])
+
+    # Fixed rotation to convert a vector from the Jaco End-Effector frame
+    # to the Articutool's base frame (the frame used by the analytic IK solver).
+    # v_ArticutoolBase = R_z(-90) * v_JacoEE
+    R_JACOEE_TO_ATOOL_BASE = Rotation.from_euler("z", -math.pi / 2, degrees=False)
 
     def blackboard_inputs(
         self,
@@ -127,16 +126,22 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
         self, target_y_axis_in_atool_base: np.ndarray
     ) -> List[Tuple[float, float]]:
         """
-        Analytical IK solver based on the reconciled kinematic model.
+        Analytical IK solver based on the Articutool's kinematic model.
         Solves for Articutool (pitch, roll) to align its tool_tip Y-axis
-        with the given target vector expressed in the Articutool's base frame.
+        with the given target vector *expressed in the Articutool's base frame*.
+
+        FK:
+        vx = cos(theta_p) * cos(theta_r)
+        vy = sin(theta_r)
+        vz = sin(theta_p) * cos(theta_r)
         """
         vx, vy, vz = target_y_axis_in_atool_base
         solutions: List[Tuple[float, float]] = []
 
-        asin_arg_for_tr = -vx
+        # From sin(theta_r) = vy
+        asin_arg_for_tr = vy
         if not (-1.0 - self.EPSILON <= asin_arg_for_tr <= 1.0 + self.EPSILON):
-            return []
+            return []  # No real solution for theta_r
 
         asin_arg_for_tr_clipped = np.clip(asin_arg_for_tr, -1.0, 1.0)
         theta_r_sol1 = math.asin(asin_arg_for_tr_clipped)
@@ -148,14 +153,18 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
 
         for theta_r in candidate_thetas_r:
             cos_theta_r = math.cos(theta_r)
+
+            # Check for singularity (cos_theta_r is near zero)
             if math.isclose(cos_theta_r, 0.0, abs_tol=self.EPSILON):
-                if math.isclose(vy, 0.0, abs_tol=self.EPSILON) and math.isclose(
+                if math.isclose(vx, 0.0, abs_tol=self.EPSILON) and math.isclose(
                     vz, 0.0, abs_tol=self.EPSILON
                 ):
                     solutions.append((0.0, self._normalize_angle(theta_r)))
                 continue
 
-            theta_p_sol = math.atan2(vz, vy)
+            # Regular case: cos_theta_r is not zero
+            # theta_p = atan2(vz / cos_theta_r, vx / cos_theta_r) -> atan2(vz, vx)
+            theta_p_sol = math.atan2(vz, vx)
             solutions.append(
                 (self._normalize_angle(theta_p_sol), self._normalize_angle(theta_r))
             )
@@ -165,21 +174,22 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
         self, theta_p: float, theta_r: float
     ) -> np.ndarray:
         """
-        Computes the 3x2 analytical Jacobian for the Articutool leveling task.
-        This must be derived from the same FK model that the IK inverts.
+        Computes the 3x2 analytical Jacobian for the Articutool leveling task,
+        based on the Articutool's analytic kinematic model (matching the IK solver).
+
+        FK: y_F0 = [cp*cr, sr, sp*cr]^T
         """
         cp, sp = math.cos(theta_p), math.sin(theta_p)
         cr, sr = math.cos(theta_r), math.sin(theta_r)
 
-        # Partial derivatives of y_F0 = [-sr, cp*cr, sp*cr]^T
-        # d/d(theta_p)
-        j11 = 0
-        j21 = -sp * cr
+        # Partial derivatives w.r.t. theta_p (Column 1)
+        j11 = -sp * cr
+        j21 = 0
         j31 = cp * cr
 
-        # d/d(theta_r)
-        j12 = -cr
-        j22 = -cp * sr
+        # Partial derivatives w.r.t. theta_r (Column 2)
+        j12 = -cp * sr
+        j22 = cr
         j32 = -sp * sr
 
         return np.array([[j11, j12], [j21, j22], [j31, j32]])
@@ -245,21 +255,24 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
                     elif joint_obj.nq == 1 and joint_obj.nv == 1:
                         q_full_robot[joint_obj.idx_q] = theta
 
-                pin.forwardKinematics(
-                    self._pin_model, self._pin_data, q_full_robot
-                )  # Use full vector
+                pin.forwardKinematics(self._pin_model, self._pin_data, q_full_robot)
                 pin.updateFramePlacements(self._pin_model, self._pin_data)
-                T_world_atool_base = self._pin_data.oMf[self._jaco_ee_frame_id_pin]
-                R_world_atool_base = Rotation.from_matrix(T_world_atool_base.rotation)
 
-                # 2. Transform world "up" vector to Articutool's base frame
-                target_y_in_atool_base = R_world_atool_base.inv().apply(
-                    self.WORLD_Z_UP_VECTOR
+                # This pose is of the JacoEE frame
+                T_world_jacoee = self._pin_data.oMf[self._jaco_ee_frame_id_pin]
+                R_world_jacoee = Rotation.from_matrix(T_world_jacoee.rotation)
+
+                # 2. Transform world "up" vector to the JacoEE frame
+                target_y_in_JacoEE = R_world_jacoee.inv().apply(self.WORLD_Z_UP_VECTOR)
+
+                # 3. Convert from JacoEE frame to Articutool Base frame
+                target_y_in_ArticutoolBase = self.R_JACOEE_TO_ATOOL_BASE.apply(
+                    target_y_in_JacoEE
                 )
 
-                # 3. Solve Articutool IK for leveling
+                # 4. Solve Articutool IK for leveling
                 ik_solutions = self._solve_articutool_ik_for_leveling(
-                    target_y_in_atool_base
+                    target_y_in_ArticutoolBase
                 )
 
                 valid_solutions = [
@@ -298,7 +311,7 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
                 J_jaco_full = pin.computeFrameJacobian(
                     self._pin_model,
                     self._pin_data,
-                    q_full_robot,  # Use full vector
+                    q_full_robot,
                     self._jaco_ee_frame_id_pin,
                     pin.ReferenceFrame.WORLD,
                 )
@@ -309,17 +322,35 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
 
                 v_jaco_full = J_jaco_full @ v_full_robot
                 omega_disturbance_world = v_jaco_full[3:6]
-                omega_correction_local = -R_world_atool_base.inv().apply(
+
+                # Transform disturbance omega into the local JacoEE frame
+                omega_disturbance_local_JacoEE = R_world_jacoee.inv().apply(
                     omega_disturbance_world
                 )
 
                 # 3. Compute Articutool's Jacobian at the required configuration
-                J_atool = self._compute_articutool_jacobian(q_atool[0], q_atool[1])
+                #    This Jacobian relates joint vels to angular vel in the Articutool Base frame
+                J_atool_ArticutoolBase = self._compute_articutool_jacobian(
+                    q_atool[0], q_atool[1]
+                )
 
-                # 4. Solve for required Articutool joint velocities
+                # 4. We must transform the disturbance omega into the Articutool Base frame as well
+                omega_disturbance_local_ArticutoolBase = (
+                    self.R_JACOEE_TO_ATOOL_BASE.apply(omega_disturbance_local_JacoEE)
+                )
+
+                # We want to find joint velocities `q_dot` that *cancel* this disturbance.
+                # J_ArticuloolBase * q_dot = -omega_disturbance_ArticutoolBase
+                omega_correction_local_ArticutoolBase = (
+                    -omega_disturbance_local_ArticutoolBase
+                )
+
+                # 5. Solve for required Articutool joint velocities
                 try:
-                    J_atool_pinv = np.linalg.pinv(J_atool, rcond=1e-4)
-                    q_dot_atool_required = J_atool_pinv @ omega_correction_local
+                    J_atool_pinv = np.linalg.pinv(J_atool_ArticutoolBase, rcond=1e-4)
+                    q_dot_atool_required = (
+                        J_atool_pinv @ omega_correction_local_ArticutoolBase
+                    )
                 except np.linalg.LinAlgError:
                     self.feedback_message = (
                         f"Articutool Jacobian is singular at point {idx}."
@@ -328,11 +359,14 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
                     self.blackboard_set("articutool_is_dynamic_feasible", False)
                     return Status.FAILURE
 
-                # 5. The final check
-                if np.linalg.norm(q_dot_atool_required) > self._max_atool_vel:
+                # 6. The final check
+                if (
+                    abs(q_dot_atool_required[0]) > self._max_atool_vel
+                    or abs(q_dot_atool_required[1]) > self._max_atool_vel
+                ):
                     self.feedback_message = (
                         f"Path is dynamically infeasible at point {idx}. "
-                        f"Required vel: {np.linalg.norm(q_dot_atool_required):.2f} rad/s > "
+                        f"Required vel [p,r]: {np.round(q_dot_atool_required, 2)} rad/s > "
                         f"Max vel: {self._max_atool_vel:.2f} rad/s"
                     )
                     self.logger.warning(f"[{self.name}] {self.feedback_message}")

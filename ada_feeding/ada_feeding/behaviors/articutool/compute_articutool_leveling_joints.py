@@ -7,6 +7,11 @@ This module defines the ComputeArticutoolLevelingJoints behavior.
 Given the Jaco arm's end-effector world pose, this behavior calculates
 the Articutool joint angles (pitch, roll) required to make the
 Articutool's tool_tip Y-axis point upwards against gravity (world +Z).
+
+This node uses the analytic kinematic model for the Articutool (as described
+in the thesis). It applies a fixed rotation to account for the coordinate
+frame difference between the Jaco End-Effector (as defined in the URDF)
+and the Articutool's kinematic base frame.
 """
 
 # Standard imports
@@ -35,6 +40,12 @@ class ComputeArticutoolLevelingJoints(BlackboardBehavior):
 
     EPSILON = 1e-6
     WORLD_Z_UP_VECTOR = np.array([0.0, 0.0, 1.0])  # Target direction in World Frame
+
+    # Fixed rotation to convert a vector from the Jaco End-Effector frame
+    # to the Articutool's base frame (the frame used by the analytic IK solver).
+    # This accounts for the Rz(-90) difference in conventions.
+    # v_ArticutoolBase = R_z(-90) * v_JacoEE
+    R_JACOEE_TO_ATOOL_BASE = R.from_euler("z", -math.pi / 2, degrees=False)
 
     def blackboard_inputs(
         self,
@@ -88,33 +99,26 @@ class ComputeArticutoolLevelingJoints(BlackboardBehavior):
         return (angle + math.pi) % (2 * math.pi) - math.pi
 
     def _solve_articutool_ik_for_leveling(
-        self, target_y_axis_in_jaco_hand_frame: np.ndarray
+        self, target_y_axis_in_atool_base: np.ndarray
     ) -> List[Tuple[float, float]]:
         """
-        Analytical IK solver for the 2-DOF Articutool.
-        Input: target_y_axis_in_jaco_hand_frame (3D numpy array) - This is the desired
-               pointing direction of the Articutool's tool_tip Y-axis, expressed in the
-               Jaco Hand Frame (Articutool's base frame, F_JH).
-        Output: List of (theta_p, theta_r) solutions in radians.
-        This IK is based on the one used in the benchmark and CheckArticutoolPathOrientationFeasibility.
-        It assumes the relationship where the input vector (vx, vy, vz) from F_JH
-        is related to the Articutool's FK $y_{tip}^{AB}(\theta_p, \theta_r) = (X_{AB}, Y_{AB}, Z_{AB})$
-        after transformation $y_{tip}^{AB} = R_z(-\pi/2) \cdot (v_x, v_y, v_z)^T = (v_y, -v_x, v_z)^T$.
-        So, the IK solves for:
-        $\cos\theta_p \cos\theta_r = v_y$
-        $\sin\theta_r = -v_x$
-        $\sin\theta_p \cos\theta_r = v_z$
+        Analytical IK solver based on the Articutool's kinematic model.
+        Solves for Articutool (pitch, roll) to align its tool_tip Y-axis
+        with the given target vector *expressed in the Articutool's base frame*.
+
+        FK:
+        vx = cos(theta_p) * cos(theta_r)
+        vy = sin(theta_r)
+        vz = sin(theta_p) * cos(theta_r)
         """
-        vx, vy, vz = (
-            target_y_axis_in_jaco_hand_frame  # This is the target vector in Jaco Hand Frame
-        )
+        vx, vy, vz = target_y_axis_in_atool_base
         solutions: List[Tuple[float, float]] = []
 
-        # From sin(theta_r) = -vx
-        asin_arg_for_tr = -vx
+        # From sin(theta_r) = vy
+        asin_arg_for_tr = vy
         if not (-1.0 - self.EPSILON <= asin_arg_for_tr <= 1.0 + self.EPSILON):
             self.logger.debug(
-                f"[{self.name}] IK: asin_arg_for_tr ({asin_arg_for_tr:.4f}) out of range for -vx={-vx:.4f}."
+                f"[{self.name}] IK: asin_arg_for_tr ({asin_arg_for_tr:.4f}) out of range for vy={vy:.4f}."
             )
             return []  # No real solution for theta_r
 
@@ -128,27 +132,24 @@ class ComputeArticutoolLevelingJoints(BlackboardBehavior):
 
         for theta_r in candidate_thetas_r:
             cos_theta_r = math.cos(theta_r)
-            # From cos(theta_p)cos(theta_r) = vy  AND  sin(theta_p)cos(theta_r) = vz
-            # If cos(theta_r) is near zero (singularity):
+
+            # Check for singularity (cos_theta_r is near zero)
             if math.isclose(cos_theta_r, 0.0, abs_tol=self.EPSILON):
-                # Then vy and vz must also be near zero.
-                # If so, theta_p is indeterminate but can be chosen (e.g., 0).
-                # This case also means sin(theta_r) = +/-1, so -vx = +/-1.
-                if math.isclose(vy, 0.0, abs_tol=self.EPSILON) and math.isclose(
+                # This means sin(theta_r) = +/-1, so vy = +/-1.
+                # For a solution to exist, vx and vz must also be near zero.
+                if math.isclose(vx, 0.0, abs_tol=self.EPSILON) and math.isclose(
                     vz, 0.0, abs_tol=self.EPSILON
                 ):
-                    # This implies target vector was (∓1, 0, 0) in Jaco Hand Frame.
-                    # This would mean Artic Y is trying to point along Jaco Hand +/-X.
-                    solutions.append(
-                        (0.0, self._normalize_angle(theta_r))
-                    )  # Choose theta_p = 0
-                # else: (vy or vz is not zero, but cos_theta_r is zero) -> No solution
-                continue  # Skip to next theta_r if singular and conditions not met
+                    # This implies target vector was (0, +/-1, 0) in Handle Frame.
+                    # theta_p is indeterminate, so we can choose 0.
+                    solutions.append((0.0, self._normalize_angle(theta_r)))
+                # else: (vx or vz is not zero, but cos_theta_r is zero) -> No solution
+                continue  # Skip to next theta_r
 
             # Regular case: cos_theta_r is not zero
             # theta_p = atan2(sin_theta_p, cos_theta_p)
-            # theta_p = atan2(vz / cos_theta_r, vy / cos_theta_r) which simplifies to atan2(vz, vy)
-            theta_p_sol = math.atan2(vz, vy)
+            # theta_p = atan2(vz / cos_theta_r, vx / cos_theta_r) -> atan2(vz, vx)
+            theta_p_sol = math.atan2(vz, vx)
             solutions.append(
                 (self._normalize_angle(theta_p_sol), self._normalize_angle(theta_r))
             )
@@ -186,7 +187,7 @@ class ComputeArticutoolLevelingJoints(BlackboardBehavior):
                 self.blackboard_set("articutool_leveling_ik_found", False)
                 return Status.FAILURE
 
-            # 1. Extract R_World_JacoEE from the Jaco EE's world pose
+            # 1. Extract R_World_to_JacoEE
             R_world_jacoee = R.from_quat(
                 [
                     current_jaco_ee_pose.orientation.x,
@@ -197,19 +198,27 @@ class ComputeArticutoolLevelingJoints(BlackboardBehavior):
             )
 
             # 2. Desired tool_tip Y-axis in World Frame is WORLD_Z_UP_VECTOR
-            # Transform this into the Jaco EE frame (F_JH)
-            # target_Ytip_in_JacoEE = R_JacoEE_World * WORLD_Z_UP_VECTOR
+            #    Transform this into the Jaco EE frame
             target_Ytip_in_JacoEE = R_world_jacoee.inv().apply(self.WORLD_Z_UP_VECTOR)
 
-            self.logger.debug(
-                f"[{self.name}] Jaco EE R_W_EE: {R_world_jacoee.as_quat(canonical=False)}"
+            # 3. Convert from JacoEE frame to Articutool Base frame
+            #    The analytic IK solver is defined in a frame (Articutool Base)
+            #    that is rotated -90 deg on Z relative to the JacoEE frame.
+            target_Ytip_in_ArticutoolBase = self.R_JACOEE_TO_ATOOL_BASE.apply(
+                target_Ytip_in_JacoEE
             )
+
             self.logger.debug(
                 f"[{self.name}] Target Y_tip in JacoEE frame: {np.round(target_Ytip_in_JacoEE, 3)}"
             )
+            self.logger.debug(
+                f"[{self.name}] Target Y_tip in Articutool Base (IK) frame: {np.round(target_Ytip_in_ArticutoolBase, 3)}"
+            )
 
-            # 3. Solve Articutool IK
-            ik_solutions = self._solve_articutool_ik_for_leveling(target_Ytip_in_JacoEE)
+            # 4. Solve Articutool IK using the correctly-framed vector
+            ik_solutions = self._solve_articutool_ik_for_leveling(
+                target_Ytip_in_ArticutoolBase
+            )
 
             if not ik_solutions:
                 self.feedback_message = "Articutool IK found no solutions for leveling."
@@ -219,14 +228,12 @@ class ComputeArticutoolLevelingJoints(BlackboardBehavior):
                     Status.FAILURE
                 )  # Or SUCCESS if allowing no solution to mean "do nothing"
 
-            # 4. Select a valid solution (e.g., first one within limits, or closest to current)
-            # For simplicity, taking the first valid one.
+            # 5. Select a valid solution
             valid_solution_found = False
             best_pitch = None
             best_roll = None
 
             for theta_p_sol, theta_r_sol in ik_solutions:
-                # Normalize again just to be safe, though IK solver should do it
                 tp_norm = self._normalize_angle(theta_p_sol)
                 tr_norm = self._normalize_angle(theta_r_sol)
 
