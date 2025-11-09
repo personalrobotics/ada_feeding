@@ -17,6 +17,7 @@ import math
 from typing import Union, Optional, List, Tuple
 import traceback
 
+# Third-party imports
 from geometry_msgs.msg import Pose
 from moveit_msgs.msg import RobotTrajectory
 from trajectory_msgs.msg import JointTrajectory
@@ -28,6 +29,10 @@ from py_trees.common import Status
 import rclpy.node
 import pinocchio as pin
 
+# ROS / System Imports
+from articutool_control.articutool_kinematics import ArticutoolAnalyticalKinematics
+
+# Local imports
 from ada_feeding.behaviors import BlackboardBehavior
 from ada_feeding.helpers import BlackboardKey
 
@@ -76,6 +81,8 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
     def __init__(self, name: str, **kwargs):
         """Initialize the behavior."""
         super().__init__(name=name, **kwargs)
+        self.kin_model = ArticutoolAnalyticalKinematics(epsilon=self.EPSILON)
+
         self.node: Optional[rclpy.node.Node] = None
         self._pin_model: Optional[pin.Model] = None
         self._pin_data: Optional[pin.Data] = None
@@ -117,82 +124,6 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
                 f"[{self.name}] Failed to get required info from blackboard: {e}."
             )
             return False
-
-    def _normalize_angle(self, angle: float) -> float:
-        """Normalize an angle to the range [-pi, pi]."""
-        return (angle + math.pi) % (2 * math.pi) - math.pi
-
-    def _solve_articutool_ik_for_leveling(
-        self, target_y_axis_in_atool_base: np.ndarray
-    ) -> List[Tuple[float, float]]:
-        """
-        Analytical IK solver based on the Articutool's kinematic model.
-        Solves for Articutool (pitch, roll) to align its tool_tip Y-axis
-        with the given target vector *expressed in the Articutool's base frame*.
-
-        FK:
-        vx = cos(theta_p) * cos(theta_r)
-        vy = sin(theta_r)
-        vz = sin(theta_p) * cos(theta_r)
-        """
-        vx, vy, vz = target_y_axis_in_atool_base
-        solutions: List[Tuple[float, float]] = []
-
-        # From sin(theta_r) = vy
-        asin_arg_for_tr = vy
-        if not (-1.0 - self.EPSILON <= asin_arg_for_tr <= 1.0 + self.EPSILON):
-            return []  # No real solution for theta_r
-
-        asin_arg_for_tr_clipped = np.clip(asin_arg_for_tr, -1.0, 1.0)
-        theta_r_sol1 = math.asin(asin_arg_for_tr_clipped)
-        theta_r_sol2 = self._normalize_angle(math.pi - theta_r_sol1)
-
-        candidate_thetas_r = [theta_r_sol1]
-        if not math.isclose(theta_r_sol1, theta_r_sol2, abs_tol=self.EPSILON):
-            candidate_thetas_r.append(theta_r_sol2)
-
-        for theta_r in candidate_thetas_r:
-            cos_theta_r = math.cos(theta_r)
-
-            # Check for singularity (cos_theta_r is near zero)
-            if math.isclose(cos_theta_r, 0.0, abs_tol=self.EPSILON):
-                if math.isclose(vx, 0.0, abs_tol=self.EPSILON) and math.isclose(
-                    vz, 0.0, abs_tol=self.EPSILON
-                ):
-                    solutions.append((0.0, self._normalize_angle(theta_r)))
-                continue
-
-            # Regular case: cos_theta_r is not zero
-            # theta_p = atan2(vz / cos_theta_r, vx / cos_theta_r) -> atan2(vz, vx)
-            theta_p_sol = math.atan2(vz, vx)
-            solutions.append(
-                (self._normalize_angle(theta_p_sol), self._normalize_angle(theta_r))
-            )
-        return solutions
-
-    def _compute_articutool_jacobian(
-        self, theta_p: float, theta_r: float
-    ) -> np.ndarray:
-        """
-        Computes the 3x2 analytical Jacobian for the Articutool leveling task,
-        based on the Articutool's analytic kinematic model (matching the IK solver).
-
-        FK: y_F0 = [cp*cr, sr, sp*cr]^T
-        """
-        cp, sp = math.cos(theta_p), math.sin(theta_p)
-        cr, sr = math.cos(theta_r), math.sin(theta_r)
-
-        # Partial derivatives w.r.t. theta_p (Column 1)
-        j11 = -sp * cr
-        j21 = 0
-        j31 = cp * cr
-
-        # Partial derivatives w.r.t. theta_r (Column 2)
-        j12 = -cp * sr
-        j22 = cr
-        j32 = -sp * sr
-
-        return np.array([[j11, j12], [j21, j22], [j31, j32]])
 
     def _get_jaco_trajectory_points(
         self, trajectory_input: Union[RobotTrajectory, JointTrajectory]
@@ -271,7 +202,7 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
                 )
 
                 # 4. Solve Articutool IK for leveling
-                ik_solutions = self._solve_articutool_ik_for_leveling(
+                ik_solutions = self.kin_model.solve_ik_for_leveling(
                     target_y_in_ArticutoolBase
                 )
 
@@ -329,12 +260,11 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
                 )
 
                 # 3. Compute Articutool's Jacobian at the required configuration
-                #    This Jacobian relates joint vels to angular vel in the Articutool Base frame
-                J_atool_ArticutoolBase = self._compute_articutool_jacobian(
+                J_atool_ArticutoolBase = self.kin_model.compute_jacobian(
                     q_atool[0], q_atool[1]
                 )
 
-                # 4. We must transform the disturbance omega into the Articutool Base frame as well
+                # 4. Transform disturbance omega into the Articutool Base frame
                 omega_disturbance_local_ArticutoolBase = (
                     self.R_JACOEE_TO_ATOOL_BASE.apply(omega_disturbance_local_JacoEE)
                 )

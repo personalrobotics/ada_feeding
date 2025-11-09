@@ -8,8 +8,8 @@ Given the Jaco arm's end-effector world pose, this behavior calculates
 the Articutool joint angles (pitch, roll) required to make the
 Articutool's tool_tip Y-axis point upwards against gravity (world +Z).
 
-This node uses the analytic kinematic model for the Articutool (as described
-in the thesis). It applies a fixed rotation to account for the coordinate
+This node uses the analytic kinematic model for the Articutool.
+It applies a fixed rotation to account for the coordinate
 frame difference between the Jaco End-Effector (as defined in the URDF)
 and the Articutool's kinematic base frame.
 """
@@ -27,6 +27,9 @@ import py_trees
 from py_trees.common import Status, Access
 import rclpy
 from rclpy.node import Node
+
+# ROS / System Imports
+from articutool_control.articutool_kinematics import ArticutoolAnalyticalKinematics
 
 # Local imports
 from ada_feeding.behaviors import BlackboardBehavior  # Assuming this is your base class
@@ -78,6 +81,7 @@ class ComputeArticutoolLevelingJoints(BlackboardBehavior):
         super().__init__(name=name, **kwargs)
         self.node: Optional[Node] = None
         self._initialized_properly = False
+        self.kin_model = ArticutoolAnalyticalKinematics(epsilon=self.EPSILON)
 
     @override
     def setup(self, **kwargs):
@@ -93,67 +97,6 @@ class ComputeArticutoolLevelingJoints(BlackboardBehavior):
         except Exception as e:
             self.logger.error(f"[{self.name}] Error during setup: {e}")
             self._initialized_properly = False
-
-    def _normalize_angle(self, angle: float) -> float:
-        """Normalize an angle to [-pi, pi]."""
-        return (angle + math.pi) % (2 * math.pi) - math.pi
-
-    def _solve_articutool_ik_for_leveling(
-        self, target_y_axis_in_atool_base: np.ndarray
-    ) -> List[Tuple[float, float]]:
-        """
-        Analytical IK solver based on the Articutool's kinematic model.
-        Solves for Articutool (pitch, roll) to align its tool_tip Y-axis
-        with the given target vector *expressed in the Articutool's base frame*.
-
-        FK:
-        vx = cos(theta_p) * cos(theta_r)
-        vy = sin(theta_r)
-        vz = sin(theta_p) * cos(theta_r)
-        """
-        vx, vy, vz = target_y_axis_in_atool_base
-        solutions: List[Tuple[float, float]] = []
-
-        # From sin(theta_r) = vy
-        asin_arg_for_tr = vy
-        if not (-1.0 - self.EPSILON <= asin_arg_for_tr <= 1.0 + self.EPSILON):
-            self.logger.debug(
-                f"[{self.name}] IK: asin_arg_for_tr ({asin_arg_for_tr:.4f}) out of range for vy={vy:.4f}."
-            )
-            return []  # No real solution for theta_r
-
-        asin_arg_for_tr_clipped = np.clip(asin_arg_for_tr, -1.0, 1.0)
-        theta_r_sol1 = math.asin(asin_arg_for_tr_clipped)
-        theta_r_sol2 = self._normalize_angle(math.pi - theta_r_sol1)
-
-        candidate_thetas_r = [theta_r_sol1]
-        if not math.isclose(theta_r_sol1, theta_r_sol2, abs_tol=self.EPSILON):
-            candidate_thetas_r.append(theta_r_sol2)
-
-        for theta_r in candidate_thetas_r:
-            cos_theta_r = math.cos(theta_r)
-
-            # Check for singularity (cos_theta_r is near zero)
-            if math.isclose(cos_theta_r, 0.0, abs_tol=self.EPSILON):
-                # This means sin(theta_r) = +/-1, so vy = +/-1.
-                # For a solution to exist, vx and vz must also be near zero.
-                if math.isclose(vx, 0.0, abs_tol=self.EPSILON) and math.isclose(
-                    vz, 0.0, abs_tol=self.EPSILON
-                ):
-                    # This implies target vector was (0, +/-1, 0) in Handle Frame.
-                    # theta_p is indeterminate, so we can choose 0.
-                    solutions.append((0.0, self._normalize_angle(theta_r)))
-                # else: (vx or vz is not zero, but cos_theta_r is zero) -> No solution
-                continue  # Skip to next theta_r
-
-            # Regular case: cos_theta_r is not zero
-            # theta_p = atan2(sin_theta_p, cos_theta_p)
-            # theta_p = atan2(vz / cos_theta_r, vx / cos_theta_r) -> atan2(vz, vx)
-            theta_p_sol = math.atan2(vz, vx)
-            solutions.append(
-                (self._normalize_angle(theta_p_sol), self._normalize_angle(theta_r))
-            )
-        return solutions
 
     @override
     def update(self) -> Status:
@@ -216,7 +159,7 @@ class ComputeArticutoolLevelingJoints(BlackboardBehavior):
             )
 
             # 4. Solve Articutool IK using the correctly-framed vector
-            ik_solutions = self._solve_articutool_ik_for_leveling(
+            ik_solutions = self.kin_model.solve_ik_for_leveling(
                 target_Ytip_in_ArticutoolBase
             )
 
@@ -234,8 +177,8 @@ class ComputeArticutoolLevelingJoints(BlackboardBehavior):
             best_roll = None
 
             for theta_p_sol, theta_r_sol in ik_solutions:
-                tp_norm = self._normalize_angle(theta_p_sol)
-                tr_norm = self._normalize_angle(theta_r_sol)
+                tp_norm = self.kin_model._normalize_angle(theta_p_sol)
+                tr_norm = self.kin_model._normalize_angle(theta_r_sol)
 
                 if (
                     pitch_limits[0] - self.EPSILON
