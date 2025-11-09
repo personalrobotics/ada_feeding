@@ -38,7 +38,6 @@ from ada_feeding.behaviors.acquisition import (
     ConditionallyRotateFoodFrame,
     GenerateSkewerTiltCandidates,
     CalculateSkewerPoseForTilt,
-    ComputeLevelPose,
 )
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2JointConstraint,
@@ -55,7 +54,6 @@ from ada_feeding.behaviors.moveit2 import (
 from ada_feeding.behaviors.state import (
     GetJointStates,
     ExtractPoseFromPosesByLink,
-    ExtractOrientationFromPose,
     CheckArticutoolPathDynamicFeasibility,
     LoadPinocchioModel,
     PublishPoseAsTf,
