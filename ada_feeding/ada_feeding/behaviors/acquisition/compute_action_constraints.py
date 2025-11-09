@@ -219,9 +219,6 @@ class ComputeActionConstraints(BlackboardBehavior):
             )
 
             # Pre-Move-Into Primitive
-            # pre_move_into_name = (
-            #     action.pre_move_into_primitive_name or "NONE"
-            # )  # Default to NONE
             pre_move_into_name = action.pre_move_into_primitive_name
             pre_move_into_params = list(action.pre_move_into_primitive_params)
             self.blackboard_set("pre_move_into_primitive_name", pre_move_into_name)
@@ -231,9 +228,6 @@ class ComputeActionConstraints(BlackboardBehavior):
             )
 
             # Post-Move-Into Primitive
-            # post_move_into_name = (
-            #     action.post_move_into_primitive_name or "NONE"
-            # )  # Default to NONE
             post_move_into_name = action.post_move_into_primitive_name
             post_move_into_params = list(action.post_move_into_primitive_params)
             self.blackboard_set("post_move_into_primitive_name", post_move_into_name)
@@ -245,9 +239,6 @@ class ComputeActionConstraints(BlackboardBehavior):
             )
 
             # Post-Acquisition Primitive
-            # post_acquisition_name = (
-            #     action.post_acquisition_primitive_name or "NONE"
-            # )  # Default to NONE
             post_acquisition_name = action.post_acquisition_primitive_name
             post_acquisition_params = list(action.post_acquisition_primitive_params)
             self.blackboard_set(

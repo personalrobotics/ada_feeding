@@ -381,13 +381,6 @@ class AcquireFoodTree(MoveToTree):
             resting_position_behaviors.append(
                 scoped_behavior(
                     name=name + " InFrontOfWheelchairWallScope",
-                    # TODO: Revert this when not running benchmarks
-                    # pre_behavior=(
-                    #     Success()  # pylint: disable=abstract-class-instantiated
-                    # ),
-                    # post_behavior=(
-                    #     Success()  # pylint: disable=abstract-class-instantiated
-                    # ),
                     pre_behavior=get_add_in_front_of_face_wall_behavior(
                         name + "AddWheelchairWall",
                     ),
