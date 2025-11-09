@@ -71,11 +71,6 @@ parser.add_argument(
     help="If set, disables table detection.",
 )
 parser.add_argument(
-    "--lock_joints",
-    action="store_true",
-    help="If set, lock the Articutool joints so that they are set to fixed in the URDF",
-)
-parser.add_argument(
     "--real_domain_id",
     default=42,
     type=int,
@@ -200,7 +195,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 ),
             ],
             "articutool": [
-                f"ros2 launch articutool_system articutool.launch.py sim:=mock end_effector_tool:={args.end_effector_tool} lock_joints:={'true' if args.lock_joints else 'false'}",
+                f"ros2 launch articutool_system articutool.launch.py sim:=mock end_effector_tool:={args.end_effector_tool}",
             ],
             "nano_bridge_sender": [
                 "ros2 launch nano_bridge sender.launch.xml",
@@ -228,14 +223,12 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false "
                     f"policy:={args.policy} "
                     f"end_effector_tool:={args.end_effector_tool} "
-                    f"action:={args.action} "
-                    f"lock_joints:={'true' if args.lock_joints else 'false'}"
+                    f"action:={args.action}"
                 ),
             ],
             "moveit": [
                 "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock "
-                f"end_effector_tool:={args.end_effector_tool} "
-                f"lock_joints:={'true' if args.lock_joints else 'false'}",
+                f"end_effector_tool:={args.end_effector_tool}"
             ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
@@ -275,8 +268,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "run_food_on_fork_detection:=false run_table_detection:=false "
                     "run_real_sense:=false "
                     f"policy:={args.policy} "
-                    f"action:={args.action} "
-                    f"lock_joints:={'true' if args.lock_joints else 'false'}"
+                    f"action:={args.action}"
                 ),
             ],
             "browser": [
@@ -331,8 +323,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 f"-e ROS_DOMAIN_ID={args.real_domain_id} "  # Pass the domain ID to the container!
                 # The image to run.
                 "ros2_articutool:latest "
-                "ros2 launch articutool_system articutool.launch.py sim:=real "
-                f"lock_joints:={'true' if args.lock_joints else 'false'}"
+                "ros2 launch articutool_system articutool.launch.py sim:=real"
                 '"'
             ],
             "rosbridge": [
@@ -346,8 +337,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 # "export DISPLAY=:5" if not args.dev else "",
                 "ros2 launch ada_planning_scene ada_moveit_launch.xml "
                 f"use_rviz:={'true' if args.dev else 'false'} "
-                f"end_effector_tool:={args.end_effector_tool} "
-                f"lock_joints:={'true' if args.lock_joints else 'false'}"
+                f"end_effector_tool:={args.end_effector_tool}"
             ],
             "feeding": [
                 # "sudo ./src/ada_feeding/configure_lovelace.sh",
@@ -356,8 +346,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy} "
                     f"end_effector_tool:={args.end_effector_tool} "
                     f"action:={args.action} "
-                    f"run_table_detection:={'false' if args.disable_table_detect else 'true'} "
-                    f"lock_joints:={'true' if args.lock_joints else 'false'}"
+                    f"run_table_detection:={'false' if args.disable_table_detect else 'true'}"
                 ),
             ],
             "browser": [

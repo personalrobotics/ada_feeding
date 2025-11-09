@@ -10,7 +10,6 @@
   <arg name="policy" default="constant" description="Which policy to use" />
   <arg name="action" default="0" description="Which action to use with constant policy" />
   <arg name="end_effector_tool" default="fork" description="Which end-effector tool to use"/>
-  <arg name="lock_joints" default="false" description="Whether to lock the Articutool joints"/>
 
   <group if="$(var run_web_bridge)">
     <!-- The ROSBridge Node -->
@@ -29,7 +28,6 @@
     <param from="$(find-pkg-share ada_feeding)/config/ada_feeding_action_servers_default.yaml"/>
     <param from="$(find-pkg-share ada_feeding)/config/ada_feeding_action_servers_custom.yaml"/>
     <param name="end_effector_tool" value="$(var end_effector_tool)"/>
-    <param name="lock_joints" value="$(var lock_joints)"/>
     <remap from="~/watchdog" to="/ada_watchdog/watchdog" />
     <remap from="~/toggle_watchdog_listener" to="/ada_watchdog_listener/toggle_watchdog_listener" />
     <remap from="~/re_tare_ft" to="/ft_sensor/tare" />

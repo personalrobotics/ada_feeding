@@ -194,9 +194,6 @@ class CreateActionServers(Node):
             ),
         )
 
-        lock_joints = self.declare_parameter("lock_joints", False)
-        lock_joints_value = lock_joints.value
-
         # Read the custom parameter namespaces
         custom_namespaces = self.declare_parameter(
             "custom_namespaces",
@@ -359,9 +356,6 @@ class CreateActionServers(Node):
                         ]
                     else:
                         tree_kwargs[kw] = self.parameters[default_namespace][full_name]
-
-                if "lock_joints" in tree_kws.value:
-                    tree_kwargs["lock_joints"] = lock_joints_value
 
             action_server_params[server_name] = ActionServerParams(
                 server_name=server_name,

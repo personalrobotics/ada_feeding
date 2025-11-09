@@ -303,7 +303,6 @@ def get_moveit2_object(
     blackboard: py_trees.blackboard.Client,
     node: Optional[Node] = None,
     group_name: str = "jaco_arm",
-    lock_joints: bool = False,
 ) -> Tuple[MoveIt2, Lock]:
     """
     Gets the MoveIt2 object and its corresponding lock from the blackboard.
@@ -366,9 +365,7 @@ def get_moveit2_object(
             _base_link = "atool_base"
             _end_effector = "tool_tip"
         elif group_name == "jaco_arm_with_articutool":
-            _joint_names = kinova.joint_names()
-            if not lock_joints:
-                _joint_names += ["atool_joint1", "atool_joint2"]
+            _joint_names = kinova.joint_names() + ["atool_joint1", "atool_joint2"]
             _base_link = kinova.base_link_name()
             _end_effector = "tool_tip"
         else:

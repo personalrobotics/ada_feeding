@@ -111,7 +111,6 @@ class MoveIt2Plan(BlackboardBehavior):
         ] = 10.0,  # np.sqrt(6.0) * np.pi,
         max_path_len_joint: Optional[Union[BlackboardKey, Dict[str, float]]] = None,
         group_name: Union[BlackboardKey, str] = "jaco_arm_with_articutool",
-        lock_joints: Union[BlackboardKey, bool] = False,
     ) -> None:
         """
         Blackboard Inputs
@@ -197,14 +196,11 @@ class MoveIt2Plan(BlackboardBehavior):
         # Get group name from blackboard
         self.group_name = self.blackboard_get("group_name")
 
-        self.lock_joints = self.blackboard_get("lock_joints")
-
         # Get the MoveIt2 object.
         self.moveit2, self.moveit2_lock = get_moveit2_object(
             self.blackboard,
             self.node,
             self.group_name,
-            self.lock_joints,
         )
 
         # Get TF Listener from blackboard

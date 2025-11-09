@@ -73,7 +73,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         t_z: float = 0.0,
         keys_to_not_write_to_blackboard: Set[str] = set(),
         clear_constraints: bool = True,
-        lock_joints: bool = False,
     ):
         """
         Initializes tree-specific parameters.
@@ -147,7 +146,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
 
         self.keys_to_not_write_to_blackboard = keys_to_not_write_to_blackboard
         self.clear_constraints = clear_constraints
-        self.lock_joints = lock_joints
 
     @override
     def create_tree(
@@ -168,7 +166,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         turn_watchdog_listener_on_prefix = "turn_watchdog_listener_on"
 
         articutool_homing_sequence = []
-        if self.home_articutool_on_completion and not self.lock_joints:
+        if self.home_articutool_on_completion:
             articutool_homing_sequence = [
                 CallSetOrientationControl(
                     name="DisableArticutoolOrientation",
@@ -237,7 +235,6 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                             "max_velocity_scale": self.max_velocity_scaling_factor,
                             "max_acceleration_scale": self.max_acceleration_scaling_factor,
                             "group_name": "jaco_arm",
-                            "lock_joints": self.lock_joints,
                         },
                         outputs={"trajectory": BlackboardKey("trajectory")},
                     ),

@@ -38,7 +38,6 @@ ada_feeding_action_servers:
           - f_mag
           - max_velocity_scaling_factor
           - home_articutool_on_completion
-          - lock_joints
         tree_kwargs: # optional
           joint_positions: # required
             - -2.5787274319310387 # j2n6s200_joint_1
@@ -62,7 +61,6 @@ ada_feeding_action_servers:
           - max_velocity_scaling_move_above
           - max_velocity_scaling_move_into
           - max_velocity_scaling_to_resting_configuration
-          - lock_joints
         tree_kwargs:
           resting_joint_positions: # required
             - -1.8601319422692169 # j2n6s200_joint_1
@@ -88,7 +86,6 @@ ada_feeding_action_servers:
           # - orientation_constraint_tolerances
           - allowed_planning_time
           - max_velocity_scaling_factor
-          - lock_joints
         tree_kwargs: # optional
           goal_configuration: # required
             - -1.8601319422692169 # j2n6s200_joint_1
@@ -120,7 +117,6 @@ ada_feeding_action_servers:
           # - orientation_constraint_tolerances
           - allowed_planning_time
           - max_velocity_scaling_factor
-          - lock_joints
         tree_kwargs: # optional
           goal_configuration:
             # # Side-staging configuration
@@ -172,7 +168,6 @@ ada_feeding_action_servers:
           - simple_presentation_distance_m
           - post_presentation_primitive_name
           - post_presentation_primitive_params
-          - lock_joints
         tree_kwargs: # optional
           face_detection_msg_timeout: 10.0 # sec
           face_detection_timeout: 5.0 # sec
@@ -217,7 +212,6 @@ ada_feeding_action_servers:
           - cartesian_max_step_to_staging_configuration
           - use_simple_presentation
           - simple_presentation_distance_m
-          - lock_joints
         tree_kwargs: # optional
           staging_configuration_position:
             -  0.28323 # x
@@ -249,7 +243,6 @@ ada_feeding_action_servers:
           - toggle_watchdog_listener
           - f_mag
           - max_velocity_scaling_factor
-          - lock_joints
         tree_kwargs: # optional
           joint_positions: # required
             - -1.52101 # j2n6s200_joint_1
@@ -310,7 +303,6 @@ ada_feeding_action_servers:
           - toggle_watchdog_listener
           - f_mag
           - max_velocity_scaling_factor
-          - lock_joints
         tree_kwargs: # optional
           toggle_watchdog_listener: false # optional, default: true
           f_mag: 4.0 # N

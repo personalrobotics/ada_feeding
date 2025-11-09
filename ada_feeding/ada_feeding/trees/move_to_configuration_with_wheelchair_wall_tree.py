@@ -77,7 +77,6 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
         max_velocity_scaling_factor: float = 0.1,
         force_threshold: float = 4.0,
         torque_threshold: float = 4.0,
-        lock_joints: bool = False,
     ):
         """
         Initializes tree-specific parameters.
@@ -116,7 +115,6 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
         self.force_threshold = force_threshold
         self.torque_threshold = torque_threshold
-        self.lock_joints = lock_joints
 
     @override
     def create_tree(
@@ -141,317 +139,169 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                 },
             ),
         ]
-        if self.lock_joints:
-            dynamic_path_constraint_sequence = [
-                # 1. Get the current joint state for the Jaco arm
-                GetJointStates(
-                    name="GetJacoStartState",
-                    ns=name,
-                    node=self._node,
-                    inputs={
-                        "joint_names": [
-                            "j2n6s200_joint_1",
-                            "j2n6s200_joint_2",
-                            "j2n6s200_joint_3",
-                            "j2n6s200_joint_4",
-                            "j2n6s200_joint_5",
-                            "j2n6s200_joint_6",
-                        ]
-                    },
-                    outputs={
-                        "joint_state": BlackboardKey("current_jaco_joint_state"),
-                        "joint_positions": None,
-                        "joint_names": None,
-                    },
-                ),
-                # 2. Use FK to calculate the current EE pose
-                MoveIt2ComputeFK(
-                    name="GetStartEEPose",
-                    ns=name,
-                    inputs={
-                        "group_name": "jaco_arm",
-                        "joint_state": BlackboardKey("current_jaco_joint_state"),
-                        "fk_link_names": ["tool_tip"],
-                    },
-                    outputs={
-                        "fk_poses": BlackboardKey("start_ee_fk_poses"),
-                        "success": None,
-                    },
-                ),
-                ExtractPoseFromPosesByLink(
-                    name="ExtractStartEEPose",
-                    ns=name,
-                    inputs={
-                        "fk_poses": BlackboardKey("start_ee_fk_poses"),
-                        "target_link_name": "tool_tip",
-                        "requested_link_names": ["tool_tip"],
-                    },
-                    outputs={
-                        "extracted_pose": BlackboardKey("start_ee_pose"),
-                        "success": None,
-                    },
-                ),
-                # 3. Use FK to calculate the goal EE pose
-                MoveIt2ComputeFK(
-                    name="GetGoalEEPose",
-                    ns=name,
-                    inputs={
-                        "group_name": "jaco_arm",
-                        "joint_state": self.goal_configuration,
-                        "fk_link_names": ["tool_tip"],
-                    },
-                    outputs={
-                        "fk_poses": BlackboardKey("goal_ee_fk_poses"),
-                        "success": None,
-                    },
-                ),
-                ExtractPoseFromPosesByLink(
-                    name="ExtractGoalEEPose",
-                    ns=name,
-                    inputs={
-                        "fk_poses": BlackboardKey("goal_ee_fk_poses"),
-                        "target_link_name": "tool_tip",
-                        "requested_link_names": ["tool_tip"],
-                    },
-                    outputs={
-                        "extracted_pose": BlackboardKey("goal_ee_pose"),
-                        "success": None,
-                    },
-                ),
-                # 4. Compute the SLERP midpoint using the calculated poses
-                ComputeSlerpMidpointOrientation(
-                    name="CalculateStagingPathConstraint",
-                    ns=name,
-                    inputs={
-                        "start_ee_pose": BlackboardKey("start_ee_pose"),
-                        "goal_ee_pose": BlackboardKey("goal_ee_pose"),
-                        "tolerance": (
-                            np.deg2rad(20.0),
-                            np.pi,
-                            np.deg2rad(20.0),
-                        ),
-                    },
-                    outputs={
-                        "midpoint_orientation_quaternion": BlackboardKey(
-                            "path_constraint_quat"
-                        ),
-                        "path_constraint_tolerance": BlackboardKey(
-                            "path_constraint_tol"
-                        ),
-                    },
-                ),
-                # 5. Create the MoveIt2 orientation constraint message
-                MoveIt2OrientationConstraint(
-                    name="CreateStagingPathConstraintMsg",
-                    ns=name,
-                    inputs={
-                        "quat_xyzw": BlackboardKey("path_constraint_quat"),
-                        "tolerance": BlackboardKey("path_constraint_tol"),
-                    },
-                    outputs={"constraints": BlackboardKey("path_constraints")},
-                ),
-            ]
-        else:
-            dynamic_path_constraint_sequence = [
-                # 1. Get the current joint state for the Jaco arm
-                GetJointStates(
-                    name="GetJacoStartState",
-                    ns=name,
-                    node=self._node,
-                    inputs={
-                        "joint_names": [
-                            "j2n6s200_joint_1",
-                            "j2n6s200_joint_2",
-                            "j2n6s200_joint_3",
-                            "j2n6s200_joint_4",
-                            "j2n6s200_joint_5",
-                            "j2n6s200_joint_6",
-                        ]
-                    },
-                    outputs={
-                        "joint_state": BlackboardKey("current_jaco_joint_state"),
-                        "joint_positions": None,
-                        "joint_names": None,
-                    },
-                ),
-                # 2. Use FK to calculate the current EE pose
-                MoveIt2ComputeFK(
-                    name="GetStartEEPose",
-                    ns=name,
-                    inputs={
-                        "group_name": "jaco_arm",
-                        "joint_state": BlackboardKey("current_jaco_joint_state"),
-                        "fk_link_names": ["j2n6s200_end_effector"],
-                    },
-                    outputs={
-                        "fk_poses": BlackboardKey("start_ee_fk_poses"),
-                        "success": None,
-                    },
-                ),
-                ExtractPoseFromPosesByLink(
-                    name="ExtractStartEEPose",
-                    ns=name,
-                    inputs={
-                        "fk_poses": BlackboardKey("start_ee_fk_poses"),
-                        "target_link_name": "j2n6s200_end_effector",
-                        "requested_link_names": ["j2n6s200_end_effector"],
-                    },
-                    outputs={
-                        "extracted_pose": BlackboardKey("start_ee_pose"),
-                        "success": None,
-                    },
-                ),
-                # 3. Use FK to calculate the goal EE pose
-                MoveIt2ComputeFK(
-                    name="GetGoalEEPose",
-                    ns=name,
-                    inputs={
-                        "group_name": "jaco_arm",
-                        "joint_state": self.goal_configuration,
-                        "fk_link_names": ["j2n6s200_end_effector"],
-                    },
-                    outputs={
-                        "fk_poses": BlackboardKey("goal_ee_fk_poses"),
-                        "success": None,
-                    },
-                ),
-                ExtractPoseFromPosesByLink(
-                    name="ExtractGoalEEPose",
-                    ns=name,
-                    inputs={
-                        "fk_poses": BlackboardKey("goal_ee_fk_poses"),
-                        "target_link_name": "j2n6s200_end_effector",
-                        "requested_link_names": ["j2n6s200_end_effector"],
-                    },
-                    outputs={
-                        "extracted_pose": BlackboardKey("goal_ee_pose"),
-                        "success": None,
-                    },
-                ),
-                # 4. Compute the SLERP midpoint using the calculated poses
-                ComputeSlerpMidpointOrientation(
-                    name="CalculateStagingPathConstraint",
-                    ns=name,
-                    inputs={
-                        "start_ee_pose": BlackboardKey("start_ee_pose"),
-                        "goal_ee_pose": BlackboardKey("goal_ee_pose"),
-                        "tolerance": (np.pi / 2, 2 * np.pi, np.pi / 4),
-                    },
-                    outputs={
-                        "midpoint_orientation_quaternion": BlackboardKey(
-                            "path_constraint_quat"
-                        ),
-                        "path_constraint_tolerance": BlackboardKey(
-                            "path_constraint_tol"
-                        ),
-                    },
-                ),
-                # 5. Create the MoveIt2 orientation constraint message
-                MoveIt2OrientationConstraint(
-                    name="CreateStagingPathConstraintMsg",
-                    ns=name,
-                    inputs={
-                        "quat_xyzw": BlackboardKey("path_constraint_quat"),
-                        "tolerance": BlackboardKey("path_constraint_tol"),
-                    },
-                    outputs={"constraints": BlackboardKey("path_constraints")},
-                ),
-            ]
+        dynamic_path_constraint_sequence = [
+            # 1. Get the current joint state for the Jaco arm
+            GetJointStates(
+                name="GetJacoStartState",
+                ns=name,
+                node=self._node,
+                inputs={
+                    "joint_names": [
+                        "j2n6s200_joint_1",
+                        "j2n6s200_joint_2",
+                        "j2n6s200_joint_3",
+                        "j2n6s200_joint_4",
+                        "j2n6s200_joint_5",
+                        "j2n6s200_joint_6",
+                    ]
+                },
+                outputs={
+                    "joint_state": BlackboardKey("current_jaco_joint_state"),
+                    "joint_positions": None,
+                    "joint_names": None,
+                },
+            ),
+            # 2. Use FK to calculate the current EE pose
+            MoveIt2ComputeFK(
+                name="GetStartEEPose",
+                ns=name,
+                inputs={
+                    "group_name": "jaco_arm",
+                    "joint_state": BlackboardKey("current_jaco_joint_state"),
+                    "fk_link_names": ["j2n6s200_end_effector"],
+                },
+                outputs={
+                    "fk_poses": BlackboardKey("start_ee_fk_poses"),
+                    "success": None,
+                },
+            ),
+            ExtractPoseFromPosesByLink(
+                name="ExtractStartEEPose",
+                ns=name,
+                inputs={
+                    "fk_poses": BlackboardKey("start_ee_fk_poses"),
+                    "target_link_name": "j2n6s200_end_effector",
+                    "requested_link_names": ["j2n6s200_end_effector"],
+                },
+                outputs={
+                    "extracted_pose": BlackboardKey("start_ee_pose"),
+                    "success": None,
+                },
+            ),
+            # 3. Use FK to calculate the goal EE pose
+            MoveIt2ComputeFK(
+                name="GetGoalEEPose",
+                ns=name,
+                inputs={
+                    "group_name": "jaco_arm",
+                    "joint_state": self.goal_configuration,
+                    "fk_link_names": ["j2n6s200_end_effector"],
+                },
+                outputs={
+                    "fk_poses": BlackboardKey("goal_ee_fk_poses"),
+                    "success": None,
+                },
+            ),
+            ExtractPoseFromPosesByLink(
+                name="ExtractGoalEEPose",
+                ns=name,
+                inputs={
+                    "fk_poses": BlackboardKey("goal_ee_fk_poses"),
+                    "target_link_name": "j2n6s200_end_effector",
+                    "requested_link_names": ["j2n6s200_end_effector"],
+                },
+                outputs={
+                    "extracted_pose": BlackboardKey("goal_ee_pose"),
+                    "success": None,
+                },
+            ),
+            # 4. Compute the SLERP midpoint using the calculated poses
+            ComputeSlerpMidpointOrientation(
+                name="CalculateStagingPathConstraint",
+                ns=name,
+                inputs={
+                    "start_ee_pose": BlackboardKey("start_ee_pose"),
+                    "goal_ee_pose": BlackboardKey("goal_ee_pose"),
+                    "tolerance": (np.pi / 2, 2 * np.pi, np.pi / 4),
+                },
+                outputs={
+                    "midpoint_orientation_quaternion": BlackboardKey(
+                        "path_constraint_quat"
+                    ),
+                    "path_constraint_tolerance": BlackboardKey("path_constraint_tol"),
+                },
+            ),
+            # 5. Create the MoveIt2 orientation constraint message
+            MoveIt2OrientationConstraint(
+                name="CreateStagingPathConstraintMsg",
+                ns=name,
+                inputs={
+                    "quat_xyzw": BlackboardKey("path_constraint_quat"),
+                    "tolerance": BlackboardKey("path_constraint_tol"),
+                },
+                outputs={"constraints": BlackboardKey("path_constraints")},
+            ),
+        ]
 
-        if self.lock_joints:
-            plan_and_execute_sequence = [
-                # Plan
-                py_trees.decorators.Timeout(
-                    name="MoveToStagingConfigurationPlanTimeout",
-                    # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                    duration=10.0 * self.allowed_planning_time,
-                    child=MoveIt2Plan(
-                        name="MoveToStagingConfigurationPlan",
-                        ns=name,
-                        inputs={
-                            "goal_constraints": BlackboardKey("goal_constraints"),
-                            "path_constraints": BlackboardKey("path_constraints"),
-                            "planner_id": self.planner_id,
-                            "allowed_planning_time": self.allowed_planning_time,
-                            "max_velocity_scale": self.max_velocity_scaling_factor,
-                            "ignore_violated_path_constraints": False,
-                            "group_name": "jaco_arm",
-                            "target_link": "tool_tip",
-                        },
-                        outputs={"trajectory": BlackboardKey("trajectory")},
-                    ),
-                ),
-                # Execute
-                MoveIt2Execute(
-                    name="MoveToStagingConfigurationExecute",
+        plan_and_execute_sequence = [
+            # Plan
+            py_trees.decorators.Timeout(
+                name="MoveToStagingConfigurationPlanTimeout",
+                # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                duration=10.0 * self.allowed_planning_time,
+                child=MoveIt2Plan(
+                    name="MoveToStagingConfigurationPlan",
                     ns=name,
                     inputs={
-                        "trajectory": BlackboardKey("trajectory"),
+                        "goal_constraints": BlackboardKey("goal_constraints"),
+                        "path_constraints": BlackboardKey("path_constraints"),
+                        "planner_id": self.planner_id,
+                        "allowed_planning_time": self.allowed_planning_time,
+                        "max_velocity_scale": self.max_velocity_scaling_factor,
+                        "ignore_violated_path_constraints": False,
                         "group_name": "jaco_arm",
                     },
-                    outputs={},
+                    outputs={"trajectory": BlackboardKey("trajectory")},
                 ),
-            ]
-        else:
-            plan_and_execute_sequence = [
-                # Plan
-                py_trees.decorators.Timeout(
-                    name="MoveToStagingConfigurationPlanTimeout",
-                    # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                    duration=10.0 * self.allowed_planning_time,
-                    child=MoveIt2Plan(
-                        name="MoveToStagingConfigurationPlan",
-                        ns=name,
-                        inputs={
-                            "goal_constraints": BlackboardKey("goal_constraints"),
-                            "path_constraints": BlackboardKey("path_constraints"),
-                            "planner_id": self.planner_id,
-                            "allowed_planning_time": self.allowed_planning_time,
-                            "max_velocity_scale": self.max_velocity_scaling_factor,
-                            "ignore_violated_path_constraints": False,
-                            "group_name": "jaco_arm",
-                        },
-                        outputs={"trajectory": BlackboardKey("trajectory")},
-                    ),
-                ),
-                CheckArticutoolPathDynamicFeasibility(
-                    name="CheckArticutoolDynamicFeasibilityForStaging",
-                    ns=name,
-                    inputs={
-                        "pinocchio_model": BlackboardKey("pinocchio_model"),
-                        "pinocchio_data": BlackboardKey("pinocchio_data"),
-                        "jaco_joint_names_pin": [
-                            "j2n6s200_joint_1",
-                            "j2n6s200_joint_2",
-                            "j2n6s200_joint_3",
-                            "j2n6s200_joint_4",
-                            "j2n6s200_joint_5",
-                            "j2n6s200_joint_6",
-                        ],
-                        "jaco_ee_frame_id_pin": BlackboardKey("jaco_ee_frame_id_pin"),
-                        "jaco_trajectory": BlackboardKey("trajectory"),
-                        "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
-                        "articutool_roll_limits_rad": (-np.pi, np.pi),
-                        "jaco_vel_indices_pin": BlackboardKey("jaco_vel_indices_pin"),
-                        "articutool_max_joint_velocity": 4.0,
-                    },
-                    outputs={
-                        "articutool_is_dynamic_feasible": BlackboardKey(
-                            "articutool_can_maintain_leveling"
-                        )
-                    },
-                ),
-                # Execute
-                MoveIt2Execute(
-                    name="MoveToStagingConfigurationExecute",
-                    ns=name,
-                    inputs={
-                        "trajectory": BlackboardKey("trajectory"),
-                        "group_name": "jaco_arm",
-                    },
-                    outputs={},
-                ),
-            ]
+            ),
+            CheckArticutoolPathDynamicFeasibility(
+                name="CheckArticutoolDynamicFeasibilityForStaging",
+                ns=name,
+                inputs={
+                    "pinocchio_model": BlackboardKey("pinocchio_model"),
+                    "pinocchio_data": BlackboardKey("pinocchio_data"),
+                    "jaco_joint_names_pin": [
+                        "j2n6s200_joint_1",
+                        "j2n6s200_joint_2",
+                        "j2n6s200_joint_3",
+                        "j2n6s200_joint_4",
+                        "j2n6s200_joint_5",
+                        "j2n6s200_joint_6",
+                    ],
+                    "jaco_ee_frame_id_pin": BlackboardKey("jaco_ee_frame_id_pin"),
+                    "jaco_trajectory": BlackboardKey("trajectory"),
+                    "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
+                    "articutool_roll_limits_rad": (-np.pi, np.pi),
+                    "jaco_vel_indices_pin": BlackboardKey("jaco_vel_indices_pin"),
+                    "articutool_max_joint_velocity": 4.0,
+                },
+                outputs={
+                    "articutool_is_dynamic_feasible": BlackboardKey(
+                        "articutool_can_maintain_leveling"
+                    )
+                },
+            ),
+            # Execute
+            MoveIt2Execute(
+                name="MoveToStagingConfigurationExecute",
+                ns=name,
+                inputs={
+                    "trajectory": BlackboardKey("trajectory"),
+                    "group_name": "jaco_arm",
+                },
+                outputs={},
+            ),
+        ]
 
         # Root Sequence
         root_seq = py_trees.composites.Sequence(

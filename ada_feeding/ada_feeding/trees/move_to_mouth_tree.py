@@ -121,7 +121,6 @@ class MoveToMouthTree(MoveToTree):
         simple_presentation_distance_m: float = 0.05,
         post_presentation_primitive_name: str = "NONE",
         post_presentation_primitive_params: Optional[List[float]] = None,
-        lock_joints: bool = False,
     ):
         """
         Initializes tree-specific parameters.
@@ -190,7 +189,6 @@ class MoveToMouthTree(MoveToTree):
         self.post_presentation_primitive_params = post_presentation_primitive_params
 
         self.face_detection_relative_blackboard_key = "face_detection"
-        self.lock_joints = lock_joints
 
     def check_face_msg(self, msg: FaceDetection, _: FaceDetection) -> bool:
         """
