@@ -271,6 +271,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                     "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
                     "articutool_roll_limits_rad": (-np.pi, np.pi),
                     "articutool_max_joint_velocity": 4.0,
+                    "num_trajectory_points_to_check": 5,
                 },
                 outputs={
                     "articutool_is_dynamic_feasible": BlackboardKey(
