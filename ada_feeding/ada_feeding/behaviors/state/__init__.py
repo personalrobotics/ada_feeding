@@ -11,9 +11,6 @@ from .get_joint_states import (
 from .extract_pose_from_poses_by_link import (
     ExtractPoseFromPosesByLink,
 )
-from .load_pinocchio_model import (
-    LoadPinocchioModel,
-)
 from .check_articutool_path_dynamic_feasibility import (
     CheckArticutoolPathDynamicFeasibility,
 )
