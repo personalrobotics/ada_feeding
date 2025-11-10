@@ -826,7 +826,7 @@ class AcquireFoodTree(MoveToTree):
                             ),
                             py_trees.decorators.Retry(
                                 name="RetryWithNextTiltAngle",
-                                num_failures=20,
+                                num_failures=50,
                                 child=py_trees.composites.Sequence(
                                     name="AttemptSingleTiltAngle",
                                     memory=True,

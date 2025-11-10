@@ -302,7 +302,7 @@ actions:
   pre_torque: 2.0
   move_above_dist_m: 0.02
   jaco_ee_tilt_angle_min: 0.0
-  jaco_ee_tilt_angle_max: 50.0
+  jaco_ee_tilt_angle_max: 95.0
   align_to_robot_base: True
 # Skewer + Twirl for Noodles (Articutool)
 - ext_angular:
@@ -355,7 +355,7 @@ actions:
   post_acquisition_primitive_name: "NOODLE_SHED"
   post_acquisition_primitive_params: [-30.0, 1.0, 1.0, 2.0, 30.0, 6.0]
   jaco_ee_tilt_angle_min: 0.0
-  jaco_ee_tilt_angle_max: 50.0
+  jaco_ee_tilt_angle_max: 95.0
   align_to_robot_base: True
 # Tilted scoop for granulars (Articutool)
 - ext_angular:
@@ -401,7 +401,7 @@ actions:
   post_acquisition_primitive_name: "VIBRATE_ROLL"
   post_acquisition_primitive_params: [2.0, 0.5, 1.0] # [frequency_hz, amplitude_rad, duration_sec]
   jaco_ee_tilt_angle_min: 0.0
-  jaco_ee_tilt_angle_max: 50.0
+  jaco_ee_tilt_angle_max: 95.0
   align_to_robot_base: True
 # Tilted scoop for liquids (Articutool)
 - ext_angular:
@@ -448,5 +448,5 @@ actions:
   post_acquisition_primitive_name: "NONE"
   post_acquisition_primitive_params: []
   jaco_ee_tilt_angle_min: 0.0
-  jaco_ee_tilt_angle_max: 50.0
+  jaco_ee_tilt_angle_max: 95.0
   align_to_robot_base: True
