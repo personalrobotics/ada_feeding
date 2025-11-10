@@ -1,9 +1,11 @@
 import math
 import numpy as np
-from typing import List
+from typing import List, Optional
 from overrides import override
 import pinocchio as pin
 from py_trees.common import Status
+import py_trees
+import rclpy.node
 from sensor_msgs.msg import JointState
 
 from ada_feeding.behaviors import BlackboardBehavior
@@ -14,13 +16,46 @@ class CheckElbowUpConfiguration(BlackboardBehavior):
     """
     Checks if a Jaco arm joint configuration is "elbow-up".
     Succeeds if it is, fails otherwise.
+    Reads the Pinocchio model from the global blackboard.
     """
+
+    def __init__(self, name: str, **kwargs):
+        super().__init__(name=name, **kwargs)
+        self._pin_model: Optional[pin.Model] = None
+        self._pin_data: Optional[pin.Data] = None
+        self._pinocchio_ready = False
+        self.node: Optional[rclpy.node.Node] = None
+
+    @override
+    def setup(self, **kwargs):
+        """Get node and Pinocchio model from global blackboard."""
+        try:
+            self.node = kwargs["node"]  # Get node for logging
+            bb_client = py_trees.blackboard.Client(name=f"{self.name}_BBClient")
+            bb_client.register_key(
+                key="/pinocchio_model", access=py_trees.common.Access.READ
+            )
+            bb_client.register_key(
+                key="/pinocchio_data", access=py_trees.common.Access.READ
+            )
+
+            self._pin_model = bb_client.get("/pinocchio_model")
+            self._pin_data = bb_client.get("/pinocchio_data")
+
+            if self._pin_model is None or self._pin_data is None:
+                raise ValueError("Pinocchio model/data not found on global blackboard.")
+
+            self._pinocchio_ready = True
+        except Exception as e:
+            # self.logger might not be set yet if node is missing
+            print(
+                f"[{self.name}] ERROR: Failed to get Pinocchio model during setup: {e}"
+            )
+            self._pinocchio_ready = False
 
     def blackboard_inputs(
         self,
         ik_solution_joint_state: BlackboardKey,
-        pinocchio_model: BlackboardKey,
-        pinocchio_data: BlackboardKey,
         jaco_joint_names: List[str],
     ) -> None:
         """Define blackboard inputs for this behavior."""
@@ -31,9 +66,16 @@ class CheckElbowUpConfiguration(BlackboardBehavior):
     @override
     def update(self) -> Status:
         """Perform the elbow-up check."""
+        if not self._pinocchio_ready:
+            self.feedback_message = "Pinocchio model not initialized."
+            self.logger.error(f"[{self.name}] {self.feedback_message}")
+            return Status.FAILURE
+
         try:
-            model = self.blackboard_get("pinocchio_model")
-            data = self.blackboard_get("pinocchio_data")
+            # Read model and data from self, not blackboard
+            model = self._pin_model
+            data = self._pin_data
+
             joint_state_msg = self.blackboard_get("ik_solution_joint_state")
             jaco_joint_names = self.blackboard_get("jaco_joint_names")
 

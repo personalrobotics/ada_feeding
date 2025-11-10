@@ -10,6 +10,8 @@ Articutool to maintain a level orientation. It uses the Articutool's
 analytic kinematic model and applies a fixed coordinate frame transformation
 to account for the difference between the JacoEE frame and the
 Articutool's kinematic base frame.
+
+It reads the Pinocchio model from the global blackboard.
 """
 
 # Standard imports
@@ -53,11 +55,6 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
 
     def blackboard_inputs(
         self,
-        pinocchio_model: Union[BlackboardKey, pin.Model],
-        pinocchio_data: Union[BlackboardKey, pin.Data],
-        jaco_joint_names_pin: Union[BlackboardKey, List[str]],
-        jaco_vel_indices_pin: Union[BlackboardKey, List[int]],
-        jaco_ee_frame_id_pin: Union[BlackboardKey, int],
         jaco_trajectory: Union[BlackboardKey, RobotTrajectory, JointTrajectory],
         articutool_pitch_limits_rad: Union[BlackboardKey, Tuple[float, float]],
         articutool_roll_limits_rad: Union[BlackboardKey, Tuple[float, float]],
@@ -86,7 +83,16 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
         self.node: Optional[rclpy.node.Node] = None
         self._pin_model: Optional[pin.Model] = None
         self._pin_data: Optional[pin.Data] = None
-        self._jaco_joint_names_pin: Optional[List[str]] = None
+        self._jaco_joint_names_pin: List[str] = (
+            [  # Get from param or blackboard if not fixed
+                "j2n6s200_joint_1",
+                "j2n6s200_joint_2",
+                "j2n6s200_joint_3",
+                "j2n6s200_joint_4",
+                "j2n6s200_joint_5",
+                "j2n6s200_joint_6",
+            ]
+        )
         self._jaco_vel_indices_pin: Optional[List[int]] = None
         self._jaco_ee_frame_id_pin: Optional[int] = None
         self._pitch_limits_rad: Optional[Tuple[float, float]] = None
@@ -96,34 +102,62 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
 
     @override
     def setup(self, **kwargs):
-        """Get the ROS2 node from kwargs."""
+        """Get the ROS2 node and Pinocchio essentials from the global blackboard."""
         try:
             self.node = kwargs["node"]
-        except KeyError as e:
-            self.logger.error(
-                f"[{self.name}] Behaviour expects 'node' in setup kwargs. {e}"
-            )
 
-    def _get_pinocchio_essentials_from_blackboard(self) -> bool:
-        """Read Pinocchio model, data, and relevant IDs/names from blackboard."""
-        if self._pinocchio_ready:
-            return True
-        try:
-            self._pin_model = self.blackboard_get("pinocchio_model")
-            self._pin_data = self.blackboard_get("pinocchio_data")
-            self._jaco_joint_names_pin = self.blackboard_get("jaco_joint_names_pin")
-            self._jaco_vel_indices_pin = self.blackboard_get("jaco_vel_indices_pin")
-            self._jaco_ee_frame_id_pin = self.blackboard_get("jaco_ee_frame_id_pin")
+            # Read static parameters from local blackboard
             self._pitch_limits_rad = self.blackboard_get("articutool_pitch_limits_rad")
             self._roll_limits_rad = self.blackboard_get("articutool_roll_limits_rad")
             self._max_atool_vel = self.blackboard_get("articutool_max_joint_velocity")
+
+            # Create a client to read from the global blackboard
+            bb_client = py_trees.blackboard.Client(name=f"{self.name}_BBClient")
+            bb_client.register_key(
+                key="/pinocchio_model", access=py_trees.common.Access.READ
+            )
+            bb_client.register_key(
+                key="/pinocchio_data", access=py_trees.common.Access.READ
+            )
+            bb_client.register_key(
+                key="/jaco_vel_indices_pin", access=py_trees.common.Access.READ
+            )
+            bb_client.register_key(
+                key="/jaco_ee_frame_id_pin", access=py_trees.common.Access.READ
+            )
+
+            # Read the values
+            self._pin_model = bb_client.get("/pinocchio_model")
+            self._pin_data = bb_client.get("/pinocchio_data")
+            self._jaco_vel_indices_pin = bb_client.get("/jaco_vel_indices_pin")
+            self._jaco_ee_frame_id_pin = bb_client.get("/jaco_ee_frame_id_pin")
+
+            if any(
+                v is None
+                for v in [
+                    self._pin_model,
+                    self._pin_data,
+                    self._jaco_vel_indices_pin,
+                    self._jaco_ee_frame_id_pin,
+                ]
+            ):
+                raise ValueError(
+                    "One or more required Pinocchio objects not found on global blackboard."
+                )
+
             self._pinocchio_ready = True
-            return True
+            self.logger.info(
+                f"[{self.name}] Successfully read Pinocchio model from global blackboard."
+            )
+
         except KeyError as e:
             self.logger.error(
-                f"[{self.name}] Failed to get required info from blackboard: {e}."
+                f"[{self.name}] Behaviour expects 'node' in setup kwargs or local blackboard key missing: {e}"
             )
-            return False
+        except Exception as e:
+            self.logger.error(
+                f"[{self.name}] Failed to get Pinocchio model during setup: {e}"
+            )
 
     def _get_jaco_trajectory_points(
         self, trajectory_input: Union[RobotTrajectory, JointTrajectory]
@@ -136,6 +170,12 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
         else:
             return None
 
+        # TODO: Need to respect joint_names order from trajectory msg
+        # This implementation assumes the points are already in the
+        # order matching self._jaco_joint_names_pin.
+        # A robust way is to get indices from jt.joint_names
+        # and re-order the points.
+
         points = []
         for point in jt.points:
             positions = np.array(point.positions)
@@ -146,9 +186,9 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
     @override
     def update(self) -> Status:
         """Execute the behavior's logic."""
-        if not self.node or not self._get_pinocchio_essentials_from_blackboard():
+        if not self.node or not self._pinocchio_ready:
             self.feedback_message = (
-                "Behavior not properly initialized or blackboard inputs missing."
+                "Behavior not properly initialized or Pinocchio model not loaded."
             )
             self.logger.error(f"[{self.name}] {self.feedback_message}")
             self.blackboard_set("articutool_is_dynamic_feasible", False)
@@ -173,6 +213,14 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
 
             for idx in indices:
                 q_jaco_partial, v_jaco_partial = jaco_points[idx]
+
+                # This assumes q_jaco_partial maps 1:1 to self._jaco_joint_names_pin
+                if len(q_jaco_partial) != len(self._jaco_joint_names_pin):
+                    self.feedback_message = (
+                        f"Trajectory point {idx} has wrong number of joints."
+                    )
+                    self.logger.error(f"[{self.name}] {self.feedback_message}")
+                    return Status.FAILURE
 
                 # Construct the full configuration vector for Pinocchio
                 q_full_robot = pin.neutral(self._pin_model)

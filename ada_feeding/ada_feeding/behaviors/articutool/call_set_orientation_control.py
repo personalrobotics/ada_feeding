@@ -154,7 +154,6 @@ class CallSetOrientationControl(BlackboardBehavior):
                 if control_mode_input not in [
                     SetOrientationControl.Request.MODE_DISABLED,
                     SetOrientationControl.Request.MODE_LEVELING,
-                    SetOrientationControl.Request.MODE_FULL_ORIENTATION,
                 ]:
                     self.logger.error(
                         f"[{self.name}] Invalid 'control_mode' input: {control_mode_input}."
