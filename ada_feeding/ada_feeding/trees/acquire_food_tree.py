@@ -788,6 +788,11 @@ class AcquireFoodTree(MoveToTree):
         def move_above_food_sequence() -> py_trees.behaviour.Behaviour:
             """
             Creates the behavior tree sequence for planning and moving the robot to the food.
+
+            This sequence implements a robust planning logic where the
+            Retry loop ("RetryWithNextTiltAngle") attempts to find a tilt angle
+            that is not only kinematically reachable (IK) but also has a valid
+            motion plan ("PlanJacoToAbove") from the current state.
             """
             # This sequence implements the benchmark's robust planning logic.
             # It finds a reachable skewer configuration, plans all motions,
@@ -796,9 +801,9 @@ class AcquireFoodTree(MoveToTree):
                 name="DecoupledAcquisitionPlanAndMove",
                 memory=True,
                 children=[
-                    # A. Find a reachable skewer configuration by looping through tilt angles
+                    # A. Find a reachable skewer configuration AND a valid motion plan to it
                     py_trees.composites.Sequence(
-                        name="FindReachableSkewerConfig",
+                        name="FindReachableSkewerConfigAndPlan",
                         memory=True,
                         children=[
                             GenerateSkewerTiltCandidates(
@@ -826,6 +831,7 @@ class AcquireFoodTree(MoveToTree):
                                     name="AttemptSingleTiltAngle",
                                     memory=True,
                                     children=[
+                                        # 1. Calculate the geometric poses for the current tilt angle
                                         CalculateSkewerPoseForTilt(
                                             name="CalculateCandidatePoses",
                                             ns=name,
@@ -865,6 +871,7 @@ class AcquireFoodTree(MoveToTree):
                                                 ),
                                             },
                                         ),
+                                        # 2. Stamp the "above" pose for the IK check
                                         StampPoseFromPose(
                                             name="StampCandidatePoseForIK",
                                             ns=name,
@@ -880,6 +887,7 @@ class AcquireFoodTree(MoveToTree):
                                                 )
                                             },
                                         ),
+                                        # 3. Check if the pose is reachable via IK
                                         MoveIt2ComputeIK(
                                             name="CheckCandidatePoseReachable",
                                             ns=name,
@@ -898,6 +906,7 @@ class AcquireFoodTree(MoveToTree):
                                                 ),
                                             },
                                         ),
+                                        # 4. Check if the IK solution is in an "elbow-up" configuration
                                         CheckElbowUpConfiguration(
                                             name="ValidateElbowUp",
                                             ns=name,
@@ -915,35 +924,52 @@ class AcquireFoodTree(MoveToTree):
                                                 ],
                                             },
                                         ),
+                                        # 5. Create the goal constraint for this valid pose
+                                        MoveIt2PoseConstraint(
+                                            name="SetJacoAbovePoseGoal",
+                                            ns=name,
+                                            inputs={
+                                                "pose": BlackboardKey(
+                                                    "candidate_jaco_ee_above_pose"
+                                                )
+                                            },
+                                            outputs={
+                                                "constraints": BlackboardKey(
+                                                    "goal_constraints_s1"
+                                                )
+                                            },
+                                        ),
+                                        # 6. Attempt to plan a motion to this valid pose
+                                        # If this fails, the whole sequence fails, and RetryWithNextTiltAngle
+                                        # will try the next tilt angle.
+                                        MoveIt2Plan(
+                                            name="PlanJacoToAbove",
+                                            ns=name,
+                                            inputs={
+                                                "goal_constraints": BlackboardKey(
+                                                    "goal_constraints_s1"
+                                                ),
+                                                "group_name": "jaco_arm",
+                                                "max_velocity_scale": self.max_velocity_scaling_move_above,
+                                                "max_acceleration_scale": self.max_acceleration_scaling_move_above,
+                                                "allowed_planning_time": self.allowed_planning_time_for_move_above,
+                                            },
+                                            outputs={
+                                                "trajectory": BlackboardKey(
+                                                    "jaco_move_above_traj"
+                                                ),
+                                                "end_joint_state": BlackboardKey(
+                                                    "jaco_move_above_end_joint_state"
+                                                ),
+                                            },
+                                        ),
                                     ],
                                 ),
                             ),
                         ],
                     ),
-                    # B. Plan all three trajectory segments now that we have a valid goal
-                    MoveIt2PoseConstraint(
-                        name="SetJacoAbovePoseGoal",
-                        ns=name,
-                        inputs={"pose": BlackboardKey("candidate_jaco_ee_above_pose")},
-                        outputs={"constraints": BlackboardKey("goal_constraints_s1")},
-                    ),
-                    MoveIt2Plan(
-                        name="PlanJacoToAbove",
-                        ns=name,
-                        inputs={
-                            "goal_constraints": BlackboardKey("goal_constraints_s1"),
-                            "group_name": "jaco_arm",
-                            "max_velocity_scale": self.max_velocity_scaling_move_above,
-                            "max_acceleration_scale": self.max_acceleration_scaling_move_above,
-                            "allowed_planning_time": self.allowed_planning_time_for_move_above,
-                        },
-                        outputs={
-                            "trajectory": BlackboardKey("jaco_move_above_traj"),
-                            "end_joint_state": BlackboardKey(
-                                "jaco_move_above_end_joint_state"
-                            ),
-                        },
-                    ),
+                    # B. Plan the remaining trajectory segments
+                    #    (We only get here if the PlanJacoToAbove was successful)
                     MoveIt2JointConstraint(
                         name="SetAtoolPitchGoal",
                         ns=name,
