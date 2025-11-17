@@ -59,6 +59,20 @@ RUN useradd -m -s /bin/bash ros && \
 # Give the new 'ros' user passwordless sudo
 RUN echo "ros ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
+# Install ssh client tools
+USER root
+RUN apt-get update && apt-get install -y ssh-client
+USER ros
+
+# --- Pre-trust SSH hosts ---
+# We now scan for both hostname AND IP to create a comprehensive known_hosts file.
+RUN mkdir -p $HOME/.ssh && \
+    touch $HOME/.ssh/known_hosts && \
+    chmod 700 $HOME/.ssh && \
+    ssh-keyscan -H babbage,192.168.4.50 >> $HOME/.ssh/known_hosts && \
+    ssh-keyscan -H nano,192.168.4.4 >> $HOME/.ssh/known_hosts && \
+    chmod 600 $HOME/.ssh/known_hosts
+
 # Set the user for the rest of the build
 USER ros
 ENV HOME=/home/ros
@@ -125,6 +139,9 @@ WORKDIR $HOME/colcon_ws
 RUN . /opt/ros/humble/setup.sh && \
     . "$NVM_DIR/nvm.sh" && \
     colcon build --symlink-install --packages-skip ada_hardware
+
+# Force 'screen' to always use bash for interactive shells
+RUN echo "shell /bin/bash" > /home/ros/.screenrc
 
 RUN mkdir -p $HOME/colcon_ws/install/ada_feeding_action_select/share/ada_feeding_action_select/data/checkpoint/adapter
 # 19. Configure Environment
