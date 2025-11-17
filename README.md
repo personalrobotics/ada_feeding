@@ -146,6 +146,8 @@ docker run -it --rm \
   -v /tmp/.X11-unix:/tmp/.X11-unix \
   -v ~/ada_ws/src:/home/ros/colcon_ws/src \
   -v /home/ros/colcon_ws/src/feeding_web_interface/feedingwebapp/node_modules \
+  --add-host=babbage:192.168.4.50 \
+  --add-host=nano:192.168.4.4 \
   articutool-dev
 ```
    * `--network=host`: For ROS 2 discovery and the web app.
