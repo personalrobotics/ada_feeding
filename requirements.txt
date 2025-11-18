@@ -5,7 +5,7 @@ git+https://github.com/yformer/EfficientSAM.git
 numpy==1.26.4
 scipy==1.15.2
 pandas==2.2.3
-scikit-image==0.20.0
+scikit-image==0.25.2
 scikit-learn==1.6.1
 scikit-spatial==9.0.1
 matplotlib==3.10.1
@@ -16,9 +16,9 @@ overrides==7.7.0
 pyrealsense2==2.55.1.6486
 sounddevice==0.5.1
 pyaudio==0.2.14
-pymongo==4.15.3
+pymongo==4.12.1
 pyrealsense2==2.55.1.6486
-pyudev==0.22.0
+pyudev==0.24.3
 quaternion==3.5.2.post4
 segment-anything==1.0
 simplejson==3.20.2
@@ -35,7 +35,7 @@ imageio==2.37.0
 imageio-ffmpeg==0.6.0
 Pillow==9.5.0
 meshcat==0.3.2
-plotly==6.1.1
+plotly==6.2.0
 Twisted==22.1.0
 ujson==5.1.0
-rosbags
+rosbags==0.9.19
