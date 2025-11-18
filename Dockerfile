@@ -65,15 +65,32 @@ RUN apt-get update && apt-get install -y ssh-client
 USER ros
 
 # --- Pre-trust SSH hosts ---
-# We now scan for both hostname AND IP to create a comprehensive known_hosts file.
+# We "pre-bake" the known public keys for the lab machines to avoid
+# a network dependency during the build.
 RUN mkdir -p $HOME/.ssh && \
     touch $HOME/.ssh/known_hosts && \
     chmod 700 $HOME/.ssh && \
-    ssh-keyscan -H babbage,192.168.4.50 >> $HOME/.ssh/known_hosts && \
-    ssh-keyscan -H nano,192.168.4.4 >> $HOME/.ssh/known_hosts && \
+    \
+    # Keys for babbage,192.168.4.50
+    echo "|1|49Ea8J/IKuDiiPlq0KhUdb3xYlg=|wK+sSomPzi+Had5r5MxHXoCODdw= ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDwLNAnsiJA6IaQQ2owzltW1DbVKlCbXn48UupSPx05qyaNJtc/zczW5Zsxp8JJhRZdzlnOkjDwinoRXRHLkbnmilyLjkS3GjMZIIonSRiTJEF1Fhb291JO83o0JQTPajh7OZBKQvTO/1/oLEl1KcggDueBPMyjKnG6LWDcLKqQ1diTKCKGoQpEmG01A/rWVXI+5guyMGYyXGj+pkY/C+bYBWVVQ1RdLjkQxbe8z2BQ1H3AWA2i8Eqd/lGfYQ+1YoApqh5zxJ0hadxK/zlyZb72SwzU/yTqTMdt87A9nbqU6lo0oja6KvNZLvBqYf3Cb/Eja+7mKa3jUtxXIleN/HeVW/fj+PcXBs66+lrhO58DVV4YwIf1/T30cT0SYFNQq+XrMf9ETWUYFpAM7MfPE/3Hvh1UyMUL73QfgQ8DuGQIusqxciSGqd+RAK5KX06+bsHKVYQ4+X/m7etSgFOZ68gDBOFX9NDj5SwUc4xCVqkg9O+U5RXLnsM6hPA983nWofc=" >> $HOME/.ssh/known_hosts && \
+    echo "|1|YLqSxQZzlSg4MzjgVxDiSKn6kdU=|pT73D0e781iwFr2QvbDUWs8qGo8= ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDwLNAnsiJA6IaQQ2owzltW1DbVKlCbXn48UupSPx05qyaNJtc/zczW5Zsxp8JJhRZdzlnOkjDwinoRXRHLkbnmilyLjkS3GjMZIIonSRiTJEF1Fhb291JO83o0JQTPajh7OZBKQvTO/1/oLEl1KcggDueBPMyjKnG6LWDcLKqQ1diTKCKGoQpEmG01A/rWVXI+5guyMGYyXGj+pkY/C+bYBWVVQ1RdLjkQxbe8z2BQ1H3AWA2i8Eqd/lGfYQ+1YoApqh5zxJ0hadxK/zlyZb72SwzU/yTqTMdt87A9nbqU6lo0oja6KvNZLvBqYf3Cb/Eja+7mKa3jUtxXIleN/HeVW/fj+PcXBs66+lrhO58DVV4YwIf1/T30cT0SYFNQq+XrMf9ETWUYFpAM7MfPE/3Hvh1UyMUL73QfgQ8DuGQIusqxciSGqd+RAK5KX06+bsHKVYQ4+X/m7etSgFOZ68gDBOFX9NDj5SwUc4xCVqkg9O+U5RXLnsM6hPA983nWofc=" >> $HOME/.ssh/known_hosts && \
+    echo "|1|zEtEQrjMQT3B6kPHgsb/6EZjHZY=|eCiGTvNte3FLFv0wDbxO8V+qCo4= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBFiunkK0t3pBUYfUun1pNmcdss7ZNWP4WLIKpL3CQv2LdylcM6srKeVkiXS7GMvnpgacmXmuNDJhgltj1VjlpRs=" >> $HOME/.ssh/known_hosts && \
+    echo "|1|gon+l4h21AEk1xTMb/r51fUERjY=|4LeKTthihgoFxV7zxy19Cuwfi2I= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBFiunkK0t3pBUYfUun1pNmcdss7ZNWP4WLIKpL3CQv2LdylcM6srKeVkiXS7GMvnpgacmXmuNDJhgltj1VjlpRs=" >> $HOME/.ssh/known_hosts && \
+    echo "|1|LM0LKILGN+VlrcQzEXM9ogYX3tg=|N8qmNqTaZf6f4zbEMH/VwPY9sFQ= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF5kaTGWJITm9CM75x5++mNQyBM1Hxiabs8ucTanMBKa" >> $HOME/.ssh/known_hosts && \
+    echo "|1|PEAm29WqwueLOvWxnt/CCk1HyJU=|Hec3gUZ7WVqiJxobmdcPaMeihrU= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF5kaTGWJITm9CM75x5++mNQyBM1Hxiabs8ucTanMBKa" >> $HOME/.ssh/known_hosts && \
+    \
+    # Keys for nano,192.168.4.4
+    echo "|1|2Y0YXbnrNBg5E2fAPvSA7CPbdBM=|XqLcG4rQNf22WSiKhAR0siC3Zd0= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMs4PtLKyG0UQY2GygkmQtTZGjqB4uvmZIRO0v9Ah34g" >> $HOME/.ssh/known_hosts && \
+    echo "|1|bMR2xxJknX2KHFckxwyLc2IQdQE=|wdKgKePqGQ3BZ8sdsq0xdyZNFNg= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMs4PtLKyG0UQY2GygkmQtTZGjqB4uvmZIRO0v9Ah34g" >> $HOME/.ssh/known_hosts && \
+    echo "|1|q21hHbzafG7fraNHiEsb+uPyFyc=|nv3h7kDtfjzbK/rkpLIAo72vqHo= ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDeN41SxRLDs6QnbyiSYTBIiCr6D9ihcfXdHeA7sMchCMiCUnTM6yVj2xMdIdVIk9oh+PNh5HN/Z4S98rJHxgRIADcjPQ4M19UK2O6fMVdn8g1GvdrMTsMAo+SAmY8fMjj9XWNR+JR1mru9+Sf1EgJ/yzzj2Z+C+8brNJFYky89JblqDnYzeD/XVvzc9E78b8Qnro55+0A/0ms0QAulbACwlBBUNE/o+G7+caV024Q4gx7VjQALwrc1qxWl1/Ekh7c64yHfO7caC3cpHuvICn5COBKUc0TIEL2wmXiNEtP2quKFr/1ZreIWHjLDCRBPsNZRwTli9N+GeWP+ZP9iab9n" >> $HOME/.ssh/known_hosts && \
+    echo "|1|C+TkorkKWD5Mk5+ZHAcpE6XFafI=|KxsqH0jhdRmXsPphRKEF9DlwI6o= ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDeN41SxRLDs6QnbyiSYTBIiCr6D9ihcfXdHeA7sMchCMiCUnTM6yVj2xMdIdVIk9oh+PNh5HN/Z4S98rJHxgRIADcjPQ4M19UK2O6fMVdn8g1GvdrMTsMAo+SAmY8fMjj9XWNR+JR1mru9+Sf1EgJ/yzzj2Z+C+8brNJFYky89JblqDnYzeD/XVvzc9E78b8Qnro55+0A/0ms0QAulbACwlBBUNE/o+G7+caV024Q4gx7VjQALwrc1qxWl1/Ekh7c64yHfO7caC3cpHuvICn5COBKUc0TIEL2wmXiNEtP2quKFr/1ZreIWHjLDCRBPsNZRwTli9N+GeWP+ZP9iab9n" >> $HOME/.ssh/known_hosts && \
+    echo "|1|hzTc2C/DNzv5lhwhPvOkqJ8D/k8=|C2EmuGI97pgtXat1AmzxBM1WB+8= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBHG0KGLLjvhCsPWAowtNapo+H49ORNvksA5/T4jPEvkWB77SPHnJAcTlGm0p3gi2nnFsRSpnpRDja9+dM3WYg+Y=" >> $HOME/.ssh/known_hosts && \
+    echo "|1|Hf4F9psUIaNVLIdK9x6c3BRi9zM=|h9ekiLF6+E9Ygo7Z6Wz/jbNHDBY= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBHG0KGLLjvhCsPWAowtNapo+H49ORNvksA5/T4jPEvkWB77SPHnJAcTlGm0p3gi2nnFsRSpnpRDja9+dM3WYg+Y=" >> $HOME/.ssh/known_hosts && \
+    \
+    # Set final permissions
     chmod 600 $HOME/.ssh/known_hosts
 
-# Set the user for the rest of the build
+# Switch back to the ros user for the rest of the build
 USER ros
 ENV HOME=/home/ros
 WORKDIR $HOME
