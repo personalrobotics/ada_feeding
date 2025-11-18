@@ -8,6 +8,7 @@ objects to the planning scene.
 """
 
 # Standard imports
+import numpy as np
 from threading import Lock
 from typing import Callable, Dict, Optional, Union
 
@@ -253,16 +254,16 @@ class CollisionObjectManager:
                     self.__collision_objects_per_batch[batch_id] = set()
                     self.__attached_collision_objects_per_batch[batch_id] = set()
                 else:
-                    self.__collision_objects_per_batch[
-                        batch_id
-                    ] = self.__collision_objects_per_batch[
-                        self.__GLOBAL_BATCH_ID
-                    ].copy()
-                    self.__attached_collision_objects_per_batch[
-                        batch_id
-                    ] = self.__attached_collision_objects_per_batch[
-                        self.__GLOBAL_BATCH_ID
-                    ].copy()
+                    self.__collision_objects_per_batch[batch_id] = (
+                        self.__collision_objects_per_batch[
+                            self.__GLOBAL_BATCH_ID
+                        ].copy()
+                    )
+                    self.__attached_collision_objects_per_batch[batch_id] = (
+                        self.__attached_collision_objects_per_batch[
+                            self.__GLOBAL_BATCH_ID
+                        ].copy()
+                    )
                 self.__n_batches += 1
 
         # First, try to add all the collision objects
@@ -305,6 +306,10 @@ class CollisionObjectManager:
                 params = objects[object_id]
                 # Collision mesh
                 if params.primitive_type is None:
+                    # Cast faces to uint32 to satisfy strict ROS 2 shape_msgs requirements
+                    if params.mesh is not None:
+                        params.mesh.faces = np.array(params.mesh.faces, dtype=np.uint32)
+
                     self.moveit2.add_collision_mesh(
                         id=object_id,
                         filepath=params.mesh_filepath if params.mesh is None else None,
