@@ -96,7 +96,7 @@ sudo apt install python3-wstool
 
 # Download all repos specified in the .rosinstall file
 wstool init
-wstool merge pr-rosinstalls/articutool.httpsias.rosinstall
+wstool merge pr-rosinstalls/articutool.https.rosinstall
 wstool up
 ```
 
