@@ -1,5 +1,5 @@
 # 1. Start from the official ROS 2 Humble base image
-FROM ros:humble-ros-base
+FROM ros:humble-ros-base@sha256:dfc94c85d8e01f230951b2a85ca5576e08473081c3da5fbbe8f3ab844703b9ba
 
 # Add a default rosinstall file argument
 ARG ROSINSTALL_FILE=articutool.https.rosinstall
