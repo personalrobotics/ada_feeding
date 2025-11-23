@@ -254,16 +254,16 @@ class CollisionObjectManager:
                     self.__collision_objects_per_batch[batch_id] = set()
                     self.__attached_collision_objects_per_batch[batch_id] = set()
                 else:
-                    self.__collision_objects_per_batch[batch_id] = (
-                        self.__collision_objects_per_batch[
-                            self.__GLOBAL_BATCH_ID
-                        ].copy()
-                    )
-                    self.__attached_collision_objects_per_batch[batch_id] = (
-                        self.__attached_collision_objects_per_batch[
-                            self.__GLOBAL_BATCH_ID
-                        ].copy()
-                    )
+                    self.__collision_objects_per_batch[
+                        batch_id
+                    ] = self.__collision_objects_per_batch[
+                        self.__GLOBAL_BATCH_ID
+                    ].copy()
+                    self.__attached_collision_objects_per_batch[
+                        batch_id
+                    ] = self.__attached_collision_objects_per_batch[
+                        self.__GLOBAL_BATCH_ID
+                    ].copy()
                 self.__n_batches += 1
 
         # First, try to add all the collision objects

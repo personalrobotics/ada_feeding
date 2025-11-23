@@ -490,9 +490,9 @@ class CreateActionServers(Node):
                             namespace=namespace,
                             full_name=full_name,
                         )
-                        self.parameters[namespace][full_name] = (
-                            CreateActionServers.get_parameter_value(custom_value)
-                        )
+                        self.parameters[namespace][
+                            full_name
+                        ] = CreateActionServers.get_parameter_value(custom_value)
                     if self.parameters[self.namespace_to_use][full_name] is not None:
                         tree_kwargs[kw] = self.parameters[self.namespace_to_use][
                             full_name
@@ -528,9 +528,9 @@ class CreateActionServers(Node):
                 namespace=namespace,
                 full_name=full_name,
             )
-            self.parameters[namespace][full_name] = (
-                CreateActionServers.get_parameter_value(custom_value)
-            )
+            self.parameters[namespace][
+                full_name
+            ] = CreateActionServers.get_parameter_value(custom_value)
 
     def set_namespace_to_use(
         self, namespace_to_use: str, create_if_not_exist: bool = False
@@ -1157,7 +1157,8 @@ class CreateActionServers(Node):
 
             goal_uuid = "".join(format(x, "02x") for x in goal_handle.goal_id.uuid)
             self.get_logger().info(
-                f"{server_name}: Executing goal {goal_uuid}"
+                f"{server_name}: "
+                f"Executing goal {goal_uuid}"
                 # f" with request {goal_handle.request}"
             )
 
