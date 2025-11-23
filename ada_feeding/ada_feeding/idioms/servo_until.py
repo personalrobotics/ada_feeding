@@ -322,9 +322,9 @@ def servo_until_pose(
             operator=partial(
                 pose_within_tolerances,
                 tolerance_position=tolerance_position,
-                tolerance_orientation=(
-                    np.inf if ignore_orientation else tolerance_orientation
-                ),
+                tolerance_orientation=np.inf
+                if ignore_orientation
+                else tolerance_orientation,
             ),
         ),
     )
@@ -357,9 +357,9 @@ def servo_until_pose(
                     "speed": speed,
                     "hz": BlackboardKey("servoHz"),
                     "round_decimals": round_decimals,
-                    "angular_override": (
-                        Vector3(x=0.0, y=0.0, z=0.0) if ignore_orientation else None
-                    ),
+                    "angular_override": Vector3(x=0.0, y=0.0, z=0.0)
+                    if ignore_orientation
+                    else None,
                 },
                 outputs={
                     "twist_stamped": BlackboardKey("twist_in_ee_frame"),
@@ -423,11 +423,9 @@ def servo_until_pose(
                     operator=partial(
                         pose_within_tolerances,
                         tolerance_position=relaxed_tolerance_position,
-                        tolerance_orientation=(
-                            np.inf
-                            if ignore_orientation
-                            else relaxed_tolerance_orientation
-                        ),
+                        tolerance_orientation=np.inf
+                        if ignore_orientation
+                        else relaxed_tolerance_orientation,
                     ),
                 ),
             ),
