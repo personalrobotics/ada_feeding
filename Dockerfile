@@ -155,7 +155,7 @@ RUN . "$NVM_DIR/nvm.sh" && npx playwright install
 WORKDIR $HOME/colcon_ws
 RUN . /opt/ros/humble/setup.sh && \
     . "$NVM_DIR/nvm.sh" && \
-    colcon build --symlink-install --packages-skip ada_hardware
+    colcon build --symlink-install
 
 # Force 'screen' to always use bash for interactive shells
 RUN echo "shell /bin/bash" > /home/ros/.screenrc
