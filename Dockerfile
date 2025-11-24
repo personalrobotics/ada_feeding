@@ -164,6 +164,7 @@ RUN mkdir -p $HOME/colcon_ws/install/ada_feeding_action_select/share/ada_feeding
 # 19. Configure Environment
 ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 ENV CYCLONEDDS_URI=$HOME/colcon_ws/src/ada_feeding/cyclonedds.xml
+ENV ROS_DOMAIN_ID=42
 
 # 20. Final Configuration
 # We copy the entrypoint script and set permissions
