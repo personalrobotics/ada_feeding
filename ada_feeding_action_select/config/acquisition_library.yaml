@@ -414,27 +414,27 @@ actions:
   - 0.0
   - 0.0
   - 0.005
-  ext_torque: 4.0
+  ext_torque: 10.0
   grasp_angular: [0.0, 0.0, 0.0]
   grasp_duration: 0.0
   grasp_force: 30.0
   grasp_linear: [0.0, 0.0, 0.0]
-  grasp_torque: 4.0
+  grasp_torque: 10.0
   retract_force: 20.0
   retract_torque: 4.0
   retract_duration: 0.0
   retract_linear: [0.0, 0.0, 0.0]
   retract_angular: [0.0, 0.0, 0.0]
-  pre_force: 3.0
+  pre_force: 2.0
   pre_offset:
-  - 0.025
+  - 0.015
   - 0.0
   - 0.0
   pre_pos:
   - 0.0
   - 0.0
   - 1.0
-  move_above_dist_m: 0.15
+  move_above_dist_m: 0.12
   pre_quat:
   - -0.3535534
   - -0.6123724
