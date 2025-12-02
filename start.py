@@ -9,6 +9,7 @@ import asyncio
 import getpass
 import os
 import sys
+import subprocess
 
 # pylint: disable=duplicate-code
 # This is intentionally similar to start_nano.py
@@ -35,6 +36,14 @@ parser.add_argument(
     default=0,
     help=("Which action (index) to use"),
     type=int,
+)
+parser.add_argument(
+    "--sync_time",
+    default=False,
+    help=(
+        "Whether to synchronize system time across all devices. Useful when running the system with no network connection, when system clocks don't automatically synchronize."
+    ),
+    type=bool,
 )
 parser.add_argument(
     "-t",
@@ -88,6 +97,30 @@ parser.add_argument(
         "These options are all named learning policies for ada_feeding_action_select."
     ),
 )
+
+
+def sync_time_to_remote(host: str, user: str) -> None:
+    """
+    Synchronously forces the remote machine's time to match the local machine's time.
+    """
+    print(f"#     [Time Sync] Synchronizing time on {host}...")
+    try:
+        # Get local time in ISO 8601 format
+        local_time = (
+            subprocess.check_output("date -Iseconds", shell=True).decode().strip()
+        )
+
+        # specific command to set time on remote
+        cmd = f"ssh {user}@{host} \"sudo date -s '{local_time}'\""
+
+        # Run the command (blocking)
+        subprocess.run(cmd, shell=True, check=True, stderr=subprocess.PIPE)
+        print(f"#     [Time Sync] Successfully set time on {host}")
+    except subprocess.CalledProcessError:
+        print(
+            f"#     [Time Sync] WARNING: Failed to sync time on {host}. "
+            "Ensure passwordless sudo is enabled or keys are configured."
+        )
 
 
 async def get_existing_screens():
@@ -169,6 +202,11 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "#     3. The web app should be built (e.g., `npm run build` in "
                 "`./src/feeding_web_interface/feedingwebapp`)."
             )
+
+            if args.sync_time:
+                print("#     4. Synchronizing Clocks (Air Gap Mode)...")
+                sync_time_to_remote(host="nano", user="nano")
+                sync_time_to_remote(host="babbage", user="charles")
     else:
         print(f"# Terminating the ada_feeding demo in **{args.sim}**")
     print(
@@ -292,15 +330,12 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "ssh nano@nano -t './start_nano.sh'",
             ],
             "articutool": [
-                # This command chains several Docker commands on the remote RPi (babbage)
-                # The -t flag for SSH allocates a pseudo-terminal, which is often necessary
-                # for interactive docker commands and proper signal handling.
+                # SSH into the Raspberry Pi (babbage)
                 'ssh charles@babbage -t "'
-                # 1. Stop the container if it's already running. `|| true` prevents errors if it's not running.
+                # 1. Cleanup old containers
                 "docker stop articutool_container || true; "
-                # 2. Remove the stopped container to ensure a fresh start.
                 "docker rm articutool_container || true; "
-                # 3. Run a new container.
+                # 2. Run the new development container
                 "docker run "
                 # --rm: Automatically remove the container when it exits/stops.
                 "--rm "
@@ -312,17 +347,24 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "--network=host "
                 # --privileged + volumes: Provide necessary permissions and access to host devices.
                 "--privileged "
+                # 3. Bind mount the source code (Shadowing)
+                # Maps the Host Pi's source code to the Container's workspace
+                "-v /home/charles/ada_ws/src:/home/ros/colcon_ws/src "
+                # 4. Hardware Access
                 "--device=/dev/imu:/dev/imu "
                 "--device=/dev/u2d2:/dev/u2d2 "
                 "--device=/dev/resense_ft:/dev/resense_ft "
-                "--volume /run/udev:/run/udev:ro "
-                "--volume /etc/udev:/etc/udev:ro "
-                "--volume /dev:/dev "
-                # Pass environment variables needed for ROS 2 communication.
+                "-v /dev:/dev "
+                "-v /run/udev:/run/udev:ro "
+                "-v /etc/udev:/etc/udev:ro "
+                "-v /etc/localtime:/etc/localtime:ro "
+                "-v /etc/timezone:/etc/timezone:ro "
+                # 5. Environment Variables
                 "-e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp "
-                f"-e ROS_DOMAIN_ID={args.real_domain_id} "  # Pass the domain ID to the container!
-                # The image to run.
-                "ros2_articutool:latest "
+                f"-e ROS_DOMAIN_ID={args.real_domain_id} "
+                # 6. The Image
+                "articutool-dev "
+                # 7. The Launch Command
                 "ros2 launch articutool_system articutool.launch.py sim:=real"
                 '"'
             ],
