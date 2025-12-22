@@ -11,20 +11,24 @@ This guide is in two parts:
 
 This must be performed once by a lab admin on any new host machine.
 
-### **1\. Prerequisites (Host Setup)**
+### **1. Prerequisites (Host Setup)**
 
-1. **Install Docker:**  
+1. **Install Docker:**
+
 ```
    sudo apt install docker.io
 ```
 
-2. **Add Admin to Docker Group:** This is required to run Docker without `sudo`.  
+2. **Add Admin to Docker Group:** This is required to run Docker without `sudo`.
+
 ```
    sudo usermod \-aG docker $USER
 ```
-   **IMPORTANT:** You must **log out and log back in** for this change to take effect.  
+
+**IMPORTANT:** You must **log out and log back in** for this change to take effect.
 
 3. **Create New User Accounts:** For each new researcher, create a non-admin account and add them to the `docker` group so they can run the shared image.
+
 ```
    # Create the user (you will be prompted for a password)
    sudo adduser <new_username>
@@ -33,7 +37,7 @@ This must be performed once by a lab admin on any new host machine.
    sudo usermod -aG docker <new_username>
 ```
 
-### **2\. Get Project Files (For Building)**
+### **2. Get Project Files (For Building)**
 
 The admin only needs this repo to get the `Dockerfile`.
 **Note:** The Articutool project files are currently on feature branches. This step pulls the specific branch needed for the build.
@@ -44,9 +48,10 @@ git clone --branch jjaime2/articutool-integration https://github.com/personalrob
 cd ada_feeding
 ```
 
-### **3\. Download Kinova SDK**
+### **3. Download Kinova SDK**
 
 The Docker build requires the Kinova Gen2 SDK.
+
 1. Download `PS 0000 0009_1.5.1.zip` (Gen2 SDK v1.5.1) from the lab's Google Drive or Kinova.
 2. Rename and place it in the `ada_feeding` directory you just cloned.
 
@@ -55,7 +60,7 @@ The Docker build requires the Kinova Gen2 SDK.
 mv ~/Downloads/"PS 0000 0009_1.5.1.zip" ./kinova_sdk.zip
 ```
 
-### **4\. Build the Shared Docker Image**
+### **4. Build the Shared Docker Image**
 
 Build the Articutool version of the project and tag it as `articutool-dev`. All researchers on this machine share this image.
 
@@ -66,17 +71,23 @@ docker build . --build-arg ROSINSTALL_FILE=articutool.https.rosinstall -t articu
 The admin setup is now complete. The `articutool-dev` image is available for all users on the machine.
 
 ## **Part 2: New Researcher Workflow**
+
 Welcome to the lab! Your workflow involves editing code in a local folder (`~/ada_ws`) and running it inside the pre-built `articutool-dev` container.
 
 ### **Step 1: First-Time Graphical Login**
+
 You must do this one time to ensure your user is set up for GUI applications.
+
 1. Log out of the lab machine.
 2. At the Ubuntu login screen, log in as your new user (`<new_username>`).
 3. Once the desktop loads, you're done. You can can open a terminal for the next steps.
 
 ### **Step 2: Download Your Local Code**
+
 You only do this once to get your personal copy of the source code.
+
 1. **Create your workspace:**
+
 ```
 cd ~
 mkdir -p ada_ws/src
@@ -84,12 +95,14 @@ cd ada_ws/src
 ```
 
 2. **Clone the installer tool:** **Note:** We must use the `jjaime2/articutool-ros-install` branch to get the correct `.rosinstall` file.
+
 ```
 # Clone the pr-rosinstalls repo and check out the articutool branch
 git clone --branch jjaime2/articutool-ros-install https://github.com/personalrobotics/pr-rosinstalls.git
 ```
 
 3. **Download all source code:**
+
 ```
 # Install wstool if not already on the host machine
 sudo apt install python3-wstool
@@ -103,13 +116,18 @@ wstool up
 You now have your `~/ada_ws/src` directory where you can edit files and manage git branches.
 
 ### **Step 3: Configure Local Network (One-Time)**
+
 You must tell ROS 2 which network interface to use.
+
 1. **Find your interface name:** Open a terminal and run `ifconfig`. Look for your main network (e.g., `wlx...` or `enp...`) and note its name.
 2. **Edit the config file:**
+
 ```
 vim ~/ada_ws/src/ada_feeding/cyclonedds.xml
 ```
+
 3. **Add your interface:** Add a new `<NetworkInterface>` line with the name you just found.
+
 ```
 <?xml version="1.0" encoding="utf-8"?>
 <CycloneDDS
@@ -129,8 +147,11 @@ vim ~/ada_ws/src/ada_feeding/cyclonedds.xml
 ```
 
 ### **Step 4: Run the Simulation Container**
+
 This is the command you will run **every time** you want to start a simulation session.
+
 1. **Allow GUI connections:** Open a terminal on the host machine and run:
+
 ```
 xhost +local:
 ```
@@ -138,6 +159,7 @@ xhost +local:
 You must do this once per login session to allow the container to open GUI windows like RViz.
 
 2. **Run the container:** This command mounts your local `~/ada_ws/src` folder into the container.
+
 ```
 docker run -it --rm \
   --network=host \
@@ -150,38 +172,44 @@ docker run -it --rm \
   --add-host=nano:192.168.4.4 \
   articutool-dev
 ```
-   * `--network=host`: For ROS 2 discovery and the web app.
-   * `--privileged`: Gives the container access to USB hardware (like the Jaco arm and E-Stop)
-   * `-e` and `-v ...X11...`: For X11 forwarding (GUI).
-   * `-v ~/ada_ws/src...`: **(IMPORTANT)** Mounts your local code into the container.
-   * `-v ...node_modules`: **(IMPORTANT)** Connects the pre-installed web app libraries.
+
+- `--network=host`: For ROS 2 discovery and the web app.
+- `--privileged`: Gives the container access to USB hardware (like the Jaco arm and E-Stop)
+- `-e` and `-v ...X11...`: For X11 forwarding (GUI).
+- `-v ~/ada_ws/src...`: **(IMPORTANT)** Mounts your local code into the container.
+- `-v ...node_modules`: **(IMPORTANT)** Connects the pre-installed web app libraries.
 
 This drops you into a bash prompt inside the container: `ros@...:~/colcon_ws$`
 
 ### **Step 5: Build and Run the Software (Inside Container)**
+
 You are now inside the container.
 
 1. **Compile your mounted code:**
+
 ```
 colcon build --symlink-install
 ```
 
 2. **Source your environment:**
+
 ```
 source install/setup.bash
 ```
 
 3. **Run the Start Script:** Use `start.py` to launch the software. The general command is:
+
 ```
 python3 src/ada_feeding/start.py --sim <MODE> --dev --action <INDEX>
 ```
 
 **Flag Explanations:**
-* `--sim <MODE>`: Specify the robot mode.
-   * `mock`: Use the mock robot for simulation.
-   * `real`: User the real robot hardware (requires the `--privileged` container).
-* `--dev`: Recommended. This launches RViz, does not require the e-stop button, and does not require `sudo` access for the web app.
-* `--action <INDEX>`: An integer for the food acquisition action. These indices correspond to entries in the `.../config/acquisition_library.yaml` file.
+
+- `--sim <MODE>`: Specify the robot mode.
+  - `mock`: Use the mock robot for simulation.
+  - `real`: User the real robot hardware (requires the `--privileged` container).
+- `--dev`: Recommended. This launches RViz, does not require the e-stop button, and does not require `sudo` access for the web app.
+- `--action <INDEX>`: An integer for the food acquisition action. These indices correspond to entries in the `.../config/acquisition_library.yaml` file.
 
 You can access the web interface in a browser on your host machine at `http://localhost:3000` (when using `--dev` or `--sim mock`).
 

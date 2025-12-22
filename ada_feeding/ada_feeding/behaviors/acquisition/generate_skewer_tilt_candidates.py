@@ -1,3 +1,6 @@
+# Copyright (c) 2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 # Standard Imports
 from overrides import override
 from typing import Union, Optional

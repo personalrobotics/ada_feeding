@@ -1,3 +1,6 @@
+# Copyright (c) 2025, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
 # Standard Imports
 import math
 from typing import Union, Optional, List

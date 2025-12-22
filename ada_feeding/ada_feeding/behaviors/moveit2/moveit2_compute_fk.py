@@ -188,11 +188,11 @@ class MoveIt2ComputeFK(BlackboardBehavior):
                     f"with links: {fk_link_names_input or 'default EE'}."
                 )
 
-                result_poses: Optional[Union[PoseStamped, List[PoseStamped]]] = (
-                    self.moveit2_obj.compute_fk(
-                        joint_state=joint_state_input,
-                        fk_link_names=fk_link_names_input,
-                    )
+                result_poses: Optional[
+                    Union[PoseStamped, List[PoseStamped]]
+                ] = self.moveit2_obj.compute_fk(
+                    joint_state=joint_state_input,
+                    fk_link_names=fk_link_names_input,
                 )
 
                 # Determine success based on whether a result was returned

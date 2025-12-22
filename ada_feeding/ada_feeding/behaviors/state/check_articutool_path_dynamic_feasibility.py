@@ -83,16 +83,16 @@ class CheckArticutoolPathDynamicFeasibility(BlackboardBehavior):
         self.node: Optional[rclpy.node.Node] = None
         self._pin_model: Optional[pin.Model] = None
         self._pin_data: Optional[pin.Data] = None
-        self._jaco_joint_names_pin: List[str] = (
-            [  # Get from param or blackboard if not fixed
-                "j2n6s200_joint_1",
-                "j2n6s200_joint_2",
-                "j2n6s200_joint_3",
-                "j2n6s200_joint_4",
-                "j2n6s200_joint_5",
-                "j2n6s200_joint_6",
-            ]
-        )
+        self._jaco_joint_names_pin: List[
+            str
+        ] = [  # Get from param or blackboard if not fixed
+            "j2n6s200_joint_1",
+            "j2n6s200_joint_2",
+            "j2n6s200_joint_3",
+            "j2n6s200_joint_4",
+            "j2n6s200_joint_5",
+            "j2n6s200_joint_6",
+        ]
         self._jaco_vel_indices_pin: Optional[List[int]] = None
         self._jaco_ee_frame_id_pin: Optional[int] = None
         self._pitch_limits_rad: Optional[Tuple[float, float]] = None
