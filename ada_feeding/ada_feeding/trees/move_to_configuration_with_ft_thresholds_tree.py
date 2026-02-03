@@ -22,6 +22,13 @@ from ada_feeding.behaviors.moveit2 import (
     MoveIt2Execute,
     MoveIt2JointConstraint,
 )
+from ada_feeding.behaviors.articutool import (
+    ExecuteArticutoolTrajectory,
+    SwitchArticutoolControllers,
+    CallSetOrientationControl,
+    ExecuteNamedPrimitive,
+)
+from ada_feeding.behaviors.state import GetJointStates
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
 from ada_feeding.idioms.bite_transfer import get_toggle_watchdog_listener_behavior
@@ -52,6 +59,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         allowed_planning_time: float = 0.5,
         max_velocity_scaling_factor: float = 0.1,
         max_acceleration_scaling_factor: float = 0.1,
+        home_articutool_on_completion: bool = False,
         # Optional parameters for the FT thresholds
         re_tare: bool = True,
         toggle_watchdog_listener: bool = True,
@@ -122,6 +130,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
         self.allowed_planning_time = allowed_planning_time
         self.max_velocity_scaling_factor = max_velocity_scaling_factor
         self.max_acceleration_scaling_factor = max_acceleration_scaling_factor
+        self.home_articutool_on_completion = home_articutool_on_completion
 
         # Store the parameters for the FT threshold
         self.re_tare = re_tare
@@ -156,6 +165,43 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
 
         turn_watchdog_listener_on_prefix = "turn_watchdog_listener_on"
 
+        articutool_homing_sequence = []
+        if self.home_articutool_on_completion:
+            articutool_homing_sequence = [
+                CallSetOrientationControl(
+                    name="DisableArticutoolOrientation",
+                    ns=name,
+                    inputs={
+                        "control_mode": 0,
+                    },
+                    outputs={},
+                ),
+                SwitchArticutoolControllers(
+                    name="SwitchArticutoolToVelocity",
+                    ns=name,
+                    inputs={
+                        "controllers_to_activate": ["velocity_controller"],
+                        "controllers_to_deactivate": ["joint_trajectory_controller"],
+                    },
+                    outputs={
+                        "switch_call_succeeded": None,
+                        "switch_response_ok": None,
+                    },
+                ),
+                # Execute the new Homing Primitive
+                ExecuteNamedPrimitive(
+                    name="ExecuteAtoolToHome",
+                    ns=name,
+                    inputs={
+                        "primitive_name": "HOMING",
+                        # Params: [speed_rps]
+                        "primitive_params": [1.5],  # e.g., 1.5 rad/s
+                    },
+                    outputs={
+                        "primitive_status": None,
+                    },
+                ),
+            ]
         # First, create the MoveToConfiguration behavior tree, in the same
         # namespace as this tree
         move_to_configuration_root = py_trees.composites.Sequence(
@@ -188,6 +234,7 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                             "allowed_planning_time": self.allowed_planning_time,
                             "max_velocity_scale": self.max_velocity_scaling_factor,
                             "max_acceleration_scale": self.max_acceleration_scaling_factor,
+                            "group_name": "jaco_arm",
                         },
                         outputs={"trajectory": BlackboardKey("trajectory")},
                     ),
@@ -195,10 +242,14 @@ class MoveToConfigurationWithFTThresholdsTree(MoveToTree):
                 MoveIt2Execute(
                     name="MoveToConfigurationExecute",
                     ns=name,
-                    inputs={"trajectory": BlackboardKey("trajectory")},
+                    inputs={
+                        "trajectory": BlackboardKey("trajectory"),
+                        "group_name": "jaco_arm",
+                    },
                     outputs={},
                 ),
-            ],
+            ]
+            + articutool_homing_sequence,
         )
 
         # Add the re-taring and FT thresholds

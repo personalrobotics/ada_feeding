@@ -5,6 +5,7 @@
 This package contains custom idioms that are used in the Ada Feeding
 project.
 """
+
 from .eventually_swiss import eventually_swiss
 from .ft_thresh_utils import ft_thresh_satisfied
 from .pre_moveto_config import pre_moveto_config
@@ -16,3 +17,11 @@ from .servo_until import (
     SERVO_UNTIL_POSE_DISTANCE_BEHAVIOR_NAME,
 )
 from .wait_for_secs import wait_for_secs
+from .acquisition import (
+    get_pre_acquisition_setup,
+    get_robust_move_above_sequence,
+    get_articutool_move_into_sequence,
+    get_post_acquisition_leveling_sequence,
+    get_post_retract_primitive_sequence,
+    get_resting_sequence,
+)

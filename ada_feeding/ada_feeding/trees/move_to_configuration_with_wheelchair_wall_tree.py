@@ -19,13 +19,21 @@ from typing import List, Optional
 from overrides import override
 import py_trees
 from rclpy.node import Node
+from py_trees.behaviours import Success
 
 # Local imports
 from ada_feeding.behaviors.moveit2 import (
     MoveIt2Plan,
     MoveIt2Execute,
+    MoveIt2ComputeFK,
     MoveIt2JointConstraint,
     MoveIt2OrientationConstraint,
+)
+from ada_feeding.behaviors.state import (
+    GetJointStates,
+    CheckArticutoolPathDynamicFeasibility,
+    ExtractPoseFromPosesByLink,
+    ComputeSlerpMidpointOrientation,
 )
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import pre_moveto_config, scoped_behavior
@@ -36,6 +44,8 @@ from ada_feeding.idioms.bite_transfer import (
 from ada_feeding.trees import (
     MoveToTree,
 )
+
+import numpy as np
 
 
 class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
@@ -62,7 +72,7 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
         orientation_constraint_quaternion: Optional[List[float]] = None,
         orientation_constraint_tolerances: Optional[List[float]] = None,
         planner_id: str = "RRTstarkConfigDefault",
-        allowed_planning_time: float = 0.5,
+        allowed_planning_time: float = 2.0,
         max_velocity_scaling_factor: float = 0.1,
         force_threshold: float = 4.0,
         torque_threshold: float = 4.0,
@@ -128,22 +138,158 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                 },
             ),
         ]
-        if self.orientation_constraint_quaternion is not None:
-            constraints.append(
-                # Orientation path constraint to keep the fork straight
-                MoveIt2OrientationConstraint(
-                    name="KeepForkStraightPathConstraint",
+        dynamic_path_constraint_sequence = [
+            # 1. Get the current joint state for the Jaco arm
+            GetJointStates(
+                name="GetJacoStartState",
+                ns=name,
+                node=self._node,
+                inputs={
+                    "joint_names": [
+                        "j2n6s200_joint_1",
+                        "j2n6s200_joint_2",
+                        "j2n6s200_joint_3",
+                        "j2n6s200_joint_4",
+                        "j2n6s200_joint_5",
+                        "j2n6s200_joint_6",
+                    ]
+                },
+                outputs={
+                    "joint_state": BlackboardKey("current_jaco_joint_state"),
+                    "joint_positions": None,
+                    "joint_names": None,
+                },
+            ),
+            # 2. Use FK to calculate the current EE pose
+            MoveIt2ComputeFK(
+                name="GetStartEEPose",
+                ns=name,
+                inputs={
+                    "group_name": "jaco_arm",
+                    "joint_state": BlackboardKey("current_jaco_joint_state"),
+                    "fk_link_names": ["j2n6s200_end_effector"],
+                },
+                outputs={
+                    "fk_poses": BlackboardKey("start_ee_fk_poses"),
+                    "success": None,
+                },
+            ),
+            ExtractPoseFromPosesByLink(
+                name="ExtractStartEEPose",
+                ns=name,
+                inputs={
+                    "fk_poses": BlackboardKey("start_ee_fk_poses"),
+                    "target_link_name": "j2n6s200_end_effector",
+                    "requested_link_names": ["j2n6s200_end_effector"],
+                },
+                outputs={
+                    "extracted_pose": BlackboardKey("start_ee_pose"),
+                    "success": None,
+                },
+            ),
+            # 3. Use FK to calculate the goal EE pose
+            MoveIt2ComputeFK(
+                name="GetGoalEEPose",
+                ns=name,
+                inputs={
+                    "group_name": "jaco_arm",
+                    "joint_state": self.goal_configuration,
+                    "fk_link_names": ["j2n6s200_end_effector"],
+                },
+                outputs={
+                    "fk_poses": BlackboardKey("goal_ee_fk_poses"),
+                    "success": None,
+                },
+            ),
+            ExtractPoseFromPosesByLink(
+                name="ExtractGoalEEPose",
+                ns=name,
+                inputs={
+                    "fk_poses": BlackboardKey("goal_ee_fk_poses"),
+                    "target_link_name": "j2n6s200_end_effector",
+                    "requested_link_names": ["j2n6s200_end_effector"],
+                },
+                outputs={
+                    "extracted_pose": BlackboardKey("goal_ee_pose"),
+                    "success": None,
+                },
+            ),
+            # 4. Compute the SLERP midpoint using the calculated poses
+            ComputeSlerpMidpointOrientation(
+                name="CalculateStagingPathConstraint",
+                ns=name,
+                inputs={
+                    "start_ee_pose": BlackboardKey("start_ee_pose"),
+                    "goal_ee_pose": BlackboardKey("goal_ee_pose"),
+                    "tolerance": (np.pi / 2, 2 * np.pi, np.pi / 4),
+                },
+                outputs={
+                    "midpoint_orientation_quaternion": BlackboardKey(
+                        "path_constraint_quat"
+                    ),
+                    "path_constraint_tolerance": BlackboardKey("path_constraint_tol"),
+                },
+            ),
+            # 5. Create the MoveIt2 orientation constraint message
+            MoveIt2OrientationConstraint(
+                name="CreateStagingPathConstraintMsg",
+                ns=name,
+                inputs={
+                    "quat_xyzw": BlackboardKey("path_constraint_quat"),
+                    "tolerance": BlackboardKey("path_constraint_tol"),
+                },
+                outputs={"constraints": BlackboardKey("path_constraints")},
+            ),
+        ]
+
+        plan_and_execute_sequence = [
+            # Plan
+            py_trees.decorators.Timeout(
+                name="MoveToStagingConfigurationPlanTimeout",
+                # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
+                duration=10.0 * self.allowed_planning_time,
+                child=MoveIt2Plan(
+                    name="MoveToStagingConfigurationPlan",
                     ns=name,
                     inputs={
-                        "quat_xyzw": self.orientation_constraint_quaternion,
-                        "tolerance": self.orientation_constraint_tolerances,
-                        "parameterization": 1,  # Rotation vector
+                        "goal_constraints": BlackboardKey("goal_constraints"),
+                        "path_constraints": BlackboardKey("path_constraints"),
+                        "planner_id": self.planner_id,
+                        "allowed_planning_time": self.allowed_planning_time,
+                        "max_velocity_scale": self.max_velocity_scaling_factor,
+                        "ignore_violated_path_constraints": False,
+                        "group_name": "jaco_arm",
                     },
-                    outputs={
-                        "constraints": BlackboardKey("path_constraints"),
-                    },
+                    outputs={"trajectory": BlackboardKey("trajectory")},
                 ),
-            )
+            ),
+            CheckArticutoolPathDynamicFeasibility(
+                name="CheckArticutoolDynamicFeasibilityForStaging",
+                ns=name,
+                inputs={
+                    "jaco_trajectory": BlackboardKey("trajectory"),
+                    "articutool_pitch_limits_rad": (-np.pi / 2, np.pi / 2),
+                    "articutool_roll_limits_rad": (-np.pi, np.pi),
+                    "articutool_max_joint_velocity": 4.0,
+                    "num_trajectory_points_to_check": 5,
+                },
+                outputs={
+                    "articutool_is_dynamic_feasible": BlackboardKey(
+                        "articutool_can_maintain_leveling"
+                    )
+                },
+            ),
+            # Execute
+            MoveIt2Execute(
+                name="MoveToStagingConfigurationExecute",
+                ns=name,
+                inputs={
+                    "trajectory": BlackboardKey("trajectory"),
+                    "group_name": "jaco_arm",
+                },
+                outputs={},
+            ),
+        ]
 
         # Root Sequence
         root_seq = py_trees.composites.Sequence(
@@ -170,38 +316,8 @@ class MoveToConfigurationWithWheelchairWallTree(MoveToTree):
                     ),
                     # Move to the staging configuration
                     workers=constraints
-                    + [
-                        # Plan
-                        py_trees.decorators.Timeout(
-                            name="MoveToStagingConfigurationPlanTimeout",
-                            # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                            duration=10.0 * self.allowed_planning_time,
-                            child=MoveIt2Plan(
-                                name="MoveToStagingConfigurationPlan",
-                                ns=name,
-                                inputs={
-                                    "goal_constraints": BlackboardKey(
-                                        "goal_constraints"
-                                    ),
-                                    "path_constraints": BlackboardKey(
-                                        "path_constraints"
-                                    ),
-                                    "planner_id": self.planner_id,
-                                    "allowed_planning_time": self.allowed_planning_time,
-                                    "max_velocity_scale": self.max_velocity_scaling_factor,
-                                    "ignore_violated_path_constraints": True,
-                                },
-                                outputs={"trajectory": BlackboardKey("trajectory")},
-                            ),
-                        ),
-                        # Execute
-                        MoveIt2Execute(
-                            name="MoveToStagingConfigurationExecute",
-                            ns=name,
-                            inputs={"trajectory": BlackboardKey("trajectory")},
-                            outputs={},
-                        ),
-                    ],
+                    + dynamic_path_constraint_sequence
+                    + plan_and_execute_sequence,
                 ),
             ],
         )

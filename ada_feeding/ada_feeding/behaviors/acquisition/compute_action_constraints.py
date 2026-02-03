@@ -5,12 +5,12 @@
 """
 This module defines behaviors that take an AcquisitionSchema.msg object
 (or return from AcquisitionSelect.srv) and computes the outputs
-needed to send MoveIt2Plan calls.
+needed to send MoveIt2Plan calls and execute primitive actions.
 """
 
 # Standard imports
 from copy import deepcopy
-from typing import Union, Optional
+from typing import Union, Optional, List
 
 # Third-party imports
 from geometry_msgs.msg import (
@@ -45,7 +45,7 @@ class ComputeActionConstraints(BlackboardBehavior):
     """
     Checks AcquisitionSelect response, implements stochastic
     policy choice, and then decomposes into individual
-    BlackboardKey objects for MoveIt2 Behaviors.
+    BlackboardKey objects for MoveIt2 Behaviors and Primitive Actions.
 
     Also sets static TF from food -> approach frame
     """
@@ -62,7 +62,6 @@ class ComputeActionConstraints(BlackboardBehavior):
     def blackboard_inputs(
         self,
         action_select_response: Union[BlackboardKey, AcquisitionSelect.Response],
-        move_above_dist_m: Union[BlackboardKey, float] = 0.05,
         food_frame_id: Union[BlackboardKey, str] = "food",
         approach_frame_id: Union[BlackboardKey, str] = "approach",
         action: Union[BlackboardKey, Optional[AcquisitionSchema]] = None,
@@ -73,7 +72,6 @@ class ComputeActionConstraints(BlackboardBehavior):
         Parameters
         ----------
         action_select_response: response from AcquisitionSelect.srv
-        move_above_dist_m: how far from the food to start
         food_frame_id: food frame defined in AcquisitionSchema.msg
         approach_frame_id: approach frame defined in AcquisitionSchema.msg
         action: which action has been chosen in the initial pi-symmetry break
@@ -91,8 +89,18 @@ class ComputeActionConstraints(BlackboardBehavior):
         approach_thresh: Optional[BlackboardKey],  # SetParameters.Request
         grasp_thresh: Optional[BlackboardKey],  # SetParameters.Request
         ext_thresh: Optional[BlackboardKey],  # SetParameters.Request
+        retract_thresh: Optional[BlackboardKey],  # SetParameters.Request
         action: Optional[BlackboardKey],  # AcquisitionSchema.msg
         action_index: Optional[BlackboardKey],  # int
+        pre_move_into_primitive_name: Optional[BlackboardKey],
+        pre_move_into_primitive_params: Optional[BlackboardKey],
+        post_move_into_primitive_name: Optional[BlackboardKey],
+        post_move_into_primitive_params: Optional[BlackboardKey],
+        post_acquisition_primitive_name: Optional[BlackboardKey],
+        post_acquisition_primitive_params: Optional[BlackboardKey],
+        jaco_ee_tilt_angle_min: Optional[BlackboardKey],
+        jaco_ee_tilt_angle_max: Optional[BlackboardKey],
+        should_align_to_base: Optional[BlackboardKey],
     ) -> None:
         """
         Blackboard Outputs
@@ -106,6 +114,10 @@ class ComputeActionConstraints(BlackboardBehavior):
         grasp_thresh: SetParameters request to set thresholds in grasp
         ext_thresh: SetParameters request to set thresholds for extraction
         action: AcquisitionSchema object to use in later computations
+        post_move_into_primitive_name: The name of the primitive to run after MoveInto.
+        post_move_into_primitive_params: The parameters for that primitive.
+        post_acquisition_primitive_name: The name of the primitive to run after acquisition.
+        post_acquisition_primitive_params: The parameters for that primitive.
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -163,11 +175,7 @@ class ComputeActionConstraints(BlackboardBehavior):
                     f"Malformed action pre_transform: {action.pre_transform.position}"
                 )
                 return py_trees.common.Status.FAILURE
-            position = (
-                position
-                * self.blackboard_get("move_above_dist_m")
-                / np.linalg.norm(position)
-            )
+            position = position * action.move_above_dist_m / np.linalg.norm(position)
             action.pre_transform.position = ros2_numpy.msgify(Point, position)
             self.blackboard_set("move_above_pose", action.pre_transform)
 
@@ -205,6 +213,51 @@ class ComputeActionConstraints(BlackboardBehavior):
                 "ext_thresh",
                 create_ft_thresh_request(action.ext_force, action.ext_torque),
             )
+            self.blackboard_set(
+                "retract_thresh",
+                create_ft_thresh_request(action.retract_force, action.retract_torque),
+            )
+
+            # Pre-Move-Into Primitive
+            pre_move_into_name = action.pre_move_into_primitive_name
+            pre_move_into_params = list(action.pre_move_into_primitive_params)
+            self.blackboard_set("pre_move_into_primitive_name", pre_move_into_name)
+            self.blackboard_set("pre_move_into_primitive_params", pre_move_into_params)
+            self.logger.info(
+                f"[{self.name}] Set Pre-MoveInto Primitive to: '{pre_move_into_name}' with params: {pre_move_into_params}"
+            )
+
+            # Post-Move-Into Primitive
+            post_move_into_name = action.post_move_into_primitive_name
+            post_move_into_params = list(action.post_move_into_primitive_params)
+            self.blackboard_set("post_move_into_primitive_name", post_move_into_name)
+            self.blackboard_set(
+                "post_move_into_primitive_params", post_move_into_params
+            )
+            self.logger.info(
+                f"[{self.name}] Set Post-MoveInto Primitive to: '{post_move_into_name}' with params: {post_move_into_params}"
+            )
+
+            # Post-Acquisition Primitive
+            post_acquisition_name = action.post_acquisition_primitive_name
+            post_acquisition_params = list(action.post_acquisition_primitive_params)
+            self.blackboard_set(
+                "post_acquisition_primitive_name", post_acquisition_name
+            )
+            self.blackboard_set(
+                "post_acquisition_primitive_params", post_acquisition_params
+            )
+            self.logger.info(
+                f"[{self.name}] Set Post-Acquisition Primitive to: '{post_acquisition_name}' with params: {post_acquisition_params}"
+            )
+
+            self.blackboard_set("jaco_ee_tilt_angle_min", action.jaco_ee_tilt_angle_min)
+            self.blackboard_set("jaco_ee_tilt_angle_max", action.jaco_ee_tilt_angle_max)
+
+            self.blackboard_set("should_align_to_base", action.align_to_robot_base)
+            self.logger.info(
+                f"[{self.name}] Set 'should_align_to_base' flag to: {action.align_to_robot_base}"
+            )
 
             ### Final write to Blackboard
             self.blackboard_set("action", action)
@@ -231,7 +284,9 @@ class ComputeActionTwist(BlackboardBehavior):
         self,
         action: Union[BlackboardKey, AcquisitionSchema],
         is_grasp: Union[BlackboardKey, bool] = True,
+        is_retract: Union[BlackboardKey, bool] = False,
         approach_frame_id: Union[BlackboardKey, str] = "approach",
+        group_name: Union[BlackboardKey, str] = "jaco_arm",
     ) -> None:
         """
         Blackboard Inputs
@@ -241,6 +296,7 @@ class ComputeActionTwist(BlackboardBehavior):
         action: AcquisitionSchema msg object
         is_grasp: if true, use the grasp action elements, else use extraction
         approach_frame_id: approach frame defined in AcquisitionSchema.msg
+        group_name: The name of the MoveIt2 planning group
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -279,6 +335,9 @@ class ComputeActionTwist(BlackboardBehavior):
         # Get Node from Kwargs
         self.node = kwargs["node"]
 
+        # Get group name from blackboard
+        self.group_name = self.blackboard_get("group_name")
+
         # Get TF Listener from blackboard
         # For transform approach -> end_effector_frame
         self.tf_buffer, _, self.tf_lock = get_tf_object(self.blackboard, self.node)
@@ -288,6 +347,7 @@ class ComputeActionTwist(BlackboardBehavior):
         self.moveit2, self.moveit2_lock = get_moveit2_object(
             self.blackboard,
             self.node,
+            self.group_name,
         )
 
     @override
@@ -295,17 +355,24 @@ class ComputeActionTwist(BlackboardBehavior):
         # Docstring copied from @override
 
         # Input Validation
-        if not self.blackboard_exists(["action", "is_grasp", "approach_frame_id"]):
+        if not self.blackboard_exists(
+            ["action", "is_grasp", "is_retract", "approach_frame_id"]
+        ):
             self.logger.error("Missing AcquisitionSchema action")
             return py_trees.common.Status.FAILURE
         action = self.blackboard_get("action")
         linear = action.ext_linear
         angular = action.ext_angular
         duration = action.ext_duration
-        if self.blackboard_get("is_grasp"):
-            linear = action.grasp_linear
-            angular = action.grasp_angular
-            duration = action.grasp_duration
+        if self.blackboard_get("is_retract"):
+            linear = action.retract_linear
+            angular = action.retract_angular
+            duration = action.retract_duration
+        else:
+            if self.blackboard_get("is_grasp"):
+                linear = action.grasp_linear
+                angular = action.grasp_angular
+                duration = action.grasp_duration
         approach_frame_id = self.blackboard_get("approach_frame_id")
 
         ### Lock used objects

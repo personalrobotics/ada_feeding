@@ -14,6 +14,8 @@ from .moveit2_constraints import (
     MoveIt2OrientationConstraint,
     MoveIt2PoseConstraint,
 )
+from .moveit2_compute_ik import MoveIt2ComputeIK
+from .moveit2_compute_fk import MoveIt2ComputeFK
 from .servo_move import ServoMove
 
 # Modifying the planning scene

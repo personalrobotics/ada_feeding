@@ -63,3 +63,48 @@ builtin_interfaces/Duration ext_duration
 # Extraction Force/Torque Thresholds
 float64 ext_force
 float64 ext_torque
+
+### Retract
+
+# Retract Twist
+# Linear (dX, dY, dZ) in *approach frame*
+geometry_msgs/Vector3 retract_linear
+# Angular (omegaX, omegaY, omegaZ) in *utensil frame*
+geometry_msgs/Vector3 retract_angular
+builtin_interfaces/Duration retract_duration
+
+# Retract Force/Torque Thresholds
+float64 retract_force
+float64 retract_torque
+
+# Standoff distance from the food origin along the pre_transform direction
+float64 move_above_dist_m
+
+# The name of the primitive to run *before* the MoveInto Cartesian push.
+# e.g., "TWIRL_CW" or "NONE".
+string pre_move_into_primitive_name
+
+# Parameters for the post_move_into_primitive.
+float64[] pre_move_into_primitive_params
+
+# The name of the primitive to run *after* the MoveInto Cartesian push.
+# e.g., "TWIRL_CW" or "NONE".
+string post_move_into_primitive_name
+
+# Parameters for the post_move_into_primitive.
+float64[] post_move_into_primitive_params
+
+# The name of the primitive to run *after* the grasp/lift is complete.
+# e.g., "VIBRATE_ROLL" to settle food.
+string post_acquisition_primitive_name
+
+# Parameters for the post_acquisition_primitive.
+float64[] post_acquisition_primitive_params
+
+# The allowed tilt angle for the Jaco EE during acquisition with the Articutool
+float64 jaco_ee_tilt_angle_min
+float64 jaco_ee_tilt_angle_max
+
+# Determines if the food_frame should be rotated to align its X-axis
+# with the robot's approach vector.
+bool align_to_robot_base

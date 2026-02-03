@@ -9,6 +9,7 @@ import asyncio
 import getpass
 import os
 import sys
+import subprocess
 
 # pylint: disable=duplicate-code
 # This is intentionally similar to start_nano.py
@@ -23,6 +24,26 @@ parser.add_argument(
         "with a simulated robot, and `dummy` uses dummy perception and motion code. All three "
         "launch the web app."
     ),
+)
+parser.add_argument(
+    "--end_effector_tool",
+    default="fork",
+    help=("Which end-effector tool to use"),
+    choices=["fork", "spoon"],
+)
+parser.add_argument(
+    "--action",
+    default=0,
+    help=("Which action (index) to use"),
+    type=int,
+)
+parser.add_argument(
+    "--sync_time",
+    default=False,
+    help=(
+        "Whether to synchronize system time across all devices. Useful when running the system with no network connection, when system clocks don't automatically synchronize."
+    ),
+    type=bool,
 )
 parser.add_argument(
     "-t",
@@ -54,6 +75,11 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--disable_table_detect",
+    action="store_true",
+    help="If set, disables table detection.",
+)
+parser.add_argument(
     "--real_domain_id",
     default=42,
     type=int,
@@ -71,6 +97,30 @@ parser.add_argument(
         "These options are all named learning policies for ada_feeding_action_select."
     ),
 )
+
+
+def sync_time_to_remote(host: str, user: str) -> None:
+    """
+    Synchronously forces the remote machine's time to match the local machine's time.
+    """
+    print(f"#     [Time Sync] Synchronizing time on {host}...")
+    try:
+        # Get local time in ISO 8601 format
+        local_time = (
+            subprocess.check_output("date -Iseconds", shell=True).decode().strip()
+        )
+
+        # specific command to set time on remote
+        cmd = f"ssh {user}@{host} \"sudo date -s '{local_time}'\""
+
+        # Run the command (blocking)
+        subprocess.run(cmd, shell=True, check=True, stderr=subprocess.PIPE)
+        print(f"#     [Time Sync] Successfully set time on {host}")
+    except subprocess.CalledProcessError:
+        print(
+            f"#     [Time Sync] WARNING: Failed to sync time on {host}. "
+            "Ensure passwordless sudo is enabled or keys are configured."
+        )
 
 
 async def get_existing_screens():
@@ -152,8 +202,13 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "#     3. The web app should be built (e.g., `npm run build` in "
                 "`./src/feeding_web_interface/feedingwebapp`)."
             )
+
+            if args.sync_time:
+                print("#     4. Synchronizing Clocks (Air Gap Mode)...")
+                sync_time_to_remote(host="nano", user="nano")
+                sync_time_to_remote(host="babbage", user="charles")
     else:
-        print(f"# Terminating the ada_feeding demo in **{ args.sim}**")
+        print(f"# Terminating the ada_feeding demo in **{args.sim}**")
     print(
         "################################################################################"
     )
@@ -169,9 +224,6 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "cd ./src/feeding_web_interface/feedingwebapp",
                 "node --env-file=.env server.js",
             ],
-            "ft": [
-                "ros2 run ada_feeding dummy_ft_sensor.py",
-            ],
             "camera": [
                 (
                     "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
@@ -179,6 +231,9 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "run_food_detection:=false run_face_detection:=false "
                     "run_food_on_fork_detection:=false run_table_detection:=false "
                 ),
+            ],
+            "articutool": [
+                f"ros2 launch articutool_system articutool.launch.py sim:=mock end_effector_tool:={args.end_effector_tool}",
             ],
             "nano_bridge_sender": [
                 "ros2 launch nano_bridge sender.launch.xml",
@@ -204,11 +259,14 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "feeding": [
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml use_estop:=false "
-                    f"policy:={args.policy}"
+                    f"policy:={args.policy} "
+                    f"end_effector_tool:={args.end_effector_tool} "
+                    f"action:={args.action}"
                 ),
             ],
             "moveit": [
-                "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock"
+                "ros2 launch ada_planning_scene ada_moveit_launch.xml sim:=mock "
+                f"end_effector_tool:={args.end_effector_tool}"
             ],
             "browser": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
@@ -225,9 +283,6 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "webrtc": [
                 "cd ./src/feeding_web_interface/feedingwebapp",
                 "node --env-file=.env server.js",
-            ],
-            "ft": [
-                "ros2 run ada_feeding dummy_ft_sensor.py",
             ],
             "perception": [
                 (
@@ -250,7 +305,8 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                     "run_web_bridge:=false run_food_detection:=false run_face_detection:=false "
                     "run_food_on_fork_detection:=false run_table_detection:=false "
                     "run_real_sense:=false "
-                    f"policy:={args.policy}"
+                    f"policy:={args.policy} "
+                    f"action:={args.action}"
                 ),
             ],
             "browser": [
@@ -273,8 +329,44 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "camera": [
                 "ssh nano@nano -t './start_nano.sh'",
             ],
-            "ft": [
-                "ros2 run forque_sensor_hardware forque_sensor_hardware --ros-args -p host:=ft-sensor-2",
+            "articutool": [
+                # SSH into the Raspberry Pi (babbage)
+                'ssh charles@babbage -t "'
+                # 1. Cleanup old containers
+                "docker stop articutool_container || true; "
+                "docker rm articutool_container || true; "
+                # 2. Run the new development container
+                "docker run "
+                # --rm: Automatically remove the container when it exits/stops.
+                "--rm "
+                # -it: Interactive TTY, allows you to attach and see logs.
+                "-it "
+                # --name: Assign a consistent name for easy management.
+                "--name articutool_container "
+                # --network=host: Shares the host's networking stack. Easiest for ROS 2 discovery.
+                "--network=host "
+                # --privileged + volumes: Provide necessary permissions and access to host devices.
+                "--privileged "
+                # 3. Bind mount the source code (Shadowing)
+                # Maps the Host Pi's source code to the Container's workspace
+                "-v /home/charles/ada_ws/src:/home/ros/colcon_ws/src "
+                # 4. Hardware Access
+                "--device=/dev/imu:/dev/imu "
+                "--device=/dev/u2d2:/dev/u2d2 "
+                "--device=/dev/resense_ft:/dev/resense_ft "
+                "-v /dev:/dev "
+                "-v /run/udev:/run/udev:ro "
+                "-v /etc/udev:/etc/udev:ro "
+                "-v /etc/localtime:/etc/localtime:ro "
+                "-v /etc/timezone:/etc/timezone:ro "
+                # 5. Environment Variables
+                "-e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp "
+                f"-e ROS_DOMAIN_ID={args.real_domain_id} "
+                # 6. The Image
+                "articutool-dev "
+                # 7. The Launch Command
+                "ros2 launch articutool_system articutool.launch.py sim:=real"
+                '"'
             ],
             "rosbridge": [
                 "ros2 launch rosbridge_server rosbridge_websocket_launch.xml",
@@ -285,13 +377,18 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
             "moveit": [
                 "Xvfb :5 -screen 0 800x600x24 &" if not args.dev else "",
                 "export DISPLAY=:5" if not args.dev else "",
-                f"ros2 launch ada_planning_scene ada_moveit_launch.xml use_rviz:={'true' if args.dev else 'false'}",
+                "ros2 launch ada_planning_scene ada_moveit_launch.xml "
+                f"use_rviz:={'true' if args.dev else 'false'} "
+                f"end_effector_tool:={args.end_effector_tool}",
             ],
             "feeding": [
                 "sudo ./src/ada_feeding/configure_lovelace.sh",
                 (
                     "ros2 launch ada_feeding ada_feeding_launch.xml "
-                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy}"
+                    f"use_estop:={'false' if args.dev else 'true'} run_web_bridge:=false policy:={args.policy} "
+                    f"end_effector_tool:={args.end_effector_tool} "
+                    f"action:={args.action} "
+                    f"run_table_detection:={'false' if args.disable_table_detect else 'true'}"
                 ),
             ],
             "browser": [

@@ -8,7 +8,7 @@ messages.
 """
 
 # Standard imports
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union, Dict
 
 # Third-party imports
 from geometry_msgs.msg import (
@@ -22,14 +22,21 @@ import numpy as np
 from overrides import override
 import py_trees
 import rclpy
+import rclpy.node
+import rclpy.time
 from rclpy.duration import Duration
 import ros2_numpy
 from scipy.spatial.transform import Rotation as R
-from tf2_geometry_msgs import PointStamped, PoseStamped
+from tf2_geometry_msgs import Pose, PointStamped, PoseStamped
 
 # Local imports
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.behaviors import BlackboardBehavior
+
+# Third-party imports
+import py_trees
+import py_trees.blackboard
+from py_trees.common import Access, Status
 
 
 class UpdateTimestamp(BlackboardBehavior):
@@ -392,3 +399,117 @@ class PoseStampedToTwistStamped(BlackboardBehavior):
 
         self.blackboard_set("twist_stamped", twist_stamped)
         return py_trees.common.Status.SUCCESS
+
+
+class StampPoseFromPose(BlackboardBehavior):
+    """
+    Takes a geometry_msgs/Pose from the blackboard, adds a header
+    (specified frame_id and current timestamp), and writes the resulting
+    geometry_msgs/PoseStamped back to the blackboard.
+
+    This is useful for providing correctly framed input to services or behaviors
+    that require PoseStamped, such as MoveIt2ComputeIK, when the source only
+    provides a Pose.
+    """
+
+    def blackboard_inputs(
+        self,
+        input_pose: Union[BlackboardKey, Pose],
+        frame_id: Union[BlackboardKey, str],
+    ) -> None:
+        """
+        Blackboard Inputs
+
+        Parameters
+        ----------
+        input_pose: BlackboardKey resolving to the geometry_msgs/Pose message to stamp.
+        frame_id: BlackboardKey resolving to the string frame_id to put in the header.
+                  This frame_id should represent the coordinate system in which the
+                  input_pose values are actually defined.
+        """
+        # pylint: disable=unused-argument, duplicate-code
+        super().blackboard_inputs(
+            **{key: value for key, value in locals().items() if key != "self"}
+        )
+
+    def blackboard_outputs(
+        self,
+        output_pose_stamped: Optional[BlackboardKey],  # -> Optional[PoseStamped]
+    ) -> None:
+        """
+        Blackboard Outputs
+
+        Parameters
+        ----------
+        output_pose_stamped: BlackboardKey where the resulting PoseStamped will be written.
+                             The value will be None or unchanged if the behavior fails.
+        """
+        # pylint: disable=unused-argument, duplicate-code
+        super().blackboard_outputs(
+            **{key: value for key, value in locals().items() if key != "self"}
+        )
+
+    @override
+    def setup(self, **kwargs):
+        """Gets the ROS2 node from the arguments passed by the tree runner."""
+        # pylint: disable=attribute-defined-outside-init
+        try:
+            self.node: rclpy.node.Node = kwargs["node"]
+        except KeyError as e:
+            self.logger.error(
+                f"[{self.name}] Behaviour expects 'node' in setup kwargs. {e}"
+            )
+            self.node = None
+
+    @override
+    def initialise(self) -> None:
+        """Optionally log initialization."""
+        self.logger.debug(f"[{self.name}] Initializing.")
+
+    @override
+    def update(self) -> Status:
+        """
+        Reads the input Pose and frame_id, creates a PoseStamped with a
+        current timestamp, and writes it to the output blackboard key.
+        Returns SUCCESS if successful, FAILURE otherwise.
+        """
+        # Verify setup provided the node needed for timestamping
+        if not hasattr(self, "node") or self.node is None:
+            self.logger.error(
+                f"[{self.name}] Node object not available. Setup likely failed."
+            )
+            return Status.FAILURE
+
+        try:
+            pose_in = self.blackboard_get("input_pose")
+            frame_id_str = self.blackboard_get("frame_id")
+
+            if not isinstance(pose_in, Pose):
+                self.logger.error(
+                    f"[{self.name}] Input 'input_pose' is not a geometry_msgs/Pose (is type: {type(pose_in)})."
+                )
+                return Status.FAILURE
+
+            if not isinstance(frame_id_str, str) or not frame_id_str:
+                self.logger.error(
+                    f"[{self.name}] Input 'frame_id' must be a non-empty string (is: '{frame_id_str}')."
+                )
+                return Status.FAILURE
+
+            pose_stamped_out = PoseStamped()
+            pose_stamped_out.header.frame_id = frame_id_str
+            pose_stamped_out.header.stamp = self.node.get_clock().now().to_msg()
+            pose_stamped_out.pose = pose_in
+
+            self.blackboard_set("output_pose_stamped", pose_stamped_out)
+            self.logger.info(
+                f"[{self.name}] Successfully stamped Pose into frame '{frame_id_str}'."
+            )
+            return Status.SUCCESS
+
+        except KeyError as e:
+            self.logger.error(f"[{self.name}] Blackboard key error: {e}")
+            return Status.FAILURE
+        except Exception as e:
+            self.logger.error(f"[{self.name}] Unexpected error stamping pose: {e}")
+            return Status.FAILURE

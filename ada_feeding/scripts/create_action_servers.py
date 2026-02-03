@@ -14,6 +14,8 @@ import multiprocessing
 import os
 import threading
 import traceback
+import tempfile
+import subprocess
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 # Third-party imports
@@ -36,6 +38,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 import yaml
+import pinocchio as pin
 
 # Local imports
 from ada_feeding import ActionServerBT
@@ -139,6 +142,41 @@ class CreateActionServers(Node):
         self.action_server_params = self.read_params()
         self.add_on_set_parameters_callback(self.parameter_callback)
 
+        # Create a global blackboard client to write the model to
+        self.global_blackboard = py_trees.blackboard.Client(
+            name="PinocchioLoaderClient"
+        )
+        self.global_blackboard.register_key(
+            key="/pinocchio_model", access=py_trees.common.Access.WRITE
+        )
+        self.global_blackboard.register_key(
+            key="/pinocchio_data", access=py_trees.common.Access.WRITE
+        )
+        self.global_blackboard.register_key(
+            key="/jaco_vel_indices_pin", access=py_trees.common.Access.WRITE
+        )
+        self.global_blackboard.register_key(
+            key="/articutool_vel_indices_pin", access=py_trees.common.Access.WRITE
+        )
+        self.global_blackboard.register_key(
+            key="/jaco_ee_frame_id_pin", access=py_trees.common.Access.WRITE
+        )
+        self.global_blackboard.register_key(
+            key="/tool_tip_frame_id_pin", access=py_trees.common.Access.WRITE
+        )
+
+        # Load the model
+        try:
+            self.get_logger().info("Loading Pinocchio model as singleton...")
+            self._load_and_store_pinocchio_model()
+            self.get_logger().info("Pinocchio model loaded successfully.")
+        except Exception as e:
+            self.get_logger().error(
+                f"CRITICAL: Failed to load Pinocchio model at startup: {e}"
+            )
+            # You might want to shut down or raise an exception here
+            return
+
         # Create the watchdog listener. Note that this watchdog listener
         # adds additional parameters -- `watchdog_timeout_sec` and
         # `initial_wait_time_sec` -- and another subscription to `~/watchdog`.
@@ -150,6 +188,111 @@ class CreateActionServers(Node):
 
         # Create the action servers.
         self.create_action_servers(self.action_server_params)
+
+    def _resolve_package_path(self, path_str: str) -> Optional[str]:
+        """Resolves package:// paths to absolute paths."""
+        if path_str.startswith("package://"):
+            try:
+                parts = path_str.split("package://", 1)[1].split("/", 1)
+                package_name = parts[0]
+                relative_path = parts[1] if len(parts) > 1 else ""
+                package_share_directory = get_package_share_directory(package_name)
+                return os.path.join(package_share_directory, relative_path)
+            except Exception as e:
+                self.get_logger().error(
+                    f"Could not resolve package path '{path_str}': {e}"
+                )
+                return None
+        return path_str
+
+    def _get_vel_indices_for_joints(
+        self, model: pin.Model, joint_names: List[str], group_name_log: str
+    ) -> List[int]:
+        """Helper to get velocity indices for a list of joint names."""
+        vel_indices = []
+        for joint_name in joint_names:
+            if model.existJointName(joint_name):
+                joint_id = model.getJointId(joint_name)
+                if model.joints[joint_id].nv == 1:  # Assuming 1 DoF
+                    vel_indices.append(model.joints[joint_id].idx_v)
+                else:
+                    raise RuntimeError(
+                        f"{group_name_log} joint '{joint_name}' has nv != 1."
+                    )
+            else:
+                raise RuntimeError(
+                    f"{group_name_log} joint '{joint_name}' not found in model."
+                )
+        return vel_indices
+
+    def _load_and_store_pinocchio_model(self) -> None:
+        """
+        Loads the Pinocchio model from the XACRO file, pre-computes
+        indices, and stores everything on the global blackboard.
+        """
+        # These are hardcoded in your trees, so we can hardcode them here.
+        # For a more robust solution, make these ROS parameters.
+        urdf_path_str = "package://ada_moveit/config/ada.urdf.xacro"
+        jaco_joint_names = [
+            "j2n6s200_joint_1",
+            "j2n6s200_joint_2",
+            "j2n6s200_joint_3",
+            "j2n6s200_joint_4",
+            "j2n6s200_joint_5",
+            "j2n6s200_joint_6",
+        ]
+        articutool_joint_names = ["atool_joint1", "atool_joint2"]
+        jaco_ee_link_name = "j2n6s200_end_effector"
+        tool_tip_link_name = "tool_tip"
+
+        resolved_urdf_path = self._resolve_package_path(urdf_path_str)
+        if not resolved_urdf_path:
+            raise FileNotFoundError(f"Failed to resolve URDF path: {urdf_path_str}")
+
+        processed_urdf_path = resolved_urdf_path
+        temp_urdf_file_name = None
+
+        if resolved_urdf_path.endswith(".xacro"):
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".urdf", delete=False
+            ) as temp_file:
+                temp_urdf_file_name = temp_file.name
+
+            process = subprocess.run(
+                ["ros2", "run", "xacro", "xacro", resolved_urdf_path],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            with open(temp_urdf_file_name, "w") as f:
+                f.write(process.stdout)
+            processed_urdf_path = temp_urdf_file_name
+
+        try:
+            model = pin.buildModelFromUrdf(processed_urdf_path)
+            data = model.createData()
+
+            # Pre-compute indices and IDs
+            jaco_vel_indices = self._get_vel_indices_for_joints(
+                model, jaco_joint_names, "Jaco"
+            )
+            atool_vel_indices = self._get_vel_indices_for_joints(
+                model, articutool_joint_names, "Articutool"
+            )
+            jaco_ee_id = model.getFrameId(jaco_ee_link_name)
+            tool_tip_id = model.getFrameId(tool_tip_link_name)
+
+            # Write to global blackboard
+            self.global_blackboard.set("/pinocchio_model", model)
+            self.global_blackboard.set("/pinocchio_data", data)
+            self.global_blackboard.set("/jaco_vel_indices_pin", jaco_vel_indices)
+            self.global_blackboard.set("/articutool_vel_indices_pin", atool_vel_indices)
+            self.global_blackboard.set("/jaco_ee_frame_id_pin", jaco_ee_id)
+            self.global_blackboard.set("/tool_tip_frame_id_pin", tool_tip_id)
+
+        finally:
+            if temp_urdf_file_name and os.path.exists(temp_urdf_file_name):
+                os.unlink(temp_urdf_file_name)
 
     @staticmethod
     def get_parameter_value(param: Parameter) -> Any:

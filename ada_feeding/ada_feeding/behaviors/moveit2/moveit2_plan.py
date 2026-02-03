@@ -91,6 +91,7 @@ class MoveIt2Plan(BlackboardBehavior):
         path_constraints: Optional[
             Union[BlackboardKey, List[Tuple[MoveIt2ConstraintType, Dict[str, Any]]]]
         ] = None,
+        target_link: Optional[Union[BlackboardKey, str]] = None,
         ignore_violated_path_constraints: Union[BlackboardKey, bool] = False,
         pipeline_id: Union[BlackboardKey, str] = "ompl",
         planner_id: Union[BlackboardKey, str] = "RRTstarkConfigDefault",
@@ -109,6 +110,7 @@ class MoveIt2Plan(BlackboardBehavior):
             Union[BlackboardKey, float]
         ] = 10.0,  # np.sqrt(6.0) * np.pi,
         max_path_len_joint: Optional[Union[BlackboardKey, Dict[str, float]]] = None,
+        group_name: Union[BlackboardKey, str] = "jaco_arm_with_articutool",
     ) -> None:
         """
         Blackboard Inputs
@@ -147,6 +149,7 @@ class MoveIt2Plan(BlackboardBehavior):
             (likely radians). Default sqrt(6.0 * pi) (i.e. 180 degrees each for a 6DOF robot)
         max_path_len_joint: Maximum distance each joint (or subset of joints)
             is allowed to travel. As dictionary: <joint_name> -> <max_distance>
+        group_name: The name of the MoveIt2 planning group
         """
         # TODO: consider cartesian parameter struct
         # pylint: disable=unused-argument, duplicate-code
@@ -190,10 +193,14 @@ class MoveIt2Plan(BlackboardBehavior):
         # Get Node from Kwargs
         self.node = kwargs["node"]
 
+        # Get group name from blackboard
+        self.group_name = self.blackboard_get("group_name")
+
         # Get the MoveIt2 object.
         self.moveit2, self.moveit2_lock = get_moveit2_object(
             self.blackboard,
             self.node,
+            self.group_name,
         )
 
         # Get TF Listener from blackboard
@@ -336,12 +343,21 @@ class MoveIt2Plan(BlackboardBehavior):
             ### New Plan
             ### Add Constraints to MoveIt Object
 
+            # Get target_link from blackboard
+            target_link = self.blackboard_get("target_link")
+
             # Check all goal constraints
             goals_satisfied = True
 
             for constraint_type, constraint_kwargs in self.blackboard_get(
                 "goal_constraints"
             ):
+                if (
+                    target_link is not None
+                    and constraint_type != MoveIt2ConstraintType.JOINT
+                ):
+                    constraint_kwargs["target_link"] = target_link
+
                 try:
                     if constraint_type == MoveIt2ConstraintType.JOINT:
                         goals_satisfied = (
@@ -657,12 +673,16 @@ class MoveIt2Plan(BlackboardBehavior):
         tol = np.fabs(constraint_kwargs["tolerance"])
 
         t_stamped = self.tf_buffer.lookup_transform(
-            constraint_kwargs["frame_id"]
-            if constraint_kwargs["frame_id"] is not None
-            else self.moveit2.base_link_name,
-            constraint_kwargs["target_link"]
-            if constraint_kwargs["target_link"] is not None
-            else self.moveit2.end_effector_name,
+            (
+                constraint_kwargs["frame_id"]
+                if constraint_kwargs["frame_id"] is not None
+                else self.moveit2.base_link_name
+            ),
+            (
+                constraint_kwargs["target_link"]
+                if constraint_kwargs["target_link"] is not None
+                else self.moveit2.end_effector_name
+            ),
             rclpy.time.Time(),
         )
         current = ros2_numpy.numpify(t_stamped.transform.translation)
@@ -696,12 +716,16 @@ class MoveIt2Plan(BlackboardBehavior):
         tol = np.fabs(np.array(constraint_kwargs["tolerance"]) * np.ones(3))
 
         t_stamped = self.tf_buffer.lookup_transform(
-            constraint_kwargs["frame_id"]
-            if constraint_kwargs["frame_id"] is not None
-            else self.moveit2.base_link_name,
-            constraint_kwargs["target_link"]
-            if constraint_kwargs["target_link"] is not None
-            else self.moveit2.end_effector_name,
+            (
+                constraint_kwargs["frame_id"]
+                if constraint_kwargs["frame_id"] is not None
+                else self.moveit2.base_link_name
+            ),
+            (
+                constraint_kwargs["target_link"]
+                if constraint_kwargs["target_link"] is not None
+                else self.moveit2.end_effector_name
+            ),
             rclpy.time.Time(),
         )
         current = R.from_quat(list(ros2_numpy.numpify(t_stamped.transform.rotation)))
@@ -808,7 +832,7 @@ class MoveIt2Plan(BlackboardBehavior):
             os.mkdir(file_dir)
         filepath = os.path.join(
             file_dir,
-            f"{int(time.time()*10**9)}_{action_name}",
+            f"{int(time.time() * 10**9)}_{action_name}",
         )
 
         # Generate the CSV header

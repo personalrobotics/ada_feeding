@@ -117,6 +117,51 @@ def get_action_library(
         schema.ext_force = element["ext_force"]
         schema.ext_torque = element["ext_torque"]
 
+        # Retract
+        schema.retract_linear.x = element.get("retract_linear", [0.0, 0.0, 0.0])[0]
+        schema.retract_linear.y = element.get("retract_linear", [0.0, 0.0, 0.0])[1]
+        schema.retract_linear.z = element.get("retract_linear", [0.0, 0.0, 0.0])[2]
+        schema.retract_angular.x = element.get("retract_angular", [0.0, 0.0, 0.0])[0]
+        schema.retract_angular.y = element.get("retract_angular", [0.0, 0.0, 0.0])[1]
+        schema.retract_angular.z = element.get("retract_angular", [0.0, 0.0, 0.0])[2]
+
+        schema.move_above_dist_m = float(element.get("move_above_dist_m", 0.05))
+
+        retract_duration_val = float(element.get("retract_duration", 0.0))
+        schema.retract_duration.sec = int(retract_duration_val)
+        decimal = retract_duration_val - schema.retract_duration.sec
+        schema.retract_duration.nanosec = int((decimal * 10**9) % 10**9)
+
+        schema.retract_force = float(element.get("retract_force", 0.0))
+        schema.retract_torque = float(element.get("retract_torque", 0.0))
+
+        schema.pre_move_into_primitive_name = str(
+            element.get("pre_move_into_primitive_name", "NONE")
+        )
+        schema.pre_move_into_primitive_params = [
+            float(p) for p in element.get("pre_move_into_primitive_params", [])
+        ]
+
+        schema.post_move_into_primitive_name = str(
+            element.get("post_move_into_primitive_name", "NONE")
+        )
+        schema.post_move_into_primitive_params = [
+            float(p) for p in element.get("post_move_into_primitive_params", [])
+        ]
+
+        schema.post_acquisition_primitive_name = str(
+            element.get("post_acquisition_primitive_name", "NONE")
+        )
+        schema.post_acquisition_primitive_params = [
+            float(p) for p in element.get("post_acquisition_primitive_params", [])
+        ]
+        schema.jaco_ee_tilt_angle_min = float(
+            element.get("jaco_ee_tilt_angle_min", 0.0)
+        )
+        schema.jaco_ee_tilt_angle_max = float(
+            element.get("jaco_ee_tilt_angle_max", 50.0)
+        )
+        schema.align_to_robot_base = bool(element.get("align_to_robot_base", False))
         library.append(schema)
 
     return library

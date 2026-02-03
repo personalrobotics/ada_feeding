@@ -20,7 +20,6 @@ from py_trees.blackboard import Blackboard
 from py_trees.behaviours import Success
 import py_trees_ros
 from rcl_interfaces.srv import SetParameters
-import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
 from std_msgs.msg import Header
@@ -28,21 +27,20 @@ from std_srvs.srv import Empty
 
 # Local imports
 from ada_feeding_msgs.action import AcquireFood
-from ada_feeding_msgs.srv import AcquisitionSelect
-from ada_feeding.behaviors.acquisition import (
-    ComputeFoodFrame,
-    ComputeActionConstraints,
-    ComputeActionTwist,
-)
+
+# Note: Most behavior imports have been moved to ada_feeding/idioms/acquisition.py
+from ada_feeding.behaviors.acquisition import ComputeActionTwist
 from ada_feeding.behaviors.moveit2 import (
-    MoveIt2JointConstraint,
     MoveIt2OrientationConstraint,
-    MoveIt2PoseConstraint,
     MoveIt2PositionOffsetConstraint,
     MoveIt2Plan,
     MoveIt2Execute,
     ServoMove,
     ToggleCollisionObject,
+)
+from ada_feeding.behaviors.articutool import (
+    CallSetOrientationControl,
+    ExecuteNamedPrimitive,
 )
 from ada_feeding.helpers import BlackboardKey
 from ada_feeding.idioms import (
@@ -58,9 +56,15 @@ from ada_feeding.idioms.ft_thresh_utils import ft_thresh_satisfied
 from ada_feeding.idioms.pre_moveto_config import set_parameter_response_all_success
 from ada_feeding.trees import MoveToTree, StartServoTree, StopServoTree
 
-
-# pylint: disable=too-many-lines
-# This tree is the cruz of bite acquisition, hence is long.
+# --- Modular Acquisition Idioms ---
+from ada_feeding.idioms.acquisition import (
+    get_pre_acquisition_setup,
+    get_robust_move_above_sequence,
+    get_articutool_move_into_sequence,
+    get_post_acquisition_leveling_sequence,
+    get_post_retract_primitive_sequence,
+    get_resting_sequence,
+)
 
 
 class AcquireFoodTree(MoveToTree):
@@ -92,10 +96,10 @@ class AcquireFoodTree(MoveToTree):
         max_velocity_scaling_to_resting_configuration: Optional[float] = 0.8,
         max_acceleration_scaling_to_resting_configuration: Optional[float] = 0.8,
         pickle_goal_path: Optional[str] = None,
-        allowed_planning_time_for_move_above: float = 0.5,
-        allowed_planning_time_for_move_into: float = 0.5,
-        allowed_planning_time_to_resting_configuration: float = 0.5,
-        allowed_planning_time_for_recovery: float = 0.5,
+        allowed_planning_time_for_move_above: float = 1.0,
+        allowed_planning_time_for_move_into: float = 1.0,
+        allowed_planning_time_to_resting_configuration: float = 6.0,
+        allowed_planning_time_for_recovery: float = 1.0,
     ):
         """
         Initializes tree-specific parameters.
@@ -142,11 +146,6 @@ class AcquireFoodTree(MoveToTree):
         self,
         name: str,
     ) -> py_trees.trees.BehaviourTree:
-        # Docstring copied by @override
-
-        # pylint: disable=line-too-long
-        # This is the entire tree rolled out.
-
         ### Blackboard Constants
         blackboard = py_trees.blackboard.Client(name=name, namespace=name)
         blackboard.register_key(key="zero_twist", access=py_trees.common.Access.WRITE)
@@ -158,20 +157,13 @@ class AcquireFoodTree(MoveToTree):
             twist=Twist(),
         )
 
-        # The max amount that each joint can move for any computed plan. Intended
-        # to reduce swivels.
-        max_path_len_joint = {
-            "j2n6s200_joint_1": np.pi * 5.0 / 6.0,
-            "j2n6s200_joint_2": np.pi / 2.0,
-        }
-
-        # Get the base lin to publish servo commands in
+        # Get the base link to publish servo commands in
         base_link = "j2n6s200_link_base"
 
-        ### Add Resting Position
+        ### Add Resting Position Logic
         resting_position_behaviors = []
         if self.resting_joint_positions is not None:
-            # Move back to resting position
+            # Move back to resting position using the new idiom
             resting_position_behaviors.append(
                 scoped_behavior(
                     name=name + " InFrontOfWheelchairWallScope",
@@ -191,48 +183,21 @@ class AcquireFoodTree(MoveToTree):
                             # Default fail if service is down
                             wait_for_server_timeout_sec=0.0,
                         ),
-                        MoveIt2JointConstraint(
-                            name="RestingConstraint",
+                        # Call the modular resting sequence idiom
+                        get_resting_sequence(
+                            name=name,
                             ns=name,
-                            inputs={
-                                "joint_positions": self.resting_joint_positions,
-                            },
-                            outputs={
-                                "constraints": BlackboardKey("goal_constraints"),
-                            },
-                        ),
-                        py_trees.decorators.Timeout(
-                            name="RestingPlanTimeout",
-                            # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                            duration=10.0
-                            * self.allowed_planning_time_to_resting_configuration,
-                            child=MoveIt2Plan(
-                                name="RestingPlan",
-                                ns=name,
-                                inputs={
-                                    "goal_constraints": BlackboardKey(
-                                        "goal_constraints"
-                                    ),
-                                    "max_velocity_scale": self.max_velocity_scaling_to_resting_configuration,
-                                    "max_acceleration_scale": self.max_acceleration_scaling_to_resting_configuration,
-                                    "allowed_planning_time": self.allowed_planning_time_to_resting_configuration,
-                                },
-                                outputs={
-                                    "trajectory": BlackboardKey("resting_trajectory")
-                                },
-                            ),
-                        ),
-                        MoveIt2Execute(
-                            name="Resting",
-                            ns=name,
-                            inputs={"trajectory": BlackboardKey("resting_trajectory")},
-                            outputs={},
+                            node=self._node,
+                            resting_joint_positions=self.resting_joint_positions,
+                            max_velocity_scale=self.max_velocity_scaling_to_resting_configuration,
+                            max_acceleration_scale=self.max_acceleration_scaling_to_resting_configuration,
+                            allowed_planning_time=self.allowed_planning_time_to_resting_configuration,
                         ),
                     ],
                 ),
             )
 
-        ### Define Recovery Tree (if failure in Grasp/Extract)
+        ### Define Recovery Tree (Inline)
         recovery_tree = py_trees.composites.Sequence(
             name="RecoverySequence",
             memory=True,
@@ -344,6 +309,7 @@ class AcquireFoodTree(MoveToTree):
                                             "cartesian_max_step": 0.001,
                                             "cartesian_fraction_threshold": 0.92,
                                             "allowed_planning_time": self.allowed_planning_time_for_recovery,
+                                            "group_name": "jaco_arm",
                                         },
                                         outputs={
                                             "trajectory": BlackboardKey(
@@ -358,7 +324,8 @@ class AcquireFoodTree(MoveToTree):
                                     inputs={
                                         "trajectory": BlackboardKey(
                                             "recovery_trajectory"
-                                        )
+                                        ),
+                                        "group_name": "jaco_arm",
                                     },
                                     outputs={},
                                 ),
@@ -369,162 +336,7 @@ class AcquireFoodTree(MoveToTree):
             ],  # End RecoverySequence.children
         )  # End RecoverySequence
 
-        def move_above_plan(
-            flip_food_frame: bool = False,
-            action: Optional[BlackboardKey] = None,
-        ) -> py_trees.behaviour.Behaviour:
-            return py_trees.composites.Sequence(
-                name="MoveAbovePlanningSeq",
-                memory=True,
-                children=[
-                    # Compute Food Frame
-                    py_trees.decorators.Timeout(
-                        name="ComputeFoodFrameTimeout",
-                        duration=1.0,
-                        child=ComputeFoodFrame(
-                            name="ComputeFoodFrame",
-                            ns=name,
-                            inputs={
-                                "camera_info": BlackboardKey("camera_info"),
-                                "mask": BlackboardKey("mask"),
-                                # NOTE: We override the goal message timestamp
-                                # since sometimes there isn't a recent enough TF
-                                "timestamp": rclpy.time.Time(),
-                                # "timestamp": BlackboardKey("timestamp"),
-                                # Default food_frame_id = "food"
-                                # Default world_frame = "world"
-                                "flip_food_frame": flip_food_frame,
-                            },
-                            outputs={
-                                "action_select_request": BlackboardKey(
-                                    "action_request"
-                                ),
-                                "food_frame": None,
-                            },
-                        ),
-                    ),
-                    # Get Action to Use
-                    py_trees_ros.service_clients.FromBlackboard(
-                        name="AcquisitionSelect",
-                        service_name="~/action_select",
-                        service_type=AcquisitionSelect,
-                        # Need absolute Blackboard name
-                        key_request=Blackboard.separator.join(
-                            [name, BlackboardKey("action_request")]
-                        ),
-                        key_response=Blackboard.separator.join(
-                            [name, BlackboardKey("action_response")]
-                        ),
-                        # Default fail if service is down
-                        wait_for_server_timeout_sec=0.0,
-                    ),
-                    # Get MoveIt2 Constraints
-                    py_trees.decorators.Timeout(
-                        name="ComputeActionConstraintsTimeout",
-                        duration=1.0,
-                        child=ComputeActionConstraints(
-                            name="ComputeActionConstraints",
-                            ns=name,
-                            inputs={
-                                "action_select_response": BlackboardKey(
-                                    "action_response"
-                                ),
-                                "action": action,
-                                # Default move_above_dist_m = 0.05
-                                # Default food_frame_id = "food"
-                                # Default approach_frame_id = "approach"
-                            },
-                            outputs={
-                                "move_above_pose": BlackboardKey("move_above_pose"),
-                                "move_into_pose": BlackboardKey("move_into_pose"),
-                                "approach_thresh": BlackboardKey("approach_thresh"),
-                                "grasp_thresh": BlackboardKey("grasp_thresh"),
-                                "ext_thresh": BlackboardKey("ext_thresh"),
-                                "action": BlackboardKey("action"),
-                                "action_index": BlackboardKey("action_index"),
-                            },
-                        ),
-                    ),
-                    # Re-Tare FT Sensor and default to 4N threshold
-                    pre_moveto_config(name="PreAcquireFTTare"),
-                    ### Move Above Food
-                    MoveIt2PoseConstraint(
-                        name="MoveAbovePose",
-                        ns=name,
-                        inputs={
-                            "pose": BlackboardKey("move_above_pose"),
-                            "frame_id": "food",
-                            "tolerance_orientation": [
-                                0.01,
-                                0.01,
-                                0.01,
-                            ],  # x, y, z rotvec
-                            "parameterization": 1,
-                        },
-                        outputs={
-                            "constraints": BlackboardKey("goal_constraints"),
-                        },
-                    ),
-                    py_trees.decorators.Timeout(
-                        name="MoveAbovePlanTimeout",
-                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                        duration=10.0 * self.allowed_planning_time_for_move_above,
-                        child=MoveIt2Plan(
-                            name="MoveAbovePlan",
-                            ns=name,
-                            inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
-                                "max_velocity_scale": self.max_velocity_scaling_move_above,
-                                "max_acceleration_scale": self.max_acceleration_scaling_move_above,
-                                "allowed_planning_time": self.allowed_planning_time_for_move_above,
-                                "max_path_len_joint": max_path_len_joint,
-                            },
-                            outputs={
-                                "trajectory": BlackboardKey("move_above_trajectory"),
-                                "end_joint_state": BlackboardKey("test_into_joints"),
-                            },
-                        ),
-                    ),
-                    ### Test MoveIntoFood
-                    MoveIt2PoseConstraint(
-                        name="MoveIntoPose",
-                        ns=name,
-                        inputs={
-                            "pose": BlackboardKey("move_into_pose"),
-                            "frame_id": "food",
-                        },
-                        outputs={
-                            "constraints": BlackboardKey("goal_constraints"),
-                        },
-                    ),
-                    py_trees.decorators.Timeout(
-                        name="MoveIntoPlanTimeout",
-                        # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                        duration=10.0 * self.allowed_planning_time_for_move_into,
-                        child=MoveIt2Plan(
-                            name="MoveIntoPlan",
-                            ns=name,
-                            inputs={
-                                "goal_constraints": BlackboardKey("goal_constraints"),
-                                "max_velocity_scale": self.max_velocity_scaling_move_into,
-                                "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                "cartesian": True,
-                                "cartesian_max_step": 0.001,
-                                "cartesian_fraction_threshold": 0.92,
-                                "start_joint_state": BlackboardKey("test_into_joints"),
-                                "max_path_len_joint": max_path_len_joint,
-                                "allowed_planning_time": self.allowed_planning_time_for_move_into,
-                            },
-                            outputs={
-                                "trajectory": BlackboardKey("move_into_trajectory")
-                            },
-                        ),
-                    ),
-                ],
-            )
-
-        ### Define Tree Logic
-        # Root Sequence
+        ### Main Tree Orchestration
         root_seq = py_trees.composites.Sequence(
             name=name,
             memory=True,
@@ -615,25 +427,34 @@ class AcquireFoodTree(MoveToTree):
                                     # Default fail if service is down
                                     wait_for_server_timeout_sec=0.0,
                                 ),
+                                # --- 1. Pre-Acquisition Setup ---
                                 py_trees.composites.Selector(
                                     name="BackupFlipFoodFrameSel",
                                     memory=True,
                                     children=[
-                                        move_above_plan(True),
-                                        move_above_plan(False, BlackboardKey("action")),
+                                        get_pre_acquisition_setup(
+                                            name, name, flip_food_frame=True
+                                        ),
+                                        get_pre_acquisition_setup(
+                                            name,
+                                            name,
+                                            flip_food_frame=False,
+                                            action_key=BlackboardKey("action"),
+                                        ),
                                     ],
                                 ),
-                                MoveIt2Execute(
-                                    name="MoveAbove",
+                                # --- 2. Move Above (Plan-Then-Verify) ---
+                                get_robust_move_above_sequence(
+                                    name=name,
                                     ns=name,
-                                    inputs={
-                                        "trajectory": BlackboardKey(
-                                            "move_above_trajectory"
-                                        )
-                                    },
-                                    outputs={},
+                                    max_velocity_scaling_move_above=self.max_velocity_scaling_move_above,
+                                    max_acceleration_scaling_move_above=self.max_acceleration_scaling_move_above,
+                                    max_velocity_scaling_move_into=self.max_velocity_scaling_move_into,
+                                    max_acceleration_scaling_move_into=self.max_acceleration_scaling_move_into,
+                                    allowed_planning_time_for_move_above=self.allowed_planning_time_for_move_above,
+                                    allowed_planning_time_for_move_into=self.allowed_planning_time_for_move_into,
                                 ),
-                                # If Anything goes wrong, reset FT to safe levels
+                                # --- 3. Execution & Safe Interaction ---
                                 scoped_behavior(
                                     name="SafeFTPreempt",
                                     # Set Approach F/T Thresh
@@ -688,68 +509,9 @@ class AcquireFoodTree(MoveToTree):
                                     on_preempt_timeout=5.0,
                                     # Starts a new Sequence w/ Memory internally
                                     workers=[
-                                        ### Move Into Food
-                                        MoveIt2PoseConstraint(
-                                            name="MoveIntoPose",
-                                            ns=name,
-                                            inputs={
-                                                "pose": BlackboardKey("move_into_pose"),
-                                                "frame_id": "food",
-                                            },
-                                            outputs={
-                                                "constraints": BlackboardKey(
-                                                    "goal_constraints"
-                                                ),
-                                            },
-                                        ),
-                                        # If this fails
-                                        # Auto-fallback to precomputed MoveInto
-                                        # From move_above_plan()
-                                        py_trees.decorators.FailureIsSuccess(
-                                            name="MoveIntoPlanFallbackPrecomputed",
-                                            child=py_trees.decorators.Timeout(
-                                                name="MoveIntoPlanTimeout",
-                                                # Increase allowed_planning_time to account for ROS2 overhead and MoveIt2 setup and such
-                                                duration=10.0
-                                                * self.allowed_planning_time_for_move_into,
-                                                child=MoveIt2Plan(
-                                                    name="MoveIntoPlan",
-                                                    ns=name,
-                                                    inputs={
-                                                        "goal_constraints": BlackboardKey(
-                                                            "goal_constraints"
-                                                        ),
-                                                        "max_velocity_scale": self.max_velocity_scaling_move_into,
-                                                        "max_acceleration_scale": self.max_acceleration_scaling_move_into,
-                                                        "cartesian": True,
-                                                        "cartesian_max_step": 0.001,
-                                                        "cartesian_fraction_threshold": 0.92,
-                                                        "max_path_len_joint": max_path_len_joint,
-                                                        "allowed_planning_time": self.allowed_planning_time_for_move_into,
-                                                    },
-                                                    outputs={
-                                                        "trajectory": BlackboardKey(
-                                                            "move_into_trajectory"
-                                                        )
-                                                    },
-                                                ),
-                                            ),
-                                        ),
-                                        # MoveInto expect F/T failure
-                                        py_trees.decorators.FailureIsSuccess(
-                                            name="MoveIntoExecuteSucceed",
-                                            child=MoveIt2Execute(
-                                                name="MoveInto",
-                                                ns=name,
-                                                inputs={
-                                                    "trajectory": BlackboardKey(
-                                                        "move_into_trajectory"
-                                                    )
-                                                },
-                                                outputs={},
-                                            ),
-                                        ),
-                                        ### Scoped Behavior for Moveit2_Servo
+                                        # 3a. Move Into Food (Primitives + Cartesian)
+                                        get_articutool_move_into_sequence(name, name),
+                                        # 3b. MoveIt2 Servo (Interaction)
                                         scoped_behavior(
                                             name="MoveIt2Servo",
                                             # Set Approach F/T Thresh
@@ -788,7 +550,7 @@ class AcquireFoodTree(MoveToTree):
                                                     .root,
                                                 ],
                                             ),
-                                            on_preempt_timeout=5.0,
+                                            on_preempt_timeout=60.0,
                                             # Starts a new Sequence w/ Memory internally
                                             workers=[
                                                 py_trees.composites.Selector(
@@ -846,6 +608,7 @@ class AcquireFoodTree(MoveToTree):
                                                                             "action"
                                                                         ),
                                                                         "is_grasp": True,
+                                                                        "is_retract": False,
                                                                     },
                                                                     outputs={
                                                                         "twist": BlackboardKey(
@@ -869,7 +632,31 @@ class AcquireFoodTree(MoveToTree):
                                                                         "pub_topic": "~/cartesian_twist_cmds",
                                                                         "servo_status_sub_topic": None,
                                                                     },
-                                                                ),  # Auto Zero-Twist on terminate()
+                                                                ),
+                                                                # Run Post-Grasp Primitives (e.g. Post-Move-Into actions)
+                                                                CallSetOrientationControl(
+                                                                    name="SetArticutoolOrientation",
+                                                                    ns=name,
+                                                                    inputs={
+                                                                        "control_mode": 0,
+                                                                    },
+                                                                    outputs={},
+                                                                ),
+                                                                ExecuteNamedPrimitive(
+                                                                    name="RunPostMoveIntoPrimitive",
+                                                                    ns=name,
+                                                                    inputs={
+                                                                        "primitive_name": BlackboardKey(
+                                                                            "post_move_into_action_name"
+                                                                        ),
+                                                                        "primitive_params": BlackboardKey(
+                                                                            "post_move_into_action_params"
+                                                                        ),
+                                                                    },
+                                                                    outputs={
+                                                                        "primitive_status": None,
+                                                                    },
+                                                                ),
                                                                 ### Extraction
                                                                 ComputeActionTwist(
                                                                     name="ComputeExtract",
@@ -879,6 +666,7 @@ class AcquireFoodTree(MoveToTree):
                                                                             "action"
                                                                         ),
                                                                         "is_grasp": False,
+                                                                        "is_retract": False,
                                                                     },
                                                                     outputs={
                                                                         "twist": BlackboardKey(
@@ -944,22 +732,106 @@ class AcquireFoodTree(MoveToTree):
                                                                 ft_thresh_satisfied(
                                                                     name="CheckFTForkOffPlate"
                                                                 ),
-                                                            ],  # End InFoodGraspExtract.children
-                                                        ),  # End InFoodGraspExtract
+                                                                # 3c. Post-Acquisition Leveling
+                                                                get_post_acquisition_leveling_sequence(
+                                                                    name=name,
+                                                                    ns=name,
+                                                                    node=self._node,
+                                                                    allowed_planning_time=self.allowed_planning_time_to_resting_configuration,
+                                                                ),
+                                                                ### Retract
+                                                                retry_call_ros_service(
+                                                                    name="RetractFTThresh",
+                                                                    service_type=SetParameters,
+                                                                    service_name="~/set_cartesian_controller_parameters",
+                                                                    # Blackboard, not Constant
+                                                                    request=None,
+                                                                    # Need absolute Blackboard name
+                                                                    key_request=Blackboard.separator.join(
+                                                                        [
+                                                                            name,
+                                                                            BlackboardKey(
+                                                                                "retract_thresh"
+                                                                            ),
+                                                                        ]
+                                                                    ),
+                                                                    key_response=Blackboard.separator.join(
+                                                                        [
+                                                                            name,
+                                                                            BlackboardKey(
+                                                                                "ft_response"
+                                                                            ),
+                                                                        ]
+                                                                    ),
+                                                                    response_checks=[
+                                                                        py_trees.common.ComparisonExpression(
+                                                                            variable=Blackboard.separator.join(
+                                                                                [
+                                                                                    name,
+                                                                                    BlackboardKey(
+                                                                                        "ft_response"
+                                                                                    ),
+                                                                                ]
+                                                                            ),
+                                                                            value=SetParameters.Response(),  # Unused
+                                                                            operator=set_parameter_response_all_success,
+                                                                        )
+                                                                    ],
+                                                                ),
+                                                                ComputeActionTwist(
+                                                                    name="ComputeRetract",
+                                                                    ns=name,
+                                                                    inputs={
+                                                                        "action": BlackboardKey(
+                                                                            "action"
+                                                                        ),
+                                                                        "is_grasp": False,
+                                                                        "is_retract": True,
+                                                                    },
+                                                                    outputs={
+                                                                        "twist": BlackboardKey(
+                                                                            "twist"
+                                                                        ),
+                                                                        "duration": BlackboardKey(
+                                                                            "duration"
+                                                                        ),
+                                                                    },
+                                                                ),
+                                                                ServoMove(
+                                                                    name="RetractServo",
+                                                                    ns=name,
+                                                                    inputs={
+                                                                        "twist": BlackboardKey(
+                                                                            "twist"
+                                                                        ),
+                                                                        "duration": BlackboardKey(
+                                                                            "duration"
+                                                                        ),
+                                                                        "pub_topic": "~/cartesian_twist_cmds",
+                                                                        "servo_status_sub_topic": None,
+                                                                    },
+                                                                ),
+                                                                # 3d. Post-Retract (Cleaning/Settling Primitives)
+                                                                get_post_retract_primitive_sequence(
+                                                                    name, name
+                                                                ),
+                                                            ],
+                                                        ),
+                                                        # 4. Recovery Strategy (Inline)
                                                         recovery_tree,
-                                                    ],  # End InFoodErrorSelector.children
-                                                ),  # End InFoodErrorSelector
-                                            ],  # End MoveIt2Servo.workers
-                                        ),  # End MoveIt2Servo
-                                    ],  # End SafeFTPreempt.workers
-                                ),  # End SafeFTPreempt
-                            ],  # End OctomapAndTableCollision.workers
-                        ),  # OctomapAndTableCollision
+                                                    ],
+                                                ),
+                                            ],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
                     ]
-                    + resting_position_behaviors,  # End Success.workers
-                ),  # End Success # TableCollision
-            ],  # End root_seq.children
-        )  # End root_seq
+                    + resting_position_behaviors,
+                ),
+            ],
+        )
 
         ### Return tree
         return py_trees.trees.BehaviourTree(root_seq)

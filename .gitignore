@@ -66,3 +66,39 @@ trees/debug.xml
 ada_feeding_perception/test/food_img/
 ada_feeding_perception/test/output/
 ada_feeding_action_select/data
+
+# Debug/scratch tree
+trees/debug.xml
+
+# ===============================================================
+# Python Artifacts (Consolidated and Added)
+# ===============================================================
+__pycache__/
+*.pyc
+.ada_venv/
+venv/
+.venv/
+env/
+
+# ===============================================================
+# Project-Specific Data, Plots, and Benchmark Outputs (Added)
+# ===============================================================
+# Ignore generated data, plots, and saved trajectories
+ada_feeding/data/
+
+# Ignore all benchmark and analysis output directories
+ada_feeding/scripts/benchmark_analysis_plots/
+ada_feeding/scripts/e2e_benchmark_output/
+ada_feeding/scripts/holistic_benchmark_output/
+ada_feeding/scripts/manifold_data/
+ada_feeding/scripts/visualization_output/
+ada_feeding/ada_feeding/articutool_benchmark/*.html
+ada_feeding/ada_feeding/articutool_benchmark/*.pdf
+ada_feeding/ada_feeding/articutool_benchmark/results/
+ada_feeding/ada_feeding/articutool_benchmark/visualization_output/
+
+# Ignore specific generated files in the scripts directory
+ada_feeding/scripts/camera_poses.json
+
+# Ignore screenshots directory at the root
+screenshots/

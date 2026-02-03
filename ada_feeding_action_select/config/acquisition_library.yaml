@@ -262,3 +262,191 @@ actions:
   - -0.0486593
   - -0.1055426
   pre_torque: 4.0
+# Skewer (Articutool)
+- ext_angular:
+  - 0.0
+  - 0.0
+  - 0.0
+  ext_duration: 1.0
+  ext_force: 50.0
+  ext_linear:
+  - 0.0
+  - 0.0
+  - 0.05
+  ext_torque: 4.0
+  grasp_angular:
+  - 0.0
+  - 0.0
+  - 0.0
+  grasp_duration: 1.0
+  grasp_force: 15.0
+  grasp_linear:
+  - 0.0
+  - 0.0
+  - 0.025
+  grasp_torque: 4.0
+  pre_force: 20.0
+  pre_offset:
+  - 0.0
+  - 0.0
+  - -0.08
+  pre_pos:
+  - 0.0
+  - 0.0
+  - 1.0
+  pre_quat:
+  - 0.0
+  - 0.7071068
+  - -0.7071068
+  - 0.0
+  pre_torque: 4.0
+  move_above_dist_m: 0.02
+  jaco_ee_tilt_angle_min: 0.0
+  jaco_ee_tilt_angle_max: 95.0
+  align_to_robot_base: True
+# Skewer + Twirl for Noodles (Articutool)
+- ext_angular:
+  - 0.0
+  - 0.0
+  - 0.0
+  ext_duration: 1.0
+  ext_force: 50.0
+  ext_linear:
+  - 0.0
+  - 0.0
+  - 0.03
+  ext_torque: 4.0
+  grasp_angular:
+  - 0.0
+  - 0.0
+  - 0.0
+  grasp_duration: 1.0
+  grasp_force: 15.0
+  grasp_linear:
+  - 0.0
+  - 0.0
+  - 0.025
+  grasp_torque: 4.0
+  pre_force: 5.0
+  pre_offset:
+  - 0.0
+  - 0.0
+  - -0.08
+  pre_pos:
+  - 0.0
+  - 0.0
+  - 1.0
+  pre_quat:
+  - 0.0
+  - 0.7071068
+  - -0.7071068
+  - 0.0
+  pre_torque: 2.0
+  retract_force: 20.0
+  retract_torque: 4.0
+  retract_duration: 1.0
+  retract_linear: [0.015, 0.0, 0.2]
+  retract_angular: [0.0, 0.0, 0.0]
+  move_above_dist_m: 0.05
+  pre_move_into_primitive_name: "TWIRL_CW"
+  pre_move_into_primitive_params: [6.0, 6.0]
+  post_move_into_primitive_name: "TWIRL_CCW"
+  post_move_into_primitive_params: [6.0, 6.0]
+  post_acquisition_primitive_name: "NOODLE_SHED"
+  post_acquisition_primitive_params: [-30.0, 1.0, 1.0, 2.0, 30.0, 6.0]
+  jaco_ee_tilt_angle_min: 0.0
+  jaco_ee_tilt_angle_max: 95.0
+  align_to_robot_base: True
+# Tilted scoop for granulars (Articutool)
+- ext_angular:
+  - 0.0
+  - 0.0
+  - 0.0
+  ext_duration: 1.0
+  ext_force: 50.0
+  ext_linear:
+  - 0.0
+  - 0.0
+  - 0.015
+  ext_torque: 4.0
+  grasp_angular: [0.0, 0.0, 0.0]
+  grasp_duration: 1.0
+  grasp_force: 30.0
+  grasp_linear: [0.02, 0.0, 0.005]
+  grasp_torque: 10.0
+  retract_force: 20.0
+  retract_torque: 4.0
+  retract_duration: 1.0
+  retract_linear: [-0.075, 0.0, 0.0]
+  retract_angular: [0.0, 0.0, 0.0]
+  pre_force: 6.0
+  pre_offset:
+  - 0.015
+  - 0.0
+  - -0.05
+  pre_pos:
+  - 1.0
+  - 0.0
+  - 1.0
+  pre_quat:
+  - -0.2418448
+  - -0.664463
+  - 0.664463
+  - 0.2418448
+  pre_torque: 4.0
+  pre_move_into_primitive_name: "NONE"
+  pre_move_into_primitive_params: []
+  post_move_into_primitive_name: "NONE"
+  post_move_into_primitive_params: []
+  post_acquisition_primitive_name: "VIBRATE_ROLL"
+  post_acquisition_primitive_params: [2.0, 0.5, 1.0] # [frequency_hz, amplitude_rad, duration_sec]
+  jaco_ee_tilt_angle_min: 0.0
+  jaco_ee_tilt_angle_max: 95.0
+  align_to_robot_base: True
+# Tilted scoop for liquids (Articutool)
+- ext_angular:
+  - 0.0
+  - 0.0
+  - 0.0
+  ext_duration: 1.0
+  ext_force: 50.0
+  ext_linear:
+  - 0.0
+  - 0.0
+  - 0.005
+  ext_torque: 10.0
+  grasp_angular: [0.0, 0.0, 0.0]
+  grasp_duration: 0.0
+  grasp_force: 30.0
+  grasp_linear: [0.0, 0.0, 0.0]
+  grasp_torque: 10.0
+  retract_force: 20.0
+  retract_torque: 4.0
+  retract_duration: 0.0
+  retract_linear: [0.0, 0.0, 0.0]
+  retract_angular: [0.0, 0.0, 0.0]
+  pre_force: 2.0
+  pre_offset:
+  - 0.015
+  - 0.0
+  - 0.0
+  pre_pos:
+  - 0.0
+  - 0.0
+  - 1.0
+  move_above_dist_m: 0.12
+  pre_quat:
+  - -0.3535534
+  - -0.6123724
+  - 0.6123724
+  - 0.3535534
+  pre_torque: 1.0
+  pre_move_into_primitive_name: "NONE"
+  pre_move_into_primitive_params: []
+  post_move_into_primitive_name: "NONE"
+  post_move_into_primitive_params: []
+  post_acquisition_primitive_name: "NONE"
+  post_acquisition_primitive_params: []
+  jaco_ee_tilt_angle_min: 0.0
+  jaco_ee_tilt_angle_max: 95.0
+  align_to_robot_base: True

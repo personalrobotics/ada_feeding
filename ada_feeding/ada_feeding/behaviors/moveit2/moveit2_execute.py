@@ -40,6 +40,7 @@ class MoveIt2Execute(BlackboardBehavior):
         trajectory: Union[BlackboardKey, Optional[JointTrajectory]],
         terminate_timeout: Union[BlackboardKey, Duration] = Duration(seconds=10.0),
         terminate_rate_hz: Union[BlackboardKey, float] = 30.0,
+        group_name: Union[BlackboardKey, str] = "jaco_arm_with_articutool",
     ) -> None:
         """
         Blackboard Inputs
@@ -51,6 +52,7 @@ class MoveIt2Execute(BlackboardBehavior):
             response from the MoveIt2 action server.
         terminate_rate_hz: How often to check whether a terminate request has been
             processed.
+        group_name: The name of the MoveIt2 planning group
         """
         # pylint: disable=unused-argument, duplicate-code
         # Arguments are handled generically in base class.
@@ -95,10 +97,14 @@ class MoveIt2Execute(BlackboardBehavior):
         # Get Node from Kwargs
         self.node = kwargs["node"]
 
+        # Get group name from blackboard
+        self.group_name = self.blackboard_get("group_name")
+
         # Get the MoveIt2 object.
         self.moveit2, self.moveit2_lock = get_moveit2_object(
             self.blackboard,
             self.node,
+            self.group_name,
         )
 
     @override

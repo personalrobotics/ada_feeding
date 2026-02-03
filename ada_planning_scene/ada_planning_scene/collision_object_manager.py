@@ -8,6 +8,7 @@ objects to the planning scene.
 """
 
 # Standard imports
+import numpy as np
 from threading import Lock
 from typing import Callable, Dict, Optional, Union
 
@@ -54,7 +55,7 @@ class CollisionObjectManager:
             node=self.__node,
             joint_names=kinova.joint_names(),
             base_link_name=kinova.base_link_name(),
-            end_effector_name="forkTip",
+            end_effector_name="j2n6s200_end_effector",
             group_name="jaco_arm",
             callback_group=callback_group,
         )
@@ -305,6 +306,10 @@ class CollisionObjectManager:
                 params = objects[object_id]
                 # Collision mesh
                 if params.primitive_type is None:
+                    # Cast faces to uint32 to satisfy strict ROS 2 shape_msgs requirements
+                    if params.mesh is not None:
+                        params.mesh.faces = np.array(params.mesh.faces, dtype=np.uint32)
+
                     self.moveit2.add_collision_mesh(
                         id=object_id,
                         filepath=params.mesh_filepath if params.mesh is None else None,
