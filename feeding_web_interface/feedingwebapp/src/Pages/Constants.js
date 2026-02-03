@@ -119,7 +119,7 @@ ROS_SERVICE_NAMES[MEAL_STATE.U_BiteAcquisitionCheck] = {
 export { ROS_SERVICE_NAMES }
 export const CLEAR_OCTOMAP_SERVICE_NAME = 'clear_octomap'
 export const CLEAR_OCTOMAP_SERVICE_TYPE = 'std_srvs/srv/Empty'
-export const RETARE_FT_SENSOR_SERVICE_NAME = 'wireless_ft/set_bias'
+export const RETARE_FT_SENSOR_SERVICE_NAME = 'ft_sensor/tare'
 export const RETARE_FT_SENSOR_SERVICE_TYPE = 'std_srvs/srv/SetBool'
 export const ACQUISITION_REPORT_SERVICE_NAME = 'ada_feeding_action_select/action_report'
 export const ACQUISITION_REPORT_SERVICE_TYPE = 'ada_feeding_msgs/srv/AcquisitionReport'
