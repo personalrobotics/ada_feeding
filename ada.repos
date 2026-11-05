@@ -1,0 +1,84 @@
+# The repositories the ROS 2 workspace needs besides ada_feeding itself, each
+# pinned to an exact commit (#222). To clone them, go to the workspace's src/
+# folder, where ada_feeding is cloned, and run
+#
+#   vcs import . < ada_feeding/ada.repos
+#
+# The set is the one in pr-rosinstalls articutool.https.rosinstall @ 0ef3260f.
+# Each version is the commit its branch pointed to on 2026-11-04, and the
+# comment names that branch. The exceptions are ada_ros2 and
+# feeding_web_interface. Their branch, jjaime2/articutool-integration, was
+# squash-merged into main (ada_ros2#60, feeding_web_interface#152) and then
+# deleted, so they are pinned to those merge commits, which have the same trees
+# as the branch's last commits.
+
+repositories:
+  ada_ros2:
+    type: git
+    url: https://github.com/personalrobotics/ada_ros2.git
+    version: 6d04738c9ccb92d623ecaa09efebd5264ecfd632 # main
+
+  articutool_ros2:
+    type: git
+    url: https://github.com/personalrobotics/articutool_ros2.git
+    version: 3acf4bde18e9790170c8ee629beb1ccfb1bd2355 # main
+
+  feeding_web_interface:
+    type: git
+    url: https://github.com/personalrobotics/feeding_web_interface.git
+    version: fdae471d1557e2eb215ede25a9db9c8d7f4086e4 # main
+
+  cartesian_controllers:
+    type: git
+    url: https://github.com/personalrobotics/cartesian_controllers.git
+    version: 1f44f629983eaedd5006ecccf1c2acc287774cd3 # egordon/twist
+
+  pr_ros_controllers:
+    type: git
+    url: https://github.com/personalrobotics/pr_ros_controllers.git
+    version: 18cf69e046e9c9486f26f6c0c7c9f3056cedf75a # main
+
+  forque_sensor_hardware:
+    type: git
+    url: https://github.com/personalrobotics/forque_sensor_hardware.git
+    version: 875d0a7bd0cbda94863fa01b69fe0e0e9b0aa26a # main
+
+  moveit2:
+    type: git
+    url: https://github.com/personalrobotics/moveit2.git
+    version: db88795eea1ff43d7a9742debc1c965124f81f64 # amaln/main
+
+  pick_ik:
+    type: git
+    url: https://github.com/personalrobotics/pick_ik.git
+    version: 419142b97d3f0b7362e8d3cfc2c9ab942fc48767 # amaln/tip_frames_fix
+
+  pymoveit2:
+    type: git
+    url: https://github.com/personalrobotics/pymoveit2.git
+    version: 640bb856f8af3d690b9c55ed3844647287a8a1f7 # master
+
+  py_trees_ros:
+    type: git
+    url: https://github.com/personalrobotics/py_trees_ros.git
+    version: 7095b5494704ebd25eae37104a04b0f68c052a2d # amaln/service_client
+
+  py_trees_ros_interfaces:
+    type: git
+    url: https://github.com/splintered-reality/py_trees_ros_interfaces.git
+    version: 2cd9d9cc662125272c7657e59a48da33f751ad4b # devel
+
+  ros2_numpy:
+    type: git
+    url: https://github.com/Box-Robotics/ros2_numpy.git
+    version: d665add22e6a9070e88d9514bbf0dcbcb122a3dc # humble
+
+  rosbridge_suite:
+    type: git
+    url: https://github.com/personalrobotics/rosbridge_suite.git
+    version: 157930a167e287552144dad5c73ea79fe756a402 # act2
+
+# Unmerged ada_feeding PRs, recorded for #222 but not imported. Fetch one with
+# `git fetch origin pull/<number>/head`.
+#   #203  914d0a0dfa1c1cc0eeabc00863153c9a925f4465  sriramk/semantic-labeling
+#   #217  be3e9346c519e31af9fd26bfcb5eb43ce19bc5f2  lrainb/articutool-spoon-resting
