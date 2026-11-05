@@ -212,20 +212,22 @@ class SegmentFromPointNode(Node):
         # Sleep (dummy segmentation)
         time.sleep(self.sleep_time)
 
-        # Return the result. Detects 3 random polygons around seed_point
+        # Return the result. Detects 3 random polygons around seed_point,
+        # seeded by seed_point so the same click always gives the same masks.
         cx, cy = seed_point
+        rng = np.random.default_rng((int(cx), int(cy)))
         for i in range(3):
-            num_points = np.random.randint(3, 11)  # 3-10 points
+            num_points = rng.integers(3, 11)  # 3-10 points
             points = MultiPoint(
                 [
                     [x, y]
                     for x, y in zip(
-                        np.random.uniform(
+                        rng.uniform(
                             max(cx - width / 8, 0),
                             min(cx + width / 8, width),
                             num_points,
                         ),
-                        np.random.uniform(
+                        rng.uniform(
                             max(cy - height / 8, 0),
                             min(cy + height / 8, height),
                             num_points,
@@ -270,7 +272,7 @@ class SegmentFromPointNode(Node):
                 np.median(depth_points_in_mask[depth_points_in_mask > 0]) / 1000.0
             )  # Convert to meters
             mask_msg.item_id = "dummy_food_id_%d" % (i)
-            mask_msg.confidence = np.random.random()
+            mask_msg.confidence = rng.random()
             result.detected_items.append(mask_msg)
 
         # Return Success
