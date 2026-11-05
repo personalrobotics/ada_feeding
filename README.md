@@ -2,6 +2,8 @@
 
 This README is the definitive source for downloading, installing, and running the Personal Robotics Lab's robot-assisted feeding software. This code has been run and tested on machines running **Ubuntu 22.04** and ROS2 Humble. The project is designed to be run within a shared Docker container.
 
+**New to this codebase?** Start with [the guide](docs/ada-feeding-guide.md): how the system fits together, how to run it without the robot, and how to contribute.
+
 This guide is in two parts:
 
 1. **Administrator Setup:** A one time setup on a new lab machine.
