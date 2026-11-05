@@ -1,0 +1,120 @@
+# Copyright (c) 2026, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
+# Pinned source manifest for the M0 baseline (#222).
+#
+# Every repository the ROS 2 workspace needs, at an exact commit. After cloning
+# this repository into the workspace's src/, run from the workspace root:
+#
+#   vcs import src < src/ada_feeding/ada.repos
+#
+# ada_feeding itself is not listed: its revision is the commit containing this
+# file. The repository set is the one in pr-rosinstalls
+# articutool.https.rosinstall @ 0ef3260f, which the Docker build used before
+# this manifest. Each repository is pinned to the commit its branch pointed to
+# on 2026-11-04; the comment on each version names that branch.
+#
+# Two of the rosinstall's branches no longer exist: ada_ros2 and
+# feeding_web_interface were on jjaime2/articutool-integration, which was
+# squash-merged into main on 2026-02-03 (ada_ros2#60 -> 6d04738,
+# feeding_web_interface#152 -> fdae471) and then deleted. Each branch's last
+# commit has the same tree as its merge commit, and main has not changed
+# since, so both are pinned to those merge commits.
+#
+# Not yet compared against the robot computer's workspace; running
+# `vcs export --exact src` there would confirm it.
+
+repositories:
+  # ADA hardware, description, and MoveIt config
+  ada_ros2:
+    type: git
+    url: https://github.com/personalrobotics/ada_ros2.git
+    version: 6d04738c9ccb92d623ecaa09efebd5264ecfd632 # main
+
+  # Articutool hardware, description, and MoveIt config
+  articutool_ros2:
+    type: git
+    url: https://github.com/personalrobotics/articutool_ros2.git
+    version: 3acf4bde18e9790170c8ee629beb1ccfb1bd2355 # main
+
+  # Feeding web app. Moves into this repository in #222; remove this entry then.
+  feeding_web_interface:
+    type: git
+    url: https://github.com/personalrobotics/feeding_web_interface.git
+    version: fdae471d1557e2eb215ede25a9db9c8d7f4086e4 # main
+
+  # Cartesian twist and motion controllers
+  cartesian_controllers:
+    type: git
+    url: https://github.com/personalrobotics/cartesian_controllers.git
+    version: 1f44f629983eaedd5006ecccf1c2acc287774cd3 # egordon/twist
+
+  # Force-gate controllers
+  pr_ros_controllers:
+    type: git
+    url: https://github.com/personalrobotics/pr_ros_controllers.git
+    version: 18cf69e046e9c9486f26f6c0c7c9f3056cedf75a # main
+
+  # Wireless F/T sensor driver
+  forque_sensor_hardware:
+    type: git
+    url: https://github.com/personalrobotics/forque_sensor_hardware.git
+    version: 875d0a7bd0cbda94863fa01b69fe0e0e9b0aa26a # main
+
+  # MoveIt 2 fork (moveit_servo)
+  moveit2:
+    type: git
+    url: https://github.com/personalrobotics/moveit2.git
+    version: db88795eea1ff43d7a9742debc1c965124f81f64 # amaln/main
+
+  # pick_ik fork (tip frames fix)
+  pick_ik:
+    type: git
+    url: https://github.com/personalrobotics/pick_ik.git
+    version: 419142b97d3f0b7362e8d3cfc2c9ab942fc48767 # amaln/tip_frames_fix
+
+  # Python MoveIt 2 client
+  pymoveit2:
+    type: git
+    url: https://github.com/personalrobotics/pymoveit2.git
+    version: 640bb856f8af3d690b9c55ed3844647287a8a1f7 # master
+
+  # py_trees ROS behaviors (fork)
+  py_trees_ros:
+    type: git
+    url: https://github.com/personalrobotics/py_trees_ros.git
+    version: 7095b5494704ebd25eae37104a04b0f68c052a2d # amaln/service_client
+
+  # py_trees ROS message definitions (upstream)
+  py_trees_ros_interfaces:
+    type: git
+    url: https://github.com/splintered-reality/py_trees_ros_interfaces.git
+    version: 2cd9d9cc662125272c7657e59a48da33f751ad4b # devel
+
+  # ROS 2 message / numpy conversions (the pip package is wrong)
+  ros2_numpy:
+    type: git
+    url: https://github.com/Box-Robotics/ros2_numpy.git
+    version: d665add22e6a9070e88d9514bbf0dcbcb122a3dc # humble
+
+  # rosbridge fork used by the web app (action support)
+  rosbridge_suite:
+    type: git
+    url: https://github.com/personalrobotics/rosbridge_suite.git
+    version: 157930a167e287552144dad5c73ea79fe756a402 # act2
+
+# Already pinned elsewhere, but going to list for completeness:
+#   personalrobotics/roslibjs  af51b1550d4cc5241e19010ff2c4f980610f64b3  feeding_web_interface package-lock.json
+#   yformer/EfficientSAM       c9408a74b1db85e7831977c66e9462c6f4891729  requirements.txt
+#
+# Unmerged work, recorded so it survives branch deletion. Not imported; fetch a
+# PR with `git fetch origin pull/<number>/head`. Both are based on ros2-devel @ 31ddb07f.
+#   PR #203 Semantic Labeling         sriramk/semantic-labeling        914d0a0dfa1c1cc0eeabc00863153c9a925f4465
+#   PR #217 Articutool spoon resting  lrainb/articutool-spoon-resting  be3e9346c519e31af9fd26bfcb5eb43ce19bc5f2
+# Same authors, possibly companion branches (unconfirmed):
+#   feeding_web_interface  sriramk/segment-all-items             7d72e72f18d2d4bed04865a3cbce9c651fa6c40f
+#   articutool_ros2        lrainb/articutool-dev-primitive-dump  c8dbf3a7ec88d50703e3416b47588376bf6856af
+#
+# Not pinned here: apt package versions, other pip and npm versions, and model
+# weights. CI records those as artifacts (#6). The base image is pinned in the
+# Dockerfile.
