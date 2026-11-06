@@ -42,7 +42,19 @@ repos:
           - --comment-style
           - "<!--|  |-->"
         types_or: [xml]
-        exclude: ".*package.xml$"
+        exclude: ".*package.xml$|.*\\.svg$"
+
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.0
+    hooks:
+      - id: insert-license
+        args:
+          - --license-file
+          - .github/LICENSE_HEADER.md
+          - --use-current-year
+          - --comment-style
+          - "/*| *| */"
+        types_or: [javascript, jsx, ts, tsx, css]
 
   - repo: https://github.com/psf/black
     rev: 23.1.0
@@ -50,7 +62,7 @@ repos:
       - id: black
 
   - repo: https://github.com/lovesegfault/beautysh
-    rev: v6.2.1
+    rev: v6.4.3
     hooks:
       - id: beautysh
 
@@ -67,3 +79,4 @@ repos:
       - id: codespell
         args:
           - --ignore-words=.codespell-ignore
+        exclude: ".*\\.svg$|.*package-lock\\.json$"
