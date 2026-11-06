@@ -284,6 +284,13 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 "cd ./src/ada_feeding/feeding_web_interface/feedingwebapp",
                 "node --env-file=.env server.js",
             ],
+            # Relay /camera/* to the /local/camera/* topics the web app reads.
+            "nano_bridge_sender": [
+                "ros2 launch nano_bridge sender.launch.xml",
+            ],
+            "nano_bridge_receiver": [
+                "ros2 launch nano_bridge receiver.launch.xml",
+            ],
             "perception": [
                 (
                     "ros2 launch feeding_web_app_ros2_test feeding_web_app_dummy_nodes_launch.xml "
