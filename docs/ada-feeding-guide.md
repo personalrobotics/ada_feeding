@@ -109,7 +109,7 @@ Six ideas explain most of the design:
 2. **Every robot step is a ROS action.** An action is a request that takes time, reports progress, and can be canceled: "move above the plate", "acquire this food", "move to the mouth". The app calls them directly through rosbridge.
 3. **One process does all the robot steps.** `create_action_servers.py` hosts every action server. Each one runs a *behavior tree*: a tree of small reusable steps (re-zero the force sensor, plan, execute, clean up). Only one goal runs at a time, across all servers.
 4. **Force limits keep the arm safe.** Every arm controller is *force-gated*: if the force/torque sensor in the Articutool reads more than a threshold (1–4 N for most motions), the controller stops the arm.
-5. **A watchdog must keep saying "all clear".** It checks that force data is flowing and that the physical e-stop button hasn't been pressed. If it stops, robot goals are refused and the running one is aborted.
+5. **A watchdog must keep saying "all clear".** The watchdog (`ada_watchdog`) is a small safety node that publishes "all clear" 60 times a second, as long as force data is flowing and the physical e-stop button hasn't been pressed. If it stops, robot goals are refused and the running one is aborted (section 8).
 6. **The user stays in control.** They choose each bite by tapping the image, can pause any motion, and decide when to move on. This was co-designed with users with motor impairments and validated in studies (section 13).
 
 ## 4. One bite -> end to end
@@ -401,15 +401,18 @@ Safety comes in layers. From the hardware up:
 
 | Layer | What it does | Where |
 |---|---|---|
-| **Force gates** | Each arm controller stops the arm if force exceeds its limit: 4 N between poses, 1 N near the face, per-action limits in the food, 75 N for recovery and teleop | `ada_ros2/ada_moveit/config/real_controllers.yaml`; set per step by the trees |
-| **Watchdog** | Publishes "all clear" at 60 Hz. Fails if force data stops for over 1 s, if a force axis reads constant, or if the e-stop button is pressed a second time (it must be pressed once at startup to prove it works) | `scripts/ada_watchdog.py`, `config/ada_watchdog.yaml` |
-| **Action server** | Refuses goals and aborts the running one when the watchdog fails | `create_action_servers.py` |
+| **Force gates** | Each arm controller stops the arm if force exceeds its limit: 4 N between poses, 1 N near the face, per-action limits in the food, 75 N for recovery and teleop | Defaults in `ada_ros2/ada_moveit/config/real_controllers.yaml`; set per step by the trees (e.g. `trees/acquire_food_tree.py`, `trees/move_to_mouth_tree.py`) and by teleop (`Pages/Constants.js`) |
+| **Watchdog** | Publishes "all clear" at 60 Hz. Fails if force data stops for over 1 s, if a force axis reads constant, or if the e-stop button is pressed a second time or unplugged (it must be pressed once at startup to prove it works) | `ada_feeding/scripts/ada_watchdog.py`, `ada_feeding/config/ada_watchdog.yaml`, `ada_feeding/ada_feeding/watchdog/` |
+| **Action server** | Refuses goals and aborts the running one when the watchdog fails | `ada_feeding/scripts/create_action_servers.py` |
 | **Pause** | Cancels the action from the app | `RobotMotion.jsx` |
-| **E-stop button** | A physical button read through the laptop's audio input | watchdog |
+| **E-stop button** | A physical button read through the laptop's audio input | `ada_feeding/ada_feeding/watchdog/estop_condition.py` |
 
 Two things to know:
 
-- **The controller kill switch is not running.** `ada_ros2`'s `ada_watchdog_listener_node` would shut down the controllers when the watchdog fails, but the launch path `start.py` uses never starts it. A watchdog failure aborts the action rather than killing the controllers, which differs from what the HRI 2024 demo paper describes. This is tracked for Milestone 2 (#236).
+- **A watchdog failure stops the motion but doesn't shut down the controllers.** Two things listen to the watchdog, both built from `ada_ros2`'s `ada_watchdog_listener` package:
+  - **The listener inside the action server** (`create_action_servers.py:183`) runs today. If "all clear" is missing for `watchdog_timeout_sec` (0.5 s, set in `config/ada_feeding_action_servers_default.yaml:8`), it refuses new goals and aborts the running one.
+  - **The standalone listener node** (`ada_watchdog_listener_node`) does not run. It exits when the watchdog fails, and `ada_ros2/ada_moveit/launch/demo_feeding.launch.py` starts it with `on_exit=Shutdown()`, so its exit would shut down that whole launch, including MoveIt and the arm controllers. That is what the HRI 2024 demo paper describes ("the robot controllers are immediately killed"). But nothing launches `demo_feeding.launch.py`; the `start.py` path uses `demo.launch.py`. Milestone 2's #236 (cancellation, watchdog, and recovery semantics) is where to decide whether it should run.
+  - If it is turned on, fix its timeout first: `demo_feeding.launch.py:37` passes `watchdog_timeout: 0.1`, but the node declares `watchdog_timeout_sec` (`ada_watchdog_listener.py:63`) and doesn't accept undeclared parameters, so it would ignore 0.1 and use its 0.5 s default.
 - **`--dev` removes only the e-stop requirement.** The force-data checks still apply.
 
 ## 9. Hardware, run modes, and machines
@@ -517,24 +520,22 @@ New work happens in `v2/`, next to the current system, the way Geodude 4.0 was b
 
 **Building and running**
 
-- **Any change in `ada_feeding` makes the next image build reinstall all dependencies** (about 20 minutes), because the Dockerfile copies the whole repository before installing them. Changes to `smoke_test/` don't, because it is excluded.
+- **Any change in `ada_feeding` makes the next image build reinstall all dependencies** (about 20 minutes), because the Dockerfile copies the repository (`COPY . src/ada_feeding`, step 4) before rosdep, pip, and npm install them. Changes to `smoke_test/` don't, because `.dockerignore` excludes it.
 - **Run `colcon build` only after `source /opt/ros/humble/setup.bash`.** Otherwise the workspace's setup file loses its link to ROS and even `ros2` disappears. `docker run` sources it for you; `docker exec` doesn't.
 - **Don't use `ROS_LOCALHOST_ONLY=1`** with this system. It turns off multicast, and CycloneDDS then can't fit the ~20 processes. Use the `CYCLONEDDS_URI` override instead.
-- **ROS's rosdep list is pinned** to rosdistro commit `72e6c7a` in the Dockerfile, because upstream removed two package names `ada_feeding` uses (`python-pyrealsense2-pip`, `python-transforms3d-pip`). Renaming them to the `python3-*` forms would let us unpin.
-- **Model weights download at startup without checksums** (EfficientSAM, SPANet from Google Drive, OpenCV face models).
-- **Pre-commit CI has failed since February 2026,** and the web app's CI workflows stopped running when it moved into this repository. Both are part of #6.
+- **ROS's rosdep list is pinned** to rosdistro commit `72e6c7a` (Dockerfile step 10), because upstream removed two package names `ada_feeding` uses (`python-pyrealsense2-pip` in ros/rosdistro#51719, `python-transforms3d-pip` in #51720). Renaming them to the `python3-*` forms would let us unpin.
+- **Model weights download at startup without checksums** (EfficientSAM and the OpenCV face models through `ada_feeding_perception/ada_feeding_perception/helpers.py:401`, SPANet from Google Drive through `ada_feeding_action_select/ada_feeding_action_select/adapters/spanet_adapter.py:78`). The callers only check that the file exists, so a partial download is never replaced.
 - **Playwright 1.40's main download server is gone;** its fallback still works.
 
 **Behavior**
 
-- **A canceled goal reports "unknown" status,** not "canceled".
-- **The meal state is per browser.** Two devices can disagree, and neither asks the robot.
-- **No result timeout:** if an action never answers, the app waits forever.
-- **`start.py --disable_table_detect` does nothing** (the launch file doesn't accept it).
-- **The `color` policy crashes** as configured.
-- **A watchdog parameter is ignored:** `watchdog_timeout: 0.1` is set, but the node reads `watchdog_timeout_sec`, so the timeout is 0.5 s.
-- **MoveToMouth sets force limits on the servo controller** while moving with the Cartesian controller; it relies on the Cartesian controller's 1 N default.
-- **The Articutool limits in code differ from the paper:** the feasibility check allows 4 rad/s (the motors peak around 2), the control loop runs at 50 Hz (the paper targets 100 Hz), and roll is allowed over ±13π despite cabling limits. Ask Jose before changing them.
+- **A canceled goal's result reads `STATUS_UNKNOWN`.** The goal itself is marked canceled (`create_action_servers.py:1188`), but the result message's `status` field is never `STATUS_CANCELED`: a preempted tree is `INVALID`, which `trees/move_to_tree.py:111-113` maps to unknown.
+- **The meal state is per browser** (saved in local storage by `Pages/GlobalState.jsx`). Two devices can disagree, and neither asks the robot.
+- **No result timeout:** if an action never answers, the app waits forever (TODO at `MealStates/RobotMotion.jsx:163`).
+- **`start.py --disable_table_detect` does nothing:** `start.py` passes `run_table_detection`, which `ada_feeding/launch/ada_feeding_launch.xml` doesn't declare.
+- **The `color` policy crashes** as configured, for two reasons: it needs a 3-value RGB context but `ada_feeding_action_select/config/policies.yaml:18` selects `SPANetContext` (`color_policy.py:40`), and `policies.yaml` passes `index:` where the policy expects `color_map:`, so the color map path is empty.
+- **MoveToMouth sets force limits on the servo controller while moving with the Cartesian controller** (`trees/move_to_mouth_tree.py:466` sets them through `~/set_servo_controller_parameters`; `:480` activates `jaco_arm_cartesian_controller`). The 1 N limit near the face therefore comes from the Cartesian controller's default in `real_controllers.yaml`, not from the tree.
+- **The Articutool limits in code differ from the paper:** the feasibility check allows 4 rad/s (`trees/move_to_configuration_with_wheelchair_wall_tree.py:273`; the paper gives the motors' peak as about 2 rad/s), the control loop runs at 50 Hz (`articutool_ros2/articutool_system/launch/articutool.launch.py:190`; the paper targets at least 100 Hz), and roll is allowed over ±13π (`articutool_ros2/articutool_control/articutool_control/orientation_control.py:196-199`) despite cabling limits. Ask Jose before changing them.
 
 **Dummy mode**
 
@@ -556,6 +557,8 @@ New work happens in `v2/`, next to the current system, the way Geodude 4.0 was b
 | **ros2_control, controller** | The layer that sends commands to the arm. A *force-gated* controller stops when force exceeds a limit |
 | **Servo** | Moving the arm by continuous velocity commands instead of a planned path |
 | **F/T sensor, tare** | Force/torque sensor; to *tare* is to re-zero it |
+| **Watchdog** | `ada_watchdog`, a safety node that publishes "all clear" at 60 Hz while the force sensor streams real data and the e-stop is untouched (section 8) |
+| **Watchdog listener** | Code in `ada_ros2/ada_watchdog_listener` that checks for the watchdog's "all clear". The action server uses it to stop motion; as a standalone node, it can also shut down the controllers, but that node isn't launched (section 8) |
 | **Octomap** | A 3D map of obstacles built from the depth camera |
 | **Staging configuration** | A pose in front of the user's face, before moving to the mouth |
 | **Resting position** | A pose to the side of the user, out of the way |
