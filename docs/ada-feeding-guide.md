@@ -169,6 +169,21 @@ The 13th state, `R_MovingToRestingPosition`, moves the arm to the side of the us
 
 **Pause** cancels the current action (the arm stops and the tree's cleanup runs). **Resume** sends the same goal again. **Back** goes to the previous safe step.
 
+### What the user sees
+
+These screenshots come from the smoke test (section 2), in dummy mode. In the real app, the header's connection badge shows a plug icon, which renders as a box here.
+
+| | |
+|---|---|
+| ![Home screen with Start Feeding](images/home.png) | ![Robot moving, with Pause](images/robot-moving.png) |
+| `U_PreMeal`: the start screen | `R_MovingAbovePlate`: any robot motion, with Pause |
+| ![Paused motion, with Resume](images/paused.png) | ![Plate image with three candidate food masks](images/bite-selection.jpg) |
+| A paused motion, with Resume | `U_BiteSelection`: the user tapped the plate; three candidate masks appear on the right |
+| ![Food on fork check](images/bite-acquisition-check.png) | ![Detecting face](images/detecting-face.png) |
+| `U_BiteAcquisitionCheck`: move to the mouth, or try again | `R_DetectingFace`, before a mouth is detected |
+| ![Bite done options](images/bite-done.png) | ![Post-meal screen](images/post-meal.png) |
+| `U_BiteDone`: where to go after the bite | `U_PostMeal`: the meal is over |
+
 ## 5. Where everything lives
 
 ### 5.1 Repositories
