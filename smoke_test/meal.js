@@ -1,7 +1,9 @@
 /*
  * Copyright (c) 2026, Personal Robotics Laboratory
  * License: BSD 3-Clause. See LICENSE.md file in root directory.
- *
+ */
+
+/*
  * Drives one feeding session through the web app in dummy mode. It starts
  * feeding, pauses and resumes a motion (which cancels and resends its goal),
  * selects food, acquires it, transfers it to the mouth, and finishes the meal.

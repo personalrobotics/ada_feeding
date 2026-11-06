@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, Personal Robotics Laboratory
+# Copyright (c) 2024-2026, Personal Robotics Laboratory
 # License: BSD 3-Clause. See LICENSE.md file in root directory.
 
 # This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
@@ -8,7 +8,7 @@ name: Node.js CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "ros2-devel" ]
   pull_request:
     types: [opened, reopened, synchronize]
 
@@ -30,13 +30,13 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-        cache-dependency-path: 'feedingwebapp/package-lock.json'
+        cache-dependency-path: 'feeding_web_interface/feedingwebapp/package-lock.json'
     - name: Install dependencies
-      working-directory: ./feedingwebapp
+      working-directory: ./feeding_web_interface/feedingwebapp
       run: npm install --legacy-peer-deps
     - name: Check code format
-      working-directory: ./feedingwebapp
+      working-directory: ./feeding_web_interface/feedingwebapp
       run: npm run format
     - name: Build
-      working-directory: ./feedingwebapp
+      working-directory: ./feeding_web_interface/feedingwebapp
       run: npm run build

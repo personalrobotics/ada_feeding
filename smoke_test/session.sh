@@ -66,8 +66,9 @@ wait_for_http() {
 
 # Log every screen session that start.py creates.
 printf 'deflog on\nlogfile %s/logs/screen-%%S.log\nlogfile flush 1\n' "$out" >> ~/.screenrc
-python3 src/ada_feeding/start.py --sim dummy > "$out/logs/start.log" 2>&1 ||
+if ! python3 src/ada_feeding/start.py --sim dummy > "$out/logs/start.log" 2>&1; then
     fail "start.py exited with an error (see logs/start.log)"
+fi
 
 echo "Waiting for dummy mode to come up"
 wait_for_ros node /rosbridge_websocket /republisher /DummyRealSense /FaceDetection \
@@ -75,8 +76,9 @@ wait_for_ros node /rosbridge_websocket /republisher /DummyRealSense /FaceDetecti
 wait_for_ros action /AcquireFood /MoveAbovePlate /MoveFromMouth /MoveFromMouthToAbovePlate \
     /MoveFromMouthToRestingPosition /MoveFromMouthToStagingConfiguration /MoveToMouth \
     /MoveToRestingPosition /MoveToStagingConfiguration /MoveToStowLocation /SegmentFromPoint
-timeout 30 ros2 topic echo --once /local/camera/color/image_raw/compressed --no-arr > /dev/null 2>&1 ||
+if ! timeout 30 ros2 topic echo --once /local/camera/color/image_raw/compressed --no-arr > /dev/null 2>&1; then
     fail "no images on /local/camera/color/image_raw/compressed, which the web app shows"
+fi
 wait_for_http http://localhost:3000
 wait_for_http http://localhost:5000
 
@@ -93,7 +95,8 @@ kill -INT $bag
 wait $bag
 ros2 bag info "$out/rosbag" > "$out/rosbag_info.txt" 2>&1
 [ $status -eq 0 ] || fail "a meal step failed (see result.json)"
-grep -q '\[MoveAbovePlate\]: Goal canceled' ~/.ros/log/*/launch.log ||
+if ! grep -q '\[MoveAbovePlate\]: Goal canceled' ~/.ros/log/*/launch.log; then
     fail "the pause never canceled the MoveAbovePlate goal"
+fi
 collect
 echo "PASS"
