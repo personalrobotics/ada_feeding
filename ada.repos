@@ -8,18 +8,18 @@
 #
 #   vcs import src < src/ada_feeding/ada.repos
 #
-# ada_feeding itself is not listed: its revision is the commit containing this
-# file. The repository set is the one in pr-rosinstalls
-# articutool.https.rosinstall @ 0ef3260f, which the Docker build used before
-# this manifest. Each repository is pinned to the commit its branch pointed to
-# on 2026-11-04; the comment on each version names that branch.
+# ada_feeding itself, which includes feeding_web_interface/, is not listed: its
+# revision is the commit containing this file. The repository set is the one in
+# pr-rosinstalls articutool.https.rosinstall @ 0ef3260f, which the Docker build
+# used before this manifest. Each repository is pinned to the commit its branch
+# pointed to on 2026-11-04; the comment on each version names that branch.
 #
-# Two of the rosinstall's branches no longer exist: ada_ros2 and
-# feeding_web_interface were on jjaime2/articutool-integration, which was
-# squash-merged into main on 2026-02-03 (ada_ros2#60 -> 6d04738,
-# feeding_web_interface#152 -> fdae471) and then deleted. Each branch's last
-# commit has the same tree as its merge commit, and main has not changed
-# since, so both are pinned to those merge commits.
+# One of the rosinstall's branches no longer exists: ada_ros2 was on
+# jjaime2/articutool-integration, which was squash-merged into main on
+# 2026-02-03 (ada_ros2#60 -> 6d04738) and then deleted. The branch's last
+# commit has the same tree as that merge commit, and main has not changed
+# since, so ada_ros2 is pinned to it. (feeding_web_interface, on the same
+# branch, was pinned the same way until it moved into this repository.)
 #
 # Not yet compared against the robot computer's workspace; running
 # `vcs export --exact src` there would confirm it.
@@ -36,12 +36,6 @@ repositories:
     type: git
     url: https://github.com/personalrobotics/articutool_ros2.git
     version: 3acf4bde18e9790170c8ee629beb1ccfb1bd2355 # main
-
-  # Feeding web app. Moves into this repository in #222; remove this entry then.
-  feeding_web_interface:
-    type: git
-    url: https://github.com/personalrobotics/feeding_web_interface.git
-    version: fdae471d1557e2eb215ede25a9db9c8d7f4086e4 # main
 
   # Cartesian twist and motion controllers
   cartesian_controllers:
