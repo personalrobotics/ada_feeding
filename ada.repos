@@ -4,13 +4,13 @@
 #
 #   vcs import . < ada_feeding/ada.repos
 #
-# The set is the one in pr-rosinstalls articutool.https.rosinstall @ 0ef3260f.
-# Each version is the commit its branch pointed to on 2026-11-04, and the
-# comment names that branch. The exceptions are ada_ros2 and
-# feeding_web_interface. Their branch, jjaime2/articutool-integration, was
-# squash-merged into main (ada_ros2#60, feeding_web_interface#152) and then
-# deleted, so they are pinned to those merge commits, which have the same trees
-# as the branch's last commits.
+# The set is the one in pr-rosinstalls articutool.https.rosinstall @ 0ef3260f,
+# minus feeding_web_interface, which is now part of this repository. Each
+# version is the commit its branch pointed to on 2026-11-04, and the comment
+# names that branch. The exception is ada_ros2. Its branch,
+# jjaime2/articutool-integration, was squash-merged into main (ada_ros2#60) and
+# then deleted, so it is pinned to that merge commit, which has the same tree as
+# the branch's last commit.
 
 repositories:
   ada_ros2:
@@ -22,11 +22,6 @@ repositories:
     type: git
     url: https://github.com/personalrobotics/articutool_ros2.git
     version: 3acf4bde18e9790170c8ee629beb1ccfb1bd2355 # main
-
-  feeding_web_interface:
-    type: git
-    url: https://github.com/personalrobotics/feeding_web_interface.git
-    version: fdae471d1557e2eb215ede25a9db9c8d7f4086e4 # main
 
   cartesian_controllers:
     type: git

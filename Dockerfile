@@ -137,7 +137,7 @@ RUN pip install transforms3d -U
 RUN pip uninstall -y matplotlib
 
 # 17. Install web app dependencies
-WORKDIR $HOME/colcon_ws/src/feeding_web_interface/feedingwebapp
+WORKDIR $HOME/colcon_ws/src/ada_feeding/feeding_web_interface/feedingwebapp
 RUN . "$NVM_DIR/nvm.sh" && npm install --legacy-peer-deps
 RUN . "$NVM_DIR/nvm.sh" && npx playwright install
 

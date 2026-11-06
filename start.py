@@ -200,7 +200,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
         if args.sim == "real":
             print(
                 "#     3. The web app should be built (e.g., `npm run build` in "
-                "`./src/feeding_web_interface/feedingwebapp`)."
+                "`./src/ada_feeding/feeding_web_interface/feedingwebapp`)."
             )
 
             if args.sync_time:
@@ -217,11 +217,11 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
     if args.sim == "mock":
         screen_sessions = {
             "web": [
-                "cd ./src/feeding_web_interface/feedingwebapp",
+                "cd ./src/ada_feeding/feeding_web_interface/feedingwebapp",
                 "npm run start",
             ],
             "webrtc": [
-                "cd ./src/feeding_web_interface/feedingwebapp",
+                "cd ./src/ada_feeding/feeding_web_interface/feedingwebapp",
                 "node --env-file=.env server.js",
             ],
             "camera": [
@@ -269,7 +269,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 f"end_effector_tool:={args.end_effector_tool}"
             ],
             "browser": [
-                "cd ./src/feeding_web_interface/feedingwebapp",
+                "cd ./src/ada_feeding/feeding_web_interface/feedingwebapp",
                 "node start_robot_browser.js",
             ],
         }
@@ -277,11 +277,11 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
     elif args.sim == "dummy":
         screen_sessions = {
             "web": [
-                "cd ./src/feeding_web_interface/feedingwebapp",
+                "cd ./src/ada_feeding/feeding_web_interface/feedingwebapp",
                 "npm run start",
             ],
             "webrtc": [
-                "cd ./src/feeding_web_interface/feedingwebapp",
+                "cd ./src/ada_feeding/feeding_web_interface/feedingwebapp",
                 "node --env-file=.env server.js",
             ],
             "perception": [
@@ -310,7 +310,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 ),
             ],
             "browser": [
-                "cd ./src/feeding_web_interface/feedingwebapp",
+                "cd ./src/ada_feeding/feeding_web_interface/feedingwebapp",
                 "node start_robot_browser.js",
             ],
         }
@@ -318,11 +318,11 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
     else:
         screen_sessions = {
             "web": [
-                "cd ./src/feeding_web_interface/feedingwebapp",
+                "cd ./src/ada_feeding/feeding_web_interface/feedingwebapp",
                 "npm run start" if args.dev else "sudo npx serve -s build -l 80",
             ],
             "webrtc": [
-                "cd ./src/feeding_web_interface/feedingwebapp",
+                "cd ./src/ada_feeding/feeding_web_interface/feedingwebapp",
                 "pm2 start server.js",
                 "pm2 log server",
             ],
@@ -392,7 +392,7 @@ async def main(args: argparse.Namespace, pwd: str) -> None:
                 ),
             ],
             "browser": [
-                "cd ./src/feeding_web_interface/feedingwebapp",
+                "cd ./src/ada_feeding/feeding_web_interface/feedingwebapp",
                 "node start_robot_browser.js" + ("" if args.dev else " --port=80"),
             ],
         }
@@ -476,9 +476,9 @@ def check_pwd_is_colcon_workspace() -> str:
     # top-level colcon workspace.
     dirs_to_check = ["src", "build", "install", "log"]
     files_to_check = [
-        "src/feeding_web_interface/feedingwebapp/server.js",
-        "src/feeding_web_interface/feedingwebapp/.env",
-        "src/feeding_web_interface/feedingwebapp/start_robot_browser.js",
+        "src/ada_feeding/feeding_web_interface/feedingwebapp/server.js",
+        "src/ada_feeding/feeding_web_interface/feedingwebapp/.env",
+        "src/ada_feeding/feeding_web_interface/feedingwebapp/start_robot_browser.js",
         "src/ada_feeding/ada_feeding_perception/config/republisher.yaml",
     ]
     for dir_to_check in dirs_to_check:

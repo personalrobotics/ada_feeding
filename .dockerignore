@@ -28,3 +28,7 @@ Thumbs.db
 data/
 screenshots/
 *.orig
+
+# Web app dependencies and builds, which the image installs and builds itself
+feeding_web_interface/feedingwebapp/node_modules/
+feeding_web_interface/feedingwebapp/build/
