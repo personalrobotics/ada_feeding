@@ -116,5 +116,5 @@ repositories:
 #   articutool_ros2        lrainb/articutool-dev-primitive-dump  c8dbf3a7ec88d50703e3416b47588376bf6856af
 #
 # Not pinned here: apt package versions, other pip and npm versions, and model
-# weights. CI records those as artifacts (#6). The base image is pinned in the
-# Dockerfile.
+# weights. CI records those as artifacts (#6). The base image and rosdep's key
+# database are pinned in the Dockerfile.
