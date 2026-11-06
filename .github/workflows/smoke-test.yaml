@@ -1,0 +1,45 @@
+# Copyright (c) 2026, Personal Robotics Laboratory
+# License: BSD 3-Clause. See LICENSE.md file in root directory.
+
+# Builds the Docker image from a clean checkout, without robot hardware or
+# lab credentials, and runs one simulated feeding session (smoke_test/).
+# The build log, the exact source commits and package versions, and the
+# session's logs, events, and screenshots are kept as an artifact.
+
+name: smoke-test
+
+on:
+  push:
+    branches:
+      - ros2-devel
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      # The image is about 13 GB; the runner starts with less free disk.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker system prune -af
+          df -h /
+
+      - name: Build the image and run one feeding session
+        run: ./smoke_test/run.sh smoke_test/artifacts/ci
+
+      - name: Keep the artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test
+          path: smoke_test/artifacts/ci
+          retention-days: 30
