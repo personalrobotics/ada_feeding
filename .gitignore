@@ -102,3 +102,6 @@ ada_feeding/scripts/camera_poses.json
 
 # Ignore screenshots directory at the root
 screenshots/
+
+# Smoke test outputs
+smoke_test/artifacts/
