@@ -1,0 +1,79 @@
+{
+  "name": "feedingwebapp",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@fluentui/react-components": "^9.44.1",
+    "@mapbox/node-pre-gyp": "^1.0.11",
+    "@testing-library/jest-dom": "^5.16.4",
+    "@testing-library/react": "^13.2.0",
+    "@testing-library/user-event": "^13.5.0",
+    "axios": "^1.6.5",
+    "body-parser": "^1.20.2",
+    "bootstrap": "^5.1.3",
+    "caniuse-lite": "^1.0.30001579",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "mdb-react-ui-kit": "^3.0.0",
+    "minimist": "^1.2.8",
+    "playwright": "^1.40.1",
+    "prop-types": "^15.8.1",
+    "react": "^18.1.0",
+    "react-bootstrap": "^2.3.1",
+    "react-dom": "^18.1.0",
+    "react-hook-form": "^7.43.9",
+    "react-native-web": "^0.19.4",
+    "react-responsive": "^9.0.2",
+    "react-router-dom": "^6.3.0",
+    "react-script-tag": "^1.1.2",
+    "react-scripts": "^5.0.1",
+    "react-split-pane": "^0.1.92",
+    "react-svg-path": "^1.14.0",
+    "react-toastify": "^9.0.7",
+    "roslib": "github:personalrobotics/roslibjs",
+    "rosreact": "^0.2.0",
+    "segfault-handler": "^1.3.0",
+    "styled-components": "^5.3.9",
+    "web-vitals": "^2.1.4",
+    "webpack": "^5.82.1",
+    "wrtc": "^0.4.7",
+    "zustand": "^4.0.0-rc.1"
+  },
+  "scripts": {
+    "start": "PORT=3000 react-scripts start",
+    "start-no-lint-errors": "ESLINT_NO_DEV_ERRORS=true PORT=3000 react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "lint:fix": "eslint  \"{,!(node_modules)/**/}*.{js,jsx}\" --fix",
+    "prettier:fix": "prettier \"{,!(node_modules)/**/}*.{js,jsx,css}\" --write --config ./.prettierrc --ignore-path ./.gitignore",
+    "format": "npm run prettier:fix && npm run lint:fix"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "eslint": "^8.38.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-config-react-app": "^7.0.1",
+    "eslint-plugin-prettier": "^4.2.1",
+    "eslint-plugin-react": "^7.32.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "prettier": "^2.8.7"
+  }
+}

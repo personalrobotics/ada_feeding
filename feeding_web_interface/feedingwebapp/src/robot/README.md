@@ -1,0 +1,3 @@
+# Robot Components
+
+The components in this folder are unique, in that they are intended to be run on a browser **on the same computer as the robot code**. These components subscribe directly to a ROS `CompressedImage` stream and render it in the browser. They then publish that stream via WebRTC to clients. The reason this works is that the subscription to the image topic happens on the same computer as their publication, and thus does not take up internet bandwidth. The publication to a client does go over the internet, but WebRTC handles latency and compression, ensuring efficient video transmission.
