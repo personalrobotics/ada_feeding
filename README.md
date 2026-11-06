@@ -96,23 +96,14 @@ mkdir -p ada_ws/src
 cd ada_ws/src
 ```
 
-2. **Clone the installer tool:** **Note:** We must use the `jjaime2/articutool-ros-install` branch to get the correct `.rosinstall` file.
+2. **Download all source code:** Clone this repository, then import every other repository at its pinned commit.
 
 ```
-# Clone the pr-rosinstalls repo and check out the articutool branch
-git clone --branch jjaime2/articutool-ros-install https://github.com/personalrobotics/pr-rosinstalls.git
-```
+# Install vcstool if not already on the host machine
+sudo apt install python3-vcstool
 
-3. **Download all source code:**
-
-```
-# Install wstool if not already on the host machine
-sudo apt install python3-wstool
-
-# Download all repos specified in the .rosinstall file
-wstool init
-wstool merge pr-rosinstalls/articutool.https.rosinstall
-wstool up
+git clone https://github.com/personalrobotics/ada_feeding.git
+vcs import . < ada_feeding/ada.repos
 ```
 
 You now have your `~/ada_ws/src` directory where you can edit files and manage git branches.
@@ -169,7 +160,7 @@ docker run -it --rm \
   -e DISPLAY=$DISPLAY \
   -v /tmp/.X11-unix:/tmp/.X11-unix \
   -v ~/ada_ws/src:/home/ros/colcon_ws/src \
-  -v /home/ros/colcon_ws/src/feeding_web_interface/feedingwebapp/node_modules \
+  -v /home/ros/colcon_ws/src/ada_feeding/feeding_web_interface/feedingwebapp/node_modules \
   --add-host=babbage:192.168.4.50 \
   --add-host=nano:192.168.4.4 \
   articutool-dev
@@ -215,6 +206,37 @@ python3 src/ada_feeding/start.py --sim <MODE> --dev --action <INDEX>
 
 You can access the web interface in a browser on your host machine at `http://localhost:3000` (when using `--dev` or `--sim mock`).
 
+### **Dummy Mode on Any Machine (macOS or Linux)**
+
+To run the web app against dummy perception and motion nodes, without a robot or lab network, build the simulation image (Part 1, step 4) and then run these commands.
+
+```
+docker run -it --rm \
+  -p 3000:3000 -p 5000:5000 -p 9090:9090 \
+  -e CYCLONEDDS_URI='<CycloneDDS><Domain><General><Interfaces><NetworkInterface name="lo" multicast="true"/></Interfaces></General></Domain></CycloneDDS>' \
+  articutool-dev
+
+# Then, inside the container
+python3 src/ada_feeding/start.py --sim dummy
+```
+
+Then open `http://localhost:3000`. The `CYCLONEDDS_URI` override keeps ROS 2 traffic on the container's loopback interface. The default `cyclonedds.xml` names the robot computer's network interface, which other machines don't have.
+
+### **Smoke Test**
+
+One command builds the image from this checkout and runs one simulated feeding session in dummy mode, driven through the web app by a headless browser. It needs only Docker.
+
+```
+./smoke_test/run.sh
+```
+
+The session starts feeding, pauses and resumes a motion (canceling its goal), selects food, acquires it, transfers it to the mouth, and finishes the meal. If a process never starts or a step doesn't complete, the test fails with a message naming it. Each run saves these results in `smoke_test/artifacts/<timestamp>/`.
+
+- `result.json` (each step), `events.jsonl` (each meal-state change), and `rosbag/` (each action's goal status)
+- `screenshots/` and `video/`
+- `logs/` (each `screen` session, ROS, and the browser console)
+- `config/` (environment, exact source commits, and package versions)
+
 ## **Manual Setup (Archival / For Docker Development)**
 
 **Note:** These instructions are preserved for historical reference and for developers who are debugging the Dockerfile itself. For all normal development, demos, and research, please use the Docker setup above.
@@ -225,21 +247,19 @@ You can access the web interface in a browser on your host machine at `http://lo
 
    1. **NOTE**: In the remainder of the instructions, replace `~\colcon_ws` with the path to your workspace.
 
-2. Configure [`pr-rosinstalls`](https://github.com/personalrobotics/pr-rosinstalls) in order to download all necessary repositories.
+2. Clone this repository into your workspace.
 
    ```
-    cd ~
-    git clone https://github.com/personalrobotics/pr-rosinstalls.git
-   ```
-
-3. Pull all the repositories, with the correct branch. Replace `<https/ssh>` with one of the options, depending on your authentication method.
-
-   ```
-    sudo apt install python3-wstool # if not already installed
     cd ~/colcon_ws/src
-    wstool init
-    wstool merge ~/pr-rosinstalls/ada-feeding.<https/ssh>.rosinstall
-    wstool up
+    git clone https://github.com/personalrobotics/ada_feeding.git
+   ```
+
+3. Pull every other repository at the commit pinned in [`ada.repos`](ada.repos).
+
+   ```
+    sudo apt install python3-vcstool # if not already installed
+    cd ~/colcon_ws/src
+    vcs import . < ada_feeding/ada.repos
    ```
 
 4. Configure [`rosdep`](https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html):
@@ -327,7 +347,7 @@ If you change the e-stop button, the e-stop button's adapter(s), and/or the devi
 5. Install the web app dependencies. (Note: there will be some vulnerabilities in dependencies. This is okay, since access to the web app is shielded behind our secure router.)
 
    ```
-    cd ~/colcon_ws/src/feeding_web_interface/feedingwebapp
+    cd ~/colcon_ws/src/ada_feeding/feeding_web_interface/feedingwebapp
     npm install --legacy-peer-deps
     npx playwright install
    ```
