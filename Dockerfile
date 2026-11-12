@@ -1,16 +1,12 @@
 # 1. Start from the official ROS 2 Humble base image
 FROM ros:humble-ros-base@sha256:dfc94c85d8e01f230951b2a85ca5576e08473081c3da5fbbe8f3ab844703b9ba
 
-# Add a default rosinstall file argument
-ARG ROSINSTALL_FILE=articutool.https.rosinstall
-
 # Set non-interactive mode for apt to prevent it from hanging
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install core tools
 RUN apt-get update && apt-get install -y \
     git \
-    python3-wstool \
     python3-rosdep \
     unzip \
     curl \
@@ -95,39 +91,33 @@ USER ros
 ENV HOME=/home/ros
 WORKDIR $HOME
 
-# 4. Configure pr-rosinstalls
-RUN git clone --branch jjaime2/articutool-ros-install https://github.com/personalrobotics/pr-rosinstalls.git $HOME/pr-rosinstalls
+# 4. Get the source (this checkout and every repository in ada.repos)
 RUN mkdir -p $HOME/colcon_ws/src
-
-# 5. WORKDIR
-WORKDIR $HOME/colcon_ws/src
-
-# 6. wstool init
-RUN wstool init
-
-# 7. wstool merge
-RUN wstool merge $HOME/pr-rosinstalls/$ROSINSTALL_FILE
-
-# 8. wstool up
-RUN wstool up
-
-# 9. WORKDIR
 WORKDIR $HOME/colcon_ws
+COPY --chown=ros:ros ada.repos /tmp/ada.repos
+RUN vcs import --input /tmp/ada.repos src
+COPY --chown=ros:ros . src/ada_feeding
 
-# 10. rosdep update
-RUN rosdep update
+# 10. rosdep update, with rosdep's key database pinned to a rosdistro commit.
+#    Upstream later removed keys this workspace uses (ros/rosdistro#51719, #51720).
+ARG ROSDISTRO_COMMIT=72e6c7ae6a347bed3ab2230657802d26cb9e5bd1
+ENV ROSDISTRO_INDEX_URL=https://raw.githubusercontent.com/ros/rosdistro/${ROSDISTRO_COMMIT}/index-v4.yaml
+RUN sudo sed -i "s#ros/rosdistro/master/#ros/rosdistro/${ROSDISTRO_COMMIT}/#" \
+      /etc/ros/rosdep/sources.list.d/20-default.list && \
+    rosdep update
 
-# 11. rosdep install
-RUN rosdep install --from-paths src -y --ignore-src --as-root=pip:false
+# 11. rosdep install, refreshing apt's lists first since cached ones go stale
+RUN sudo apt-get update && \
+    rosdep install --from-paths src -y --ignore-src --as-root=pip:false
 
-# 12. COPY Kinova SDK
-COPY kinova_sdk.zip /tmp/
-
-# 13. Install Kinova SDK
-RUN cd /tmp && \
-    unzip kinova_sdk.zip && \
-    sudo dpkg -i "Ubuntu/16_04/64 bits/KinovaAPI-6.1.0-amd64.deb" && \
-    sudo rm -rf /tmp/*
+# 12. Install the Kinova SDK (real robot only, x86 only, needs kinova_sdk.zip)
+ARG WITH_KINOVA_SDK=false
+RUN if [ "$WITH_KINOVA_SDK" = true ]; then \
+      cd /tmp && \
+      unzip $HOME/colcon_ws/src/ada_feeding/kinova_sdk.zip && \
+      sudo dpkg -i "Ubuntu/16_04/64 bits/KinovaAPI-6.1.0-amd64.deb" && \
+      sudo rm -rf /tmp/*; \
+    fi
 
 # 14. Setup NVM
 ENV NVM_DIR=$HOME/.nvm
@@ -151,11 +141,12 @@ WORKDIR $HOME/colcon_ws/src/feeding_web_interface/feedingwebapp
 RUN . "$NVM_DIR/nvm.sh" && npm install --legacy-peer-deps
 RUN . "$NVM_DIR/nvm.sh" && npx playwright install
 
-# 18. Build workspace
+# 18. Build workspace (skipping ada_hardware without the Kinova SDK)
 WORKDIR $HOME/colcon_ws
 RUN . /opt/ros/humble/setup.sh && \
     . "$NVM_DIR/nvm.sh" && \
-    colcon build --symlink-install
+    colcon build --symlink-install \
+      $([ "$WITH_KINOVA_SDK" = true ] || echo --packages-skip ada_hardware)
 
 # Force 'screen' to always use bash for interactive shells
 RUN echo "shell /bin/bash" > /home/ros/.screenrc

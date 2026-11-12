@@ -39,18 +39,16 @@ This must be performed once by a lab admin on any new host machine.
 
 ### **2. Get Project Files (For Building)**
 
-The admin only needs this repo to get the `Dockerfile`.
-**Note:** The Articutool project files are currently on feature branches. This step pulls the specific branch needed for the build.
+The admin only needs this repo. The build fetches every other repository at the exact commit pinned in [`ada.repos`](ada.repos).
 
 ```
-# Clone the ada_feeding repo and check out the integration branch
-git clone --branch jjaime2/articutool-integration https://github.com/personalrobotics/ada_feeding.git
+git clone https://github.com/personalrobotics/ada_feeding.git
 cd ada_feeding
 ```
 
-### **3. Download Kinova SDK**
+### **3. Download Kinova SDK (Real Robot Only)**
 
-The Docker build requires the Kinova Gen2 SDK.
+Only the real-robot build needs the Kinova Gen2 SDK. It is x86-only. Skip this step for simulation.
 
 1. Download `PS 0000 0009_1.5.1.zip` (Gen2 SDK v1.5.1) from the lab's Google Drive or Kinova.
 2. Rename and place it in the `ada_feeding` directory you just cloned.
@@ -62,10 +60,14 @@ mv ~/Downloads/"PS 0000 0009_1.5.1.zip" ./kinova_sdk.zip
 
 ### **4. Build the Shared Docker Image**
 
-Build the Articutool version of the project and tag it as `articutool-dev`. All researchers on this machine share this image.
+Build the project and tag it as `articutool-dev`. All researchers on this machine share this image.
 
 ```
-docker build . --build-arg ROSINSTALL_FILE=articutool.https.rosinstall -t articutool-dev
+# For the real robot, which needs kinova_sdk.zip from step 3
+docker build . --build-arg WITH_KINOVA_SDK=true -t articutool-dev
+
+# For simulation only, which skips ada_hardware (the JACO2 driver)
+docker build . -t articutool-dev
 ```
 
 The admin setup is now complete. The `articutool-dev` image is available for all users on the machine.
